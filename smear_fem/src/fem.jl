@@ -104,16 +104,24 @@ module fem
         """
         # (I,J,V) vectors for COO sparse matrix
         if FunctionClass == "Q1"
-            E = zeros(Int64, (2^ndim*ne)^ndim)
-            J = zeros(Int64, (2^ndim*ne)^ndim)
-            V = zeros(Float64, (2^ndim*ne)^ndim)
+            E = zeros(Int64, (4*ne)^ndim)
+            J = zeros(Int64, (4*ne)^ndim)
+            V = zeros(Float64, (4*ne)^ndim)
         elseif FunctionClass == "Q2"
-            E = zeros(Int64, (3^ndim*ne)^ndim)
-            J = zeros(Int64, (3^ndim*ne)^ndim)
-            V = zeros(Float64, (3^ndim*ne)^ndim)  
+            E = zeros(Int64, (9*ne)^ndim)
+            J = zeros(Int64, (9*ne)^ndim)
+            V = zeros(Float64, (9*ne)^ndim)  
         end
+
         # element loop
-        if ndim == 2
+        if ndim == 1
+            # gaussian quadrature points for the element [-1,1] 
+            ξ, w_ξ = gaussian_quadrature(-1,1)
+            
+            wpoints = [w_ξ[1], w_ξ[2]]
+            
+            x = [ξ[1], ξ[2]]
+        elseif ndim == 2
             # gaussian quadrature points for the element [-1,1]x[-1,1] 
             ξ, w_ξ = gaussian_quadrature(-1,1)
             η, w_η = gaussian_quadrature(-1,1)
@@ -141,7 +149,13 @@ module fem
             
             # integration loop
             for gp in 1:2^ndim
-                N, ΔN = basis_function(x[gp],y[gp], nothing, FunctionClass) 
+                if ndim == 1
+                    N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass)
+                elseif ndim == 2
+                    N, ΔN = basis_function(x[gp],y[gp], nothing, FunctionClass) 
+                elseif ndim == 3
+                    N, ΔN = basis_function(x[gp],y[gp],z[gp], FunctionClass) 
+                end
 
                 Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
 
@@ -153,7 +167,7 @@ module fem
                 # loop between basis functions of the element
                 for i in 1:szN
                     for j in 1:szN
-                        inz = (szN)^ndim*(e-1) + szN*(i-1) + j # index for the COO sparse matrix
+                        inz = (szN)^2*(e-1) + szN*(i-1) + j # index for the COO sparse matrix
                         E[inz] = IEN[e,i] # row index 
                         J[inz] = IEN[e,j] # column index
                         V[inz] += w*dot(dNdX[i,:],dNdX[j,:])# inner product of the gradient of the basis functions
