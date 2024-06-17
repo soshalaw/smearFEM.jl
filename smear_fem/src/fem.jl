@@ -66,9 +66,9 @@ module fem
         """
         # (I,J,V) vectors for COO sparse matrix
 
-        E = zeros(Int64, (2^2*ne)^ndim)
-        J = zeros(Int64, (2^2*ne)^ndim)
-        V = zeros(Float64, (2^2*ne)^ndim)
+        E = zeros(Int64, (4*ne)^ndim)
+        J = zeros(Int64, (4*ne)^ndim)
+        V = zeros(Float64, (4*ne)^ndim)
 
         # element loop
         if ndim == 2
