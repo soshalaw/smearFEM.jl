@@ -20,85 +20,104 @@ module fem
         return ξ, w
     end
 
-    function basis_function_glob(x1, x2, y1, y2, x, y, h)
-        """ Define local basis functions and the gradients for a square element [x1,x2]x[y1,y2]
-            x1, x2, y1, y2 are the coordinates of the lower left corner of the element
-            x, y are the coordinates of the point where the basis function is evaluated
-            h is the size of the element
+    function basis_function(ξ,η=nothing,ζ=nothing)
+        """ Define the basis functions and the gradients for a master element
+            xi, eta, zeta are the coordinates of the point where the basis function is evaluated
+            FunctionClass is the type of basis functions to be considered
             
             Returns:
             N: basis functions {[ndof] Vector{Float64}}
             Delta_N: gradient of the basis functions {[ndof,ndim] Matrix{Float64}}
         """
-
-        N = [(x-x1)*(y-y1)/(h^2), (x-x1)*(y2-y)/(h^2), (x2-x)*(y-y1)/(h^2), (x2-x)*(y2-y)/(h^2)]
-
-        Delta_N = [[(y-y1)/(h^2) , (y2-y)/(h^2), -(y-y1)/(h^2), -(y2-y)/(h^2)] [(x-x1)/(h^2), -(x-x1)/(h^2), (x2-x)/(h^2), -(x2-x)/(h^2)]]
-
-        return N, Delta_N
-    end 
-
-    function basis_function(x, y)
-        
-        """ Define local basis functions and the gradients for a square element [-1,1]x[-1,1]
-            x, y are the coordinates of the point where the basis function is evaluated
-            
-            Returns:
-            N: basis functions {[ndof] Vector{Float64}} 
-            Delta_N: gradient of the basis functions {[ndof,ndim] Matrix{Float64}}
-        """
-        
+        if !isnothing(ζ) # Considering a 3D master element
             # basis functions
-            N = [(1-x)*(1-y)/4, (x+1)*(1-y)/4, (1+x)*(y+1)/4, (1-x)*(1+y)/4]
-        
+            N = [(1-ξ)*(1-η)*(1-ζ)/8, 
+                (1+ξ)*(1-η)*(1-ζ)/8, 
+                (1+ξ)*(1+η)*(1-ζ)/8, 
+                (1-ξ)*(1+η)*(1-ζ)/8, 
+                (1-ξ)*(1-η)*(1+ζ)/8, 
+                (1+ξ)*(1-η)*(1+ζ)/8, 
+                (1+ξ)*(1+η)*(1+ζ)/8, 
+                (1-ξ)*(1+η)*(1+ζ)/8]
+
             # gradient of the basis functions
-            Delta_N = [[-(1-y)/4 , (1-y)/4, (y+1)/4, -(1+y)/4] [-(1-x)/4, -(x+1)/4, (1+x)/4, (1-x)/4] ]
-        
-            return N, Delta_N
-    end 
+            ΔN = [[-(1-η)*(1-ζ)/8, (1-η)*(1-ζ)/8, (1+η)*(1-ζ)/8, -(1+η)*(1-ζ)/8, -(1-η)*(1+ζ)/8, (1-η)*(1+ζ)/8, (1+η)*(1+ζ)/8, -(1+η)*(1+ζ)/8] [-(1-ξ)*(1-ζ)/8, -(1+ξ)*(1-ζ)/8, (1+ξ)*(1-ζ)/8, (1-ξ)*(1-ζ)/8, -(1-ξ)*(1+ζ)/8, -(1+ξ)*(1+ζ)/8, (1+ξ)*(1+ζ)/8, (1-ξ)*(1+ζ)/8] [-(1-ξ)*(1-η)/8, -(1+ξ)*(1-η)/8, -(1+ξ)*(1+η)/8, -(1-ξ)*(1+η)/8, (1-ξ)*(1-η)/8, (1+ξ)*(1-η)/8, (1+ξ)*(1+η)/8, (1-ξ)*(1+η)/8]]  # [dN/dxi dN/deta dN/dzeta]
+        elseif !isnothing(η) # Considering a 2D master element
+            # basis functions
+            N = [(1-ξ)*(1-η)/4, (ξ+1)*(1-η)/4, (1+ξ)*(η+1)/4, (1-ξ)*(1+η)/4]
 
-    function assemble_system(ne, NodeList, IEN)
-        """ Assembles the finite element system. Returns the gloval stiffness matrix
+            # gradient of the basis functions
+            ΔN = [[-(1-η)/4 , (1-η)/4, (η+1)/4, -(1+η)/4] [-(1-ξ)/4, -(ξ+1)/4, (1+ξ)/4, (1-ξ)/4] ]
+        else # Considering a 1D master element
+            # basis functions
+            N  = [0.5-0.5*ξ, 0.5+0.5*ξ]
 
+            # gradient of the basis functions
+            ΔN = [-0.5 0.5]
+        end
+        return N, ΔN
+    end
+
+    function assemble_system(ne, NodeList, IEN, ndim)
+        """ Assembles the finite element system. Returns the global stiffness matrix
+    
             Returns:
-            K: sparse stiffness matrix [ndof,ndof] SparseMatrixCSC{Float64,Int64}
+            K: sparse stiffness matrix {[ndof,ndof] SparseMatrixCSC{Float64,Int64}}
         """
         # (I,J,V) vectors for COO sparse matrix
-        E = zeros(Int64, 16*ne*ne)
-        J = zeros(Int64, 16*ne*ne)
-        V = zeros(Float64, 16*ne*ne)
 
-        v = 0
+        E = zeros(Int64, (2^2*ne)^ndim)
+        J = zeros(Int64, (2^2*ne)^ndim)
+        V = zeros(Float64, (2^2*ne)^ndim)
+
         # element loop
-        b = zeros((ne+1)*(ne+1),1)
-
-        for e in 1:ne*ne
-
+        if ndim == 2
             # gaussian quadrature points for the element [-1,1]x[-1,1] 
-            xi, w_xi = gaussian_quadrature(-1,1)
-            eta, w_eta = gaussian_quadrature(-1,1)
-
-            wpoints = [w_xi[1]*w_eta[1], w_xi[2]*w_eta[1], w_xi[2]*w_eta[2], w_xi[1]*w_eta[2]]
+            ξ, w_ξ = gaussian_quadrature(-1,1)
+            η, w_η = gaussian_quadrature(-1,1)
             
-            x = [xi[1], xi[2], xi[2], xi[1]]
-            y = [eta[1], eta[1], eta[2], eta[2]]
-
+            wpoints = [w_ξ[1]*w_η[1], w_ξ[2]*w_η[1], w_ξ[2]*w_η[2], w_ξ[1]*w_η[2]]
+            
+            x = [ξ[1], ξ[2], ξ[2], ξ[1]]
+            y = [η[1], η[1], η[2], η[2]]
+    
+        elseif ndim == 3
+            # gaussian quadrature points for the element [-1,1]x[-1,1]x[-1,1] 
+            ξ, w_ξ = gaussian_quadrature(-1,1)
+            η, w_η = gaussian_quadrature(-1,1)
+            ζ, w_ζ = gaussian_quadrature(-1,1)
+            
+            wpoints = [w_ξ[1]*w_η[1]*w_ζ[1], w_ξ[2]*w_η[1]*w_ζ[1], w_ξ[2]*w_η[2]*w_ζ[1], w_ξ[1]*w_η[2]*w_ζ[1], w_ξ[1]*w_η[1]*w_ζ[2], w_ξ[2]*w_η[1]*w_ζ[2], w_ξ[2]*w_η[2]*w_ζ[2], w_ξ[1]*w_η[2]*w_ζ[2]]
+            
+            x = [ξ[1], ξ[2], ξ[2], ξ[1], ξ[1], ξ[2], ξ[2], ξ[1]]
+            y = [η[1], η[1], η[2], η[2], η[1], η[1], η[2], η[2]]
+            z = [ζ[1], ζ[1], ζ[1], ζ[1], ζ[2], ζ[2], ζ[2], ζ[2]]
+        end
+    
+        for e in 1:ne^ndim
+    
             coords = NodeList[:,IEN[e,:]] # get the coordinates of the nodes of the element
             
             # integration loop
-            for gp in 1:4
-                N, Delta_N = basis_function(x[gp],y[gp]) 
+            for gp in 1:2^ndim
 
-                Jac  = coords*Delta_N # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
-
+                if ndim == 2
+                    N, ΔN = basis_function(x[gp], y[gp])
+                elseif ndim == 3    
+                    N, ΔN = basis_function(x[gp], y[gp], z[gp])
+                end
+    
+                Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
+    
                 w = wpoints[gp]*abs(det(Jac))
                 invJ = inv(Jac)
-                dNdX = Delta_N*invJ
+                dNdX = ΔN*invJ
                 
+                szN = size(N,1) # number of basis functions
                 # loop between basis functions of the element
-                for i in 1:4
-                    for j in 1:4
-                        inz = 16*(e-1) + 4*(i-1) + j # index for COO sparse matrix
+                for i in 1:szN
+                    for j in 1:szN
+                        inz = (szN)^2*(e-1) + szN*(i-1) + j # index for the COO sparse matrix
                         E[inz] = IEN[e,i] # row index 
                         J[inz] = IEN[e,j] # column index
                         V[inz] += w*dot(dNdX[i,:],dNdX[j,:])# inner product of the gradient of the basis functions
@@ -106,9 +125,9 @@ module fem
                 end
             end
         end
-
+    
         K = sparse(E,J,V)
-
+    
         return K
     end
 

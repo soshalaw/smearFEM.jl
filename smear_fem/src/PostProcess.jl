@@ -45,7 +45,7 @@ module PostProcess
         return new_cmap
     end
 
-    function write_vtk(fileName, fieldName, NodeList, IEN, ne, q1)
+    function write_vtk(fileName, fieldName, NodeList, IEN, ne, ndim, q)
         """Function to write the solution to a VTK file
         
         Parameters:
@@ -58,13 +58,20 @@ module PostProcess
         
         """
 
-        cellType = VTKCellTypes.VTK_QUAD
+        if ndim == 1
+            cellType = VTKCellTypes.VTK_LINE
+        elseif ndim == 2
+            cellType = VTKCellTypes.VTK_QUAD
+        elseif ndim == 3
+            cellType = VTKCellTypes.VTK_HEXAHEDRON
+        end
         
-        cells = [MeshCell(cellType,IEN[e,:]) for e in 1:ne^2]
+        cells = [MeshCell(cellType,IEN[e,:]) for e in 1:ne^ndim]
 
         vtk_grid(fileName, NodeList, cells) do vtk
-            vtk[fieldName] = q1
+            vtk[fieldName] = q
 
         end
     end 
+
 end # module PostProcess
