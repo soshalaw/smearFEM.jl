@@ -103,15 +103,9 @@ module fem
             K: sparse stiffness matrix {[ndof,ndof] SparseMatrixCSC{Float64,Int64}}
         """
         # (I,J,V) vectors for COO sparse matrix
-        if FunctionClass == "Q1"
-            E = zeros(Int64, (4*ne)^ndim)
-            J = zeros(Int64, (4*ne)^ndim)
-            V = zeros(Float64, (4*ne)^ndim)
-        elseif FunctionClass == "Q2"
-            E = zeros(Int64, (9*ne)^ndim)
-            J = zeros(Int64, (9*ne)^ndim)
-            V = zeros(Float64, (9*ne)^ndim)  
-        end
+        E = zeros(  Int64, ne^ndim*size(IEN,2)^2)
+        J = zeros(  Int64, ne^ndim*size(IEN,2)^2)
+        V = zeros(Float64, ne^ndim*size(IEN,2)^2)
 
         # element loop
         if ndim == 1
