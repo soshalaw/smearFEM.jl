@@ -10,6 +10,10 @@ module fem
         """ Compute the nodes and weights for the Gaussian quadrature of order 2
             a, b are the limits of the integration interval
             
+            Parameters:
+            a: lower limit of the integration interval
+            b: upper limit of the integration interval
+
             Returns:    
             ξ: nodes [nGaussPoints]-element Vector{Float64}
             w: weights [nGaussPoints]-element Vector{Float64}
@@ -22,15 +26,46 @@ module fem
 
     function basis_function(ξ,η=nothing,ζ=nothing,FunctionClass = "Q1")
         """ Define the basis functions and the gradients for a master element
-            xi, eta, zeta are the coordinates of the point where the basis function is evaluated
-            FunctionClass is the type of basis functions to be considered
+
+            Parameters:
+            ξ: ξ coordinate of the point where the basis function is evaluated
+            η: η coordinate of the point where the basis function is evaluated
+            ζ: ζ coordinate of the point where the basis function is evaluated
+            FunctionClass: type of basis functions to be considered (Q1:quadratic or Q2:Lagrange)
             
             Returns:
-            N: basis functions {[ndof] Vector{Float64}}
-            Delta_N: gradient of the basis functions {[ndof,ndim] Matrix{Float64}}
+            N:  {[ndof] Vector{Float64}} : basis functions
+            Delta_N: {[ndof,ndim] Matrix{Float64}}: gradient of the basis functions 
         """
         
-        if FunctionClass == "Q2"
+        if FunctionClass == "Q1"
+            if !isnothing(ζ) # Considering a 3D master element
+                # basis functions
+                N = [(1-ξ)*(1-η)*(1-ζ)/8, 
+                    (1+ξ)*(1-η)*(1-ζ)/8, 
+                    (1+ξ)*(1+η)*(1-ζ)/8, 
+                    (1-ξ)*(1+η)*(1-ζ)/8, 
+                    (1-ξ)*(1-η)*(1+ζ)/8, 
+                    (1+ξ)*(1-η)*(1+ζ)/8, 
+                    (1+ξ)*(1+η)*(1+ζ)/8, 
+                    (1-ξ)*(1+η)*(1+ζ)/8]
+    
+                # gradient of the basis functions
+                ΔN = [[-(1-η)*(1-ζ)/8, (1-η)*(1-ζ)/8, (1+η)*(1-ζ)/8, -(1+η)*(1-ζ)/8, -(1-η)*(1+ζ)/8, (1-η)*(1+ζ)/8, (1+η)*(1+ζ)/8, -(1+η)*(1+ζ)/8] [-(1-ξ)*(1-ζ)/8, -(1+ξ)*(1-ζ)/8, (1+ξ)*(1-ζ)/8, (1-ξ)*(1-ζ)/8, -(1-ξ)*(1+ζ)/8, -(1+ξ)*(1+ζ)/8, (1+ξ)*(1+ζ)/8, (1-ξ)*(1+ζ)/8] [-(1-ξ)*(1-η)/8, -(1+ξ)*(1-η)/8, -(1+ξ)*(1+η)/8, -(1-ξ)*(1+η)/8, (1-ξ)*(1-η)/8, (1+ξ)*(1-η)/8, (1+ξ)*(1+η)/8, (1-ξ)*(1+η)/8]]  # [dN/dxi dN/deta dN/dzeta]
+            elseif !isnothing(η) # Considering a 2D master element
+                # basis functions
+                N = [(1-ξ)*(1-η)/4, (ξ+1)*(1-η)/4, (1+ξ)*(η+1)/4, (1-ξ)*(1+η)/4]
+    
+                # gradient of the basis functions
+                ΔN = [[-(1-η)/4 , (1-η)/4, (η+1)/4, -(1+η)/4] [-(1-ξ)/4, -(ξ+1)/4, (1+ξ)/4, (1-ξ)/4] ]
+            else # Considering a 1D master element
+                # basis functions
+                N  = [0.5-0.5*ξ, 0.5+0.5*ξ]
+    
+                # gradient of the basis functions
+                ΔN = [-0.5 0.5]
+            end
+        elseif FunctionClass == "Q2"
             if !isnothing(η) # Considering a 2D master element
                 # basis functions
                 N = [(1-ξ)*ξ*(1-η)*η/4, 
@@ -65,52 +100,36 @@ module fem
             
                 ΔN = [Delta_Nx Delta_Ny] # [dN/dξ dN/dη]
             end
-        elseif FunctionClass == "Q1"
-            if !isnothing(ζ) # Considering a 3D master element
-                # basis functions
-                N = [(1-ξ)*(1-η)*(1-ζ)/8, 
-                    (1+ξ)*(1-η)*(1-ζ)/8, 
-                    (1+ξ)*(1+η)*(1-ζ)/8, 
-                    (1-ξ)*(1+η)*(1-ζ)/8, 
-                    (1-ξ)*(1-η)*(1+ζ)/8, 
-                    (1+ξ)*(1-η)*(1+ζ)/8, 
-                    (1+ξ)*(1+η)*(1+ζ)/8, 
-                    (1-ξ)*(1+η)*(1+ζ)/8]
-    
-                # gradient of the basis functions
-                ΔN = [[-(1-η)*(1-ζ)/8, (1-η)*(1-ζ)/8, (1+η)*(1-ζ)/8, -(1+η)*(1-ζ)/8, -(1-η)*(1+ζ)/8, (1-η)*(1+ζ)/8, (1+η)*(1+ζ)/8, -(1+η)*(1+ζ)/8] [-(1-ξ)*(1-ζ)/8, -(1+ξ)*(1-ζ)/8, (1+ξ)*(1-ζ)/8, (1-ξ)*(1-ζ)/8, -(1-ξ)*(1+ζ)/8, -(1+ξ)*(1+ζ)/8, (1+ξ)*(1+ζ)/8, (1-ξ)*(1+ζ)/8] [-(1-ξ)*(1-η)/8, -(1+ξ)*(1-η)/8, -(1+ξ)*(1+η)/8, -(1-ξ)*(1+η)/8, (1-ξ)*(1-η)/8, (1+ξ)*(1-η)/8, (1+ξ)*(1+η)/8, (1-ξ)*(1+η)/8]]  # [dN/dxi dN/deta dN/dzeta]
-            elseif !isnothing(η) # Considering a 2D master element
-                # basis functions
-                N = [(1-ξ)*(1-η)/4, (ξ+1)*(1-η)/4, (1+ξ)*(η+1)/4, (1-ξ)*(1+η)/4]
-    
-                # gradient of the basis functions
-                ΔN = [[-(1-η)/4 , (1-η)/4, (η+1)/4, -(1+η)/4] [-(1-ξ)/4, -(ξ+1)/4, (1+ξ)/4, (1-ξ)/4] ]
-            else # Considering a 1D master element
-                # basis functions
-                N  = [0.5-0.5*ξ, 0.5+0.5*ξ]
-    
-                # gradient of the basis functions
-                ΔN = [-0.5 0.5]
-            end
         end
         return N, ΔN
     end
 
-    function assemble_system(ne, NodeList, IEN, ndim, FunctionClass)
+    function assemble_system(ne, NodeList, IEN, ndim, nDof=1, FunctionClass="Q1", ID=None, Young=1, ν=0.3)
         """ Assembles the finite element system. Returns the global stiffness matrix
 
+            Parameters:
+            ne: {Int} : number of elements in each direction
+            NodeList: {[ndim,nNodes] Matrix{Float64}} : coordinates of the nodes
+            IEN: {[nElements,nLocalNodes] Matrix{Int}} : connectivity matrix
+            ndim: {Int} : number of dimensions
+            nDof: {Int} : number of degree of freedom per node
+            FunctionClass: {String} : type of basis functions to be considered (Q1:quadratic or Q2:Lagrange)
+            ID: {[nNodes,nDof] Matrix{Int}} : matrix that maps the global degrees of freedom to the local degrees of freedom
+            Young: {Float64} : Young's modulus
+            ν: {Float64} : Poisson's ratio
+
             Returns:
-            K: sparse stiffness matrix {[ndof,ndof] SparseMatrixCSC{Float64,Int64}}
+            K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix 
         """
         # (I,J,V) vectors for COO sparse matrix
-        if FunctionClass == "Q1"
-            E = zeros(Int64, (4*ne)^ndim)
-            J = zeros(Int64, (4*ne)^ndim)
-            V = zeros(Float64, (4*ne)^ndim)
-        elseif FunctionClass == "Q2"
-            E = zeros(Int64, (9*ne)^ndim)
-            J = zeros(Int64, (9*ne)^ndim)
-            V = zeros(Float64, (9*ne)^ndim)  
+        if nDof == 1
+            E = zeros(  Int64, ne^ndim*size(IEN,2)^2)
+            J = zeros(  Int64, ne^ndim*size(IEN,2)^2)
+            V = zeros(Float64, ne^ndim*size(IEN,2)^2)
+        else
+            E = zeros(  Int64, ne^ndim*((size(ID,2)*2^ndim)^2))
+            J = zeros(  Int64, ne^ndim*((size(ID,2)*2^ndim)^2))
+            V = zeros(Float64, ne^ndim*((size(ID,2)*2^ndim)^2))  
         end
 
         # element loop
@@ -152,9 +171,9 @@ module fem
                 if ndim == 1
                     N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass)
                 elseif ndim == 2
-                    N, ΔN = basis_function(x[gp],y[gp], nothing, FunctionClass) 
+                    N, ΔN = basis_function(x[gp], y[gp], nothing, FunctionClass) 
                 elseif ndim == 3
-                    N, ΔN = basis_function(x[gp],y[gp],z[gp], FunctionClass) 
+                    N, ΔN = basis_function(x[gp], y[gp], z[gp], FunctionClass) 
                 end
 
                 Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
@@ -163,19 +182,61 @@ module fem
                 invJ = inv(Jac)
                 dNdX = ΔN*invJ
                 
-                szN = size(N,1) # number of basis functions
-                # loop between basis functions of the element
-                for i in 1:szN
-                    for j in 1:szN
-                        inz = (szN)^2*(e-1) + szN*(i-1) + j # index for the COO sparse matrix
-                        E[inz] = IEN[e,i] # row index 
-                        J[inz] = IEN[e,j] # column index
-                        V[inz] += w*dot(dNdX[i,:],dNdX[j,:])# inner product of the gradient of the basis functions
+                if nDof == 1
+                    szN = size(N,1) # number of basis functions
+                    # loop between basis functions of the element
+                    for i in 1:szN
+                        for j in 1:szN
+                            inz = (szN)^2*(e-1) + szN*(i-1) + j # index for the COO sparse matrix
+                            E[inz] = IEN[e,i] # row index 
+                            J[inz] = IEN[e,j] # column index
+                            V[inz] += w*dot(dNdX[i,:],dNdX[j,:])# inner product of the gradient of the basis functions
+                        end
+                    end
+                else   
+                    if nDof == 2
+                        B = zeros(3, ndim*length(N))
+                        B[1,1:nDof:end] = dNdX[:,1]
+                        B[2,2:nDof:end] = dNdX[:,2]
+                        B[3,1:nDof:end] = dNdX[:,2]
+                        B[3,2:nDof:end] = dNdX[:,1]
+
+                        cMat = [[Young/(1-ν^2) ν*Young/(1-ν^2) 0]; [ν*Young/(1-ν^2) Young/(1-ν^2) 0]; [0 0 Young/(2*(1+ν))]] # constitutive matrix for plane stress
+                    elseif nDof == 3
+                        B = zeros(6, ndim*length(N))
+                        B[1,1:nDof:end] = dNdX[:,1]
+                        B[2,2:nDof:end] = dNdX[:,2]
+                        B[3,3:nDof:end] = dNdX[:,3]
+                        B[4,2:nDof:end] = dNdX[:,3]
+                        B[4,3:nDof:end] = dNdX[:,2]
+                        B[5,1:nDof:end] = dNdX[:,3]
+                        B[5,3:nDof:end] = dNdX[:,1]
+                        B[6,1:nDof:end] = dNdX[:,2]
+                        B[6,2:nDof:end] = dNdX[:,1]
+
+                        cMat = [[1-ν ν ν 0 0 0]; [ν 1-ν ν 0 0 0]; [ν ν 1-ν 0 0 0]; [0 0 0 (1-2*ν)/2 0 0]; [0 0 0 0 (1-2*ν)/2 0]; [0 0 0 0 0 (1-2*ν)/2]]*(Young/((1+ν)*(1-2*ν))) # constitutive matrix
+                    end
+
+                    Ke = B'*cMat*B*w # element stiffness matrix
+            
+                    # loop between basis functions of the element
+                    for iNode in 1:size(Ke,1)÷nDof
+                        for jNode in 1:size(Ke,2)÷nDof
+                            for iDof in 1:size(ID,2)
+                                for jDof in 1:size(ID,2)
+                                    i = (iNode-1)*nDof + iDof
+                                    j = (jNode-1)*nDof + jDof
+                                    inz = length(Ke)*(e-1) + (iNode-1)*nDof*size(Ke,2) + (jNode-1)*nDof^2 + (iDof-1)*nDof + jDof # index for the COO sparse matrix
+                                    E[inz] = ID[IEN[e,iNode],iDof] # row index 
+                                    J[inz] = ID[IEN[e,jNode], jDof] # column index
+                                    V[inz] += Ke[i,j] 
+                                end
+                            end
+                        end
                     end
                 end
             end
         end
-
         K = sparse(E,J,V)
 
         return K
