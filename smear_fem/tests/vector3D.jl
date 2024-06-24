@@ -101,19 +101,16 @@ function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
             end
         end
     end
-    return NodeList, IEN, ID, IEN_1, IEN_2
+    return NodeList, IEN, ID
 end
 
-
-function setboundaryCond(NodeList, ne, ndim, FunctionClass, d)
+function setboundaryCond(NodeList, ne, ndim, d)
     # set dirichlet boundary conditions
 
-    if FunctionClass == "Q1"
-        q_d = zeros(ndim*(ne+1)^ndim,1)
-        q_n = zeros(ndim*(ne+1)^ndim,1)
+    q_d = zeros(ndim*(ne+1)^ndim,1)
+    q_n = zeros(ndim*(ne+1)^ndim,1)
 
-        C = Matrix{Int}(I,ndim*(ne+1)^ndim,ndim*(ne+1)^ndim) # definition of the constraint matrix
-    end
+    C = Matrix{Int}(I,ndim*(ne+1)^ndim,ndim*(ne+1)^ndim) # definition of the constraint matrix
 
     z0Bound = 0
     z1Bound = 1
@@ -174,6 +171,7 @@ function setboundaryCond(NodeList, ne, ndim, FunctionClass, d)
     return q_d, q_n, C
 end
 
+
 function main()
 
     # test case 
@@ -183,24 +181,24 @@ function main()
     y1 = 1
     z0 = 0
     z1 = 1
-    ne = 2
+    ne = 8
     Young = 40
     ν = 0.4
     ndim = 3
     FunctionClass = "Q1"
     nDof = ndim  # number of degree of freedom per node
 
-    NodeList, IEN, ID, IEN_1,  IEN_2 = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim) # generate the mesh grid
+    NodeList, IEN, ID= meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim) # generate the mesh grid
 
     NodeListCylinder = PostProcess.inflate_sphere(NodeList, x0, x1, y0, y1) # inflate the sphere to a unit sphere
 
-    K = fem.assemble_system(ne, NodeListCylinder, IEN, ndim, nDof, FunctionClass, ID, ν, Young) # assemble the stiffness matrix
+    K = fem.assemble_system(ne, NodeListCylinder, IEN, ndim, FunctionClass, nDof, ID, ν, Young) # assemble the stiffness matrix
 
     delta = 0.1:0.01:0.3 # set the displacement increment
     fields = [] # store the solution fields
 
     for d in delta
-        q_d, q_n, C = setboundaryCond(NodeListCylinder, ne, ndim, FunctionClass, d);
+        q_d, q_n, C = setboundaryCond(NodeListCylinder, ne, ndim, d);
 
         # transpose the constraint matrix
         C_t = transpose(C)
