@@ -104,7 +104,7 @@ module fem
         return N, ΔN
     end
 
-    function assemble_system(ne, NodeList, IEN, ndim, nDof=1, FunctionClass="Q1", ID=None, Young=1, ν=0.3)
+    function assemble_system(ne, NodeList, IEN, ndim, nDof=1, FunctionClass="Q1", ID=nothing, Young=1, ν=0.3)
         """ Assembles the finite element system. Returns the global stiffness matrix
 
             Parameters:
