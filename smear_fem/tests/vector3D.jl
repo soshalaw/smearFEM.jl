@@ -9,42 +9,33 @@ include("../src/PostProcess.jl")
 function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
 
     NodeList = zeros(ndim,(ne+1)^ndim)
-    IEN = zeros(Int64,ne^ndim,2^ndim) # IEN for the 3D mesh
-    IEN_1 = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the top surface
-    IEN_2 = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the bottom surface
+    IEN = zeros(Int64,ne^ndim,2^ndim)
     ID = zeros(Int64,(ne+1)^ndim,ndim)
 
     if ndim == 2
         x = collect(range(x0, x1, length=ne+1))
         y = collect(range(y0, y1, length=ne+1))
     
-        m = 1
-        for j in 1:ne+1 # y direction
-            for i in 1:ne+1 # x direction
-                NodeList[1,m] = x[i]
-                NodeList[2,m] = y[j]
+        k = 1
+        for i in 1:ne+1
+            for j in 1:ne+1
+                NodeList[1,k] = x[j]
+                NodeList[2,k] = y[i]
                 for l in 1:ndim
-                    ID[m,l] = ndim*(m-1) + l
+                    ID[k,l] = ndim*(k-1) + l
                 end
-                m = m + 1
+                k = k + 1
             end
-        end 
+        end
         
-        n = 1
-        for j in 1:ne # y direction
-            for i in 1:ne # x direction
-                IEN[n,1] = (j-1)*(ne+1) + i
-                IEN[n,2] = (j-1)*(ne+1) + i + 1
-                IEN[n,3] = j*(ne+1) + i + 1
-                IEN[n,4] = j*(ne+1) + i
-                if j == 1 # populate the IEN for the bottom surface
-                    IEN_1[i,1] = IEN[n,1]
-                    IEN_1[i,2] = IEN[n,2]
-                elseif j == ne # populate the IEN for the top surface
-                    IEN_2[i,1] = IEN[n,4]
-                    IEN_2[i,2] = IEN[n,3]
-                end
-                n = n + 1
+        l = 1
+        for i in 1:ne
+            for j in 1:ne
+                IEN[l,1] = (i-1)*(ne+1) + j
+                IEN[l,2] = (i-1)*(ne+1) + j + 1
+                IEN[l,3] = i*(ne+1) + j + 1
+                IEN[l,4] = i*(ne+1) + j
+                l = l + 1
             end
         end
 
@@ -55,9 +46,9 @@ function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
         z = collect(range(z0, z1, length=ne+1))
         
         m = 1
-        for k in 1:ne+1 # z direction
-            for j in 1:ne+1 # y direction
-                for i in 1:ne+1 # x direction
+        for k in 1:ne+1
+            for j in 1:ne+1
+                for i in 1:ne+1
                     NodeList[1,m] = x[i]
                     NodeList[2,m] = y[j]
                     NodeList[3,m] = z[k]
@@ -69,34 +60,19 @@ function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
             end
         end
         
-        n = 1 # element number on 3D mesh
-        o = 1 # element number on 2D mesh of bottom surface
-        p = 1 # element number on 2D mesh of top surface
-        for k in 1:ne # z direction
-            for j in 1:ne # y direction
-                for i in 1:ne # x direction
-                    IEN[n,1] = (k-1)*(ne+1)^2 + (j-1)*(ne+1) + i
-                    IEN[n,2] = (k-1)*(ne+1)^2 + (j-1)*(ne+1) + i + 1
-                    IEN[n,3] = (k-1)*(ne+1)^2 + j*(ne+1) + i + 1
-                    IEN[n,4] = (k-1)*(ne+1)^2 + j*(ne+1) + i
-                    IEN[n,5] = k*(ne+1)^2 + (j-1)*(ne+1) + i
-                    IEN[n,6] = k*(ne+1)^2 + (j-1)*(ne+1) + i + 1
-                    IEN[n,7] = k*(ne+1)^2 + j*(ne+1) + i + 1
-                    IEN[n,8] = k*(ne+1)^2 + j*(ne+1) + i
-                    if k == 1 # populate the IEN for the bottom surface
-                        IEN_1[p,1] = IEN[n,1]
-                        IEN_1[p,2] = IEN[n,2]
-                        IEN_1[p,3] = IEN[n,3]
-                        IEN_1[p,4] = IEN[n,4]
-                        p = p + 1
-                    elseif k == ne # populate the IEN for the top surface
-                        IEN_2[o,1] = IEN[n,5]
-                        IEN_2[o,2] = IEN[n,6]
-                        IEN_2[o,3] = IEN[n,7]
-                        IEN_2[o,4] = IEN[n,8]
-                        o = o + 1
-                    end
-                    n = n + 1
+        l = 1
+        for k in 1:ne
+            for i in 1:ne
+                for j in 1:ne
+                    IEN[l,1] = (k-1)*(ne+1)^2 + (i-1)*(ne+1) + j
+                    IEN[l,2] = (k-1)*(ne+1)^2 + (i-1)*(ne+1) + j + 1
+                    IEN[l,3] = (k-1)*(ne+1)^2 + i*(ne+1) + j + 1
+                    IEN[l,4] = (k-1)*(ne+1)^2 + i*(ne+1) + j
+                    IEN[l,5] = k*(ne+1)^2 + (i-1)*(ne+1) + j
+                    IEN[l,6] = k*(ne+1)^2 + (i-1)*(ne+1) + j + 1
+                    IEN[l,7] = k*(ne+1)^2 + i*(ne+1) + j + 1
+                    IEN[l,8] = k*(ne+1)^2 + i*(ne+1) + j
+                    l = l + 1
                 end
             end
         end
@@ -114,12 +90,6 @@ function setboundaryCond(NodeList, ne, ndim, d)
 
     z0Bound = 0
     z1Bound = 1
-
-    yBBound = 0
-    yTBound = 1
-
-    xLBound = 0
-    xRBound = 1
 
     rCol = Array{Int}(undef,0)
 
@@ -171,9 +141,7 @@ function setboundaryCond(NodeList, ne, ndim, d)
     return q_d, q_n, C
 end
 
-
 function main()
-
     # test case 
     x0 = 0
     x1 = 1
@@ -181,19 +149,19 @@ function main()
     y1 = 1
     z0 = 0
     z1 = 1
-    ne = 8
+    ne = 2
     Young = 40
     ν = 0.4
     ndim = 3
     FunctionClass = "Q1"
     nDof = ndim  # number of degree of freedom per node
 
-    NodeList, IEN, ID= meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim) # generate the mesh grid
+    NodeList, IEN, ID = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim) # generate the mesh grid
 
     NodeListCylinder = PostProcess.inflate_sphere(NodeList, x0, x1, y0, y1) # inflate the sphere to a unit sphere
 
-    K = fem.assemble_system(ne, NodeListCylinder, IEN, ndim, FunctionClass, nDof, ID, ν, Young) # assemble the stiffness matrix
-
+    K = fem.assemble_system(ne, NodeListCylinder, IEN, ndim, FunctionClass, nDof, ID, Young, ν)
+        
     delta = 0.1:0.01:0.3 # set the displacement increment
     fields = [] # store the solution fields
 
@@ -231,9 +199,9 @@ function main()
 
     cells = [MeshCell(cellType,IEN[e,:]) for e in 1:ne^ndim]
 
-    paraview_collection("displacement") do pvd # create a paraview collection
+    paraview_collection("vtkFiles/displacement") do pvd # create a paraview collection
         @showprogress "Writing out to VTK..." for i in 1:length(fields)
-            vtk_grid("timestep_$i", NodeList, cells) do vtk # write out the fields to VTK
+            vtk_grid("vtkFiles/timestep_$i", NodeList, cells) do vtk # write out the fields to VTK
                 vtk["u"] = fields[i]
                 time = (i - 1)*0.5
                 pvd[time] = vtk

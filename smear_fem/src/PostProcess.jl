@@ -29,7 +29,8 @@ module PostProcess
             else
                 r = sqrt((NodeList[1,i] - x_center[1])^2 + (NodeList[2,i] - x_center[2])^2)
                 NodeList[1:2,i] = scale*(NodeList[1:2,i] - x_center)/r
-            end 
+            end
+            
         end
         return NodeList
     end
