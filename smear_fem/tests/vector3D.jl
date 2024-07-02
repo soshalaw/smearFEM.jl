@@ -122,25 +122,88 @@ function setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof=1)
         q_d: {[ndof] Vector{Float64}} : Dirichlet boundary conditions
     """
 
-    if FunctionClass == "Q1"
-        q_d = zeros(nDof*(ne+1)^ndim,1)                       # initialize the vector of the Dirichlet boundary conditions
-        C = Matrix{Int}(I,ndim*(ne+1)^ndim,ndim*(ne+1)^ndim)  # definition of the constraint matrix
-    end
+    # if FunctionClass == "Q1"
+    #     q_d = zeros(nDof*(ne+1)^ndim,1)                       # initialize the vector of the Dirichlet boundary conditions
+    #     C = Matrix{Int}(I,ndim*(ne+1)^ndim,ndim*(ne+1)^ndim)  # definition of the constraint matrix
+    # end
+
+    # z0Bound = 0
+    # z1Bound = 1
+
+    # rCol = Array{Int}(undef,0)
+
+    # for nNode in 1:size(NodeList,2)
+    #     coord = NodeList[:,nNode]    # get the coordinates of the node
+    #     if coord[3] == z0Bound       # bottom boundary
+    #         q_d[3*nNode] = 0         # constraint the z displacement to be zero at the bottom boundary
+    #         push!(rCol,3*nNode)
+    #     elseif coord[3] == z1Bound   # top boundary
+    #         q_d[3*nNode] = -d        # constraint the z displacement to be -d
+    #         push!(rCol,3*nNode)
+    #     end
+    # end
+
+    # C = C[:,setdiff(1:size(C,2),rCol)]
+        
+    # return q_d, C
+
+    q_d = zeros(ndim*(ne+1)^ndim,1)
+    q_n = zeros(ndim*(ne+1)^ndim,1)
+
+    C = Matrix{Int}(I,ndim*(ne+1)^ndim,ndim*(ne+1)^ndim) # definition of the constraint matrix
 
     z0Bound = 0
     z1Bound = 1
 
+    yBBound = 0
+    yTBound = 1
+
+    xLBound = 0
+    xRBound = 1
+
     rCol = Array{Int}(undef,0)
 
     for nNode in 1:size(NodeList,2)
-        coord = NodeList[:,nNode]    # get the coordinates of the node
-        if coord[3] == z0Bound       # bottom boundary
-            q_d[3*nNode] = 0         # constraint the z displacement to be zero at the bottom boundary
-            push!(rCol,3*nNode)
-        elseif coord[3] == z1Bound   # top boundary
-            q_d[3*nNode] = -d        # constraint the z displacement to be -delta
-            push!(rCol,3*nNode)
+        coord = NodeList[:,nNode] # get the coordinates of the node
+        if ndim == 2
+            if coord[2] == yBBound # bottom boundary
+                if coord[1] == xLBound
+                    q_d[2*nNode-1] = 0 # constraint the x displacement and y displacement to be zero at the bottom left corner
+                    q_d[2*nNode] = 0
+
+                    push!(rCol,2*nNode-1)
+                    push!(rCol,2*nNode)
+                end
+
+                q_d[2*nNode] = 0 # constraint the y displacement to be zero at the bottom boundary
+                push!(rCol,2*nNode)
+
+            elseif coord[2] == yTBound # top boundary
+                q_d[2*nNode] = -d # constraint the y displacement to be -delta
+                push!(rCol,2*nNode)
+            end
+        elseif ndim == 3
+            if coord[3] == z0Bound # bottom boundary
+                # if nNode == 1
+                if nNode == (ne+1)^2÷2 +1
+                    q_d[3*(nNode-1)+1] = 0.
+                    q_d[3*(nNode-1)+2] = 0.
+                    push!(rCol, 3*(nNode-1)+1)
+                    push!(rCol, 3*(nNode-1)+2)
+                elseif nNode==ne+1 
+                    q_d[3*(nNode-1)+2] = 0.
+                    push!(rCol, 3*(nNode-1)+2)
+                end
+
+                q_d[3*nNode] = 0 # constraint the z displacement to be zero at the bottom boundary
+                push!(rCol,3*nNode)
+            end
+            if coord[3] == z1Bound # top boundary
+                q_d[3*nNode] = -d # constraint the z displacement to be -delta
+                push!(rCol,3*nNode)
+            end
         end
+
     end
 
     C = C[:,setdiff(1:size(C,2),rCol)]
@@ -209,6 +272,7 @@ function apply_boundary_conditions(ne, NodeList, IEN, IEN_top, IEN_btm, ndim, Fu
             M[3,3:nDof:end] = N
 
             be = M'*M
+            display(be)
             # loop between basis functions of the element
             for iNode in 1:size(be,1)÷nDof
                 for jNode in 1:size(be,2)÷nDof
@@ -235,11 +299,10 @@ function apply_boundary_conditions(ne, NodeList, IEN, IEN_top, IEN_btm, ndim, Fu
         end
     end
     
-    # K_top = sparse(E_top,J_top,V_top)
     K = sparse(E,J,V)
-    display(K)
+    display(Matrix(K))
 
-    return  K # + K_top)
+    return  K
 end
 
 # function main()
@@ -251,7 +314,7 @@ end
     y1 = 1
     z0 = 0
     z1 = 1
-    ne = 3
+    ne = 2
     Young = 40
     ν = 0.4
     ndim = 3
@@ -260,7 +323,7 @@ end
     β = 0.1
 
     NodeList, IEN, ID, IEN_top,  IEN_btm = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim) # generate the mesh grid
-    # println(size(ID,2))
+ 
     NodeListCylinder = PostProcess.inflate_sphere(NodeList, x0, x1, y0, y1) # inflate the sphere to a unit sphere
 
     K = fem.assemble_system(ne, NodeListCylinder, IEN, ndim, nDof, FunctionClass, ID, ν, Young) # assemble the stiffness matrix
@@ -269,42 +332,43 @@ end
 
     K_bar = K + β*b
 
-    delta = 0.1:0.01:0.3 # set the z displacement increment
+    # delta = 0.1:0.01:0.3 # set the z displacement increment
     fields = [] # store the solution fields
 
-    for d in delta
-        q_d, C = setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof)
+    d = 0.1
+    # for d in delta
+    q_d, C = setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof)
 
-        # transpose the constraint matrix
-        C_t = transpose(C)
+    # transpose the constraint matrix
+    C_t = transpose(C)
 
-        # extract the free part of the stiffness matrix
-        K_free = C_t*K_bar*C
+    # extract the free part of the stiffness matrix
+    K_free = C_t*K_bar*C
 
-        invK = inv(K_free)
+    invK = inv(K_free)
 
-        # solve the system
-        q_f = invK*C_t*(-K_bar*q_d)
+    # solve the system
+    q_f = invK*C_t*(-K_bar*q_d)
 
-        # assemble the solution 
-        q = q_d + C*q_f;
+    # assemble the solution 
+    q = q_d + C*q_f;
 
-        # post process the solution
-        u = q[ID[:,1]]
-        v = q[ID[:,2]] 
-        w = q[ID[:,3]]
+    # post process the solution
+    u = q[ID[:,1]]
+    v = q[ID[:,2]] 
+    w = q[ID[:,3]]
 
-        # println("ν = ", -u[end]/w[end])
-        push!(fields, [u v w]')
+    # println("ν = ", -v[end]/w[end])
+    push!(fields, [u v w]')
 
-        println("d = ", d)
-    end
+    println("d = ", d)
+    # end
 
     cellType = VTKCellTypes.VTK_HEXAHEDRON
 
     cells = [MeshCell(cellType,IEN[e,:]) for e in 1:ne^ndim]
 
-    paraview_collection("displacement") do pvd # create a paraview collection
+    paraview_collection("vtkFiles/displacement") do pvd # create a paraview collection
         @showprogress "Writing out to VTK..." for i in 1:length(fields)
             vtk_grid("timestep_$i", NodeList, cells) do vtk # write out the fields to VTK
                 vtk["u"] = fields[i]
