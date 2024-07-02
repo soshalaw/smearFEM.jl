@@ -238,7 +238,7 @@ module fem
             end
         end
         K = sparse(E,J,V)
-
+        display(K)
         return K
     end
 
