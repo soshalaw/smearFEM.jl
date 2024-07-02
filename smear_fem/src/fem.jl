@@ -6,21 +6,21 @@ module fem
         println("Hello, I am the FEM module")
     end
 
-    function gaussian_quadrature(a,b)
+    function gaussian_quadrature(a,b,nGaussPoints=2)
         """ Compute the nodes and weights for the Gaussian quadrature of order 2
             a, b are the limits of the integration interval
             
-            Parameters:
-            a: lower limit of the integration interval
-            b: upper limit of the integration interval
-
             Returns:    
-            ξ: nodes [nGaussPoints]-element Vector{Float64}
-            w: weights [nGaussPoints]-element Vector{Float64}
+            ξ: nodes {[nGaussPoints] Vector{Float64}}
+            w: weights {[nGaussPoints] Vector{Float64}}
         """
-
-        ξ = [-(b-a)/(2*sqrt(3))+(b+a)/2, (b-a)/(2*sqrt(3))+(b+a)/2]
-        w = [(b-a)/2, (b-a)/2]
+        if nGaussPoints == 2
+            ξ = [-(b-a)/(2*sqrt(3))+(b+a)/2, (b-a)/(2*sqrt(3))+(b+a)/2]
+            w = [(b-a)/2, (b-a)/2]
+        elseif nGaussPoints == 3
+            ξ = [-(b-a)/(2*sqrt(5/3))+(b+a)/2, 0, (b-a)/(2*sqrt(5/3))+(b+a)/2]
+            w = [((b-a)/2)*5/18, ((b-a)/2)*8/18, ((b-a)/2)*5/18]
+        end
         return ξ, w
     end
 
@@ -104,7 +104,7 @@ module fem
         return N, ΔN
     end
 
-    function assemble_system(ne, NodeList, IEN, ndim, nDof=1, FunctionClass="Q1", ID=nothing, Young=1, ν=0.3)
+    function assemble_system(ne, NodeList, IEN, ndim, FunctionClass="Q1", nDof=1, ID=nothing, Young=1, ν=0.3)
         """ Assembles the finite element system. Returns the global stiffness matrix
 
             Parameters:
@@ -238,7 +238,7 @@ module fem
             end
         end
         K = sparse(E,J,V)
-        display(K)
+
         return K
     end
 
