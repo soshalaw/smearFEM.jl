@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VTKFile type="Collection" version="1.0" byte_order="LittleEndian" compressor="vtkZLibDataCompressor">
+  <Collection>
+    <DataSet timestep="0" part="0" file="squeeze_flowtimestep_1.vtu"/>
+    <DataSet timestep="1" part="0" file="squeeze_flowtimestep_2.vtu"/>
+    <DataSet timestep="2" part="0" file="squeeze_flowtimestep_3.vtu"/>
+    <DataSet timestep="3" part="0" file="squeeze_flowtimestep_4.vtu"/>
+    <DataSet timestep="4" part="0" file="squeeze_flowtimestep_5.vtu"/>
+    <DataSet timestep="5" part="0" file="squeeze_flowtimestep_6.vtu"/>
+    <DataSet timestep="6" part="0" file="squeeze_flowtimestep_7.vtu"/>
+    <DataSet timestep="7" part="0" file="squeeze_flowtimestep_8.vtu"/>
+    <DataSet timestep="8" part="0" file="squeeze_flowtimestep_9.vtu"/>
+    <DataSet timestep="9" part="0" file="squeeze_flowtimestep_10.vtu"/>
+    <DataSet timestep="10" part="0" file="squeeze_flowtimestep_11.vtu"/>
+    <DataSet timestep="11" part="0" file="squeeze_flowtimestep_12.vtu"/>
+    <DataSet timestep="12" part="0" file="squeeze_flowtimestep_13.vtu"/>
+    <DataSet timestep="13" part="0" file="squeeze_flowtimestep_14.vtu"/>
+    <DataSet timestep="14" part="0" file="squeeze_flowtimestep_15.vtu"/>
+    <DataSet timestep="15" part="0" file="squeeze_flowtimestep_16.vtu"/>
+    <DataSet timestep="16" part="0" file="squeeze_flowtimestep_17.vtu"/>
+    <DataSet timestep="17" part="0" file="squeeze_flowtimestep_18.vtu"/>
+    <DataSet timestep="18" part="0" file="squeeze_flowtimestep_19.vtu"/>
+    <DataSet timestep="19" part="0" file="squeeze_flowtimestep_20.vtu"/>
+    <DataSet timestep="20" part="0" file="squeeze_flowtimestep_21.vtu"/>
+    <DataSet timestep="21" part="0" file="squeeze_flowtimestep_22.vtu"/>
+    <DataSet timestep="22" part="0" file="squeeze_flowtimestep_23.vtu"/>
+    <DataSet timestep="23" part="0" file="squeeze_flowtimestep_24.vtu"/>
+    <DataSet timestep="24" part="0" file="squeeze_flowtimestep_25.vtu"/>
+    <DataSet timestep="25" part="0" file="squeeze_flowtimestep_26.vtu"/>
+    <DataSet timestep="26" part="0" file="squeeze_flowtimestep_27.vtu"/>
+    <DataSet timestep="27" part="0" file="squeeze_flowtimestep_28.vtu"/>
+    <DataSet timestep="28" part="0" file="squeeze_flowtimestep_29.vtu"/>
+    <DataSet timestep="29" part="0" file="squeeze_flowtimestep_30.vtu"/>
+    <DataSet timestep="30" part="0" file="squeeze_flowtimestep_31.vtu"/>
+    <DataSet timestep="31" part="0" file="squeeze_flowtimestep_32.vtu"/>
+    <DataSet timestep="32" part="0" file="squeeze_flowtimestep_33.vtu"/>
+    <DataSet timestep="33" part="0" file="squeeze_flowtimestep_34.vtu"/>
+    <DataSet timestep="34" part="0" file="squeeze_flowtimestep_35.vtu"/>
+    <DataSet timestep="35" part="0" file="squeeze_flowtimestep_36.vtu"/>
+    <DataSet timestep="36" part="0" file="squeeze_flowtimestep_37.vtu"/>
+    <DataSet timestep="37" part="0" file="squeeze_flowtimestep_38.vtu"/>
+    <DataSet timestep="38" part="0" file="squeeze_flowtimestep_39.vtu"/>
+    <DataSet timestep="39" part="0" file="squeeze_flowtimestep_40.vtu"/>
+    <DataSet timestep="40" part="0" file="squeeze_flowtimestep_41.vtu"/>
+    <DataSet timestep="41" part="0" file="squeeze_flowtimestep_42.vtu"/>
+    <DataSet timestep="42" part="0" file="squeeze_flowtimestep_43.vtu"/>
+    <DataSet timestep="43" part="0" file="squeeze_flowtimestep_44.vtu"/>
+    <DataSet timestep="44" part="0" file="squeeze_flowtimestep_45.vtu"/>
+    <DataSet timestep="45" part="0" file="squeeze_flowtimestep_46.vtu"/>
+    <DataSet timestep="46" part="0" file="squeeze_flowtimestep_47.vtu"/>
+    <DataSet timestep="47" part="0" file="squeeze_flowtimestep_48.vtu"/>
+    <DataSet timestep="48" part="0" file="squeeze_flowtimestep_49.vtu"/>
+    <DataSet timestep="49" part="0" file="squeeze_flowtimestep_50.vtu"/>
+    <DataSet timestep="50" part="0" file="squeeze_flowtimestep_51.vtu"/>
+  </Collection>
+</VTKFile>

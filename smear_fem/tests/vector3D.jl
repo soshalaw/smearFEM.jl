@@ -1,7 +1,9 @@
 using LinearAlgebra
 using ProgressMeter
-using WriteVTK
 using SparseArrays
+using Plots
+using DelimitedFiles
+
 
 include("../src/fem.jl")
 include("../src/PostProcess.jl")
@@ -13,7 +15,12 @@ function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
     IEN = zeros(Int64,ne^ndim,2^ndim) # IEN for the 3D mesh
     IEN_top = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the top surface
     IEN_btm = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the bottom surface
+    IEN_side = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the side surfaces
     ID = zeros(Int64,(ne+1)^ndim,ndim)
+
+    BorderNodes = []
+    BottomBorderNodes = []
+    TopBorderNodes = []
 
     if ndim == 2
         x = collect(range(x0, x1, length=ne+1))
@@ -27,6 +34,9 @@ function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
                 for l in 1:ndim
                     ID[m,l] = ndim*(m-1) + l
                 end
+                if i == 1 || i == ne+1 # populate the BorderNodes with the nodes on the left and right boundaries
+                    push!(BorderNodes,m)
+                end
                 m = m + 1
             end
         end 
@@ -39,11 +49,11 @@ function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
                 IEN[n,3] = j*(ne+1) + i + 1
                 IEN[n,4] = j*(ne+1) + i
                 if j == 1 # populate the IEN for the bottom surface
-                    IEN_1[i,1] = IEN[n,1]
-                    IEN_1[i,2] = IEN[n,2]
+                    IEN_btm[i,1] = IEN[n,1]
+                    IEN_btm[i,2] = IEN[n,2]
                 elseif j == ne # populate the IEN for the top surface
-                    IEN_2[i,1] = IEN[n,4]
-                    IEN_2[i,2] = IEN[n,3]
+                    IEN_top[i,1] = IEN[n,4]
+                    IEN_top[i,2] = IEN[n,3]
                 end
                 n = n + 1
             end
@@ -65,17 +75,24 @@ function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
                     for l in 1:ndim
                         ID[m,l] = ndim*(m-1) + l
                     end
+                    if (i == 1 || i == ne+1 || j == 1 || j == ne+1)
+                        push!(BorderNodes,m) # populate the BorderNodes with the nodes on the boundaries (excluding the top and bottom surfaces)
+                    elseif k == 1
+                        push!(BottomBorderNodes,m) # populate the BorderNodes with the nodes on the top and bottom surfaces
+                    elseif k == ne + 1
+                        push!(TopBorderNodes,m) # populate the BorderNodes with the nodes on the top and bottom surfaces
+                    end
                     m = m + 1
                 end
             end
         end
         
-        n = 1 # element number on 3D mesh
-        nt = 1 # element number on 2D mesh of top surface
-        nb = 1 # element number on 2D mesh of bottom surface
-        for k in 1:ne # z direction
-            for j in 1:ne # y direction
-                for i in 1:ne # x direction
+        n = 1       # element number on 3D mesh
+        nt = 1      # element number on 2D mesh of top surface
+        nb = 1      # element number on 2D mesh of bottom surface
+        for k in 1:ne            # z direction
+            for j in 1:ne        # y direction
+                for i in 1:ne    # x direction
                     IEN[n,1] = (k-1)*(ne+1)^2 + (j-1)*(ne+1) + i
                     IEN[n,2] = (k-1)*(ne+1)^2 + (j-1)*(ne+1) + i + 1
                     IEN[n,3] = (k-1)*(ne+1)^2 + j*(ne+1) + i + 1
@@ -96,13 +113,22 @@ function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
                         IEN_top[nt,3] = IEN[n,7]
                         IEN_top[nt,4] = IEN[n,8]
                         nt = nt + 1
+                    # elseif j == 1 || j == ne || i == 1 || i == ne
+                    #     IEN_side[n,1] = IEN[n,1]
+                    #     IEN_side[n,2] = IEN[n,2]
+                    #     IEN_side[n,3] = IEN[n,3]
+                    #     IEN_side[n,4] = IEN[n,4]
+                    #     IEN_side[n,5] = IEN[n,5]
+                    #     IEN_side[n,6] = IEN[n,6]
+                    #     IEN_side[n,7] = IEN[n,7]
+                    #     IEN_side[n,8] = IEN[n,8]
                     end
                     n = n + 1
                 end
             end
         end
     end
-    return NodeList, IEN, ID, IEN_top, IEN_btm
+    return NodeList, IEN, ID, IEN_top, IEN_btm, [BorderNodes, BottomBorderNodes, TopBorderNodes]
 end
 
 
@@ -123,8 +149,8 @@ function setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof=1)
     """
 
     if FunctionClass == "Q1"
-        q_d = zeros(nDof*(ne+1)^ndim,1)                       # initialize the vector of the Dirichlet boundary conditions
-        C = Matrix{Int}(I,ndim*(ne+1)^ndim,ndim*(ne+1)^ndim)  # definition of the constraint matrix
+        q_d = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Dirichlet boundary conditions
+        C = sparse(I,ndim*(ne+1)^ndim,ndim*(ne+1)^ndim)  # definition of the constraint matrix
     end
 
     z0Bound = 0
@@ -146,11 +172,9 @@ function setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof=1)
     C = C[:,setdiff(1:size(C,2),rCol)]
         
     return q_d, C
-        
-    return q_d, C
 end
 
-function apply_boundary_conditions(ne, NodeList, IEN, IEN_top, IEN_btm, ndim, FunctionClass, ID=None, nDof=3) # , nDof=1, FunctionClass="Q1", ID=None, Young=1, ν=0.3, q_d=zeros(0), q_n=zeros(0))
+function apply_boundary_conditions(ne, NodeList, IEN, IEN_top, IEN_btm, ndim, FunctionClass, ID=None, nDof=3)
     """ Apply the Neumann slip boundary conditions to the global stiffness matrix
 
         Parameters:
@@ -237,15 +261,11 @@ function apply_boundary_conditions(ne, NodeList, IEN, IEN_top, IEN_btm, ndim, Fu
             # TODO include in tha assembly function
         end
     end
-    
     K = sparse(E,J,V)
-    display(K)
-
     return  K
 end
 
 function main()
-
     # test case 
     x0 = 0
     x1 = 1
@@ -259,65 +279,70 @@ function main()
     ndim = 3
     FunctionClass = "Q1"
     nDof = ndim  # number of degree of freedom per node
-    β = 0.1
+    β = 100
+    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
+    csv_path = "/home/soshala/SMEAR-PhD/SMEAR/Data/squeeze_simulation_init/Results/contour_data.csv"
+    
+    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)  # generate the mesh grid
+    NodeListCylinder = PostProcess.inflate_sphere(NodeList, x0, x1, y0, y1)                     # inflate the sphere to a unit sphere
+    state = "init"
+    
+    if state == "init"
+        obsData = readdlm(csv_path, ',', Int, '\n', header=false)
+        BorderNodes2D, NodeList2D = PostProcess.extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne)
+        opi, oqi = PostProcess.fit_curve(obsData[2:size(obsData,1),:]')
+        pi, qi = PostProcess.fit_curve(BorderNodes2D)
 
-    NodeList, IEN, ID, IEN_top,  IEN_btm = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim) # generate the mesh grid
- 
-    NodeListCylinder = PostProcess.inflate_sphere(NodeList, x0, x1, y0, y1) # inflate the sphere to a unit sphere
+        SideBorders = BorderNodesList[1]
+        BottomBorders = BorderNodesList[2]
+        TopBorders = BorderNodesList[3]
+            
+        fields = [NodeListCylinder]                            # store the solution fields of the surfaces in 3D
+        fields2D = [NodeList2D]                                # store the solution fields of the surfaces in 2D
+        borderfields2D = [BorderNodes2D]                       # store the solution fields of the border nodes in 2D
+        splinep = [opi]                                         # store the x coordinates samples of the spline parameters of the border nodes
+        splineq = [oqi]                                         # store the y coordinates samples of the spline parameters of the border nodes
+    
+    elseif state == "update"
+    
+        K = fem.assemble_system(ne, NodeList, IEN, ndim, FunctionClass, nDof, ID, Young, ν)                   # assemble the stiffness matrix
+        b = apply_boundary_conditions(ne, NodeListCylinder, IEN, IEN_top, IEN_btm, ndim, FunctionClass, ID)   # apply the neumann boundary conditions
 
-    K = fem.assemble_system(ne, NodeList, IEN, ndim, FunctionClass, nDof, ID, Young, ν) # assemble the stiffness matrix
-   
-    b = apply_boundary_conditions(ne, NodeListCylinder, IEN, IEN_top, IEN_btm, ndim, FunctionClass, ID) # apply the neumann boundary conditions
+        K_bar = K + β*b
 
-    K_bar = K + β*b
+        delta = 0.001:0.01:0.5  # set the z displacement increment
+                                                                                
+        @showprogress "Simulating..." for d in delta
 
-    delta = 0.1:0.01:0.5 # set the z displacement increment
-    fields = [] # store the solution fields
+            q_d, C = setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof)
+            C_t = transpose(C)              # transpose the constraint matrix
+            K_free = C_t*K_bar*C            # extract the free part of the stiffness matrix
 
-    for d in delta
-        q_d, C = setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof)
+            invK = inv(Matrix(K_free))
 
-        # transpose the constraint matrix
-        C_t = transpose(C)
+            q_f = invK*C_t*(-K_bar*q_d)     # solve the system of equations
 
-        # extract the free part of the stiffness matrix
-        K_free = C_t*K_bar*C
+            q = q_d + C*q_f;                # assemble the solution 
 
-        invK = inv(K_free)
+            # post process the solution
+            motion = [q[ID[:,1]] q[ID[:,2]] q[ID[:,3]]]'
 
-        # solve the system
-        q_f = invK*C_t*(-K_bar*q_d)
+            NodeList_new = NodeListCylinder + motion # update the node coordinates
 
-        # assemble the solution 
-        q = q_d + C*q_f;
+            BorderNodes2D, NodeList2D = PostProcess.extract_borders(NodeList_new, CameraMatrix, BorderNodesList, state)
+            BorderNodes = [NodeList_new[:,SideBorders] NodeList_new[:,BottomBorders] NodeList_new[:,TopBorders]]
+            pi, qi = PostProcess.fit_curve(BorderNodes2D)
 
-        # post process the solution
-        u = q[ID[:,1]]
-        v = q[ID[:,2]] 
-        w = q[ID[:,3]]
-
-        # println("ν = ", -v[end]/w[end])
-        push!(fields, [u v w]')
-
-        println("d = ", d)
-        # end
-
-        cellType = VTKCellTypes.VTK_HEXAHEDRON
-
-        cells = [MeshCell(cellType,IEN[e,:]) for e in 1:ne^ndim]
-
-        paraview_collection("vtkFiles/displacement") do pvd # create a paraview collection
-            @showprogress "Writing out to VTK..." for i in 1:length(fields)
-                vtk_grid("vtkFiles/timestep_$i", NodeList, cells) do vtk # write out the fields to VTK
-                    vtk["u"] = fields[i]
-                    time = (i - 1)*0.5
-                    pvd[time] = vtk
-                end
-            end
+            push!(fields, motion)
+            push!(fields2D, NodeList2D)
+            push!(borderfields2D, BorderNodes2D)
+            push!(splinep, pi)
+            push!(splineq, qi)
         end
     end
-    return IEN, NodeList, ID, IEN_top, IEN_btm
+    fileName = "squeeze_flow"
+    PostProcess.write_scene(fileName, NodeList, IEN, ne, ndim, fields)
+    PostProcess.animate(fields,fields2D,borderfields2D,IEN, splinep, splineq)
 end
-IEN, NodeList, ID, IEN_top, IEN_btm = main()
 
-
+ main()
