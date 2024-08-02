@@ -121,7 +121,7 @@ module PostProcess
                     
         # transform point cloud wrt to camera frame 
         R = [1 0 0; 0 0 1; 0 -1 0]     # rotation matrix
-        t = [0; -0.5; 2]               # translation vector
+        t = [0; -0.5; 3]               # translation vector
 
         NodeListTrans = R*NodeList .+ t
         
@@ -144,7 +144,6 @@ module PostProcess
         """
             Fit a curve to the border nodes of the 2D mesh
         """
-
 
         len = size(border,2)
         seq = 1:(len+1)
@@ -181,7 +180,7 @@ module PostProcess
         return qList
     end
 
-    function animate(fields, fields2D, BorderNodes2D, IEN, p, q)
+    function animate(fields, fields2D, BorderNodes2D, IEN, p, q, op, oq)
 
         animation = @animate for i in 1:length(fields)
             Plots.scatter3d(fields[i][1,:], fields[i][2,:], fields[i][3,:], markersize=2, legend=:false, dpi=:400)
@@ -195,7 +194,8 @@ module PostProcess
         end
     
         animation2 = @animate for i in 1:length(fields2D)
-            Plots.plot(p[i],q[i], dpi=:400)
+            Plots.plot(p[i],q[i], dpi=:400, legend=:false, color=:green)
+            Plots.plot!(op[i],oq[i], dpi=:400, legend=:false, color=:pink)
             Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:1, mc=:blue, ma=:0.5, labels="Surface Nodes", dpi=:400)
             Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:2, mc=:red, labels="Border Nodes", dpi=:400)
             Plots.xlims!(0,2048)

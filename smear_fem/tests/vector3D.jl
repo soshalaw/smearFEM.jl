@@ -265,6 +265,13 @@ function apply_boundary_conditions(ne, NodeList, IEN, IEN_top, IEN_btm, ndim, Fu
     return  K
 end
 
+function estimate()
+"""
+    Estimate the position of the Cylinder in the 3D space
+"""
+
+end
+
 function main()
     # test case 
     x0 = 0
@@ -283,12 +290,14 @@ function main()
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
     csv_path = "/home/soshala/SMEAR-PhD/SMEAR/Data/squeeze_simulation_init/Results/contour_data.csv"
     
-    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)  # generate the mesh grid
-    NodeListCylinder = PostProcess.inflate_sphere(NodeList, x0, x1, y0, y1)                     # inflate the sphere to a unit sphere
     state = "init"
     
     if state == "init"
-        obsData = readdlm(csv_path, ',', Int, '\n', header=false)
+        # generate the mesh grid
+        NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)  # generate the mesh grid
+        NodeListCylinder = PostProcess.inflate_sphere(NodeList, x0, x1, y0, y1)                     # inflate the sphere to a unit sphere
+
+        obsData = readdlm(csv_path, ',', Int, '\n', header=false)  # read the observation data
         BorderNodes2D, NodeList2D = PostProcess.extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne)
         opi, oqi = PostProcess.fit_curve(obsData[2:size(obsData,1),:]')
         pi, qi = PostProcess.fit_curve(BorderNodes2D)
@@ -300,8 +309,10 @@ function main()
         fields = [NodeListCylinder]                            # store the solution fields of the surfaces in 3D
         fields2D = [NodeList2D]                                # store the solution fields of the surfaces in 2D
         borderfields2D = [BorderNodes2D]                       # store the solution fields of the border nodes in 2D
-        splinep = [opi]                                         # store the x coordinates samples of the spline parameters of the border nodes
-        splineq = [oqi]                                         # store the y coordinates samples of the spline parameters of the border nodes
+        splineOp = [opi]                                       # store the x coordinates samples of the spline parameters of the border nodes
+        splineOq = [oqi]                                       # store the y coordinates samples of the spline parameters of the border nodes
+        splinep = [pi]                                         # store the x coordinates samples of the spline parameters of the border nodes
+        splineq = [qi]                                         # store the y coordinates samples of the spline parameters of the border nodes
     
     elseif state == "update"
     
@@ -342,7 +353,7 @@ function main()
     end
     fileName = "squeeze_flow"
     PostProcess.write_scene(fileName, NodeList, IEN, ne, ndim, fields)
-    PostProcess.animate(fields,fields2D,borderfields2D,IEN, splinep, splineq)
+    PostProcess.animate(fields,fields2D,borderfields2D,IEN, splinep, splineq, splineOp, splineOq)
 end
 
  main()
