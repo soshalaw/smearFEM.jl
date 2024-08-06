@@ -1,5 +1,9 @@
 module smearFEM
 
-# Write your package code here.
+export assemble_system, gaussian_quadrature, basis_function, greet_fem
+export write_scene, animate, fit_curve, extract_borders, greet_pp
 
-end
+include("fem.jl")
+include("PostProcess.jl")
+
+end # module smearFem

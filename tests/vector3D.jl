@@ -17,7 +17,7 @@ function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
     IEN_btm = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the bottom surface
     IEN_side = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the side surfaces
     ID = zeros(Int64,(ne+1)^ndim,ndim)
-
+    
     BorderNodes = []
     BottomBorderNodes = []
     TopBorderNodes = []
