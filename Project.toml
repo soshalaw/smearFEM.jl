@@ -1,4 +1,4 @@
-name = "smear_fem"
+name = "smearFEM"
 uuid = "7ba5e918-bc99-4a36-ba21-427d8c7ff9ca"
 authors = ["soshalaw <soshalaweerathunge@gmail.com>"]
 version = "0.1.0"
