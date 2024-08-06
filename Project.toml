@@ -4,6 +4,7 @@ authors = ["soshalaw <soshalaweerathunge@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"

@@ -2,7 +2,7 @@
 
 julia_version = "1.8.1"
 manifest_format = "2.0"
-project_hash = "7ca542f783b031f1c3d07f1574c4b26c919f08cb"
+project_hash = "d9ccbc1346924e757ee188227335c3ad9dff3454"
 
 [[deps.ANSIColoredPrinters]]
 git-tree-sha1 = "574baf8110975760d391c710b6341da1afa48d8c"
@@ -49,9 +49,9 @@ version = "0.5.2+0"
 
 [[deps.Conda]]
 deps = ["Downloads", "JSON", "VersionParsing"]
-git-tree-sha1 = "b19db3927f0db4151cb86d073689f2428e524576"
+git-tree-sha1 = "51cab8e982c5b598eea9c8ceaced4b58d9dd37c9"
 uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
-version = "1.10.2"
+version = "1.10.0"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -269,9 +269,9 @@ version = "1.96.4"
 
 [[deps.PyPlot]]
 deps = ["Colors", "LaTeXStrings", "PyCall", "Sockets", "Test", "VersionParsing"]
-git-tree-sha1 = "0371ca706e3f295481cbf94c8c36692b072285c2"
+git-tree-sha1 = "9220a9dae0369f431168d60adab635f88aca7857"
 uuid = "d330b81b-6aea-500a-939a-2ce795aea3ee"
-version = "2.11.5"
+version = "2.11.2"
 
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
