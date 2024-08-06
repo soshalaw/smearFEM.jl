@@ -2,9 +2,7 @@ using LinearAlgebra
 using ProgressMeter
 using WriteVTK
 
-include("../src/fem.jl")
-include("../src/PostProcess.jl")
-
+using smearFEM
 # set up mesh grid
 function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
 
