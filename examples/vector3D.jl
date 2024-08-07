@@ -4,9 +4,7 @@ using SparseArrays
 using Plots
 using DelimitedFiles
 
-
-include("../src/fem.jl")
-include("../src/PostProcess.jl")
+using smearFEM
 
 # set up mesh grid
 function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
@@ -199,15 +197,15 @@ function apply_boundary_conditions(ne, NodeList, IEN, IEN_top, IEN_btm, ndim, Fu
 
         if ndim == 2
             # gaussian quadrature points for the element [-1,1] 
-            ξ, w_ξ = fem.gaussian_quadrature(-1,1)
+            ξ, w_ξ = gaussian_quadrature(-1,1)
 
             wpoints = [w_ξ[1], w_ξ[2]]
             
             x = [ξ[1], ξ[2]]
         elseif ndim == 3
             # gaussian quadrature points for the element [-1,1]x[-1,1] 
-            ξ, w_ξ = fem.gaussian_quadrature(-1,1)
-            η, w_η = fem.gaussian_quadrature(-1,1)
+            ξ, w_ξ = gaussian_quadrature(-1,1)
+            η, w_η = gaussian_quadrature(-1,1)
             
             wpoints = [w_ξ[1]*w_η[1], w_ξ[2]*w_η[1], w_ξ[2]*w_η[2], w_ξ[1]*w_η[2]]
             
@@ -218,9 +216,9 @@ function apply_boundary_conditions(ne, NodeList, IEN, IEN_top, IEN_btm, ndim, Fu
         for gp in 1:2^(ndim-1)
 
             if ndim == 2
-                N, ΔN = fem.basis_function(x[gp], nothing, nothing, FunctionClass)
+                N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass)
             elseif ndim == 3
-                N, ΔN = fem.basis_function(x[gp], y[gp], nothing, FunctionClass) 
+                N, ΔN = basis_function(x[gp], y[gp], nothing, FunctionClass) 
             end
 
             dxdξ_top = coords_top*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
@@ -281,17 +279,14 @@ function main()
     nDof = ndim  # number of degree of freedom per node
     β = 100
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
-    csv_path = "/home/soshala/SMEAR-PhD/SMEAR/Data/squeeze_simulation_init/Results/contour_data.csv"
     
     NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)  # generate the mesh grid
-    NodeListCylinder = PostProcess.inflate_sphere(NodeList, x0, x1, y0, y1)                     # inflate the sphere to a unit sphere
+    NodeListCylinder = inflate_sphere(NodeList, x0, x1, y0, y1)                     # inflate the sphere to a unit sphere
     state = "init"
     
     if state == "init"
-        obsData = readdlm(csv_path, ',', Int, '\n', header=false)
-        BorderNodes2D, NodeList2D = PostProcess.extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne)
-        opi, oqi = PostProcess.fit_curve(obsData[2:size(obsData,1),:]')
-        pi, qi = PostProcess.fit_curve(BorderNodes2D)
+        BorderNodes2D, NodeList2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne)
+        pi, qi = fit_curve(BorderNodes2D)
 
         SideBorders = BorderNodesList[1]
         BottomBorders = BorderNodesList[2]
@@ -300,12 +295,14 @@ function main()
         fields = [NodeListCylinder]                            # store the solution fields of the surfaces in 3D
         fields2D = [NodeList2D]                                # store the solution fields of the surfaces in 2D
         borderfields2D = [BorderNodes2D]                       # store the solution fields of the border nodes in 2D
-        splinep = [opi]                                         # store the x coordinates samples of the spline parameters of the border nodes
-        splineq = [oqi]                                         # store the y coordinates samples of the spline parameters of the border nodes
-    
+        splinep = [pi]                                         # store the x coordinates samples of the spline parameters of the border nodes
+        splineq = [qi]                                         # store the y coordinates samples of the spline parameters of the border nodes
+        
+        state == "update"
+
     elseif state == "update"
     
-        K = fem.assemble_system(ne, NodeList, IEN, ndim, FunctionClass, nDof, ID, Young, ν)                   # assemble the stiffness matrix
+        K = assemble_system(ne, NodeList, IEN, ndim, FunctionClass, nDof, ID, Young, ν)                   # assemble the stiffness matrix
         b = apply_boundary_conditions(ne, NodeListCylinder, IEN, IEN_top, IEN_btm, ndim, FunctionClass, ID)   # apply the neumann boundary conditions
 
         K_bar = K + β*b
@@ -329,9 +326,9 @@ function main()
 
             NodeList_new = NodeListCylinder + motion # update the node coordinates
 
-            BorderNodes2D, NodeList2D = PostProcess.extract_borders(NodeList_new, CameraMatrix, BorderNodesList, state)
+            BorderNodes2D, NodeList2D = extract_borders(NodeList_new, CameraMatrix, BorderNodesList, state)
             BorderNodes = [NodeList_new[:,SideBorders] NodeList_new[:,BottomBorders] NodeList_new[:,TopBorders]]
-            pi, qi = PostProcess.fit_curve(BorderNodes2D)
+            pi, qi = fit_curve(BorderNodes2D)
 
             push!(fields, motion)
             push!(fields2D, NodeList2D)
@@ -341,8 +338,8 @@ function main()
         end
     end
     fileName = "squeeze_flow"
-    PostProcess.write_scene(fileName, NodeList, IEN, ne, ndim, fields)
-    PostProcess.animate(fields,fields2D,borderfields2D,IEN, splinep, splineq)
+    write_scene(fileName, NodeList, IEN, ne, ndim, fields)
+    animate_fields(fields,fields2D,borderfields2D,IEN, splinep, splineq)
 end
 
  main()

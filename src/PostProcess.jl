@@ -195,7 +195,7 @@ function noramlize(q, IEN)
     return qList
 end
 
-function animate(fields, fields2D, BorderNodes2D, IEN, p, q)
+function animate_fields(fields, fields2D, BorderNodes2D, IEN, p, q)
 
     animation = @animate for i in 1:length(fields)
         Plots.scatter3d(fields[i][1,:], fields[i][2,:], fields[i][3,:], markersize=2, legend=:false, dpi=:400)
