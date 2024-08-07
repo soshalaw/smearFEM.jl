@@ -19,11 +19,10 @@ makedocs(;
     ],
 )
 
-# deploydocs(;
-#     repo="github.com/soshalaw/smearFEM.jl",
-#     devbranch="main",
-#     devurl="dev",
-#     target = "build",
-#     branch = "main",
-#     versions = ["stable" => "v^", "v#.#" ]
-# )
+deploydocs(;
+    repo="github.com/soshalaw/smearFEM.jl",
+    devbranch="main",
+    devurl="dev",
+    target = "build",
+    branch = "main",
+)
