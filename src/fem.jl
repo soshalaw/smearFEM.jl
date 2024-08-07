@@ -19,12 +19,12 @@ Compute the nodes and weights for the Gaussian quadrature of order 2
 - `w::Vector{Float64}{,nGaussPoints}`: weights 
 """
 function gaussian_quadrature(a,b,nGaussPoints=2)
+  
     if nGaussPoints == 2
         ξ = [-(b-a)/(2*sqrt(3))+(b+a)/2, (b-a)/(2*sqrt(3))+(b+a)/2]
         w = [(b-a)/2, (b-a)/2]
     elseif nGaussPoints == 3
         ξ = [-(b-a)/(2*sqrt(5/3))+(b+a)/2, 0, (b-a)/(2*sqrt(5/3))+(b+a)/2]
-        w = [((b-a)/2)*5/18, ((b-a)/2)*8/18, ((b-a)/2)*5/18]
     end
     return ξ, w
 end
@@ -132,6 +132,7 @@ Assembles the finite element system. # Returns the global stiffness matrix
 - `K::SparseMatrixCSC{Float64,Int64}{ndof,ndof}` : sparse stiffness matrix 
 """
 function assemble_system(ne, NodeList, IEN, ndim, FunctionClass="Q1", nDof=1, ID=nothing, Young=1, ν=0.3)
+
     # (I,J,V) vectors for COO sparse matrix
     if nDof == 1
         E = zeros(  Int64, ne^ndim*size(IEN,2)^2)

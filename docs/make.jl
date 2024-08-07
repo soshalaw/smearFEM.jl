@@ -27,5 +27,3 @@ makedocs(;
 #     branch = "main",
 #     versions = ["stable" => "v^", "v#.#" ]
 # )
-
-
