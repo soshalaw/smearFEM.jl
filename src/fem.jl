@@ -5,37 +5,46 @@ function greet_fem()
     println("Hello, I am the FEM module")
 end
 
+""" 
+    smearFEM.gaussian_quadrature(a,b,nGaussPoints)
+
+Compute the nodes and weights for the Gaussian quadrature of order 2
+    
+# Arguments:    
+- `a,b::Integer` : the limits of the integration interval
+- `nGaussPoints::Integer` : number of Gauss points to be considered (2 or 3)
+
+# Returns:    
+- `ξ::Vector{Float64}{,nGaussPoints}`: nodes.
+- `w::Vector{Float64}{,nGaussPoints}`: weights 
+"""
 function gaussian_quadrature(a,b,nGaussPoints=2)
-    """ Compute the nodes and weights for the Gaussian quadrature of order 2
-        a, b are the limits of the integration interval
-        
-        Returns:    
-        ξ: nodes {[nGaussPoints] Vector{Float64}}
-        w: weights {[nGaussPoints] Vector{Float64}}
-    """
+  
     if nGaussPoints == 2
         ξ = [-(b-a)/(2*sqrt(3))+(b+a)/2, (b-a)/(2*sqrt(3))+(b+a)/2]
         w = [(b-a)/2, (b-a)/2]
     elseif nGaussPoints == 3
         ξ = [-(b-a)/(2*sqrt(5/3))+(b+a)/2, 0, (b-a)/(2*sqrt(5/3))+(b+a)/2]
-        w = [((b-a)/2)*5/9, ((b-a)/2)*8/9, ((b-a)/2)*5/9]
     end
     return ξ, w
 end
 
-function basis_function(ξ,η=nothing,ζ=nothing,FunctionClass = "Q1")
-    """ Define the basis functions and the gradients for a master element
+""" 
+    basis_function(ξ,η=nothing,ζ=nothing,FunctionClass = "Q1")
 
-        Parameters:
-        ξ: ξ coordinate of the point where the basis function is evaluated
-        η: η coordinate of the point where the basis function is evaluated
-        ζ: ζ coordinate of the point where the basis function is evaluated
-        FunctionClass: type of basis functions to be considered (Q1:quadratic or Q2:Lagrange)
-        
-        Returns:
-        N:  {[ndof] Vector{Float64}} : basis functions
-        Delta_N: {[ndof,ndim] Matrix{Float64}}: gradient of the basis functions 
-    """
+Define the basis functions and the gradients for a master element
+
+# Arguments:
+- `ξ::Float64`: ξ coordinate of the point where the basis function is evaluated
+- `η::Float64`: η coordinate of the point where the basis function is evaluated
+- `ζ::Float64`: ζ coordinate of the point where the basis function is evaluated
+- `FunctionClass::String`: type of basis functions to be considered (Q1:quadratic or Q2:Lagrange)
+
+# Returns:
+- `N::Vector{Float64}{,ndof}`: basis functions
+- `Delta_N::Matrix{Float64}{ndof,ndim}`: gradient of the basis functions 
+"""
+function basis_function(ξ,η=nothing,ζ=nothing,FunctionClass = "Q1")
     
     if FunctionClass == "Q1"
         if !isnothing(ζ) # Considering a 3D master element
@@ -103,23 +112,27 @@ function basis_function(ξ,η=nothing,ζ=nothing,FunctionClass = "Q1")
     return N, ΔN
 end
 
+""" 
+    assemble_system(ne, NodeList, IEN, ndim, FunctionClass="Q1", nDof=1, ID=nothing, Young=1, ν=0.3)
+
+Assembles the finite element system. # Returns the global stiffness matrix
+
+# Arguments:
+- `ne::Interger`: number of elements in each direction
+- `NodeList::Matrix{Float64}{ndim,nNodes}` : coordinates of the nodes
+- `IEN::Matrix{Int}{nElements,nLocalNodes}` : connectivity matrix
+- `ndim::Interger`: number of dimensions
+- `nDof::Interger`: number of degree of freedom per node
+- `FunctionClass::String`: type of basis functions to be considered (Q1:quadratic or Q2:Lagrange)
+- `ID::Matrix{Int}{nNodes,nDof}` : matrix that maps the global degrees of freedom to the local degrees of freedom
+- `Young::Float64`: Young's modulus
+- `ν::Float64`: Poisson's ratio
+
+# Returns:
+- `K::SparseMatrixCSC{Float64,Int64}{ndof,ndof}` : sparse stiffness matrix 
+"""
 function assemble_system(ne, NodeList, IEN, ndim, FunctionClass="Q1", nDof=1, ID=nothing, Young=1, ν=0.3)
-    """ Assembles the finite element system. Returns the global stiffness matrix
 
-        Parameters:
-        ne: {Int} : number of elements in each direction
-        NodeList: {[ndim,nNodes] Matrix{Float64}} : coordinates of the nodes
-        IEN: {[nElements,nLocalNodes] Matrix{Int}} : connectivity matrix
-        ndim: {Int} : number of dimensions
-        nDof: {Int} : number of degree of freedom per node
-        FunctionClass: {String} : type of basis functions to be considered (Q1:quadratic or Q2:Lagrange)
-        ID: {[nNodes,nDof] Matrix{Int}} : matrix that maps the global degrees of freedom to the local degrees of freedom
-        Young: {Float64} : Young's modulus
-        ν: {Float64} : Poisson's ratio
-
-        Returns:
-        K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix 
-    """
     # (I,J,V) vectors for COO sparse matrix
     if nDof == 1
         E = zeros(  Int64, ne^ndim*size(IEN,2)^2)
