@@ -337,7 +337,7 @@ function main()
             push!(splineq, qi)
         end
     end
-    fileName = "squeeze_flow"
+    fileName = "vtkFiles/squeeze_flow"
     write_scene(fileName, NodeList, IEN, ne, ndim, fields)
     animate_fields(fields,fields2D,borderfields2D,IEN, splinep, splineq)
 end

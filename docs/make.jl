@@ -14,10 +14,12 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Examples" => "examples.md",
+        "API Reference" => "api.md",
     ],
 )
 
 deploydocs(;
     repo="github.com/soshalaw/smearFEM.jl",
-    devbranch="develop",
+    devbranch="dev",
 )

@@ -3,9 +3,10 @@ using Test
 using Aqua
 
 @testset "smearFEM.jl" begin
-    # @testset "Code quality (Aqua.jl)" begin
-    #     Aqua.test_all(smearFEM)
-    # end
+    @testset "Code quality (Aqua.jl)" begin
+        Aqua.test_all(smearFEM;
+        ambiguities=false,)
+    end
     
     # test mesh generation
 

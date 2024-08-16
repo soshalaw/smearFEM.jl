@@ -220,7 +220,7 @@ function animate_fields(fields, fields2D, BorderNodes2D, IEN, p, q)
         Plots.title!("Prospective Projection of the 3D Grid")
     end
     gif(animation, "images/3D_grid.gif", fps=10)
-    gif(animation2, "imeage/2D_grid.gif", fps=10)
+    gif(animation2, "images/2D_grid.gif", fps=10)
 end 
 
 """
