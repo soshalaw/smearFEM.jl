@@ -1,7 +1,17 @@
 name = "smearFEM"
-uuid = "7ba5e918-bc99-4a36-ba21-427d8c7ff9ca"
-authors = ["soshalaw <soshalaweerathunge@gmail.com>"]
-version = "0.1.0"
+uuid = "4eee6b04-631b-4815-bf2d-d057f3bb7676"
+authors = ["soshalaw <soshalaweerathunge@gmail.com> and contributors"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.6.7"
+
+[extras]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Aqua", "Test"]
 
 [deps]
 DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"

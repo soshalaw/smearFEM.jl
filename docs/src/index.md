@@ -1,17 +1,14 @@
+```@meta
+CurrentModule = smearFEM
+```
 
 # smearFEM
 
 Documentation for [smearFEM](https://github.com/soshalaw/smearFEM.jl).
 
-## Installation
+```@index
+```
 
-```julia
-using Pkg
-pkg "add smearFEM"
-``` 
-
-## Testing
-```julia
-using Pkg
-pkg "test smearFEM"
+```@autodocs
+Modules = [smearFEM]
 ```
