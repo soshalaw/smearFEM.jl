@@ -25,6 +25,7 @@ function gaussian_quadrature(a,b,nGaussPoints=2)
         w = [(b-a)/2, (b-a)/2]
     elseif nGaussPoints == 3
         ξ = [-(b-a)/(2*sqrt(5/3))+(b+a)/2, 0, (b-a)/(2*sqrt(5/3))+(b+a)/2]
+        w = [(b-a)/2*5/9, (b-a)/2*8/9, (b-a)/2*5/9]
     end
     return ξ, w
 end

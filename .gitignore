@@ -1,8 +1,12 @@
+.github_old
 Vids
 Notebooks
-Manifest.toml
 vtkFiles
 images
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
+/Manifest.toml
 /docs/Manifest.toml
 /docs/build/
 

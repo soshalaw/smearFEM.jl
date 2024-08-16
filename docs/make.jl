@@ -9,7 +9,7 @@ makedocs(;
     sitename="smearFEM.jl",
     format=Documenter.HTML(;
         canonical="https://soshalaw.github.io/smearFEM.jl",
-        edit_link="main",
+        edit_link="develop",
         assets=String[],
     ),
     pages=[
@@ -19,11 +19,7 @@ makedocs(;
     ],
 )
 
-# deploydocs(;
-#     repo="github.com/soshalaw/smearFEM.jl",
-#     devbranch="main",
-#     devurl="dev",
-#     target = "build",
-#     branch = "main",
-#     versions = ["stable" => "v^", "v#.#" ]
-# )
+deploydocs(;
+    repo="github.com/soshalaw/smearFEM.jl",
+    devbranch="dev",
+)

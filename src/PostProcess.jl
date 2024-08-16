@@ -219,8 +219,8 @@ function animate_fields(fields, fields2D, BorderNodes2D, IEN, p, q)
         Plots.ylabel!("y")
         Plots.title!("Prospective Projection of the 3D Grid")
     end
-    gif(animation, "3D_grid.gif", fps=10)
-    gif(animation2, "2D_grid.gif", fps=10)
+    gif(animation, "images/3D_grid.gif", fps=10)
+    gif(animation2, "images/2D_grid.gif", fps=10)
 end 
 
 """
@@ -316,7 +316,7 @@ function PlotGrid(IEN, NodeList)
             ax.plot(x, y, "-k", linewidth=0.5)
         end
     
-        ax.scatter(NodeList[1,:],NodeList[2,:],s=10,c="r")
+        ax.scatter(NodeList[1,:],NodeList[2,:],s=10,c=red)
         ax.axis("equal")
         ax.grid("on")
         ax.set_xlabel("x")
@@ -333,7 +333,7 @@ function PlotGrid(IEN, NodeList)
             ax.plot(x, y, z,"-k", linewidth=0.5)
         end
 
-        ax.scatter(NodeList[1,:],NodeList[2,:],NodeList[3,:],s=10,c="r")
+        ax.scatter(NodeList[1,:],NodeList[2,:],NodeList[3,:],s=10,c=red)
         ax.axis("equal")
         ax.grid("on")
         ax.set_xlabel("x")
@@ -367,7 +367,7 @@ function PlotMesh(NodeList, IEN)
             ax.plot(x, y, "-k", linewidth=0.5)
         end
         
-        ax.scatter(NodeList[1,:],NodeList[2,:],s=10,c="r")
+        ax.scatter(NodeList[1,:],NodeList[2,:],s=10,c=red)
         ax.axis("equal")
         ax.grid("on")
         ax.set_xlabel("x")
@@ -383,7 +383,7 @@ function PlotMesh(NodeList, IEN)
             ax.plot(x, y, z,"-k", linewidth=0.5)
         end
 
-        ax.scatter(NodeList[1,:],NodeList[2,:],NodeList[3,:],s=10,c="r")
+        ax.scatter(NodeList[1,:],NodeList[2,:],NodeList[3,:],s=10,c=red)
         ax.axis("equal")
         ax.grid("on")
         ax.set_xlabel("x")

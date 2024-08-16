@@ -1,4 +1,3 @@
-
 # smearFEM
 
 Documentation for [smearFEM](https://github.com/soshalaw/smearFEM.jl).
