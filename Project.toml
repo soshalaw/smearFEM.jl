@@ -4,7 +4,6 @@ authors = ["soshalaw <soshalaweerathunge@gmail.com> and contributors"]
 version = "1.0.0-DEV"
 
 [deps]
-Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 LazySets = "b4f0291d-fe17-52bc-9479-3d1a343d9043"
