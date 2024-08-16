@@ -316,7 +316,7 @@ function PlotGrid(IEN, NodeList)
             ax.plot(x, y, "-k", linewidth=0.5)
         end
     
-        ax.scatter(NodeList[1,:],NodeList[2,:],s=10,c="r")
+        ax.scatter(NodeList[1,:],NodeList[2,:],s=10,c=red)
         ax.axis("equal")
         ax.grid("on")
         ax.set_xlabel("x")
@@ -333,7 +333,7 @@ function PlotGrid(IEN, NodeList)
             ax.plot(x, y, z,"-k", linewidth=0.5)
         end
 
-        ax.scatter(NodeList[1,:],NodeList[2,:],NodeList[3,:],s=10,c="r")
+        ax.scatter(NodeList[1,:],NodeList[2,:],NodeList[3,:],s=10,c=red)
         ax.axis("equal")
         ax.grid("on")
         ax.set_xlabel("x")
@@ -367,7 +367,7 @@ function PlotMesh(NodeList, IEN)
             ax.plot(x, y, "-k", linewidth=0.5)
         end
         
-        ax.scatter(NodeList[1,:],NodeList[2,:],s=10,c="r")
+        ax.scatter(NodeList[1,:],NodeList[2,:],s=10,c=red)
         ax.axis("equal")
         ax.grid("on")
         ax.set_xlabel("x")
@@ -383,7 +383,7 @@ function PlotMesh(NodeList, IEN)
             ax.plot(x, y, z,"-k", linewidth=0.5)
         end
 
-        ax.scatter(NodeList[1,:],NodeList[2,:],NodeList[3,:],s=10,c="r")
+        ax.scatter(NodeList[1,:],NodeList[2,:],NodeList[3,:],s=10,c=red)
         ax.axis("equal")
         ax.grid("on")
         ax.set_xlabel("x")
