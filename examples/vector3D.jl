@@ -130,7 +130,7 @@ function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
 end
 
 
-function setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof=1)
+function setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof=1)
     """
         Set the Dirichlet boundary conditions for the problem
 
@@ -147,7 +147,8 @@ function setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof=1)
     """
 
     if FunctionClass == "Q1"
-        q_d = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Dirichlet boundary conditions
+        q_upper = zeros(nDof*(ne+1)^ndim,1)              # initialize the vector of the Dirichlet boundary conditions upper surface
+        q_lower = zeros(nDof*(ne+1)^ndim,1)              # initialize the vector of the Dirichlet boundary conditions lower surface
         C = sparse(I,ndim*(ne+1)^ndim,ndim*(ne+1)^ndim)  # definition of the constraint matrix
     end
 
@@ -159,17 +160,17 @@ function setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof=1)
     for nNode in 1:size(NodeList,2)
         coord = NodeList[:,nNode]    # get the coordinates of the node
         if coord[3] == z0Bound       # bottom boundary
-            q_d[3*nNode] = 0         # constraint the z displacement to be zero at the bottom boundary
+            q_lower[3*nNode] = 1     # constraint the z displacement to be zero at the bottom boundary
             push!(rCol,3*nNode)
         elseif coord[3] == z1Bound   # top boundary
-            q_d[3*nNode] = -d        # constraint the z displacement to be -d
+            q_upper[3*nNode] = 1     # constraint the z displacement to be -d
             push!(rCol,3*nNode)
         end
     end
 
-    C = C[:,setdiff(1:size(C,2),rCol)]
-        
-    return q_d, C
+    C_uc = C[:,setdiff(1:size(C,2),rCol)]
+
+    return q_upper, q_lower, C_uc
 end
 
 function apply_boundary_conditions(ne, NodeList, IEN, IEN_top, IEN_btm, ndim, FunctionClass, ID=None, nDof=3)
@@ -263,7 +264,124 @@ function apply_boundary_conditions(ne, NodeList, IEN, IEN_top, IEN_btm, ndim, Fu
     return  K
 end
 
-function main()
+function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, endTime, tSteps, Control, cParam, writeData=false)
+
+    time = collect(range(0,endTime,tSteps)) # time vector
+
+    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)  # generate the mesh grid
+    NodeListCylinder = inflate_sphere(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
+    q_tp, q_btm, C_uc = setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof)
+
+    state = "init"
+
+    BorderNodes2D, NodeList2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne)
+    pi, qi = fit_curve(BorderNodes2D)
+
+    SideBorders = BorderNodesList[1]
+    BottomBorders = BorderNodesList[2]
+    TopBorders = BorderNodesList[3]
+        
+    fields = [NodeListCylinder]                                                               # store the solution fields of the mesh in 3D
+    fields2D = [NodeList2D]                                                                   # store the solution fields of the mesh in 2D
+    BorderNodes = [NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
+    borderfields2D = [BorderNodes2D]                                                          # store the solution fields of the surfaces in 2D
+    splinep = [pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
+    splineq = [qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
+    output = []
+
+    state = "update"
+    μ_btm = 0      
+    iter = 1
+
+    if Control == "force"
+        @showprogress "Simulating with prescribed $Control ..." for t in time
+
+            K = assemble_system(ne, NodeListCylinder, IEN, ndim, FunctionClass, nDof, ID, Young, ν)                   # assemble the stiffness matrix
+            b = apply_boundary_conditions(ne, NodeListCylinder, IEN, IEN_top, IEN_btm, ndim, FunctionClass, ID)   # apply the neumann boundary conditions
+            q_btm = μ_btm*q_btm
+            
+            K_bar = K + β*b
+
+            C_T = transpose(C_uc)              # transpose the constraint matrix
+
+            M = [C_T*K_bar*C_uc C_T*K_bar*q_tp; q_tp'*K_bar*C_uc q_tp'*K_bar*q_tp] # assemble the system of equations]
+
+            invM = inv(Matrix(M))                      # invert the system of equations
+
+            sol = invM*[-C_T*K_bar*q_btm; cParam[iter].-q_tp'*K_bar*q_btm] # solve the system of equations
+
+            q_f = sol[1:end-1]        # solve the system of equations
+            μ_tp = sol[end]           # solve the system of equations
+            q = q_btm + C_uc*q_f + μ_tp*q_tp;                # assemble the solution
+
+            # post process the solution
+            motion = [q[ID[:,1]] q[ID[:,2]] q[ID[:,3]]]'    # update the nodal positions
+            NodeListCylinder = NodeListCylinder + motion    # update the node coordinates
+
+            BorderNodes2D, NodeList2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
+            BorderNodes = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
+            pi, qi = fit_curve(BorderNodes2D)
+
+            push!(output, μ_tp)
+            push!(fields, NodeListCylinder)
+            push!(fields2D, NodeList2D)
+            push!(borderfields2D, BorderNodes2D)
+            push!(splinep, pi)
+            push!(splineq, qi) 
+
+            iter += 1
+        end
+
+    elseif Control == "displacement"
+
+        @showprogress "Simulating with prescribed $Control ..." for t in time
+        
+            K = assemble_system(ne, NodeListCylinder, IEN, ndim, FunctionClass, nDof, ID, Young, ν)                   # assemble the stiffness matrix
+            b = apply_boundary_conditions(ne, NodeListCylinder, IEN, IEN_top, IEN_btm, ndim, FunctionClass, ID)       # apply the neumann boundary conditions
+            q_d = (μ_btm*q_btm + cParam[iter]*q_tp)                  # apply the Dirichlet boundary conditions
+
+            K_bar = K + β*b
+
+            C_T = transpose(C_uc)           # transpose the constraint matrix
+            K_free = C_T*K_bar*C_uc         # extract the free part of the stiffness matrix
+
+            invK = inv(Matrix(K_free))
+
+            q_f = invK*C_T*(-K_bar*q_d)         # solve the system of equations
+            q = q_d + C_uc*q_f;                 # assemble the solution 
+
+            # post process the solution
+            f_R = K_bar*q
+            motion = [q[ID[:,1]] q[ID[:,2]] q[ID[:,3]]]'
+            F_est = q_tp'*f_R                                         # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
+            NodeListCylinder = NodeListCylinder + motion              # update the node coordinates
+
+            BorderNodes2D, NodeList2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
+            BorderNodes = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
+            pi, qi = fit_curve(BorderNodes2D)
+
+            # store the solutions in a list
+            push!(output, F_est[1])
+            push!(fields, NodeListCylinder)
+            push!(fields2D, NodeList2D)
+            push!(borderfields2D, BorderNodes2D)
+            push!(splinep, pi)
+            push!(splineq, qi) 
+
+            iter += 1
+        end
+    end
+
+    if writeData
+        fileName = "vtkFiles/squeeze_flow"
+        write_scene(fileName, NodeList, IEN, ne, ndim, fields)
+        animate_fields(fields,fields2D,borderfields2D,IEN, splinep, splineq)
+    end
+
+    return output
+end
+
+function test()
     # test case 
     x0 = 0
     x1 = 1
@@ -278,68 +396,16 @@ function main()
     FunctionClass = "Q1"
     nDof = ndim  # number of degree of freedom per node
     β = 100
-    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
-    
-    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)  # generate the mesh grid
-    NodeListCylinder = inflate_sphere(NodeList, x0, x1, y0, y1)                     # inflate the sphere to a unit sphere
-    state = "init"
-    
-    if state == "init"
-        BorderNodes2D, NodeList2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne)
-        pi, qi = fit_curve(BorderNodes2D)
 
-        SideBorders = BorderNodesList[1]
-        BottomBorders = BorderNodesList[2]
-        TopBorders = BorderNodesList[3]
-            
-        fields = [NodeListCylinder]                            # store the solution fields of the surfaces in 3D
-        fields2D = [NodeList2D]                                # store the solution fields of the surfaces in 2D
-        borderfields2D = [BorderNodes2D]                       # store the solution fields of the border nodes in 2D
-        splinep = [pi]                                         # store the x coordinates samples of the spline parameters of the border nodes
-        splineq = [qi]                                         # store the y coordinates samples of the spline parameters of the border nodes
-        
-        state == "update"
+    Control = "force"
+    cParam = F*ones(tSteps)
+    μ_list = simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, endTime, tSteps, Control, cParam)
 
-    elseif state == "update"
-    
-        K = assemble_system(ne, NodeList, IEN, ndim, FunctionClass, nDof, ID, Young, ν)                   # assemble the stiffness matrix
-        b = apply_boundary_conditions(ne, NodeListCylinder, IEN, IEN_top, IEN_btm, ndim, FunctionClass, ID)   # apply the neumann boundary conditions
+    Control = "displacement"
+    F_list = simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, endTime, tSteps, Control, μ_list)
 
-        K_bar = K + β*b
+    isapprox(F_list, cParam, atol=1e-3)
 
-        delta = 0.001:0.01:0.5  # set the z displacement increment
-                                                                                
-        @showprogress "Simulating..." for d in delta
-
-            q_d, C = setboundaryCond(NodeList, ne, ndim, FunctionClass, d, nDof)
-            C_t = transpose(C)              # transpose the constraint matrix
-            K_free = C_t*K_bar*C            # extract the free part of the stiffness matrix
-
-            invK = inv(Matrix(K_free))
-
-            q_f = invK*C_t*(-K_bar*q_d)     # solve the system of equations
-
-            q = q_d + C*q_f;                # assemble the solution 
-
-            # post process the solution
-            motion = [q[ID[:,1]] q[ID[:,2]] q[ID[:,3]]]'
-
-            NodeList_new = NodeListCylinder + motion # update the node coordinates
-
-            BorderNodes2D, NodeList2D = extract_borders(NodeList_new, CameraMatrix, BorderNodesList, state)
-            BorderNodes = [NodeList_new[:,SideBorders] NodeList_new[:,BottomBorders] NodeList_new[:,TopBorders]]
-            pi, qi = fit_curve(BorderNodes2D)
-
-            push!(fields, motion)
-            push!(fields2D, NodeList2D)
-            push!(borderfields2D, BorderNodes2D)
-            push!(splinep, pi)
-            push!(splineq, qi)
-        end
-    end
-    fileName = "vtkFiles/squeeze_flow"
-    write_scene(fileName, NodeList, IEN, ne, ndim, fields)
-    animate_fields(fields,fields2D,borderfields2D,IEN, splinep, splineq)
 end
 
- main()
+test()
