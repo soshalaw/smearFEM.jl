@@ -152,6 +152,28 @@ function back_project(NodeList, CameraMatrix)
 end 
 
 """
+    assign_forces(ne, NodeList, IEN, ndim, FunctionClass, nDof, Young, ν, f_react, ID)
+
+Assign forces to the nodes of the mesh
+
+# Arguments:
+- `ne::Integer`: number of elements in each direction
+- `NodeList_new::Matrix{Float64}{nNodes, ndim}`: array of nodes
+- `IEN::Matrix{Float64}{nElem, nNodes}`: IEN array
+- `ndim::Integer`: number of dimensions
+- `FunctionClass`: function class
+- `nDof::Integer`: number of degrees of freedom
+- `Young::Float64`: Young's modulus
+- `ν::Float64`: Poisson's ratio
+- `f_react::Vector{Float64}`: reaction forces
+- `ID::Matrix{Float64}{nDof, nNodes}`: ID array
+"""
+function assign_forces(ne, NodeList_new, IEN, ndim, FunctionClass, nDof, Young, ν, f_react, ID) 
+
+
+
+end
+"""
     fit_curve(border)
 
 Fit a curve to the border nodes of the 2D mesh
@@ -166,7 +188,6 @@ function fit_curve(border)
     q = CubicSpline(y,seq)
     pi = [p(i) for i in 1:0.01:len+1]
     qi = [q(i) for i in 1:0.01:len+1]
-
 
     return pi, qi
 end
