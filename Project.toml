@@ -4,12 +4,16 @@ authors = ["soshalaw <soshalaweerathunge@gmail.com> and contributors"]
 version = "1.0.0-DEV"
 
 [deps]
+ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+ConvexHulls2d = "438b5665-92b0-42e6-bc36-e4ac8449fa2d"
 DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
 LazySets = "b4f0291d-fe17-52bc-9479-3d1a343d9043"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Polyhedra = "67491407-f73d-577b-9b50-8179a7c68029"
+ProgressBars = "49802e3a-d2f1-5c88-81d8-b72133a6f568"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
@@ -18,7 +22,6 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [compat]
 julia = "1.6.7"
-
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"

@@ -1,9 +1,7 @@
 using LinearAlgebra
 using ProgressMeter
 using SparseArrays
-using Plots
 
-using smearFEM
 
 # set up mesh grid
 function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
@@ -172,7 +170,7 @@ function setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof=1)
     return q_upper, q_lower, C_uc
 end
 
-function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam; cMat, writeData=true, csv_path)
+function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing)
 
     time = collect(range(start=0,stop=endTime,length=tSteps)) # time vector
 
@@ -184,20 +182,24 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
                 
     state = "init"
 
-    BorderNodes2D, NodeList2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne)
-    pi, qi = fit_curve(border=BorderNodes2D)
+    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne)
+    pi, qi = fit_curve(border=BorderPts2D)
 
     SideBorders = BorderNodesList[1]
     BottomBorders = BorderNodesList[2]
     TopBorders = BorderNodesList[3]
         
     fields = [NodeListCylinder]                                                               # store the solution fields of the mesh in 3D
-    fields2D = [NodeList2D]                                                                   # store the solution fields of the mesh in 2D
-    BorderNodes = [NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
-    borderfields2D = [BorderNodes2D]                                                          # store the solution fields of the surfaces in 2D
+    fields2D = [Nodes2D]                                                                   # store the solution fields of the mesh in 2D
+    surfaceNodesList = [NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
+    borderPts2DList = [BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
+    borderNodeList2D = [BorderNodes2D]                                                       # store the solution fields of the border nodes in 2D
     splinep = [pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
     splineq = [qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
     output = []
+    writeborserList = [vcat(pi', qi')]
+    # display(vcat(pi', qi'))
+    # display(BorderPts2D)
 
     state = "update"
     μ_btm = 0      
@@ -229,17 +231,18 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             motion = [q[ID[:,1]] q[ID[:,2]] q[ID[:,3]]]'    # update the nodal positions
             NodeListCylinder = NodeListCylinder + motion    # update the node coordinates
 
-            BorderNodes2D, NodeList2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
-            BorderNodes = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
-            # border = average_pts(BorderNodes2D, 2048/2)
-            pi, qi = fit_curve(border=BorderNodes2D)
+            BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
+            surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
+            pi, qi = fit_curve(border=BorderPts2D)
 
             push!(output, μ_tp)
             push!(fields, NodeListCylinder)
-            push!(fields2D, NodeList2D)
-            push!(borderfields2D, border)
+            push!(fields2D, Nodes2D)
+            push!(borderPts2DList, BorderPts2D)
+            push!(borderNodeList2D, BorderNodes2D)
             push!(splinep, pi)
             push!(splineq, qi) 
+            push!(writeborserList, vcat(pi', qi'))
 
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
@@ -269,17 +272,19 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             F_est = q_tp'*f_R                                         # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
             NodeListCylinder = NodeListCylinder + motion              # update the node coordinates
 
-            BorderNodes2D, NodeList2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
-            BorderNodes = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
-            pi, qi = fit_curve(border=BorderNodes2D)
+            BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
+            surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
+            pi, qi = fit_curve(border=BorderPts2D)
 
             # store the solutions in a list
             push!(output, F_est[1])
             push!(fields, NodeListCylinder)
-            push!(fields2D, NodeList2D)
-            push!(borderfields2D, BorderNodes2D)
+            push!(fields2D, Nodes2D)
+            push!(borderPts2DList, BorderPts2D)
+            push!(borderNodeList2D, BorderNodes2D)
             push!(splinep, pi)
             push!(splineq, qi) 
+            push!(writeborserList, vcat(pi', qi'))
 
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
@@ -287,50 +292,70 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     end
 
     if writeData
-        fileName = "vtkFiles/squeeze_flow"
-        write_scene(fileName, NodeList, IEN, ne, ndim, fields)
-        animate_fields(fields=fields , IEN=IEN, BorderNodes2D=borderfields2D, fields2D=fields2D, p=splinep, q=splineq)
-        writeCSV(csv_path, borderfields2D)
-    end;
-
-    return output, borderfields2D, splinep, splineq, mdl
+        write_scene(string(filepath,"/Results"), NodeList, IEN, ne, ndim, fields)
+        animate_fields(filepath = string(filepath,"/Results/images"), fields=fields , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=fields2D, p=splinep, q=splineq)
+        writeCSV(string(filepath,"/Results"), writeborserList)
+    end
+    return output, borderPts2DList, borderNodeList2D, splinep, splineq, mdl
 end
 
-function test()
+function set_file(filepath)
+    if !isdir(filepath)
+        mkdir(filepath)
+        mkdir(string(filepath,"/Results"))
+        mkdir(string(filepath,"/Results/contour_data"))
+        mkdir(string(filepath,"/Results/vtkFiles"))
+        mkdir(string(filepath,"/Results/images"))
+        mkdir(string(filepath,"/Results/cost"))
+        mkdir(string(filepath,"/Results/cost_lame"))
+    end
+end
 
-    # test case 
-    x0 = 0
-    x1 = 1
-    y0 = 0
-    y1 = 1
-    z0 = 0
-    z1 = 1
-    ne = 8
-    ndim = 3
-    FunctionClass = "Q1"
-    nDof = ndim  # number of degree of freedom per node
-    β = 100
-    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
-    endTime = 20
-    tSteps = 45
-    Control = "displacement" # "force" or "displacement"
-    writeData = false
-    Young = 40
-    ν = 0.4
+function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control; writeData=false, filepath=nothing, mode = "standard")
+    
+    if writeData
+        isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
+        set_file(filepath)
+    end
 
-    csv_path = "/home/soshala/SMEAR-PhD/SMEAR/Data/experiment_01/Results/contour_data"
-   
+    μ_tp = 0.3
+
     if Control == "force"
         cParam = -0.25*ones(tSteps)
     elseif Control == "displacement"
-        μ_tp = 0.25
         cParam = -(μ_tp/tSteps)*ones(tSteps)
     end
 
-    cMat = get_cMat("standard", Young = Young, ν = ν)
+    cMat = get_cMat(mode, Young, ν)
 
-    μ_list, simborderfields, splinex, spliney = simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam; cMat, writeData=writeData, csv_path=csv_path)
+    μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat, writeData=writeData, filepath=filepath)
 
+    if !writeData
+        println("comparing the simulated and observed data")
+        isnothing(filepath) || AssertionError("Please provide a filepath to read the data")
+        # animate_fields(filepath = string(filepath,"/Results"), p=splinex, q=spliney, pObs=splinexObs, qObs=splineyObs)
+        obsBorderPts, splinexObs, splineyObs = readCSV(string(filepath,"/Results/contour_data"))                         # read the observation data
+        
+        # animate_fields(filepath = string(filepath,"/Results/cost"), BorderNodes2D=simBorderPts, p=splinex, q=spliney, pObs=splinexObs, qObs=splineyObs) # animate the fields
+
+        pairs = match_points(simBorderPts[1], [splinexObs[1],splineyObs[1]]) # match the points using the first border
+
+        # plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/cost"))
+
+        # test the closest point function
+        d_h, xObsintlst, xSimintlst, ySimintlst = height_sample(simBorderPts, obsBorderPts)
+        # plot_matches_h(xObsintlst, ySimintlst, xSimintlst, splinex, spliney, splinexObs, splineyObs, string(filepath,"/Results/cost"))
+
+        d_cp = closest_point(simBorderPts, obsBorderPts, pairs)
+        # d_cp = zeros(length(d_h))
+
+        return d_h, d_cp
+    else
+        return 0, 0
+    end
 end
 
-test()
+function write_sim_data(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, filename; mode = "standard")
+    writeData = true
+    hcost, cpCost = test(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, writeData=writeData, filepath=filename, mode = mode)
+end
