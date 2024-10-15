@@ -30,7 +30,6 @@ function write_vtk(filePath, fieldName, NodeList, IEN, ne, ndim, q)
 
     vtk_grid(string(filePath,"/vtkFiles"), NodeList, cells) do vtk
         vtk[fieldName] = q
-
     end
 end 
 
@@ -95,6 +94,16 @@ function readCSV(csv_path)
     return ObsDataList, splinex, spliney
 end
 
+"""
+    writeCSV(fileName, borders)
+
+Function to write the border data to a CSV file.
+
+# Arguments:
+- `fileName::String`: name of the file.
+- `borders::Vector{Matrix{Float64}}`: vector of border data.
+
+"""
 function writeCSV(fileName, borders)
     println("Writing CSV files...")
     counter = 1

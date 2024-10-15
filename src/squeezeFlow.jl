@@ -2,179 +2,697 @@ using LinearAlgebra
 using ProgressMeter
 using SparseArrays
 
-
 # set up mesh grid
-function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)
+"""
+    meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim;FunctionClass="Q1")
 
-    NodeList = zeros(ndim,(ne+1)^ndim)
-    IEN = zeros(Int64,ne^ndim,2^ndim) # IEN for the 3D mesh
-    IEN_top = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the top surface
-    IEN_btm = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the bottom surface
-    IEN_side = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the side surfaces
-    ID = zeros(Int64,(ne+1)^ndim,ndim)
-    
+Set up the mesh grid for the 2D and 3D problems
+
+Parameters:
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
+- `y0::Float64` : y-coordinate of the lower left corner of the domain
+- `y1::Float64` : y-coordinate of the upper right corner of the domain
+- `z0::Float64` : z-coordinate of the lower left corner of the domain
+- `z1::Float64` : z-coordinate of the upper right corner of the domain
+- `ne::Int` : number of elements
+- `ndim::Int` : number of dimensions
+- `FunctionClass::String` : type of basis function
+
+Returns:
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
+- `IEN::Matrix{Int64}{ne^ndim,2^ndim}` : array of elements
+- `ID::Matrix{Int64}{nNodes,ndim}` : array of node IDs
+- `IEN_top::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the top surface
+- `IEN_btm::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the bottom surface
+- `BorderNodes::Vector{Int64}` : array of nodes on the boundaries
+- `BottomBorderNodes::Vector{Int64}` : array of nodes on the bottom boundary
+- `TopBorderNodes::Vector{Int64}` : array of nodes on the top boundary
+"""
+function meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim;FunctionClass="Q1")
+            
     BorderNodes = []
     BottomBorderNodes = []
     TopBorderNodes = []
 
-    if ndim == 2
-        x = collect(range(x0, x1, length=ne+1))
-        y = collect(range(y0, y1, length=ne+1))
-    
-        m = 1
-        for j in 1:ne+1 # y direction
-            for i in 1:ne+1 # x direction
-                NodeList[1,m] = x[i]
-                NodeList[2,m] = y[j]
-                for l in 1:ndim
-                    ID[m,l] = ndim*(m-1) + l
-                end
-                if i == 1 || i == ne+1 # populate the BorderNodes with the nodes on the left and right boundaries
-                    push!(BorderNodes,m)
-                end
-                m = m + 1
-            end
-        end 
+    if FunctionClass == "Q1"
+        nNodes = ne+1 # number of nodes in each direction
+        NodeList = zeros(ndim,(nNodes)^ndim)
+        IEN = zeros(Int64,ne^ndim,2^ndim) # IEN for the 3D mesh
+        IEN_top = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the top surface
+        IEN_btm = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the bottom surface
+        IEN_side = zeros(Int64,ne^(ndim-1),2^(ndim-1)) # IEN for the side surfaces
+        ID = zeros(Int64,(nNodes)^ndim,ndim)
         
-        n = 1
-        for j in 1:ne # y direction
-            for i in 1:ne # x direction
-                IEN[n,1] = (j-1)*(ne+1) + i
-                IEN[n,2] = (j-1)*(ne+1) + i + 1
-                IEN[n,3] = j*(ne+1) + i + 1
-                IEN[n,4] = j*(ne+1) + i
-                if j == 1 # populate the IEN for the bottom surface
-                    IEN_btm[i,1] = IEN[n,1]
-                    IEN_btm[i,2] = IEN[n,2]
-                elseif j == ne # populate the IEN for the top surface
-                    IEN_top[i,1] = IEN[n,4]
-                    IEN_top[i,2] = IEN[n,3]
-                end
-                n = n + 1
-            end
-        end
-
-    elseif ndim == 3
-
-        x = collect(range(x0, x1, length=ne+1))
-        y = collect(range(y0, y1, length=ne+1))
-        z = collect(range(z0, z1, length=ne+1))
+        if ndim == 2
+            x = collect(range(x0, x1, length=nNodes))
+            y = collect(range(y0, y1, length=nNodes))
         
-        m = 1
-        for k in 1:ne+1 # z direction
-            for j in 1:ne+1 # y direction
-                for i in 1:ne+1 # x direction
+            m = 1
+            for j in 1:nNodes # y direction
+                for i in 1:nNodes # x direction
                     NodeList[1,m] = x[i]
                     NodeList[2,m] = y[j]
-                    NodeList[3,m] = z[k]
                     for l in 1:ndim
                         ID[m,l] = ndim*(m-1) + l
                     end
-                    if (i == 1 || i == ne+1 || j == 1 || j == ne+1)
-                        push!(BorderNodes,m) # populate the BorderNodes with the nodes on the boundaries (excluding the top and bottom surfaces)
-                    elseif k == 1
-                        push!(BottomBorderNodes,m) # populate the BorderNodes with the nodes on the top and bottom surfaces
-                    elseif k == ne + 1
-                        push!(TopBorderNodes,m) # populate the BorderNodes with the nodes on the top and bottom surfaces
+                    if i == 1 || i == nNodes # populate the BorderNodes with the nodes on the left and right boundaries
+                        push!(BorderNodes,m)
                     end
                     m = m + 1
                 end
-            end
-        end
-        
-        n = 1       # element number on 3D mesh
-        nt = 1      # element number on 2D mesh of top surface
-        nb = 1      # element number on 2D mesh of bottom surface
-        for k in 1:ne            # z direction
-            for j in 1:ne        # y direction
-                for i in 1:ne    # x direction
-                    IEN[n,1] = (k-1)*(ne+1)^2 + (j-1)*(ne+1) + i
-                    IEN[n,2] = (k-1)*(ne+1)^2 + (j-1)*(ne+1) + i + 1
-                    IEN[n,3] = (k-1)*(ne+1)^2 + j*(ne+1) + i + 1
-                    IEN[n,4] = (k-1)*(ne+1)^2 + j*(ne+1) + i
-                    IEN[n,5] = k*(ne+1)^2 + (j-1)*(ne+1) + i
-                    IEN[n,6] = k*(ne+1)^2 + (j-1)*(ne+1) + i + 1
-                    IEN[n,7] = k*(ne+1)^2 + j*(ne+1) + i + 1
-                    IEN[n,8] = k*(ne+1)^2 + j*(ne+1) + i
-                    if k == 1 # populate the IEN for the bottom surface
-                        IEN_btm[nb,1] = IEN[n,1]
-                        IEN_btm[nb,2] = IEN[n,2]
-                        IEN_btm[nb,3] = IEN[n,3]
-                        IEN_btm[nb,4] = IEN[n,4]
-                        nb = nb + 1
-                    elseif k == ne # populate the IEN for the top surface
-                        IEN_top[nt,1] = IEN[n,5]
-                        IEN_top[nt,2] = IEN[n,6]
-                        IEN_top[nt,3] = IEN[n,7]
-                        IEN_top[nt,4] = IEN[n,8]
-                        nt = nt + 1
-                    # elseif j == 1 || j == ne || i == 1 || i == ne
-                    #     IEN_side[n,1] = IEN[n,1]
-                    #     IEN_side[n,2] = IEN[n,2]
-                    #     IEN_side[n,3] = IEN[n,3]
-                    #     IEN_side[n,4] = IEN[n,4]
-                    #     IEN_side[n,5] = IEN[n,5]
-                    #     IEN_side[n,6] = IEN[n,6]
-                    #     IEN_side[n,7] = IEN[n,7]
-                    #     IEN_side[n,8] = IEN[n,8]
+            end 
+            
+            n = 1
+            for j in 1:ne # y direction
+                for i in 1:ne # x direction
+                    IEN[n,1] = (j-1)*(nNodes) + i
+                    IEN[n,2] = (j-1)*(nNodes) + i + 1
+                    IEN[n,3] = j*(nNodes) + i + 1
+                    IEN[n,4] = j*(nNodes) + i
+                    if j == 1 # populate the IEN for the bottom surface
+                        IEN_btm[i,1] = IEN[n,1]
+                        IEN_btm[i,2] = IEN[n,2]
+                    elseif j == ne # populate the IEN for the top surface
+                        IEN_top[i,1] = IEN[n,4]
+                        IEN_top[i,2] = IEN[n,3]
                     end
                     n = n + 1
                 end
             end
+
+        elseif ndim == 3
+
+            x = collect(range(x0, x1, length=nNodes))
+            y = collect(range(y0, y1, length=nNodes))
+            z = collect(range(z0, z1, length=nNodes))
+            
+            m = 1
+            for k in 1:nNodes # z direction
+                for j in 1:nNodes # y direction
+                    for i in 1:nNodes # x direction
+                        NodeList[1,m] = x[i]
+                        NodeList[2,m] = y[j]
+                        NodeList[3,m] = z[k]
+                        for l in 1:ndim
+                            ID[m,l] = ndim*(m-1) + l
+                        end
+                        if (i == 1 || i == nNodes || j == 1 || j == nNodes)
+                            push!(BorderNodes,m) # populate the BorderNodes with the nodes on the boundaries (excluding the top and bottom surfaces)
+                        elseif k == 1
+                            push!(BottomBorderNodes,m) # populate the BorderNodes with the nodes on the top and bottom surfaces
+                        elseif k == nNodes
+                            push!(TopBorderNodes,m) # populate the BorderNodes with the nodes on the top and bottom surfaces
+                        end
+                        m = m + 1
+                    end
+                end
+            end
+            
+            n = 1           # element number on 3D mesh
+            nt = 1          # element number on 2D mesh of top surface
+            nb = 1          # element number on 2D mesh of bottom surface
+            for k in 1:ne            # z direction
+                for j in 1:ne        # y direction
+                    for i in 1:ne    # x direction
+                        IEN[n,1] = (k-1)*(nNodes)^2 + (j-1)*(nNodes) + i
+                        IEN[n,2] = (k-1)*(nNodes)^2 + (j-1)*(nNodes) + i + 1
+                        IEN[n,3] = (k-1)*(nNodes)^2 + j*(nNodes) + i + 1
+                        IEN[n,4] = (k-1)*(nNodes)^2 + j*(nNodes) + i
+                        IEN[n,5] = k*(nNodes)^2 + (j-1)*(nNodes) + i
+                        IEN[n,6] = k*(nNodes)^2 + (j-1)*(nNodes) + i + 1
+                        IEN[n,7] = k*(nNodes)^2 + j*(nNodes) + i + 1
+                        IEN[n,8] = k*(nNodes)^2 + j*(nNodes) + i
+                        if k == 1 # populate the IEN for the bottom surface
+                            IEN_btm[nb,1] = IEN[n,1]
+                            IEN_btm[nb,2] = IEN[n,2]
+                            IEN_btm[nb,3] = IEN[n,3]
+                            IEN_btm[nb,4] = IEN[n,4]
+                            nb = nb + 1
+                        elseif k == ne # populate the IEN for the top surface
+                            IEN_top[nt,1] = IEN[n,5]
+                            IEN_top[nt,2] = IEN[n,6]
+                            IEN_top[nt,3] = IEN[n,7]
+                            IEN_top[nt,4] = IEN[n,8]
+                            nt = nt + 1
+                        # elseif j == 1 || j == ne || i == 1 || i == ne
+                        #     IEN_side[n,1] = IEN[n,1]
+                        #     IEN_side[n,2] = IEN[n,2]
+                        #     IEN_side[n,3] = IEN[n,3]
+                        #     IEN_side[n,4] = IEN[n,4]
+                        #     IEN_side[n,5] = IEN[n,5]
+                        #     IEN_side[n,6] = IEN[n,6]
+                        #     IEN_side[n,7] = IEN[n,7]
+                        #     IEN_side[n,8] = IEN[n,8]
+                        end
+                        n = n + 1
+                    end
+                end
+            end
+        end
+    elseif FunctionClass == "Q2"
+        nNodes = 2*ne+1
+        NodeList = zeros(ndim,(nNodes)^ndim)
+        IEN = zeros(Int64,ne^ndim,3^ndim) # IEN for the 3D mesh
+        IEN_top = zeros(Int64,ne^(ndim-1),3^(ndim-1)) # IEN for the top surface
+        IEN_btm = zeros(Int64,ne^(ndim-1),3^(ndim-1)) # IEN for the bottom surface
+        ID = zeros(Int64,(nNodes)^ndim,ndim)
+        
+        if ndim == 2
+            x = collect(range(x0, x1, length=nNodes))
+            y = collect(range(y0, y1, length=nNodes))
+            
+            m = 1
+            for j in 1:nNodes # y direction
+                for i in 1:nNodes # x direction 
+                    NodeList[1,m] = x[i]
+                    NodeList[2,m] = y[j]
+                    m = m + 1
+                end
+            end
+
+            n = 1
+            for j in 1:ne # y direction
+                for i in 1:ne # x direction
+                    IEN[n,1] = 2*(j-1)*(nNodes) + 2*i - 1
+                    IEN[n,2] = 2*(j-1)*(nNodes) + 2*i + 1
+                    IEN[n,3] = 2*j*(nNodes) + 2*i + 1
+                    IEN[n,4] = 2*j*(nNodes) + 2*i - 1
+                    IEN[n,5] = 2*(j-1)*(nNodes) + 2*i
+                    IEN[n,6] = (2*j-1)*(nNodes) + 2*i + 1
+                    IEN[n,7] = 2*j*(nNodes) + 2*i
+                    IEN[n,8] = (2*j-1)*(nNodes) + 2*i - 1
+                    IEN[n,9] = (2*j-1)*(nNodes) + 2*i
+                    n = n + 1
+                end
+            end 
+        elseif ndim == 3
+            x = collect(range(x0, x1, length=nNodes))
+            y = collect(range(y0, y1, length=nNodes))
+            z = collect(range(z0, z1, length=nNodes))
+
+            m = 1
+            for k in 1:nNodes
+                for j in 1:nNodes
+                    for i in 1:nNodes
+                        NodeList[1,m] = x[i]
+                        NodeList[2,m] = y[j]
+                        NodeList[3,m] = z[k]
+                        for l in 1:ndim
+                            ID[m,l] = ndim*(m-1) + l
+                        end
+                        if (i == 1 || i == nNodes || j == 1 || j == nNodes)
+                            push!(BorderNodes,m) # populate the BorderNodes with the nodes on the boundaries (excluding the top and bottom surfaces)
+                        elseif k == 1
+                            push!(BottomBorderNodes,m) # populate the BorderNodes with the nodes on the top and bottom surfaces
+                        elseif k == nNodes
+                            push!(TopBorderNodes,m) # populate the BorderNodes with the nodes on the top and bottom surfaces
+                        end
+                        m = m + 1
+                    end
+                end
+            end
+            
+            n = 1       # element number on 3D mesh
+            nt = 1      # element number on 2D mesh of top surface
+            nb = 1      # element number on 2D mesh of bottom surface
+            for k in 1:ne
+                for j in 1:ne
+                    for i in 1:ne
+                        IEN[n,1] = 2*(k-1)*(nNodes)^2 + 2*(j-1)*(nNodes) + 2*i - 1
+                        IEN[n,2] = 2*(k-1)*(nNodes)^2 + 2*(j-1)*(nNodes) + 2*i + 1
+                        IEN[n,3] = 2*(k-1)*(nNodes)^2 + 2*j*(nNodes) + 2*i + 1
+                        IEN[n,4] = 2*(k-1)*(nNodes)^2 + 2*j*(nNodes) + 2*i - 1
+                        IEN[n,5] = 2*k*(nNodes)^2 + 2*(j-1)*(nNodes) + 2*i -1
+                        IEN[n,6] = 2*k*(nNodes)^2 + 2*(j-1)*(nNodes) + 2*i + 1
+                        IEN[n,7] = 2*k*(nNodes)^2 + 2*j*(nNodes) + 2*i + 1
+                        IEN[n,8] = 2*k*(nNodes)^2 + 2*j*(nNodes) + 2*i - 1
+                        IEN[n,9] = 2*(k-1)*(nNodes)^2 + 2*(j-1)*(nNodes) + 2*i 
+                        IEN[n,10] = 2*(k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i + 1
+                        IEN[n,11] = 2*(k-1)*(nNodes)^2 + 2*j*(nNodes) + 2*i
+                        IEN[n,12] = 2*(k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i - 1
+                        IEN[n,13] = 2*k*(nNodes)^2 + 2*(j-1)*(nNodes) + 2*i
+                        IEN[n,14] = 2*k*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i + 1
+                        IEN[n,15] = 2*k*(nNodes)^2 + 2*j*(nNodes) + 2*i
+                        IEN[n,16] = 2*k*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i - 1
+                        IEN[n,17] = (2*k-1)*(nNodes)^2 + 2*(j-1)*(nNodes) + 2*i - 1
+                        IEN[n,18] = (2*k-1)*(nNodes)^2 + 2*(j-1)*(nNodes) + 2*i + 1
+                        IEN[n,19] = (2*k-1)*(nNodes)^2 + 2*j*(nNodes) + 2*i + 1
+                        IEN[n,20] = (2*k-1)*(nNodes)^2 + 2*j*(nNodes) + 2*i - 1
+                        IEN[n,21] = (2*k-1)*(nNodes)^2 + 2*(j-1)*(nNodes) + 2*i
+                        IEN[n,22] = (2*k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i + 1
+                        IEN[n,23] = (2*k-1)*(nNodes)^2 + 2*j*(nNodes) + 2*i
+                        IEN[n,24] = (2*k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i - 1
+                        IEN[n,25] = 2*(k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i
+                        IEN[n,26] = 2*k*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i
+                        IEN[n,27] = (2*k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i
+
+                        if k == 1
+                            IEN_btm[nb,1] = IEN[n,1]
+                            IEN_btm[nb,2] = IEN[n,2]
+                            IEN_btm[nb,3] = IEN[n,3]
+                            IEN_btm[nb,4] = IEN[n,4]
+                            IEN_btm[nb,5] = IEN[n,9]
+                            IEN_btm[nb,6] = IEN[n,10]
+                            IEN_btm[nb,7] = IEN[n,11]
+                            IEN_btm[nb,8] = IEN[n,12]
+                            IEN_btm[nb,9] = IEN[n,25]
+                            nb = nb + 1
+                        elseif k == ne
+                            IEN_top[nt,1] = IEN[n,5]
+                            IEN_top[nt,2] = IEN[n,6]
+                            IEN_top[nt,3] = IEN[n,7]
+                            IEN_top[nt,4] = IEN[n,8]
+                            IEN_top[nt,5] = IEN[n,13]
+                            IEN_top[nt,6] = IEN[n,14]
+                            IEN_top[nt,7] = IEN[n,15]
+                            IEN_top[nt,8] = IEN[n,16]
+                            IEN_top[nt,9] = IEN[n,26]
+                            nt = nt + 1
+                        end
+                        n = n + 1
+                    end
+                end
+            end
         end
     end
+
     return NodeList, IEN, ID, IEN_top, IEN_btm, [BorderNodes, BottomBorderNodes, TopBorderNodes]
 end
 
+""" 
+    assemble_system(ne, NodeList, IEN, ndim, FunctionClass="Q1", nDof=1, ID=nothing, Young=1, ν=0.3)
 
-function setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof=1)
-    """
-        Set the Dirichlet boundary conditions for the problem
+Assembles the finite element system. # Returns the global stiffness matrix
 
-        Parameters:
-        NodeList: {[ndim,nNodes] Matrix{Float64}} : matrix of the coordinates of the nodes
-        ne: {Int} : number of elements
-        ndim: {Int} : number of dimensions
-        FunctionClass: {String} : type of basis function
-        d: {Float64} : displacement increment
-        nDOf: {Int} : number of degree of freedom per node
+# Arguments:
+- `ne::Interger`: number of elements in each direction
+- `NodeList::Matrix{Float64}{ndim,nNodes}` : coordinates of the nodes
+- `IEN::Matrix{Int}{nElements,nLocalNodes}` : connectivity matrix
+- `ndim::Interger`: number of dimensions
+- `nDof::Interger`: number of degree of freedom per node
+- `FunctionClass::String`: type of basis functions to be considered (Q1:quadratic or Q2:Lagrange)
+- `ID::Matrix{Int}{nNodes,nDof}` : matrix that maps the global degrees of freedom to the local degrees of freedom
+- `Young::Float64`: Young's modulus
+- `ν::Float64`: Poisson's ratio
 
-        Returns:
-        q_d: {[ndof] Vector{Float64}} : Dirichlet boundary conditions
-    """
+# Returns:
+- `K::SparseMatrixCSC{Float64,Int64}{ndof,ndof}` : sparse stiffness matrix 
+"""
+function assemble_system(mdl::model)
 
-    if FunctionClass == "Q1"
-        q_upper = zeros(nDof*(ne+1)^ndim,1)              # initialize the vector of the Dirichlet boundary conditions upper surface
-        q_lower = zeros(nDof*(ne+1)^ndim,1)              # initialize the vector of the Dirichlet boundary conditions lower surface
-        C = sparse(I,ndim*(ne+1)^ndim,ndim*(ne+1)^ndim)  # definition of the constraint matrix
+    # (I,J,V) vectors for COO sparse matrix
+    if mdl.nDof == 1
+        E = zeros(  Int64, mdl.ne^mdl.ndim*size(mdl.IEN,2)^2)
+        J = zeros(  Int64, mdl.ne^mdl.ndim*size(mdl.IEN,2)^2)
+        V = zeros(Float64, mdl.ne^mdl.ndim*size(mdl.IEN,2)^2)
+    else
+        E = zeros(  Int64, mdl.ne^mdl.ndim*((size(mdl.ID,2)*size(mdl.IEN,2))^2))
+        J = zeros(  Int64, mdl.ne^mdl.ndim*((size(mdl.ID,2)*size(mdl.IEN,2))^2))
+        V = zeros(Float64, mdl.ne^mdl.ndim*((size(mdl.ID,2)*size(mdl.IEN,2))^2))  
     end
 
-    z0Bound = 0
-    z1Bound = 1
+    # element loop
+    if mdl.ndim == 1
+        # gaussian quadrature points for the element [-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1)
+        
+        wpoints = [w_ξ[1], w_ξ[2]]
+        
+        x = [ξ[1], ξ[2]]
+    elseif mdl.ndim == 2
+        # gaussian quadrature points for the element [-1,1]x[-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
+        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
 
-    rCol = Array{Int}(undef,0)
+        x = []
+        y = []
+        wpoints = []
+        
+        n = 1:size(ξ,1)
+        m = 1:size(η,1)
+        for j in m # loop over η
+            for i in n # loop over ξ
+                push!(x, ξ[i])
+                push!(y, η[j])
+                push!(wpoints, w_ξ[i]*w_η[j])
+            end
+        end
 
-    for nNode in 1:size(NodeList,2)
-        coord = NodeList[:,nNode]    # get the coordinates of the node
-        if coord[3] == z0Bound       # bottom boundary
-            q_lower[3*nNode] = 1     # constraint the z displacement to be zero at the bottom boundary
-            push!(rCol,3*nNode)
-        elseif coord[3] == z1Bound   # top boundary
-            q_upper[3*nNode] = 1     # constraint the z displacement to be -d
-            push!(rCol,3*nNode)
+    elseif mdl.ndim == 3
+        # gaussian quadrature points for the element [-1,1]x[-1,1]x[-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
+        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ζ, w_ζ = gaussian_quadrature(-1,1,nGaussPoints=3)
+
+        x = []
+        y = []
+        z = []
+        wpoints = []
+        
+        l = 1:size(ζ,1)
+        m = 1:size(η,1)
+        n = 1:size(ξ,1)
+        for k in l # loop over ζ
+            for j in m # loop over η
+                for i in n # loop over ξ
+                    push!(x, ξ[i])
+                    push!(y, η[j])
+                    push!(z, ζ[k])
+                    push!(wpoints, w_ξ[i]*w_η[j]*w_ζ[k])
+                end
+            end
         end
     end
+    vol = 0
+    for e in 1:mdl.ne^mdl.ndim
+        coords = mdl.NodeList[:,mdl.IEN[e,:]] # get the coordinates of the nodes of the element
+        # integration loop
+        gpiter = 1:length(wpoints)
+        for gp in gpiter
+            if mdl.ndim == 1
+                N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
+            elseif mdl.ndim == 2
+                N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
+            elseif mdl.ndim == 3
+                N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.FunctionClass) 
+            end
 
-    C_uc = C[:,setdiff(1:size(C,2),rCol)]
+            Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
 
+            w = wpoints[gp]*abs(det(Jac))
+            invJ = inv(Jac)
+            dNdX = ΔN*invJ
+
+            if mdl.nDof == 1
+                szN = size(N,1) # number of basis functions
+                # loop between basis functions of the element
+                for i in 1:szN
+                    for j in 1:szN
+                        inz = (szN)^2*(e-1) + szN*(i-1) + j # index for the COO sparse matrix
+                        E[inz] = mdl.IEN[e,i] # row index 
+                        J[inz] = mdl.IEN[e,j] # column index
+                        V[inz] += w*dot(dNdX[i,:],dNdX[j,:])# inner product of the gradient of the basis functions
+                    end
+                end
+            else   
+                @argcheck !isnothing(mdl.cMat) "constitutive matrix must be provided for problems with nDof > 1"
+
+                if mdl.nDof == 2
+                    B = zeros(3, mdl.ndim*length(N))
+                    B[1,1:mdl.nDof:end] = dNdX[:,1]
+                    B[2,2:mdl.nDof:end] = dNdX[:,2]
+                    B[3,1:mdl.nDof:end] = dNdX[:,2]
+                    B[3,2:mdl.nDof:end] = dNdX[:,1]
+
+                    @argcheck size(mdl.cMat) == (2,2) "constitutive matrix must be 2x2 for plane stress problems"
+                elseif mdl.nDof == 3
+                    B = zeros(6, mdl.ndim*length(N))
+                    B[1,1:mdl.nDof:end] = dNdX[:,1]
+                    B[2,2:mdl.nDof:end] = dNdX[:,2]
+                    B[3,3:mdl.nDof:end] = dNdX[:,3]
+                    B[4,2:mdl.nDof:end] = dNdX[:,3]
+                    B[4,3:mdl.nDof:end] = dNdX[:,2]
+                    B[5,1:mdl.nDof:end] = dNdX[:,3]
+                    B[5,3:mdl.nDof:end] = dNdX[:,1]
+                    B[6,1:mdl.nDof:end] = dNdX[:,2]
+                    B[6,2:mdl.nDof:end] = dNdX[:,1]
+
+                    @argcheck size(mdl.cMat) == (6,6) "constitutive matrix must be 6x6 for 3D problems"
+                end
+
+                Ke = B'*mdl.cMat*B*w # element stiffness matrix
+        
+                # loop between basis functions of the element
+                iNodes = 1:size(Ke,1)÷mdl.nDof
+                jNodes = 1:size(Ke,2)÷mdl.nDof
+                iDofs = 1:size(mdl.ID,2)
+                jDofs = 1:size(mdl.ID,2)
+                for iNode in iNodes
+                    for jNode in jNodes
+                        for iDof in iDofs
+                            for jDof in jDofs
+                                i = (iNode-1)*mdl.nDof + iDof
+                                j = (jNode-1)*mdl.nDof + jDof
+                                inz = length(Ke)*(e-1) + (iNode-1)*mdl.nDof*size(Ke,2) + (jNode-1)*mdl.nDof^2 + (iDof-1)*mdl.nDof + jDof # index for the COO sparse matrix
+                                E[inz] = mdl.ID[mdl.IEN[e,iNode],iDof] # row index 
+                                J[inz] = mdl.ID[mdl.IEN[e,jNode], jDof] # column index
+                                V[inz] += Ke[i,j] 
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    K = sparse(E,J,V)
+    return K
+end
+
+""" Apply the Neumann slip boundary conditions to the global stiffness matrix
+
+Parameters:
+K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix 
+ID: {[nNodes,nDof] Matrix{Int}} : matrix that maps the global degrees of freedom to the local degrees of freedom
+q_d: {[ndof] Vector{Float64}} : Dirichlet boundary conditions
+q_n: {[ndof] Vector{Float64}} : Neumann boundary conditions
+
+Returns:
+K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix with the boundary conditions applied
+F: {[ndof] Vector{Float64}} : force vector
+"""
+function apply_boundary_conditions(mdl)
+
+    E = zeros(  Int64, mdl.ne^(mdl.ndim-1)*(size(mdl.ID,2)*size(mdl.IEN_btm,2))^2*2) # *2 because we have two surfaces
+    J = zeros(  Int64, mdl.ne^(mdl.ndim-1)*(size(mdl.ID,2)*size(mdl.IEN_btm,2))^2*2) # *2 because we have two surfaces
+    V = zeros(Float64, mdl.ne^(mdl.ndim-1)*(size(mdl.ID,2)*size(mdl.IEN_btm,2))^2*2) # *2 because we have two surfaces
+
+    for e in 1:mdl.ne^(mdl.ndim-1)
+    
+        coords_top = mdl.NodeList[:,mdl.IEN_top[e,:]] # get the coordinates of the nodes of the element
+        coords_btm = mdl.NodeList[:,mdl.IEN_btm[e,:]] # get the coordinates of the nodes of the element
+
+        if mdl.ndim == 2
+            # gaussian quadrature points for the element [-1,1] 
+            ξ, w_ξ = gaussian_quadrature(-1,1)
+
+            wpoints = [w_ξ[1], w_ξ[2]]
+            
+            x = [ξ[1], ξ[2]]
+        elseif mdl.ndim == 3
+            # gaussian quadrature points for the element [-1,1]x[-1,1] 
+            ξ, w_ξ = gaussian_quadrature(-1,1)
+            η, w_η = gaussian_quadrature(-1,1)
+            
+            wpoints = [w_ξ[1]*w_η[1], w_ξ[2]*w_η[1], w_ξ[2]*w_η[2], w_ξ[1]*w_η[2]]
+            
+            x = [ξ[1], ξ[2], ξ[2], ξ[1]]
+            y = [η[1], η[1], η[2], η[2]]
+        end 
+
+        for gp in 1:2^(mdl.ndim-1)
+
+            if mdl.ndim == 2
+                N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
+            elseif mdl.ndim == 3
+                N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
+            end
+
+            dxdξ_top = coords_top*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
+            dxdξ_btm = coords_btm*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
+
+            w_top = wpoints[gp]*norm(cross(dxdξ_top[:,1],dxdξ_top[:,2]))     # weight of the quadrature point top surface
+            w_btm = wpoints[gp]*norm(cross(dxdξ_btm[:,1],dxdξ_btm[:,2]))     # weight of the quadrature point bottom surface
+            
+            M = zeros(3, mdl.ndim*length(N))
+            M[1,1:mdl.nDof:end] = N
+            M[2,2:mdl.nDof:end] = N
+            M[3,3:mdl.nDof:end] = N
+
+            be = M'*M
+
+            # loop between basis functions of the element
+            iNodes = 1:size(be,1)÷mdl.nDof
+            jNodes = 1:size(be,2)÷mdl.nDof
+            iDofs = 1:size(mdl.ID,2)
+            jDofs = 1:size(mdl.ID,2)
+            for iNode in iNodes
+                for jNode in jNodes
+                    for iDof in iDofs
+                        for jDof in jDofs
+                            i = (iNode-1)*mdl.nDof + iDof
+                            j = (jNode-1)*mdl.nDof + jDof
+                            
+                            inz_btm = length(be)*(e-1) + (iNode-1)*mdl.nDof*size(be,2) + (jNode-1)*mdl.nDof^2 + (iDof-1)*mdl.nDof + jDof # index for the COO sparse matrix
+                            inz_top = length(be)*(mdl.ne)^(mdl.ndim-1)+ length(be)*((e-1)) + (iNode-1)*mdl.nDof*size(be,2) + (jNode-1)*mdl.nDof^2 + (iDof-1)*mdl.nDof + jDof # index for the COO sparse matrix
+                            
+                            E[inz_top] = mdl.ID[mdl.IEN_top[e,iNode],iDof]    # row index 
+                            J[inz_top] = mdl.ID[mdl.IEN_top[e,jNode], jDof]   # column index
+                            V[inz_top] += w_top*be[i,j] 
+
+                            E[inz_btm] = mdl.ID[mdl.IEN_btm[e,iNode],iDof]    # row index 
+                            J[inz_btm] = mdl.ID[mdl.IEN_btm[e,jNode], jDof]   # column index
+                            V[inz_btm] += w_btm*be[i,j] 
+                        end
+                    end
+                end
+            end
+            # TODO include in tha assembly function
+        end
+    end
+    K = sparse(E,J,V)
+    return  K
+end
+
+"""
+Set the Dirichlet boundary conditions for the problem
+
+Parameters:
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
+- `ne::Int` : number of elements
+- `ndim::Int` : number of dimensions
+- `FunctionClass::String` : type of basis function
+
+Returns:
+- `q_upper::Vector{Float64}` : vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+- `q_lower::Vector{Float64}` : vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+- `C_uc::SparseMatrixCSC{Float64,Int64}` : onstraint matrix
+"""
+function setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof=1)
+    if FunctionClass == "Q1"
+        q_upper = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        q_lower = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        C = sparse(I,nDof*(ne+1)^ndim,nDof*(ne+1)^ndim)      # definition of the constraint matrix
+    elseif FunctionClass == "Q2"
+        q_upper = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        q_lower = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        C = sparse(I,nDof*(2*ne+1)^ndim,nDof*(2*ne+1)^ndim)  # definition of the constraint matrix
+    end
+
+    if nDof == 1
+        if ndim == 3
+            Dbound1 = 0
+            Dbound2 = 1
+            iter = 1:size(NodeList,2)
+            for n in iter
+                coord = NodeList[:,n] # get the coordinates of the node
+                if coord[3] == Dbound1 # bottom boundary
+                    q_upper[n] = 0
+                elseif coord[3] == Dbound2 # top boundary
+                    q_upper[n] = -1
+                end
+            end
+        elseif ndim == 2
+            Dbound1 = 0
+            Dbound2 = 1
+            iter = 1:size(NodeList,2)
+            for n in iter
+                coord = NodeList[:,n] # get the coordinates of the node
+                if coord[2] == Dbound1 # bottom boundary
+                    q_upper[n] = 0
+                elseif coord[2] == Dbound2 # top boundary
+                    q_upper[n] = -1
+                end
+            end
+        end
+
+        if FunctionClass == "Q1"
+            C_uc = C[:,((ne+1)^(ndim-1)+1):((ne+1)^ndim-(ne+1)^(ndim-1))]
+        elseif FunctionClass == "Q2"
+            C_uc = C[:,((2*ne+1)^(ndim-1)+1):((2*ne+1)^ndim-(2*ne+1)^(ndim-1))]
+        end
+
+    else
+        z0Bound = 0
+        z1Bound = 1
+
+        rCol = Array{Int}(undef,0)
+        iter = 1:size(NodeList,2)
+        for nNode in iter
+            coord = NodeList[:,nNode]    # get the coordinates of the node
+            if coord[3] == z0Bound       # bottom boundary
+                q_lower[3*nNode] = 1     # constraint the z displacement to be zero at the bottom boundary
+                push!(rCol,3*nNode)
+            elseif coord[3] == z1Bound   # top boundary
+                q_upper[3*nNode] = 1     # constraint the z displacement to be -d
+                push!(rCol,3*nNode)
+            end
+        end
+
+        C_uc = C[:,setdiff(1:size(C,2),rCol)]
+    end
     return q_upper, q_lower, C_uc
 end
 
+
+""" 
+    get_cMat(type; λ=nothing, μ=nothing, Young=nothing, ν=nothing)
+
+Returns the stiffness matrix for a given type of material
+
+# Arguments:
+- `type::String`: type of constitutive matrix to be considered (lame or standard)
+- `λ::Float64`: Lame's first parameter
+- `μ::Float64`: Sheer modulus
+- `Young::Float64`: Young's modulus
+- `ν::Float64`: Poisson's ratio
+
+# Returns:
+- `cMat::Matrix{Float64}`: constitutive matrix
+"""
+function get_cMat(type="standard", c1=nothing, c2=nothing)
+
+    if type == "lame"
+        cMat = [[ 2*c2+c1  c1    c1    0 0 0]; 
+                [  c1   2*c2+c1  c1    0 0 0]; 
+                [  c1     c1   2*c2+c1 0 0 0]; 
+                [  0     0    0    c2 0 0]; 
+                [  0     0    0    0 c2 0]
+                [  0     0    0    0 0 c2]]  # constitutive matrix
+    elseif type == "standard"
+        cMat = (c1/((1+c2)*(1-2*c2)))*[[1-c2 c2 c2   0      0      0]; 
+                                        [c2 1-c2 c2   0      0      0]; 
+                                        [c2 c2 1-c2   0      0      0]; 
+                                        [0 0  0 (1-2*c2)/2 0      0]; 
+                                        [0 0  0    0   (1-2*c2)/2 0]; 
+                                        [0 0  0    0      0   (1-2*c2)/2]]  # constitutive matrix   
+    end
+    return cMat
+end
+
+"""
+    simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing)
+
+Simulate the deformation of a cylindrical under compression
+
+Parameters:
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
+- `y0::Float64` : y-coordinate of the lower left corner of the domain
+- `y1::Float64` : y-coordinate of the upper right corner of the domain
+- `z0::Float64` : z-coordinate of the lower left corner of the domain
+- `z1::Float64` : z-coordinate of the upper right corner of the domain
+- `ne::Int` : number of elements
+- `Young::Float64` : Young's modulus
+- `ν::Float64` : Poisson's ratio
+- `ndim::Int` : number of dimensions
+- `FunctionClass::String` : type of basis function
+- `nDof::Int` : number of degree of freedom per node
+- `β::Float64` : friction parameter
+- `CameraMatrix::Matrix{Float64}` : camera matrix
+- `endTime::Float64` : end time
+- `tSteps::Int` : number of time steps to be taken
+- `Control::String` : type of control (force or displacement)
+- `cParam::Vector{Float64}` : control parameter (force or displacement prescribed at the top surface per time step)
+- `cMat::Matrix{Float64}` : control matrix
+- `writeData::Bool` : write the data to a file
+- `filepath::String` : path to the file
+"""
 function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing)
 
     time = collect(range(start=0,stop=endTime,length=tSteps)) # time vector
 
-    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim)  # generate the mesh grid
+    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
     NodeListCylinder = inflate_sphere(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
     q_tp, q_btm, C_uc = setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof)
 
@@ -182,7 +700,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
                 
     state = "init"
 
-    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne)
+    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne, 2*ne+1)
     pi, qi = fit_curve(border=BorderPts2D)
 
     SideBorders = BorderNodesList[1]
@@ -197,9 +715,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     splinep = [pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
     splineq = [qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
     output = []
-    writeborserList = [vcat(pi', qi')]
-    # display(vcat(pi', qi'))
-    # display(BorderPts2D)
+    writeborderList = [vcat(pi', qi')]
 
     state = "update"
     μ_btm = 0      
@@ -242,7 +758,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             push!(borderNodeList2D, BorderNodes2D)
             push!(splinep, pi)
             push!(splineq, qi) 
-            push!(writeborserList, vcat(pi', qi'))
+            push!(writeborderList, vcat(pi', qi'))
 
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
@@ -272,6 +788,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             F_est = q_tp'*f_R                                         # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
             NodeListCylinder = NodeListCylinder + motion              # update the node coordinates
 
+            # q_new, IEN_new = rearrange(q, ne, ndim, IEN, FunctionClass)
             BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
             surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
             pi, qi = fit_curve(border=BorderPts2D)
@@ -284,7 +801,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             push!(borderNodeList2D, BorderNodes2D)
             push!(splinep, pi)
             push!(splineq, qi) 
-            push!(writeborserList, vcat(pi', qi'))
+            push!(writeborderList, vcat(pi', qi'))
 
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
@@ -292,13 +809,21 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     end
 
     if writeData
-        write_scene(string(filepath,"/Results"), NodeList, IEN, ne, ndim, fields)
-        animate_fields(filepath = string(filepath,"/Results/images"), fields=fields , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=fields2D, p=splinep, q=splineq)
-        writeCSV(string(filepath,"/Results"), writeborserList)
+        # write_scene(string(filepath,"/Results"), NodeList, IEN, ne, ndim, fields)
+        animate_fields(filepath = string(filepath,"/Results/images"), fields=fields , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=fields2D)
+        writeCSV(string(filepath,"/Results"), writeborderList)
     end
     return output, borderPts2DList, borderNodeList2D, splinep, splineq, mdl
 end
 
+"""
+    set_file(filepath)
+
+Create the directories to store the data
+
+Parameters:
+- `filepath::String` : path to the file
+"""
 function set_file(filepath)
     if !isdir(filepath)
         mkdir(filepath)
@@ -355,7 +880,63 @@ function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, 
     end
 end
 
+"""
+    write_sim_data(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, filename; mode = "standard")
+
+Initialize the simulation and write the data to a file
+
+Parameters:
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
+- `y0::Float64` : y-coordinate of the lower left corner of the domain
+- `y1::Float64` : y-coordinate of the upper right corner of the domain
+- `z0::Float64` : z-coordinate of the lower left corner of the domain
+- `z1::Float64` : z-coordinate of the upper right corner of the domain
+- `ne::Int` : number of elements
+- `Young::Float64` : Young's modulus
+- `ν::Float64` : Poisson's ratio
+- `ndim::Int` : number of dimensions
+- `FunctionClass::String` : type of basis function
+- `nDof::Int` : number of degree of freedom per node
+- `β::Float64` : friction parameter
+- `CameraMatrix::Matrix{Float64}` : camera matrix
+- `endTime::Float64` : end time
+- `tSteps::Int` : number of time steps to be taken
+- `Control::String` : type of control (force or displacement)
+- `filename::String` : path to the file
+"""
 function write_sim_data(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, filename; mode = "standard")
     writeData = true
     hcost, cpCost = test(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, writeData=writeData, filepath=filename, mode = mode)
+end
+
+function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, CameraMatrix, filepath=nothing)
+
+    isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
+    set_file(filepath)
+    
+    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
+    NodeListCylinder = inflate_sphere(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
+
+    state = "init"
+
+    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne, (2*ne+1))
+    pi, qi = fit_curve(border=BorderPts2D)
+
+    SideBorders = BorderNodesList[1]
+    BottomBorders = BorderNodesList[2]
+    TopBorders = BorderNodesList[3]
+        
+    fields = [NodeListCylinder]                                                               # store the solution fields of the mesh in 3D
+    fields2D = [Nodes2D]                                                                   # store the solution fields of the mesh in 2D
+    surfaceNodesList = [NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
+    borderPts2DList = [BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
+    borderNodeList2D = [BorderNodes2D]                                                       # store the solution fields of the border nodes in 2D
+    splinep = [pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
+    splineq = [qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
+    output = []
+    writeborderList = [vcat(pi', qi')]
+
+    animate_fields(filepath = string(filepath,"/Results/images"), fields=fields , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=fields2D)
+
 end

@@ -12,17 +12,17 @@ end
 """
     inflate_sphere(NodeList, x0, x1, y0, y1)
 
-Inflate the sphere to a unit sphere 
-    
-# Arguments:
-- `NodeList::Matrix` : {[ndims,nNodes], Matrix{Float64}} : The coordinates of the nodes
-- `x0` : Float64 : The lower bound of the x direction
-- `x1` : Float64 : The upper bound of the x direction
-- `y0` : Float64 : The lower bound of the y direction
-- `y1` : Float64 : The upper bound of the y direction
-    
-# Returns:
-- `NodeList::Matrix{Float64}{ndims,nNodes} `:  The coordinates of the nodes after inflation
+Inflate the sphere to a cylinder of unit radius and height
+
+Parameters:
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
+- `y0::Float64` : y-coordinate of the lower left corner of the domain
+- `y1::Float64` : y-coordinate of the upper right corner of the domain
+
+Returns:
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
 """
 function inflate_sphere(NodeList, x0, x1, y0, y1)
 
@@ -52,29 +52,29 @@ Project the 3D mesh to 2D image plane and extract the border nodes (left and rig
 - `BorderNodesList::Vector{Vector{Any}{4,N}`:  : List of border nodes
 - `state::String` : State of the function (init:During the initialization of the mesh or update: when the mesh is updated)
 - `ne::Integer`: Number of elements in each direction
+
 # Returns:
 - `NodeList::Matrix{Float64}{ndim,nbNodes}`: 2D coordinates of the border nodes
 - `BorderNodes::Vector{Int}`: Indexes of the border nodes
 """
-function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = nothing)
+function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = nothing, nNodes = nothing)
 
-    SideNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes 
-
+    SideNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
     SideNodes2D = back_project(SideNodes, CameraMatrix) 
 
     # project the nodes to the image plane and extract the border nodes as an ordered list
     if state == "init"
         @assert !isnothing(ne) "Number of elements must be provided"
 
-        LeftborderPts = zeros(2,(ne+1))                  # vector to store indexes of the border nodes
-        RightborderPts = zeros(2,(ne+1))                 # vector to store indexes of the border nodes
+        LeftborderPts = zeros(2,(nNodes))                  # vector to store indexes of the border nodes
+        RightborderPts = zeros(2,(nNodes))                 # vector to store indexes of the border nodes
         LeftborderNodes = Vector{Int64}(undef, 0)        # vector to store indexes of the border nodes
         RightborderNodes = Vector{Int64}(undef, 0)   
         TopLayerList = []                                # vector to store indexes of the border nodes
         BottomLayerList = []                             # vector to store indexes of the border nodes
-        szSide = size(SideNodes2D,2)÷(ne+1)                            # size of each layer
+        szSide = size(SideNodes2D,2)÷(nNodes)                            # size of each layer
         BorderNodes = Vector{Int64}(undef, 0)            # vector to store indexes of the border nodes
-        for Layers in 1:ne+1                                        # loop through each layer
+        for Layers in 1:nNodes                                        # loop through each layer
             nodes = SideNodes2D[:,(Layers-1)*szSide+1:Layers*szSide]
             minNode = (Layers-1)*szSide + argmin(nodes[1,:])
             maxNode = (Layers-1)*szSide + argmax(nodes[1,:])
@@ -82,7 +82,7 @@ function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = no
             push!(RightborderNodes, maxNode)
             LeftborderPts[:,Layers] = SideNodes2D[:,minNode]         # left border nodes
             RightborderPts[:,Layers] = SideNodes2D[:,maxNode]        # right border nodes
-            if Layers == ne + 1
+            if Layers == nNodes
                 nodeIdi = 1:size(nodes,2)
                 for nodeId in nodeIdi
                     if nodes[2,nodeId] > SideNodes2D[2,minNode]    
@@ -232,6 +232,19 @@ function fit_curve_2D(x,y, n)
     return points
 end
 
+"""
+    average_pts(border, centerx)
+
+Select the nodes on the right side of the centerline and sort them
+
+# Arguments:
+- `border::Matrix{Float64}{2,nbNodes}`: 2D coordinates of the border nodes
+- `centerx::Float64`: x-coordinate of the centerline
+
+# Returns:
+- `newBorderxSrt::Vector{Float64}`: x coordinates of the sorted border nodes
+- `newBorderySrt::Vector{Float64}`: y coordinates of the sorted border nodes
+"""
 function average_pts(border, centerx)
     # half_border = ElasticArray{Float64}(undef, 2, size(border,2))
     new_borderx = Array{Float64}(undef, 0)
@@ -253,6 +266,57 @@ function average_pts(border, centerx)
     out = vcat(newBorderxSrt', newBorderySrt')
     
     return newBorderxSrt, newBorderySrt
+end
+
+"""
+    rearrange(q, ne, ndim, IEN, FunctionClass)
+
+Rearrange the solution vector from the lagrangian basis functions for to bilinear basis function for plotting and visualization in paraview
+
+# Arguments:
+- `q::Vector{Float64}`: solution vector
+- `ne::Integer`: number of elements in each direction
+- `ndim::Integer`: number of dimensions
+- `IEN::Matrix{Float64}{nElem, nNodes}`: Connectivity matrix
+- `FunctionClass::String`: type of basis function
+
+# Returns:
+- `q_new::Vector{Float64}`: rearranged solution vector
+- `IEN_new::Matrix{Int64}`: rearranged connectivity matrix
+"""
+function rearrange(q, ne, ndim, IEN, FunctionClass) 
+    
+    if FunctionClass == "Q1"
+        return q, IEN
+    elseif FunctionClass == "Q2"
+        q_new = zeros((ne+1)^ndim,1)
+        IEN_new = zeros(Int64,ne^ndim,2^ndim)
+        if ndim == 2
+            
+            for i in 1:ne+1
+                for j in 1:ne+1
+                    q_new[(i-1)*(ne+1)+j] = q[2*(i-1)*(2*ne+1) + (2*j-1)]
+                end
+            end
+
+            for e in 1:ne^ndim
+                IEN_new[e,:] = IEN[e,1:4]
+            end
+        elseif ndim == 3
+            for k in 1:ne+1
+                for j in 1:ne+1
+                    for i in 1:ne+1
+                        q_new[(k-1)*(ne+1)^2 + (j-1)*(ne+1) + i] = q[2*(k-1)*(2*ne+1)^2 + 2*(j-1)*(2*ne+1) + 2*i-1]
+                    end
+                end
+            end
+
+            for e in 1:ne^ndim
+                IEN_new[e,:] = IEN[e,1:8]
+            end
+        end
+        return q_new, IEN_new
+    end
 end
 
 """

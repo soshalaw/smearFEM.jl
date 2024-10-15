@@ -14,9 +14,9 @@ function main()
     y1 = 1
     z0 = 0
     z1 = 1
-    ne = 8
+    ne = 4
     ndim = 3
-    FunctionClass = "Q1"
+    FunctionClass = "Q2"
     nDof = ndim  # number of degree of freedom per node
     β = 100
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
@@ -29,7 +29,6 @@ function main()
 
     mode = "standard" # "standard" or "lame"
 
- 
     Youngtst = 30
     νtst = 0.4
 

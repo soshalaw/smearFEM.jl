@@ -53,7 +53,7 @@ function PlotGrid(IEN, NodeList)
 end
 
 """
-    PlotMesh(NodeList, IEN)
+    plot_meshgrid(NodeList, IEN)
 
 Function to plot the mesh
 
@@ -61,43 +61,33 @@ Function to plot the mesh
 - `NodeList::Matrix{Float64}{nNodes,ndim}`: array of nodes.
 - `IEN::Matrix{nElem,nNodes}`: IEN array.
 """
-function PlotMesh(NodeList, IEN)
+function plot_mesh(NodeList, IEN)
 
     sz = size(NodeList,1)
     if sz == 2
-        fig1 = plt.figure()
-        ax = fig1.add_subplot(111)
+        Plots.scatter(NodeList[1,:], NodeList[2,:], markersize=2, label="", dpi=:400)
         iter = 1:size(IEN,1)
         for i in iter
             x = NodeList[1,IEN[i,:]]
             y = NodeList[2,IEN[i,:]]
-            ax.plot(x, y, "-k", linewidth=0.5)
+            Plots.plot!(x, y, marker=1.5, lw=0.5, label="")
         end
-        
-        ax.scatter(NodeList[1,:],NodeList[2,:],s=10,c=red)
-        ax.axis("equal")
-        ax.grid("on")
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
+
     elseif sz == 3
-        fig1 = plt.figure()
-        ax = fig1.add_subplot(111, projection="3d")
+        Plots.scatter3d(NodeList[1,:], NodeList[2,:], NodeList[3,:], markersize=2, label="", dpi=:400)
         iter = 1:size(IEN,1)
         for i in iter
             x = NodeList[1,IEN[i,:]]
             y = NodeList[2,IEN[i,:]]
             z = NodeList[3,IEN[i,:]]
-            ax.plot(x, y, z,"-k", linewidth=0.5)
+            Plots.plot3d!(x, y, z,marker=1.5, lw=0.5, label="", dpi=:400)
         end
 
-        ax.scatter(NodeList[1,:],NodeList[2,:],NodeList[3,:],s=10,c=red)
-        ax.axis("equal")
-        ax.grid("on")
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_zlabel("z")
+        Plots.xlabel!("x")
+        Plots.ylabel!("y")
+        Plots.zlabel!("z")
+        Plots.title!("3D Grid")
     end
-    gcf()
 end
 
 """
@@ -198,7 +188,7 @@ function animate3D(fields; filepath="images/3D_grid.gif")
     pr = Progress(sz; desc="Animating 3D fields...",showspeed=true)
     iter = 1:sz
     animation = @animate for i in iter
-        Plots.scatter3d(fields[i][1,:], fields[i][2,:], fields[i][3,:], markersize=2, legend=:false, dpi=:400)
+        Plots.scatter3d(fields[i][1,:], fields[i][2,:], fields[i][3,:], markersize=2, label=:"", dpi=:400)
         Plots.xlims!(-1,1)
         Plots.ylims!(-1,1)
         Plots.zlims!(0,1)
