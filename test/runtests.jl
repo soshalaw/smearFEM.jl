@@ -24,7 +24,7 @@ using Aqua
         for FunctionClass in FunctionsClasses
             for ndim in ndims
                 if ndim == 2
-                    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,nothing,nothing,ne,ndim,FunctionClass=FunctionClass)
+                    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_square(x0,x1,y0,y1,ne,ndim;FunctionClass=FunctionClass)
                     iter = 1:size(IEN,2)
                     for i in iter
                         coord = NodeList[:,IEN[i]]
@@ -32,7 +32,7 @@ using Aqua
                         @test findall(x->x==1,N)==[i]
                     end 
                 elseif ndim == 3
-                    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)
+                    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)
                     iter = 1:size(IEN,2)
                     for i in iter
                         coord = NodeList[:,IEN[i]]

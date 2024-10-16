@@ -71,8 +71,8 @@ function height_sample(simScene,obsScene)
     costList = []
     for (obsData, simData) in zip(obsScene, simScene) # iterate over the scenes
 
-        xSim, ySim = average_pts(simData, 2048/2)
-        xObs, yObs = average_pts(obsData, 2048/2)
+        xSim, ySim = filter_points(simData, 2048/2)
+        xObs, yObs = filter_points(obsData, 2048/2)
 
         # hrange = ySim[1]:1:ySim[end]
 

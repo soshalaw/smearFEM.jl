@@ -9,38 +9,6 @@ function greet_pp()
     println("Hello, I am the PostProcess module")
 end
 
-"""
-    inflate_sphere(NodeList, x0, x1, y0, y1)
-
-Inflate the sphere to a cylinder of unit radius and height
-
-Parameters:
-- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
-- `x0::Float64` : x-coordinate of the lower left corner of the domain
-- `x1::Float64` : x-coordinate of the upper right corner of the domain
-- `y0::Float64` : y-coordinate of the lower left corner of the domain
-- `y1::Float64` : y-coordinate of the upper right corner of the domain
-
-Returns:
-- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
-"""
-function inflate_sphere(NodeList, x0, x1, y0, y1)
-
-    x_center = [0.5*(x0 + x1), 0.5*(y0 + y1)]
-
-    iter = 1:size(NodeList,2)
-    for i in iter
-        scale = maximum(abs.(NodeList[1:2,i] - x_center))
-        if scale ≈ 0.
-            NodeList[1:2,i] = [0 , 0]
-        else
-            r = sqrt((NodeList[1,i] - x_center[1])^2 + (NodeList[2,i] - x_center[2])^2)
-            NodeList[1:2,i] = scale*(NodeList[1:2,i] - x_center)/r
-        end
-    end
-    return NodeList
-end
-
 """ 
     Extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = nothing)
 
@@ -233,7 +201,7 @@ function fit_curve_2D(x,y, n)
 end
 
 """
-    average_pts(border, centerx)
+    filter_points(border, centerx)
 
 Select the nodes on the right side of the centerline and sort them
 
@@ -245,7 +213,7 @@ Select the nodes on the right side of the centerline and sort them
 - `newBorderxSrt::Vector{Float64}`: x coordinates of the sorted border nodes
 - `newBorderySrt::Vector{Float64}`: y coordinates of the sorted border nodes
 """
-function average_pts(border, centerx)
+function filter_points(border, centerx)
     # half_border = ElasticArray{Float64}(undef, 2, size(border,2))
     new_borderx = Array{Float64}(undef, 0)
     new_bordery = Array{Float64}(undef, 0)
