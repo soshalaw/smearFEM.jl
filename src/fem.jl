@@ -6,46 +6,6 @@ function greet_fem()
     println("Hello, I am the FEM module")
 end
 
-mutable struct model
-    ne::Int64
-    NodeList::Matrix{Float64}
-    IEN::Matrix{Int}
-    IEN_top::Matrix{Int}
-    IEN_btm::Matrix{Int}
-    IEN_border::Matrix{Int}
-    ndim::Int64
-    nDof::Int64
-    FunctionClass::String
-    ID::Matrix{Int}
-    Young::Float64
-    ν::Float64
-    cMat::Matrix{Float64}
-    dcMatdλ::Matrix{Float64}
-    dcMatdμ::Matrix{Float64}
-end
-
-function def_model(; ne::Int64 = 1, 
-    NodeList::Matrix{Float64} = [0.0 1.0 1.1 0.1], 
-    IEN::Matrix{Int} = [1 2 3 4], 
-    ndim::Int64 = 2, 
-    nDof::Int64 = 1, 
-    FunctionClass::String = "Q1", 
-    Young = 1.0, 
-    ν = 0.3, 
-    ID::Matrix{Int} = [1 2 3 4],
-    cMat::Matrix{Float64} = [0.0 1.0 1.1 0.1],
-    IEN_top::Matrix{Int} = [1 2 3 4],
-    IEN_btm::Matrix{Int} = [1 2 3 4],
-    IEN_border::Matrix{Int} = [1 2 3 4],
-    dcMatdλ::Matrix{Float64} = [0.0 1.0 1.1 0.1],
-    dcMatdμ::Matrix{Float64} = [0.0 1.0 1.1 0.1]
-    )
-
-    model(ne, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ndim, nDof, FunctionClass, ID, Young, ν, cMat, dcMatdλ, dcMatdμ)
-end
-
-params(mdl::model) = "ne = $(mdl.ne), ndim = $(mdl.ndim), nDof = $(mdl.nDof), FunctionClass = $(mdl.FunctionClass), Young = $(mdl.Young), ν = $(mdl.ν)"
-
 """ 
     smearFEM.gaussian_quadrature(a,b,nGaussPoints)
 

@@ -367,12 +367,12 @@ Returns the stiffness matrix for a given type of material
 function get_cMat(type="standard", c1=nothing, c2=nothing)
 
     if type == "lame"
-        cMat = [[ 2*c2+c1  c1    c1    0 0 0]; 
-                [  c1   2*c2+c1  c1    0 0 0]; 
-                [  c1     c1   2*c2+c1 0 0 0]; 
-                [  0     0    0    c2 0 0]; 
-                [  0     0    0    0 c2 0]
-                [  0     0    0    0 0 c2]]  # constitutive matrix
+        cMat = [[ 2*c2+c1  c1    c1    0  0  0]; 
+                [  c1   2*c2+c1  c1    0  0  0]; 
+                [  c1     c1   2*c2+c1 0  0  0]; 
+                [  0      0      0     c2 0  0]; 
+                [  0      0      0     0 c2  0]
+                [  0      0      0     0  0 c2]]  # constitutive matrix
     elseif type == "standard"
         cMat = (c1/((1+c2)*(1-2*c2)))*[[1-c2 c2 c2   0      0      0]; 
                                         [c2 1-c2 c2   0      0      0]; 
@@ -420,7 +420,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
     q_tp, q_btm, C_uc = setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof)
 
-    mdl = def_model(ne=ne, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, FunctionClass=FunctionClass, ID=ID, Young=Float64(Young), ν=ν, cMat=cMat)
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, FunctionClass=FunctionClass, ID=ID, Young=Float64(Young), ν=ν, cMat=cMat)
                 
     state = "init"
 
@@ -431,8 +431,9 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     BottomBorders = BorderNodesList[2]
     TopBorders = BorderNodesList[3]
         
-    fields = [NodeListCylinder]                                                               # store the solution fields of the mesh in 3D
-    fields2D = [Nodes2D]                                                                   # store the solution fields of the mesh in 2D
+    fields = []  
+    pos3D = [NodeListCylinder]                                                             # store the solution fields of the mesh in 3D
+    pos2D = [Nodes2D]                                                                   # store the solution fields of the mesh in 2D
     surfaceNodesList = [NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
     borderPts2DList = [BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
     borderNodeList2D = [BorderNodes2D]                                                       # store the solution fields of the border nodes in 2D
@@ -476,8 +477,9 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             pi, qi = fit_curve(border=BorderPts2D)
 
             push!(output, μ_tp)
-            push!(fields, NodeListCylinder)
-            push!(fields2D, Nodes2D)
+            push!(fields, motion)
+            push!(pos2D, Nodes2D)
+            push!(pos3D, NodeListCylinder)
             push!(borderPts2DList, BorderPts2D)
             push!(borderNodeList2D, BorderNodes2D)
             push!(splinep, pi)
@@ -487,7 +489,6 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
         end
-
     elseif Control == "displacement"
         pr = Progress(tSteps; desc="Simulating with prescribed $Control ...", showspeed=true)
         for t in time
@@ -511,7 +512,6 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             motion = [q[ID[:,1]] q[ID[:,2]] q[ID[:,3]]]'
             F_est = q_tp'*f_R                                         # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
             NodeListCylinder = NodeListCylinder + motion              # update the node coordinates
-
             # q_new, IEN_new = rearrange(q, ne, ndim, IEN, FunctionClass)
             BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
             surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
@@ -519,8 +519,9 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
 
             # store the solutions in a list
             push!(output, F_est[1])
-            push!(fields, NodeListCylinder)
-            push!(fields2D, Nodes2D)
+            push!(fields, motion)
+            push!(pos2D, Nodes2D)
+            push!(pos3D, NodeListCylinder)
             push!(borderPts2DList, BorderPts2D)
             push!(borderNodeList2D, BorderNodes2D)
             push!(splinep, pi)
@@ -533,8 +534,8 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     end
 
     if writeData
-        # write_scene(string(filepath,"/Results"), NodeList, IEN, ne, ndim, fields)
-        animate_fields(filepath = string(filepath,"/Results/images"), fields=fields , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=fields2D)
+        write_scene(string(filepath,"/Results"), NodeList, IEN, ne, ndim, pos3D)
+        animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
         writeCSV(string(filepath,"/Results"), writeborderList)
     end
     return output, borderPts2DList, borderNodeList2D, splinep, splineq, mdl
@@ -560,6 +561,33 @@ function set_file(filepath)
     end
 end
 
+"""
+    test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control; writeData=false, filepath=nothing, mode = "standard")
+
+Test the simulation
+
+# Arguments:
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
+- `y0::Float64` : y-coordinate of the lower left corner of the domain
+- `y1::Float64` : y-coordinate of the upper right corner of the domain
+- `z0::Float64` : z-coordinate of the lower left corner of the domain
+- `z1::Float64` : z-coordinate of the upper right corner of the domain
+- `ne::Int` : number of elements
+- `Young::Float64` : Young's modulus
+- `ν::Float64` : Poisson's ratio
+- `ndim::Int` : number of dimensions
+- `FunctionClass::String` : type of basis function
+- `nDof::Int` : number of degree of freedom per node
+- `β::Float64` : friction parameter
+- `CameraMatrix::Matrix{Float64}` : camera matrix
+- `endTime::Float64` : end time
+- `tSteps::Int` : number of time steps to be taken
+- `Control::String` : type of control (force or displacement)
+- `writeData::Bool` : write the data to a file
+- `filepath::String` : path to the file
+- `mode::String` : type of constitutive matrix
+"""
 function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control; writeData=false, filepath=nothing, mode = "standard")
     
     if writeData
@@ -634,6 +662,24 @@ function write_sim_data(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, Funct
     hcost, cpCost = test(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, writeData=writeData, filepath=filename, mode = mode)
 end
 
+"""
+    function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, CameraMatrix, filepath=nothing)
+        
+Initialize the mesh and write the data to a file
+
+# Arguments:
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
+- `y0::Float64` : y-coordinate of the lower left corner of the domain
+- `y1::Float64` : y-coordinate of the upper right corner of the domain
+- `z0::Float64` : z-coordinate of the lower left corner of the domain
+- `z1::Float64` : z-coordinate of the upper right corner of the domain
+- `ne::Int` : number of elements
+- `ndim::Int` : number of dimensions
+- `FunctionClass::String` : type of basis function
+- `CameraMatrix::Matrix{Float64}` : camera matrix
+- `filepath::String` : path to the file
+"""
 function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, CameraMatrix, filepath=nothing)
 
     isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
@@ -652,7 +698,7 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
     TopBorders = BorderNodesList[3]
         
     fields = [NodeListCylinder]                                                               # store the solution fields of the mesh in 3D
-    fields2D = [Nodes2D]                                                                   # store the solution fields of the mesh in 2D
+    pos2D = [Nodes2D]                                                                   # store the solution fields of the mesh in 2D
     surfaceNodesList = [NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
     borderPts2DList = [BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
     borderNodeList2D = [BorderNodes2D]                                                       # store the solution fields of the border nodes in 2D
@@ -661,6 +707,6 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
     output = []
     writeborderList = [vcat(pi', qi')]
 
-    animate_fields(filepath = string(filepath,"/Results/images"), fields=fields , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=fields2D)
+    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
 
 end

@@ -252,38 +252,69 @@ Rearrange the solution vector from the lagrangian basis functions for to bilinea
 - `q_new::Vector{Float64}`: rearranged solution vector
 - `IEN_new::Matrix{Int64}`: rearranged connectivity matrix
 """
-function rearrange(q, ne, ndim, IEN, FunctionClass) 
-    
+function rearrange(q, ne, ndim, IEN, FunctionClass, ID  = nothing) 
     if FunctionClass == "Q1"
         return q, IEN
     elseif FunctionClass == "Q2"
-        q_new = zeros((ne+1)^ndim,1)
-        IEN_new = zeros(Int64,ne^ndim,2^ndim)
-        if ndim == 2
-            
-            for i in 1:ne+1
-                for j in 1:ne+1
-                    q_new[(i-1)*(ne+1)+j] = q[2*(i-1)*(2*ne+1) + (2*j-1)]
-                end
-            end
-
-            for e in 1:ne^ndim
-                IEN_new[e,:] = IEN[e,1:4]
-            end
-        elseif ndim == 3
-            for k in 1:ne+1
-                for j in 1:ne+1
-                    for i in 1:ne+1
-                        q_new[(k-1)*(ne+1)^2 + (j-1)*(ne+1) + i] = q[2*(k-1)*(2*ne+1)^2 + 2*(j-1)*(2*ne+1) + 2*i-1]
+        if isnothing(ID)
+            q_new = zeros((ne+1)^ndim,1)
+            IEN_new = zeros(Int64,ne^ndim,2^ndim)
+            if ndim == 2
+                for i in 1:ne+1
+                    for j in 1:ne+1
+                        q_new[(i-1)*(ne+1)+j] = q[2*(i-1)*(2*ne+1) + (2*j-1)]
                     end
                 end
-            end
 
-            for e in 1:ne^ndim
-                IEN_new[e,:] = IEN[e,1:8]
+                for e in 1:ne^ndim
+                    IEN_new[e,:] = IEN[e,1:4]
+                end
+            elseif ndim == 3
+                for k in 1:ne+1
+                    for j in 1:ne+1
+                        for i in 1:ne+1
+                            q_new[(k-1)*(ne+1)^2 + (j-1)*(ne+1) + i] = q[2*(k-1)*(2*ne+1)^2 + 2*(j-1)*(2*ne+1) + 2*i-1]
+                        end
+                    end
+                end
+
+                for e in 1:ne^ndim
+                    IEN_new[e,:] = IEN[e,1:8]
+                end
             end
+            return q_new, IEN_new, ID_new
+        else
+            nDof = size(ID,2)
+            q_new = zeros(nDof,(ne+1)^ndim)
+            IEN_new = zeros(Int64,ne^ndim,2^ndim)
+
+            if ndim == 2
+                for i in 1:ne+1
+                    for j in 1:ne+1
+                        q_new[(i-1)*(ne+1)+j] = q[2*(i-1)*(2*ne+1) + (2*j-1)]
+                    end
+                end
+
+                for e in 1:ne^ndim
+                    IEN_new[e,:] = IEN[e,1:4]
+                end
+            elseif ndim == 3
+                for k in 1:ne+1
+                    for j in 1:ne+1
+                        for i in 1:ne+1
+                            for iDof in 1:nDof
+                                q_new[iDof,(k-1)*(ne+1)^2 + (j-1)*(ne+1) + i] = q[2*(k-1)*(2*ne+1)^2 + 2*(j-1)*(2*ne+1) + (2*i-2) + iDof]
+                            end
+                        end
+                    end
+                end
+
+                for e in 1:ne^ndim
+                    IEN_new[e,:] = IEN[e,1:8]
+                end
+            end
+            return q_new, IEN_new
         end
-        return q_new, IEN_new
     end
 end
 

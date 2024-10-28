@@ -26,9 +26,10 @@ function write_vtk(filePath, fieldName, NodeList, IEN, ne, ndim, q)
         cellType = VTKCellTypes.VTK_HEXAHEDRON
     end
     
+    println(size(q))
     cells = [MeshCell(cellType,IEN[e,:]) for e in 1:ne^ndim]
 
-    vtk_grid(string(filePath,"/vtkFiles"), NodeList, cells) do vtk
+    vtk_grid(string(filePath,"/vtkFiles",fieldName), NodeList, cells) do vtk
         vtk[fieldName] = q
     end
 end 
@@ -102,7 +103,6 @@ Function to write the border data to a CSV file.
 # Arguments:
 - `fileName::String`: name of the file.
 - `borders::Vector{Matrix{Float64}}`: vector of border data.
-
 """
 function writeCSV(fileName, borders)
     println("Writing CSV files...")
