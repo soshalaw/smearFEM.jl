@@ -704,9 +704,40 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
     borderNodeList2D = [BorderNodes2D]                                                       # store the solution fields of the border nodes in 2D
     splinep = [pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
     splineq = [qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
-    output = []
     writeborderList = [vcat(pi', qi')]
 
     animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
 
+end
+
+function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, μ_tp, μ_btm)
+
+    mode = "standard"
+
+    cMat = get_cMat(mode, Young, ν)
+
+    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
+    NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
+    q_tp, q_btm, C_uc = setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof)
+
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, 
+                    FunctionClass=FunctionClass, ID=ID, Young=Float64(Young), ν=ν, cMat=cMat)
+        
+    K = assemble_system(mdl)                   # assemble the stiffness matrix
+    b = apply_boundary_conditions(mdl)       # apply the neumann boundary conditions
+    q_d = (μ_btm*q_btm + μ_tp*q_tp)                  # apply the Dirichlet boundary conditions
+
+    K_bar = K + β*b
+
+    C_T = transpose(C_uc)           # transpose the constraint matrix
+    K_free = C_T*K_bar*C_uc         # extract the free part of the stiffness matrix
+
+    invK = inv(Matrix(K_free))
+
+    q_f = invK*C_T*(-K_bar*q_d)         # solve the system of equations
+    q = q_d + C_uc*q_f;                 # assemble the solution 
+
+    q_out = [q[ID[:,1]] q[ID[:,2]] q[ID[:,3]]]'
+
+    return q_out, mdl
 end
