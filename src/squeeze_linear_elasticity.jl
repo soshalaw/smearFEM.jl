@@ -4,7 +4,6 @@ using SparseArrays
 
 # set up mesh grid
 
-
 """ 
     assemble_system(ne, NodeList, IEN, ndim, FunctionClass="Q1", nDof=1, ID=nothing, Young=1, ν=0.3)
 
@@ -175,7 +174,6 @@ function assemble_system(mdl::model)
 end
 
 """ Apply the Neumann slip boundary conditions to the global stiffness matrix
-
 # Arguments:
 K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix 
 ID: {[nNodes,nDof] Matrix{Int}} : matrix that maps the global degrees of freedom to the local degrees of freedom
