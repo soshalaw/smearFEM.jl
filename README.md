@@ -7,3 +7,5 @@
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 Repository for developing the FEM code for the SMEAR project 
+
+[![codecov](https://codecov.io/gh/soshalaw/smearFEM.jl/branch/dev/graph/badge.svg?token=G6YXOO84EV)](https://codecov.io/gh/soshalaw/smearFEM.jl)
