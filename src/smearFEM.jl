@@ -1,7 +1,7 @@
 module smearFEM
 
-export gaussian_quadrature, basis_function, greet_fem
-export fit_curve, extract_borders, greet_pp, filter_points, rearrange
+export gaussian_quadrature, basis_function
+export fit_curve, extract_borders, filter_points, rearrange
 export readCSV, write_vtk, write_scene, writeCSV
 export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h
 export closest_point, height_sample, match_points
