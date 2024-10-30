@@ -303,7 +303,7 @@ function rearrange(q, ne, ndim, IEN, FunctionClass, ID  = nothing)
                     for j in 1:ne+1
                         for i in 1:ne+1
                             for iDof in 1:nDof
-                                q_new[iDof,(k-1)*(ne+1)^2 + (j-1)*(ne+1) + i] = q[2*(k-1)*(2*ne+1)^2 + 2*(j-1)*(2*ne+1) + (2*i-2) + iDof]
+                                q_new[iDof,(k-1)*(ne+1)^2 + (j-1)*(ne+1) + i] = q[2*(k-1)*(2*ne+1)^2*nDof + 2*(j-1)*(2*ne+1)*nDof + (2*i-2)*nDof + iDof]
                             end
                         end
                     end

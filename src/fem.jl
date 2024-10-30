@@ -254,6 +254,14 @@ function basis_function(ξ,η=nothing,ζ=nothing, FunctionClass = "Q2")
                    -(1-ξ)*(1+ξ)*2*η] # ∂N/∂η gradient of the basis functions
                 
             ΔN = [∂N_ξ ∂N_η] # [dN/dξ dN/dη]
+        else
+            # basis functions
+            N = [-(1-ξ)*  ξ/2, 
+                   ξ  *(1+ξ)/2,
+                   (1-ξ)*(1+ξ)] # gradient of the basis functions
+
+            # gradient of the basis functions
+            ΔN = [-(1-2*ξ)/2, (1+2*ξ)/2, -2*ξ] # [dN/dξ]
         end
     end
     return N, ΔN

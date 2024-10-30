@@ -1,4 +1,70 @@
 """
+    meshgrid_line(x0,x1,ne,FunctionClass="Q1")
+
+Set up the mesh grid for a 1D line
+
+# Arguments:
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
+- `ne::Int` : number of elements
+- `FunctionClass::String` : type of basis function (Q1 or Q2)
+
+# Returns:
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
+- `IEN::Matrix{Int64}{ne^ndim,2^ndim}` : array of elements
+"""
+function meshgrid_line(x0,x1,ne;FunctionClass="Q1")
+    BorderNodes = []
+    if FunctionClass == "Q1"
+        nNodes = ne+1 # number of nodes in each direction
+        NodeList = zeros(1,nNodes)
+        IEN = zeros(Int64,ne,2) # IEN for the 1D mesh
+
+        x = collect(range(x0, x1, length=nNodes))
+
+        m = 1
+        for i in 1:nNodes # x direction
+            NodeList[1,m] = x[i]
+            if i == 1 || i == nNodes # populate the BorderNodes with the nodes on the left and right boundaries
+                push!(BorderNodes,m)
+            end
+            m = m + 1
+        end 
+
+        n = 1
+        for i in 1:ne # x direction
+            IEN[n,1] = i
+            IEN[n,2] = i + 1
+            n = n + 1
+        end
+    elseif FunctionClass == "Q2"
+        nNodes = 2*ne+1
+        NodeList = zeros(1,nNodes)
+        IEN = zeros(Int64,ne,3) # IEN for the 1D mesh
+
+        x = collect(range(x0, x1, length=nNodes))
+
+        m = 1
+        for i in 1:nNodes # x direction
+            NodeList[1,m] = x[i]
+            if i == 1 || i == nNodes # populate the BorderNodes with the nodes on the left and right boundaries
+                push!(BorderNodes,m)
+            end
+            m = m + 1
+        end
+
+        n = 1
+        for i in 1:ne # x direction
+            IEN[n,1] = 2*i - 1
+            IEN[n,2] = 2*i + 1
+            IEN[n,3] = 2*i
+            n = n + 1
+        end 
+    end
+    return NodeList, IEN, BorderNodes
+end
+
+"""
     meshgrid_square(x0,x1,y0,y1,ne,ndim;FunctionClass="Q1")
 
 Set up the mesh grid for a 2D square

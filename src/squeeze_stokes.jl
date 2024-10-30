@@ -405,7 +405,6 @@ function set_boundary_cond_stokes(NodeList, ne, ndim, FunctionClass, nDof=1)
         q_lower = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
         C = sparse(I,nDof*(2*ne+1)^ndim,nDof*(2*ne+1)^ndim)  # definition of the constraint matrix
     end
-
     if nDof == 1
         if ndim == 3
             Dbound1 = 0
@@ -438,7 +437,6 @@ function set_boundary_cond_stokes(NodeList, ne, ndim, FunctionClass, nDof=1)
         elseif FunctionClass == "Q2"
             C_uc = C[:,((2*ne+1)^(ndim-1)+1):((2*ne+1)^ndim-(2*ne+1)^(ndim-1))]
         end
-
     else
         z0Bound = 0
         z1Bound = 1

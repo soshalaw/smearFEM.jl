@@ -19,11 +19,19 @@ using Aqua
         ne = 1
     
         FunctionsClasses = ["Q1", "Q2"]
-        ndims = [2, 3]
+        ndims = [1, 2, 3]
 
         for FunctionClass in FunctionsClasses
             for ndim in ndims
-                if ndim == 2
+                if ndim == 1
+                    NodeList, IEN, BorderNodesList = meshgrid_line(x0,x1,ne;FunctionClass=FunctionClass)
+                    iter = 1:size(IEN,2)
+                    for i in iter
+                        coord = NodeList[:,IEN[i]]
+                        N, dN = basis_function(coord[1],nothing,nothing, FunctionClass)
+                        @test findall(x->x==1,N)==[i]
+                    end 
+                elseif ndim == 2
                     NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_square(x0,x1,y0,y1,ne,ndim;FunctionClass=FunctionClass)
                     iter = 1:size(IEN,2)
                     for i in iter
