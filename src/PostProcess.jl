@@ -4,11 +4,6 @@ using ElasticArrays
 using ConvexHulls2d
 import ConvexHulls2d as ch
 
-
-function greet_pp()
-    println("Hello, I am the PostProcess module")
-end
-
 """ 
     Extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = nothing)
 

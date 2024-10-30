@@ -2,10 +2,6 @@ using LinearAlgebra
 using SparseArrays
 using ArgCheck
 
-function greet_fem()
-    println("Hello, I am the FEM module")
-end
-
 """ 
     smearFEM.gaussian_quadrature(a,b,nGaussPoints)
 
