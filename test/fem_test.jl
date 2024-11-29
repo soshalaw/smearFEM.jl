@@ -17,7 +17,7 @@ using smearFEM
         for ndim in ndims
             if ndim == 1
                 NodeList, IEN, BorderNodesList = meshgrid_line(x0,x1,ne;FunctionClass=FunctionClass)
-                iter = 1:size(IEN,2)
+                iter = 1:size(IEN,1)
                 for i in iter
                     coord = NodeList[:,IEN[i]]
                     N, dN = basis_function(coord[1],nothing,nothing, FunctionClass)

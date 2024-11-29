@@ -4,7 +4,7 @@ using Plots
 function match_points(pSim,pObs)
     pSim, qSim = pSim[1,:], pSim[2,:]
     pObs, qObs = pObs[1], pObs[2]
-    pairs = []
+    pairs = AbstractArray[]
     PointCounter = 1
     for (pi,qi) in zip(pSim, qSim)
         cost = 1000000
@@ -27,8 +27,8 @@ end
 function closest_point(simScene, obsScene, pairs)
     # Define the cost function
 
-    costList = []
-    for (obsData, simData) in zip(obsScene, simScene) # iterate over the scenes
+    costList = Float64[]
+    for (obsData, simData) in zip(obsScene[2:end], simScene[2:end]) # iterate over the scenes
         tcost = 0
         # pSim, qSim = fit_curve(border=obsData)
         # println(size(obsData))
@@ -59,16 +59,14 @@ function closest_point(simScene, obsScene, pairs)
         mCost = tcost/length(pairs)
         push!(costList, mCost)
     end
-
     return costList
 end
 
 function height_sample(simScene,obsScene)
-    xSimintlst = []
-    ySimintlst = []
-    xObsintlst = []
-
-    costList = []
+    xSimintlst = AbstractArray[]
+    ySimintlst = AbstractArray[]
+    xObsintlst = AbstractArray[]
+    costList = Float64[]
     for (obsData, simData) in zip(obsScene, simScene) # iterate over the scenes
 
         xSim, ySim = filter_points(simData, 2048/2)

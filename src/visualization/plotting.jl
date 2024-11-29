@@ -132,16 +132,22 @@ Function to animate the 2D fields as a gif
 """
 function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, filepath="images/2D_grid.gif")
     
-    if isnothing(BorderNodes2D) && isnothing(fields2D) && isnothing(p) && isnothing(q)
+    if isnothing(BorderNodes2D) && isnothing(fields2D) && isnothing(p) && isnothing(pObs)
         AssertionError("No fields provided")
         return
     else
-        if isnothing(fields2D) || isnothing(BorderNodes2D)
-            sz = length(p)
-        elseif isnothing(BorderNodes2D) || isnothing(p)
-            sz = length(fields2D)
-        elseif isnothing(fields2D) || isnothing(p)    
+        if isnothing(fields2D) && isnothing(p)
             sz = length(BorderNodes2D)
+        elseif isnothing(BorderNodes2D) && isnothing(fields2D)
+            sz = length(p)
+        elseif isnothing(BorderNodes2D) && isnothing(p)
+            sz = length(fields2D)
+        elseif isnothing(fields2D) && isnothing(p)    
+            sz = length(BorderNodes2D)
+        elseif isnothing(BorderNodes2D) && isnothing(fields2D) && isnothing(p)
+            sz = length(pObs)
+        elseif !isnothing(pObs)
+            sz = length(pObs)
         else
             sz = length(fields2D)
         end

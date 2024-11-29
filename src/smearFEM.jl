@@ -2,25 +2,32 @@ module smearFEM
 
 export gaussian_quadrature, basis_function
 export fit_curve, extract_borders, filter_points, rearrange
-export readCSV, write_vtk, write_scene, writeCSV
+export read_csv, write_vtk, write_scene, write_csv, write_json, write_contour_data
 export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h
 export closest_point, height_sample, match_points
 export GradDescent, update
-export setboundaryCond, simulate, set_file, initialize_mesh_test, assemble_system, apply_boundary_conditions, get_cMat
 export meshgrid_line, meshgrid_square, meshgrid_cube, inflate_cylinder, meshgrid_ring
-export simulate, write_sim_data, test, simulate_single_tstep
-export assemble_system_A, assemble_system_B, apply_boundary_conditions_stokes, set_boundary_cond_stokes
+export simulate, write_sim_data, test, simulate_single_tstep, compare, readData
 export def_model, linearElasticity, stokes
+export simulate_single_tstep_stokes
 
-include("models.jl")
-include("fem.jl")
-include("Meshes.jl")
-include("PostProcess.jl")
-include("plotting.jl")
-include("io.jl")
-include("smearOptimize.jl")
-include("GradDescent.jl")
-include("squeeze_stokes.jl")
-include("squeeze_linear_elasticity.jl")
+export setboundaryCond, simulate, set_file, initialize_mesh_test, assemble_system, apply_boundary_conditions, get_cMat
+export setboundaryCond_dense, assemble_system_dense, apply_boundary_conditions_dense
+export assemble_system_A, assemble_system_B, apply_boundary_conditions_stokes, set_boundary_cond_stokes
+export set_boundary_cond_flow_cube, set_boundary_cond_flow_cyl
+
+include("fem/models.jl")
+include("fem/fem.jl")
+include("fem/Meshes.jl")
+include("fem/PostProcess.jl")
+include("visualization/plotting.jl")
+include("visualization/io.jl")
+include("optimization/smearOptimize.jl")
+include("optimization/GradDescent.jl")
+
+include("examples/squeeze_stokes.jl")
+include("examples/fluid_flow_stokes.jl")
+include("examples/squeeze_linear_elasticity.jl")
+include("examples/run_example.jl")
 
 end # module smearFem
