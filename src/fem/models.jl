@@ -25,7 +25,7 @@ function def_model(mdl::String; ne::Int64 = 1,
 
     cMat::Matrix{Float64} = [1.0 0.3 0.3 0.0; 0.3 1.0 0.3 0.0; 0.3 0.3 1.0 0.0; 0.0 0.0 0.0 0.5],
     Young = 1.0, 
-    ν = 0.3, 
+    ν = 1, 
     dcMatdλ::Matrix{Float64} = [0.0 1.0 1.1 0.1],
     dcMatdμ::Matrix{Float64} = [0.0 1.0 1.1 0.1])
 
@@ -33,7 +33,7 @@ function def_model(mdl::String; ne::Int64 = 1,
         return linearElasticity(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass, Young, ν, cMat, dcMatdλ, dcMatdμ)
     elseif mdl == "stokes"
         return stokes(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass,
-                            NodeList_2, IEN_2, IEN_2_top, IEN_2_btm, IEN_2_border, ID_2, nDof_2, FunctionClass_2)
+                            NodeList_2, IEN_2, IEN_2_top, IEN_2_btm, IEN_2_border, ID_2, nDof_2, FunctionClass_2, ν)
     end
 end
 
@@ -78,6 +78,8 @@ mutable struct stokes <: model
     ID_p::Matrix{Int}
     nDof_p::Int64
     FunctionClass_p::String
+
+    η::Float64
 end
 
 # mutable struct Node
