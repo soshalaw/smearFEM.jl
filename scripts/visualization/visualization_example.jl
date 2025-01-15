@@ -1,6 +1,5 @@
 using smearFEM
 
-
 function main()
 
     # test case 
@@ -10,7 +9,7 @@ function main()
     y1 = 1
     z0 = 0
     z1 = 1
-    ne = 8
+    ne = 2
     ndim = 3
     FunctionClass = "Q2"
     nDof = ndim  # number of degree of freedom per node
@@ -22,6 +21,7 @@ function main()
     Control = "displacement" # "force" or "displacement"
 
     filepath = "/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/Lame/test_experiment/"
+    set_file(filepath)
 
     mode = "standard" # "standard" or "lame"
 

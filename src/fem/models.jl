@@ -1,7 +1,10 @@
 
 abstract type model end
 
-function def_model(mdl::String; ne::Int64 = 1, 
+function def_model(
+    
+    mdl::String; 
+    ne::Int64 = 1, 
 
     NodeList::Matrix{Float64} = [0.0 1.0 1.0 0.0; 0.0 0.0 1.0 1.0],
     IEN::Matrix{Int} = [1 2 3 4],
@@ -12,6 +15,8 @@ function def_model(mdl::String; ne::Int64 = 1,
     ndim::Int64 = 2,
     nDof::Int64 = 2,
     FunctionClass::String = "Q1",
+    C::Array{Float64, 3} = zeros(2,2,2),
+    W::Vector{Float64}= zeros(1),  
 
     NodeList_2::Matrix{Float64} = [0.0 1.0 1.0 0.0; 0.0 0.0 1.0 1.0],
     IEN_2::Matrix{Int} = [1 2 3 4],
@@ -22,6 +27,8 @@ function def_model(mdl::String; ne::Int64 = 1,
     ndim_2::Int64 = 2,
     nDof_2::Int64 = 2,
     FunctionClass_2::String = "Q1",
+    C_2::Array{Float64, 3} = zeros(2,2,2),
+    W_2::Vector{Float64}= zeros(1), 
 
     cMat::Matrix{Float64} = [1.0 0.3 0.3 0.0; 0.3 1.0 0.3 0.0; 0.3 0.3 1.0 0.0; 0.0 0.0 0.0 0.5],
     Young = 1.0, 
@@ -29,8 +36,13 @@ function def_model(mdl::String; ne::Int64 = 1,
     dcMatdλ::Matrix{Float64} = [0.0 1.0 1.1 0.1],
     dcMatdμ::Matrix{Float64} = [0.0 1.0 1.1 0.1])
 
-    if mdl == "linear_elasticity"
-        return linearElasticity(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass, Young, ν, cMat, dcMatdλ, dcMatdμ)
+    if mdl == "linear_elasticity" && FunctionClass == "S2"
+        return linearElasticity(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass, C, W, Young, ν, cMat, dcMatdλ, dcMatdμ)
+    elseif mdl == "linear_elasticity"
+        return linearElasticity(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass, C, W, Young, ν, cMat, dcMatdλ, dcMatdμ)
+    elseif mdl == "linear_elasticity" && FunctionClass == "S2"
+        return stokes(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass,
+                            NodeList_2, IEN_2, IEN_2_top, IEN_2_btm, IEN_2_border, ID_2, nDof_2, FunctionClass_2, ν)
     elseif mdl == "stokes"
         return stokes(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass,
                             NodeList_2, IEN_2, IEN_2_top, IEN_2_btm, IEN_2_border, ID_2, nDof_2, FunctionClass_2, ν)
@@ -49,6 +61,8 @@ mutable struct linearElasticity <: model
     ID::Matrix{Int}
     nDof::Int64
     FunctionClass::String
+    C::Array{Float64}
+    W::Vector{Float64}
 
     Young::Float64
     ν::Float64

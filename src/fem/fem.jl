@@ -63,7 +63,7 @@ function basis_function(ξ::Float64,η=nothing,ζ=nothing, FunctionClass::String
 end
 
 function basis_function(ξ::Float64,η::Float64,ζ=nothing, FunctionClass::String = "Q2")
-    if FunctionClass == "Q1" # bilinear quadratic basis functions
+    if FunctionClass == "Q1" || FunctionClass == "S1"# bilinear quadratic basis functions
         # basis functions
         N = [(1-ξ)*(1-η)/4, (ξ+1)*(1-η)/4, (1+ξ)*(η+1)/4, (1-ξ)*(1+η)/4]
 
@@ -108,13 +108,22 @@ function basis_function(ξ::Float64,η::Float64,ζ=nothing, FunctionClass::Strin
                 -(1-ξ)*(1+ξ)*2*η] # ∂N/∂η gradient of the basis functions
             
         ΔN = [∂N_ξ ∂N_η] # [dN/dξ dN/dη]
+    elseif FunctionClass == "S2"
+        N, ΔN = basis_function(ξ, η, "Q2")
+        Be = Ce*N
+        ΔBe = Ce*ΔN
+
+        # we = Be*We  
+        # Re = (We.*Be)/we
+        # ΔR =
+        println("S2")
     end
-    return N, ΔN
+    return Be, ΔBe
 end
 
 function basis_function(ξ::Float64,η::Float64,ζ::Float64, FunctionClass::String = "Q2")
     
-    if FunctionClass == "Q1" # bilinear quadratic basis functions
+    if FunctionClass == "Q1" || FunctionClass == "S1"# bilinear quadratic basis functions
         # basis functions
         N = [(1-ξ)*(1-η)*(1-ζ)/8, 
             (1+ξ)*(1-η)*(1-ζ)/8, 
@@ -265,6 +274,33 @@ function basis_function(ξ::Float64,η::Float64,ζ::Float64, FunctionClass::Stri
                     (1-ξ)*(1+ξ)*(1-η)*(1+η)* (-2*ζ)]
 
         ΔN = [∂N_ξ ∂N_η ∂N_ζ] # [dN/dξ dN/dη dN/dζ]
+    elseif FunctionClass == "S2"
+        N, ΔN = basis_function(ξ, η, ζ, "Q2")
+
+        Be = Ce'*N
+        ΔBe = Ce'*ΔN
+
+        we = Be*We  
+        Re = (We.*Be)/we
+        # ΔR =
     end
     return N, ΔN
+end
+
+function basis_function(ξ::Float64,η::Float64,ζ::Float64, Ce::Matrix{Float64}, We::Vector{Float64}, FunctionClass::String = "S2")
+
+    N, ΔN = basis_function(ξ, η, ζ, "Q2")
+
+    # Compute the Bspline basis
+    Be = Ce*N
+    ΔBe = Ce*ΔN
+
+    we = Be'*We
+    Δwe = ΔBe'*We
+
+    # Compute the NURBS basis
+    Re = (We.*Be)/we
+    ΔRe = (We.*ΔBe)/we - ((We.*Be)*Δwe')/we^2
+    
+    return Re, ΔRe
 end

@@ -31,18 +31,30 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, Func
 
     cMat = get_cMat(mode, Young, ν)
 
-    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
-    NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1) # inflate the sphere to a unit sphere
+    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/Python/"
+    CPointList, W, C, IEN, IEN_top, IEN_btm = read_h5(string(filePath,"/cylinder.h5"))
+    
+    ndim = size(CPointList,1)
+    ne = Int64((size(IEN,2))^(1/ndim))
 
-    mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeListCylinder, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
-                        FunctionClass=FunctionClass, Young=Float64(Young), ν=ν, cMat=cMat)
+    # get the ID array
+    ID = zeros(Int64, ndim, size(CPointList,2))
+    cpiter = 1:size(CPointList,2)
+    for m in cpiter
+        for l in 1:ndim
+            ID[l,m] = ndim*(m-1) + l
+        end
+    end 
+
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
+                        FunctionClass=FunctionClass, C = C, W = W, Young=Float64(Young), ν=ν, cMat=cMat)
     
     if DENSE == true
-        q_tp, q_btm, C_uc = setboundaryCond_dense(NodeList, ne, ndim, FunctionClass, nDof)
+        q_tp, q_btm, C_uc = setboundaryCond_dense(mdl)
         K = assemble_system_dense(mdl)                   # assemble the stiffness matrix
         b = apply_boundary_conditions_dense(mdl)         # apply the neumann boundary conditions
     else
-        q_tp, q_btm, C_uc = setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof)
+        q_tp, q_btm, C_uc = setboundaryCond(mdl)
         K = assemble_system(mdl)                   # assemble the stiffness matrix
         b = apply_boundary_conditions(mdl)         # apply the neumann boundary conditions
     end
@@ -101,7 +113,7 @@ function simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, Func
     mdl = def_model("stokes", ne=ne, NodeList=NodeListCylinder, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u, 
                         FunctionClass=FunctionClass_u, ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, 
                             ndim_2=ndim, nDof_2=nDof_p, FunctionClass_2=FunctionClass_p ) # define the model
-
+                            
     if DENSE == true
         A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
         B = assemble_system_B(mdl)                   # assemble the stiffness matrix
@@ -310,7 +322,7 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
     BottomBorders = BorderNodesList[2]
     TopBorders = BorderNodesList[3]
         
-    fields = [NodeListCylinder]                                                               # store the solution fields of the mesh in 3D
+    pos3D = [NodeListCylinder]                                                               # store the solution fields of the mesh in 3D
     pos2D = [Nodes2D]                                                                   # store the solution fields of the mesh in 2D
     surfaceNodesList = [NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
     borderPts2DList = [BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
@@ -319,7 +331,7 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
     splineq = [qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
     writeborderList = [vcat(pi', qi')]
 
-    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D, p=splinep, q=splineq)
     write_contour_data(string(filepath,"/Results"), writeborderList)
 
     return borderPts2DList, borderNodeList2D, splinep, splineq

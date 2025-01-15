@@ -94,21 +94,21 @@ function assemble_system(mdl::model)
     vol = 0
 
     e_iter = 1:mdl.ne^mdl.ndim
+    
+    # integration loop
     gpiter = 1:length(wpoints)
     for gp in gpiter
-
-        if mdl.ndim == 1
-            N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
-        elseif mdl.ndim == 2
-            N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
-        elseif mdl.ndim == 3
-            N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.FunctionClass) 
-        end
-
         for e in e_iter
-            coords = mdl.NodeList[:,mdl.IEN[:,e]] # get the coordinates of the nodes of the element
-            # integration loop
 
+            if mdl.ndim == 1
+                N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
+            elseif mdl.ndim == 2
+                N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
+            elseif mdl.ndim == 3
+                N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.C[:,:,e], mdl.W[mdl.IEN[:,e]], mdl.FunctionClass) 
+            end
+            
+            coords = mdl.NodeList[:,mdl.IEN[:,e]] # get the coordinates of the nodes of the element
             Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
 
             w = wpoints[gp]*abs(det(Jac))
@@ -349,7 +349,7 @@ q_n: {[ndof] Vector{Float64}} : Neumann boundary conditions
 K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix with the boundary conditions applied
 F: {[ndof] Vector{Float64}} : force vector
 """
-function apply_boundary_conditions(mdl)
+function apply_boundary_conditions(mdl::model)
 
     IEN_btm_rows = size(mdl.IEN_btm,1)
     ID_rows = size(mdl.ID,1)
@@ -449,7 +449,7 @@ function apply_boundary_conditions(mdl)
     return  K
 end
 
-function apply_boundary_conditions_dense(mdl)
+function apply_boundary_conditions_dense(mdl::model)
 
     IEN_btm_rows = size(mdl.IEN_btm,1)
     IEN_rows = size(mdl.IEN,1)
@@ -553,36 +553,36 @@ Set the Dirichlet boundary conditions for the problem
 - `q_lower::Vector{Float64}` : vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
 - `C_uc::SparseMatrixCSC{Float64,Int64}` : onstraint matrix
 """
-function setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof=1)
-    if FunctionClass == "Q1"
-        q_upper = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-        q_lower = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        C = sparse(I,nDof*(ne+1)^ndim,nDof*(ne+1)^ndim)      # definition of the constraint matrix
-    elseif FunctionClass == "Q2"
-        q_upper = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-        q_lower = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        C = sparse(I,nDof*(2*ne+1)^ndim,nDof*(2*ne+1)^ndim)  # definition of the constraint matrix
+function setboundaryCond(mdl::model)
+    if mdl.FunctionClass == "Q1"
+        q_upper = zeros(mdl.nDof*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
+        q_lower = zeros(mdl.nDof*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
+        C = sparse(I,mdl.nDof*(mdl.ne+1)^mdl.ndim,mdl.nDof*(mdl.ne+1)^mdl.ndim)      # definition of the constraint matrix
+    elseif mdl.FunctionClass == "Q2" || mdl.FunctionClass =="S2"
+        q_upper = zeros(mdl.nDof*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
+        q_lower = zeros(mdl.nDof*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
+        C = sparse(I,mdl.nDof*(2*mdl.ne+1)^mdl.ndim,mdl.nDof*(2*mdl.ne+1)^mdl.ndim)  # definition of the constraint matrix
     end
 
-    if nDof == 1
-        if ndim == 3
+    if mdl.nDof == 1
+        if mdl.ndim == 3
             Dbound1 = 0
             Dbound2 = 1
-            iter = 1:size(NodeList,2)
+            iter = 1:size(mdl.NodeList,2)
             for n in iter
-                coord = NodeList[:,n] # get the coordinates of the node
+                coord = mdl.NodeList[:,n] # get the coordinates of the node
                 if coord[3] == Dbound1 # bottom boundary
                     q_upper[n] = 0
                 elseif coord[3] == Dbound2 # top boundary
                     q_upper[n] = -1
                 end
             end
-        elseif ndim == 2
+        elseif mdl.ndim == 2
             Dbound1 = 0
             Dbound2 = 1
-            iter = 1:size(NodeList,2)
+            iter = 1:size(mdl.NodeList,2)
             for n in iter
-                coord = NodeList[:,n] # get the coordinates of the node
+                coord = mdl.NodeList[:,n] # get the coordinates of the node
                 if coord[2] == Dbound1 # bottom boundary
                     q_upper[n] = 0
                 elseif coord[2] == Dbound2 # top boundary
@@ -591,10 +591,10 @@ function setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof=1)
             end
         end
 
-        if FunctionClass == "Q1"
-            C_uc = C[:,((ne+1)^(ndim-1)+1):((ne+1)^ndim-(ne+1)^(ndim-1))]
-        elseif FunctionClass == "Q2"
-            C_uc = C[:,((2*ne+1)^(ndim-1)+1):((2*ne+1)^ndim-(2*ne+1)^(ndim-1))]
+        if mdl.FunctionClass == "Q1"
+            C_uc = C[:,((mdl.ne+1)^(mdl.ndim-1)+1):((mdl.ne+1)^mdl.ndim-(mdl.ne+1)^(mdl.ndim-1))]
+        elseif mdl.FunctionClass == "Q2"
+            C_uc = C[:,((2*mdl.ne+1)^(mdl.ndim-1)+1):((2*mdl.ne+1)^mdl.ndim-(2*mdl.ne+1)^(mdl.ndim-1))]
         end
 
     else
@@ -602,9 +602,9 @@ function setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof=1)
         z1Bound = 1
 
         rCol = Array{Int}(undef,0)
-        iter = 1:size(NodeList,2)
+        iter = 1:size(mdl.NodeList,2)
         for nNode in iter
-            coord = NodeList[:,nNode]    # get the coordinates of the node
+            coord = mdl.NodeList[:,nNode]    # get the coordinates of the node
             if coord[3] == z0Bound       # bottom boundary
                 q_lower[3*nNode] = 1     # constraint the z displacement to be zero at the bottom boundary
                 push!(rCol,3*nNode)
@@ -619,36 +619,36 @@ function setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof=1)
     return q_upper, q_lower, C_uc
 end
 
-function setboundaryCond_dense(NodeList, ne, ndim, FunctionClass, nDof=1)
-    if FunctionClass == "Q1"
-        q_upper = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-        q_lower = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        C = Matrix(I,nDof*(ne+1)^ndim,nDof*(ne+1)^ndim)      # definition of the constraint matrix
-    elseif FunctionClass == "Q2"
-        q_upper = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-        q_lower = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        C = Matrix(I,nDof*(2*ne+1)^ndim,nDof*(2*ne+1)^ndim)  # definition of the constraint matrix
+function setboundaryCond_dense(mdl::model)
+    if mdl.FunctionClass == "Q1"
+        q_upper = zeros(mdl.nDof*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
+        q_lower = zeros(mdl.nDof*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
+        C = Matrix(I,mdl.nDof*(mdl.ne+1)^mdl.ndim,mdl.nDof*(mdl.ne+1)^mdl.ndim)      # definition of the constraint matrix
+    elseif mdl.FunctionClass == "Q2"
+        q_upper = zeros(mdl.nDof*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
+        q_lower = zeros(mdl.nDof*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
+        C = Matrix(I,mdl.nDof*(2*mdl.ne+1)^mdl.ndim,mdl.nDof*(2*mdl.ne+1)^mdl.ndim)  # definition of the constraint matrix
     end
 
-    if nDof == 1
-        if ndim == 3
+    if mdl.nDof == 1
+        if mdl.ndim == 3
             Dbound1 = 0
             Dbound2 = 1
-            iter = 1:size(NodeList,2)
+            iter = 1:size(mdl.NodeList,2)
             for n in iter
-                coord = NodeList[:,n] # get the coordinates of the node
+                coord = mdl.NodeList[:,n] # get the coordinates of the node
                 if coord[3] == Dbound1 # bottom boundary
                     q_upper[n] = 0
                 elseif coord[3] == Dbound2 # top boundary
                     q_upper[n] = -1
                 end
             end
-        elseif ndim == 2
+        elseif mdl.ndim == 2
             Dbound1 = 0
             Dbound2 = 1
-            iter = 1:size(NodeList,2)
+            iter = 1:size(mdl.NodeList,2)
             for n in iter
-                coord = NodeList[:,n] # get the coordinates of the node
+                coord = mdl.NodeList[:,n] # get the coordinates of the node
                 if coord[2] == Dbound1 # bottom boundary
                     q_upper[n] = 0
                 elseif coord[2] == Dbound2 # top boundary
@@ -657,10 +657,10 @@ function setboundaryCond_dense(NodeList, ne, ndim, FunctionClass, nDof=1)
             end
         end
 
-        if FunctionClass == "Q1"
-            C_uc = C[:,((ne+1)^(ndim-1)+1):((ne+1)^ndim-(ne+1)^(ndim-1))]
-        elseif FunctionClass == "Q2"
-            C_uc = C[:,((2*ne+1)^(ndim-1)+1):((2*ne+1)^ndim-(2*ne+1)^(ndim-1))]
+        if mdl.FunctionClass == "Q1"
+            C_uc = C[:,((mdl.ne+1)^(mdl.ndim-1)+1):((mdl.ne+1)^mdl.ndim-(mdl.ne+1)^(mdl.ndim-1))]
+        elseif mdl.FunctionClass == "Q2"
+            C_uc = C[:,((2*mdl.ne+1)^(mdl.ndim-1)+1):((2*mdl.ne+1)^mdl.ndim-(2*mdl.ne+1)^(mdl.ndim-1))]
         end
 
     else
@@ -668,9 +668,9 @@ function setboundaryCond_dense(NodeList, ne, ndim, FunctionClass, nDof=1)
         z1Bound = 1
 
         rCol = Array{Int}(undef,0)
-        iter = 1:size(NodeList,2)
+        iter = 1:size(mdl.NodeList,2)
         for nNode in iter
-            coord = NodeList[:,nNode]    # get the coordinates of the node
+            coord = mdl.NodeList[:,nNode]    # get the coordinates of the node
             if coord[3] == z0Bound       # bottom boundary
                 q_lower[3*nNode] = 1     # constraint the z displacement to be zero at the bottom boundary
                 push!(rCol,3*nNode)
@@ -754,11 +754,13 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
 
     NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
     NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
-    q_tp, q_btm, C_uc = setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof)
 
     # mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, FunctionClass=FunctionClass, ID=ID, )
     mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeListCylinder, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
                      FunctionClass=FunctionClass, Young=Float64(Young), ν=ν, cMat=cMat)
+    
+    q_tp, q_btm, C_uc = setboundaryCond(mdl)
+    
     state = "init"
 
     BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne, 2*ne+1)

@@ -99,14 +99,18 @@ function assemble_system_A(mdl::model)
     gpiter = 1:length(wpoints)
     for gp in gpiter
         if mdl.ndim == 1
-            N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass_u)
+            N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass_u) # add function type
         elseif mdl.ndim == 2
             N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass_u) 
         elseif mdl.ndim == 3
             N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.FunctionClass_u) 
         end
+
+        # N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass_u, Ce, We) 
+        
         # element loop
         for e in e_iter
+            # basis function inside the elements
             coords = mdl.NodeList_u[:,mdl.IEN_u[:,e]] # get the coordinates of the nodes of the element
 
             Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]

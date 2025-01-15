@@ -69,7 +69,7 @@ function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = no
         # bottomNodeList = sortperm(SideNodes2D[2,BottomLayerList])
         # BottomLayer = SideNodes2D[:,bottomNodeList]
 
-        BorderPoints = hcat(LeftborderPts, TopLayer, reverse(RightborderPts,dims=2), reverse(BottomLayer,dims=2))         # concatenate the left and right border nodes
+        BorderPoints = hcat(LeftborderPts, TopLayer, RightborderPts, BottomLayer)         # concatenate the left and right border nodes
         BorderNodes = vcat(LeftborderNodes, TopLayerList, reverse(RightborderNodes), reverse(BottomLayerList))            # concatenate the left and right border nodes 
     elseif state == "update"
         p = Array{Vector{Float64}}(undef,0)
@@ -92,7 +92,21 @@ function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = no
         BorderNodes = ch.vertices(hull)
     end
 
-    return BorderPoints, BorderNodes, SideNodes2D# return the border nodes
+    println(size(BorderPoints))
+    BorderPoints_ = sort_points(BorderPoints)
+    println(size(BorderPoints_))
+
+    return BorderPoints_, BorderNodes, SideNodes2D# return the border nodes
+end
+
+function sort_points(Data::Matrix{Float64})
+
+    y_sorted = Data[:,sortperm(Data[2,:])]
+    
+    pointsLeft = y_sorted[:,findall(y_sorted[1,:].<=y_sorted[1,1])]
+    pointsRight = y_sorted[:,findall(y_sorted[1,:].>y_sorted[1,1])]
+   
+    return hcat(pointsLeft, reverse(pointsRight,dims=2))
 end
 
 """ 
@@ -234,90 +248,54 @@ end
 """
     rearrange(q, ne, ndim, IEN, FunctionClass)
 
-Rearrange the solution vector from the lagrangian basis functions for to bilinear basis function for plotting and visualization in paraview
+Rearrange the connectivity vector to be visualised in paraview when langrangian basis functions are used.
 
 # Arguments:
-- `q::Vector{Float64}`: solution vector
-- `ne::Integer`: number of elements in each direction
 - `ndim::Integer`: number of dimensions
 - `IEN::Matrix{Float64}{nElem, nNodes}`: Connectivity matrix
-- `NodeList::Matrix{Float64}{nNodes, ndim}`: Node list
-- `FunctionClass::String`: type of basis function
 
 # Returns:
-- `q_new::Vector{Float64}`: rearranged solution vector
 - `IEN_new::Matrix{Int64}`: rearranged connectivity matrix
-- `NodeList_new::Matrix{Float64}`: rearranged node list
 """
-function rearrange(ne, ndim, IEN, ID  = nothing) 
-        
-    if isnothing(ID)
-        q_new = zeros((ne+1)^ndim,1)
-        IEN_new = zeros(Int64,ne^ndim,2^ndim)
-        if ndim == 2
-            for i in 1:ne+1
-                for j in 1:ne+1
-                    q_new[(i-1)*(ne+1)+j] = q[2*(i-1)*(2*ne+1) + (2*j-1)]
-                end
-            end
-
-            for e in 1:ne^ndim
-                IEN_new[e,:] = IEN[e,1:4]
-            end
-        elseif ndim == 3
-            for k in 1:ne+1
-                for j in 1:ne+1
-                    for i in 1:ne+1
-                        q_new[(k-1)*(ne+1)^2 + (j-1)*(ne+1) + i] = q[2*(k-1)*(2*ne+1)^2 + 2*(j-1)*(2*ne+1) + 2*i-1]
-                    end
-                end
-            end
-
-            for e in 1:ne^ndim
-                IEN_new[e,:] = IEN[e,1:8]
-            end
+function rearrange(ndim, IEN) 
+    IEN_new = zeros(Int64,size(IEN))
+    if ndim == 2
+        # TODO: Implement the 2D case
+    elseif ndim == 3
+        iter = 1:size(IEN,2)
+        for n in iter
+            IEN_new[1,n] = IEN[1,n]
+            IEN_new[2,n] = IEN[2,n]
+            IEN_new[3,n] = IEN[3,n]
+            IEN_new[4,n] = IEN[4,n]
+            IEN_new[5,n] = IEN[5,n]
+            IEN_new[6,n] = IEN[6,n]
+            IEN_new[7,n] = IEN[7,n]
+            IEN_new[8,n] = IEN[8,n]
+            IEN_new[9,n] = IEN[9,n]
+            IEN_new[10,n] = IEN[10,n]
+            IEN_new[11,n] = IEN[11,n]
+            IEN_new[12,n] = IEN[12,n]
+            IEN_new[13,n] = IEN[13,n]
+            IEN_new[14,n] = IEN[14,n]
+            IEN_new[15,n] = IEN[15,n]
+            IEN_new[16,n] = IEN[16,n]
+            IEN_new[17,n] = IEN[17,n]
+            IEN_new[18,n] = IEN[18,n]
+            IEN_new[19,n] = IEN[20,n]
+            IEN_new[20,n] = IEN[19,n]
+            IEN_new[21,n] = IEN[24,n]
+            IEN_new[22,n] = IEN[22,n]
+            IEN_new[23,n] = IEN[21,n]
+            IEN_new[24,n] = IEN[23,n]
+            IEN_new[25,n] = IEN[25,n]
+            IEN_new[26,n] = IEN[26,n]
+            IEN_new[27,n] = IEN[27,n]
         end
-        return q_new, IEN_new, ID_new
-    else
-        IEN_new = zeros(Int64,size(IEN))
-
-        if ndim == 2
-            # TODO: Implement the 2D case
-        elseif ndim == 3
-            iter = 1:size(IEN,1)
-            for n in iter
-                IEN_new[n,1] = IEN[n,1]
-                IEN_new[n,2] = IEN[n,2]
-                IEN_new[n,3] = IEN[n,3]
-                IEN_new[n,4] = IEN[n,4]
-                IEN_new[n,5] = IEN[n,5]
-                IEN_new[n,6] = IEN[n,6]
-                IEN_new[n,7] = IEN[n,7]
-                IEN_new[n,8] = IEN[n,8]
-                IEN_new[n,9] = IEN[n,9]
-                IEN_new[n,10] = IEN[n,10]
-                IEN_new[n,11] = IEN[n,11]
-                IEN_new[n,12] = IEN[n,12]
-                IEN_new[n,13] = IEN[n,13]
-                IEN_new[n,14] = IEN[n,14]
-                IEN_new[n,15] = IEN[n,15]
-                IEN_new[n,16] = IEN[n,16]
-                IEN_new[n,17] = IEN[n,17]
-                IEN_new[n,18] = IEN[n,18]
-                IEN_new[n,19] = IEN[n,20]
-                IEN_new[n,20] = IEN[n,19]
-                IEN_new[n,21] = IEN[n,24]
-                IEN_new[n,22] = IEN[n,22]
-                IEN_new[n,23] = IEN[n,21]
-                IEN_new[n,24] = IEN[n,23]
-                IEN_new[n,25] = IEN[n,25]
-                IEN_new[n,26] = IEN[n,26]
-                IEN_new[n,27] = IEN[n,27]
-            end
-        end
-        return IEN_new
     end
+    return IEN_new
 end
+
 
 
 """
@@ -363,3 +341,5 @@ function truncate_colormap(minval=0.0, maxval=1.0, n=100)
     new_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("mycmap", get_cmap("jet")(collect(range(maxval, minval, n))))
     return new_cmap
 end
+
+AssertionError

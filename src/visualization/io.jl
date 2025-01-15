@@ -2,6 +2,7 @@ using WriteVTK
 using ProgressMeter
 using DelimitedFiles
 using JSON3
+using HDF5
 
 """
     write_vtk(fileName, fieldName, NodeList, IEN, ne, ndim, q)
@@ -10,11 +11,12 @@ Function to write the solution to a VTK file
     
 # Arguments:
 - `fileName::String`: name of the VTK file.
-- `NodeList::Matrix[nNodes, ndim]`: array of nodes.
-- `IEN::Matrix{Float64}{nElem, nNodes}`: IEN array.
-- `ne::Integer`: number of elements in each direction.
-- `ndim::Integer`: number of dimensions.
-- `q::Vector{Float64}`: vector of solution fields.
+- `fieldName::String`:name of the field
+- `NodeList::Matrix[nNodes, ndim]`: Spacial coordinates of the nodes of the mesh.
+- `IEN::Matrix{Float64}{nNodes, nElem}`: Connectivity array.
+- `ne::Integer`: Number of elements in each direction.
+- `ndim::Integer`: Number of dimensions.
+- `q::Vector{Float64}`: Solution field.
 """
 function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64, ndim::Int64, q; ID=nothing, FunctionClass::String="Q1")
     if FunctionClass == "Q1"
@@ -34,12 +36,12 @@ function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64
             cellType = VTKCellTypes.VTK_LAGRANGE_HEXAHEDRON
         end
 
-        IEN = rearrange(ne, ndim, IEN, ID)  # rearrange the solution
+        IEN = rearrange(ndim, IEN)  # rearrange the solution
     end
 
-    cells = [MeshCell(cellType,IEN[e,:]) for e in 1:ne^ndim]
+    cells = [MeshCell(cellType,IEN[:,e]) for e in 1:ne^ndim]
 
-    vtk_grid(string(filePath,"/vtkFiles",fieldName), NodeList, cells) do vtk
+    vtk_grid(string(filePath,"/vtkFiles/",fieldName), NodeList, cells) do vtk
         vtk[fieldName] = q
     end
 
@@ -51,12 +53,12 @@ end
 Function to write the solution to a VTK file
 
 # Arguments:
-- `fileName::String`: name of the VTK file.
-- `NodeList::Matrix{Float64}{nNodes, ndim}`: array of nodes.
-- `IEN::Matrix{nElem, nNodes}`: IEN array
-- `ne::Integer`: number of elements in each direction.
-- `ndim::Integer`: number of dimensions
-- `fields::Vector{Vector{Float64}}`: vector of solution fields.
+- `fileName::String`: Name and path to the VTK file.
+- `NodeList::Matrix{Float64}{nNodes, ndim}`: Spacial coordinates of the nodes of the mesh.
+- `IEN::Matrix{nElem, nNodes}`: Connectivity array.
+- `ne::Integer`: Number of elements in x, y, z direction.
+- `ndim::Integer`: Number of dimensions
+- `fields::Vector{Vector{Float64}}`: Solution fields.
 """
 function write_scene(fileName::String, NodeList, IEN, ne::Int64, ndim::Int64, fields; ID=nothing, FunctionClass::String="Q1")
 
@@ -77,13 +79,14 @@ function write_scene(fileName::String, NodeList, IEN, ne::Int64, ndim::Int64, fi
             cellType = VTKCellTypes.VTK_LAGRANGE_HEXAHEDRON
         end
 
-        IEN = rearrange(ne, ndim, IEN, ID)  # rearrange the solution
+        IEN = rearrange(ndim, IEN)  # rearrange the solution
     end
 
     cells = [MeshCell(cellType,IEN[:,e]) for e in 1:ne^ndim]
 
+    fieldIter = 1:length(fields)
     paraview_collection(string(fileName,"/vtkFiles/displacement")) do pvd # create a paraview collection
-        @showprogress "Writing out to VTK..." for i in 1:length(fields)
+        @showprogress "Writing out to VTK..." for i in fieldIter
             vtk_grid(string(fileName,"/vtkFiles/timestep_$i"), NodeList, cells) do vtk # write out the fields to VTK
                 vtk["u"] = fields[i]
                 time = (i - 1)
@@ -102,8 +105,8 @@ Function to read the CSV files in the directory and fit a curve to the border ob
 - `csv_path::String`: path to the directory containing the CSV files.
 
 # Returns:
-- `splinep`: x coordinates samples of the spline parameters of the border nodes.
-- `splineq`: y coordinates samples of the spline parameters of the border nodes.
+- `splinep::Vector{Float64}`: x coordinates samples of the spline parameters of the border nodes.
+- `splineq::Vector{Float64}`: y coordinates samples of the spline parameters of the border nodes.
 """
 function read_csv(csv_path::String; NOISE::Bool=false, nProfile::Int64=1, nFactor=0)   
 
@@ -216,4 +219,43 @@ function write_json(filename, data)
     open(string(filename,".json"), "w") do io
         JSON3.pretty(io, data)
     end
+end
+
+"""
+    read_h5(filename)
+
+Function to read mesh data from a .h5 file for IGA.
+
+# Arguments:
+- `filename::String`:Path to the the .h5 file.
+
+# Returns:
+-`CPointList::Vector{Float64}`:Control point list.
+-`W`:
+-`C`:
+-`IEN::Matrix{Float64}{nNodes, nElem}``:Connectivity array.
+-`IEN_top::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the top surface mesh.
+-`IEN_btm::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the bottom surface mesh.
+"""
+function read_h5(filename::String)
+    # Open the HDF5 file
+    h5file = h5open(filename, "r")
+
+    # Read mesh
+    CPointList = read(h5file, "X")  # Control points
+    W = read(h5file, "W")  # Control point weights
+    IEN = read(h5file, "IEN").+1  # Element connectivity
+
+    # IEN_top = read(h5file, "IEN_top").+1  # Element connectivity
+    # IEN_btm = read(h5file, "IEN_btm").+1  # Element connectivity
+
+    C = read(h5file, "C")  # Extraction operators
+    vol_BSpline = read(h5file, "BSpline_vol")
+    vol_NURBS = read(h5file, "NURBS_vol")
+    C_new = permutedims(C,[2,1,3])
+
+    # Close the HDF5 file after reading
+    close(h5file)
+
+    return CPointList, W, C_new, IEN, vol_BSpline, vol_NURBS #, IEN_top, IEN_btm
 end
