@@ -4,10 +4,12 @@ Vids
 Notebooks
 vtkFiles
 images
-*.jl.*.cov
-*.jl.cov
-*.jl.mem
+
 /Manifest.toml
 /docs/Manifest.toml
 /docs/build/
+/cylindergen/vtkFiles/
 
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
