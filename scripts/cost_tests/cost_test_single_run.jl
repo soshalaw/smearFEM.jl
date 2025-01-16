@@ -52,7 +52,7 @@ function main()
     hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, "lame", 
                     ObsData, plot_matches, filepathi)
 
-    plot( cpCost, label="Height Cost")
+    plot(cpCost, label="Height Cost")
     xlabel!("Time steps")
     ylabel!("Cost")
     savefig(string(filepathi,"/Results/cost/cost_cp.png"))

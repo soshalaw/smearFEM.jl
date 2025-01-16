@@ -77,37 +77,51 @@ for e, (Ae,be) in enumerate(zip(A,b)):
 
 tests.test_extraction_operators(C)
 
-# Boundary mesh (1 boundary at a time)
-boundary = domain.boundary['top']
-lagrange_basis = boundary.basis('lagrange', degree=p)
-Afun = lagrange_basis[:,_]*lagrange_basis[_,:]
-bfun = lagrange_basis[:,_]*bspline_basis[_,:]
-A, b = boundary.integrate_elementwise([Afun*function.J(geom), bfun*function.J(geom)], degree=2*p)
+boundaries = ['top', 'bottom']
+IEN_bound_lst = {}
+C_bound_lst = {}
 
-ne = A.shape[0]
-assert ne==2**(2*nref), 'Incorrect number of elements'
+for bound in boundaries:
+    # Boundary mesh (1 boundary at a time)
+    boundary = domain.boundary[bound]
+    lagrange_basis = boundary.basis('lagrange', degree=p)
+    Afun = lagrange_basis[:,_]*lagrange_basis[_,:]
+    bfun = lagrange_basis[:,_]*bspline_basis[_,:]
+    A, b = boundary.integrate_elementwise([Afun*function.J(geom), bfun*function.J(geom)], degree=2*p)
 
-IEN_boundary = numpy.empty(shape=(ne,(p+1)**2),dtype=int)
-C_boundary = numpy.empty(shape=(ne,(p+1)**2,(p+1)**2))
-for e, (Ae,be) in enumerate(zip(A,b)):
+    ne = A.shape[0]
+    assert ne==2**(2*nref), 'Incorrect number of elements'
 
-    # Only consider basis functions that are supported on the boundary
-    supp = (numpy.sum(be,axis=0)>1e-10)
-    assert sum(supp)==(p+1)**2
+    IEN_boundary = numpy.empty(shape=(ne,(p+1)**2),dtype=int)
+    C_boundary = numpy.empty(shape=(ne,(p+1)**2,(p+1)**2))
+    for e, (Ae,be) in enumerate(zip(A,b)):
 
-    i, tail = domain.transforms.index_with_tail(boundary.transforms[e])
-    print(f'boundary element {e} corresponds to volume element {i}')
+        # Only consider basis functions that are supported on the boundary
+        supp = (numpy.sum(be,axis=0)>1e-10)
+        assert sum(supp)==(p+1)**2
 
-    IEN_boundary[e,:] = [dof for dof in bspline_basis.get_dofs(i) if supp[dof]]
-    C_boundary[e,:,:] = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN_boundary[e,:])]))
+        i, tail = domain.transforms.index_with_tail(boundary.transforms[e])
+        print(f'boundary element {e} corresponds to volume element {i}')
 
-tests.test_extraction_operators(C_boundary)
+        IEN_boundary[e,:] = [dof for dof in bspline_basis.get_dofs(i) if supp[dof]]
+        C_boundary[e,:,:] = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN_boundary[e,:])]))
+
+    tests.test_extraction_operators(C_boundary)
+
+    print(C_boundary.shape)
+    print(IEN_boundary.shape)
+    IEN_bound_lst[bound] = IEN_boundary
+    C_bound_lst[bound] = C_boundary
 
 # Save to an HDF5 file
 with h5py.File('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/cylinder.h5', 'w') as f:
     f.create_dataset('X', data=X)
     f.create_dataset('W', data=W)
-    f.create_dataset('IEN', data=IEN)
     f.create_dataset('C', data=C)
+    f.create_dataset('IEN', data=IEN)
+    for key in IEN_bound_lst:
+        f.create_dataset(('IEN_'+str(key)), data=IEN_bound_lst[key])
+    for key in C_bound_lst:
+        f.create_dataset(('C_'+str(key)), data=C_bound_lst[key])
     f.create_dataset('BSpline_vol', data=vol_BSpline)
     f.create_dataset('NURBS_vol', data=vol_NURBS)

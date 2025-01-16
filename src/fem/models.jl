@@ -5,6 +5,7 @@ function def_model(
     
     mdl::String; 
     ne::Int64 = 1, 
+    ndim::Int64 = 2,
 
     NodeList::Matrix{Float64} = [0.0 1.0 1.0 0.0; 0.0 0.0 1.0 1.0],
     IEN::Matrix{Int} = [1 2 3 4],
@@ -12,10 +13,11 @@ function def_model(
     IEN_btm::Matrix{Int} = [3 4],
     IEN_border::Matrix{Int} = [1 2 3 4],
     ID::Matrix{Int} = [1 2 3 4],
-    ndim::Int64 = 2,
     nDof::Int64 = 2,
     FunctionClass::String = "Q1",
     C::Array{Float64, 3} = zeros(2,2,2),
+    C_top::Array{Float64, 3} = zeros(2,2,2),
+    C_btm::Array{Float64, 3} = zeros(2,2,2),
     W::Vector{Float64}= zeros(1),  
 
     NodeList_2::Matrix{Float64} = [0.0 1.0 1.0 0.0; 0.0 0.0 1.0 1.0],
@@ -24,11 +26,12 @@ function def_model(
     IEN_2_btm::Matrix{Int} = [3 4],
     IEN_2_border::Matrix{Int} = [1 2 3 4],
     ID_2::Matrix{Int} = [1 2 3 4],
-    ndim_2::Int64 = 2,
     nDof_2::Int64 = 2,
     FunctionClass_2::String = "Q1",
     C_2::Array{Float64, 3} = zeros(2,2,2),
-    W_2::Vector{Float64}= zeros(1), 
+    C_2_top::Array{Float64, 3} = zeros(2,2,2),
+    C_2_btm::Array{Float64, 3} = zeros(2,2,2),
+    W_2::Vector{Float64}= zeros(1),   
 
     cMat::Matrix{Float64} = [1.0 0.3 0.3 0.0; 0.3 1.0 0.3 0.0; 0.3 0.3 1.0 0.0; 0.0 0.0 0.0 0.5],
     Young = 1.0, 
@@ -36,13 +39,9 @@ function def_model(
     dcMatdλ::Matrix{Float64} = [0.0 1.0 1.1 0.1],
     dcMatdμ::Matrix{Float64} = [0.0 1.0 1.1 0.1])
 
-    if mdl == "linear_elasticity" && FunctionClass == "S2"
-        return linearElasticity(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass, C, W, Young, ν, cMat, dcMatdλ, dcMatdμ)
-    elseif mdl == "linear_elasticity"
-        return linearElasticity(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass, C, W, Young, ν, cMat, dcMatdλ, dcMatdμ)
-    elseif mdl == "linear_elasticity" && FunctionClass == "S2"
-        return stokes(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass,
-                            NodeList_2, IEN_2, IEN_2_top, IEN_2_btm, IEN_2_border, ID_2, nDof_2, FunctionClass_2, ν)
+    if mdl == "linear_elasticity"
+        return linearElasticity(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass, C, C_top, C_btm, W, Young, ν, 
+                                cMat, dcMatdλ, dcMatdμ)
     elseif mdl == "stokes"
         return stokes(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass,
                             NodeList_2, IEN_2, IEN_2_top, IEN_2_btm, IEN_2_border, ID_2, nDof_2, FunctionClass_2, ν)
@@ -61,7 +60,10 @@ mutable struct linearElasticity <: model
     ID::Matrix{Int}
     nDof::Int64
     FunctionClass::String
-    C::Array{Float64}
+
+    C::Array{Float64, 3}
+    C_top::Array{Float64, 3}
+    C_btm::Array{Float64, 3}
     W::Vector{Float64}
 
     Young::Float64

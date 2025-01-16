@@ -29,7 +29,7 @@ function main()
     dev = 0.3
     noiseProfileList = [1 2]
 
-    noiseLevelLst = [0 0.5 1 2 4]
+    noiseLevelLst = [0 0.25 0.5 1]
     YoungtstLst = [30 35 40]
     νtstLst = [0.25 0.3 0.35]
     βLst = [100 1000 10000]

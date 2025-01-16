@@ -103,7 +103,7 @@ function assemble_system(mdl::model)
             if mdl.ndim == 1
                 N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
             elseif mdl.ndim == 2
-                N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
+                N, ΔN = basis_function(x[gp], y[gp], mdl.C[:,:,e], mdl.W[mdl.IEN[:,e]], mdl.FunctionClass) 
             elseif mdl.ndim == 3
                 N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.C[:,:,e], mdl.W[mdl.IEN[:,e]], mdl.FunctionClass) 
             end
@@ -388,29 +388,29 @@ function apply_boundary_conditions(mdl::model)
     # integration loop
     gpiter = 1:length(wpoints)
     for gp in gpiter
-
-        if mdl.ndim == 2
-            N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
-        elseif mdl.ndim == 3
-            N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
-        end
-
         # element loop
         for e in e_iter
+            if mdl.ndim == 2
+                N_top, ΔN_top = basis_function(x[gp], mdl.C_top[:,:,e], mdl.W[mdl.IEN_top[:,e]], mdl.FunctionClass) 
+                N_btm, ΔN_btm = basis_function(x[gp], mdl.C_btm[:,:,e], mdl.W[mdl.IEN_btm[:,e]], mdl.FunctionClass) 
+            elseif mdl.ndim == 3
+                N_top, ΔN_top = basis_function(x[gp], y[gp], mdl.C_top[:,:,e], mdl.W[mdl.IEN_top[:,e]], mdl.FunctionClass) 
+                N_btm, ΔN_btm = basis_function(x[gp], y[gp], mdl.C_btm[:,:,e], mdl.W[mdl.IEN_btm[:,e]], mdl.FunctionClass) 
+            end
         
             coords_top = mdl.NodeList[:,mdl.IEN_top[:,e]] # get the coordinates of the nodes of the element
             coords_btm = mdl.NodeList[:,mdl.IEN_btm[:,e]] # get the coordinates of the nodes of the element
 
-            dxdξ_top = coords_top*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
-            dxdξ_btm = coords_btm*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
+            dxdξ_top = coords_top*ΔN_top         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
+            dxdξ_btm = coords_btm*ΔN_btm         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
 
             w_top = wpoints[gp]*norm(cross(dxdξ_top[:,1],dxdξ_top[:,2]))     # weight of the quadrature point top surface
             w_btm = wpoints[gp]*norm(cross(dxdξ_btm[:,1],dxdξ_btm[:,2]))     # weight of the quadrature point bottom surface
             
-            M = zeros(3, mdl.ndim*length(N))
-            M[1,1:mdl.nDof:end] = N
-            M[2,2:mdl.nDof:end] = N
-            M[3,3:mdl.nDof:end] = N
+            M = zeros(3, mdl.ndim*length(N_top))
+            M[1,1:mdl.nDof:end] = N_top
+            M[2,2:mdl.nDof:end] = N_top
+            M[3,3:mdl.nDof:end] = N_top
 
             be = M'*M
             be_cols, be_rows = size(be)
@@ -554,15 +554,10 @@ Set the Dirichlet boundary conditions for the problem
 - `C_uc::SparseMatrixCSC{Float64,Int64}` : onstraint matrix
 """
 function setboundaryCond(mdl::model)
-    if mdl.FunctionClass == "Q1"
-        q_upper = zeros(mdl.nDof*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
-        q_lower = zeros(mdl.nDof*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
-        C = sparse(I,mdl.nDof*(mdl.ne+1)^mdl.ndim,mdl.nDof*(mdl.ne+1)^mdl.ndim)      # definition of the constraint matrix
-    elseif mdl.FunctionClass == "Q2" || mdl.FunctionClass =="S2"
-        q_upper = zeros(mdl.nDof*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
-        q_lower = zeros(mdl.nDof*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
-        C = sparse(I,mdl.nDof*(2*mdl.ne+1)^mdl.ndim,mdl.nDof*(2*mdl.ne+1)^mdl.ndim)  # definition of the constraint matrix
-    end
+    tDof = mdl.nDof*size(mdl.NodeList,2)                                # Total number of DOFs
+    q_upper = zeros(tDof,1)                  # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
+    q_lower = zeros(tDof,1)                  # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
+    C = sparse(I,tDof,tDof)      # definition of the constraint matrix
 
     if mdl.nDof == 1
         if mdl.ndim == 3
@@ -620,17 +615,12 @@ function setboundaryCond(mdl::model)
 end
 
 function setboundaryCond_dense(mdl::model)
-    if mdl.FunctionClass == "Q1"
-        q_upper = zeros(mdl.nDof*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
-        q_lower = zeros(mdl.nDof*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
-        C = Matrix(I,mdl.nDof*(mdl.ne+1)^mdl.ndim,mdl.nDof*(mdl.ne+1)^mdl.ndim)      # definition of the constraint matrix
-    elseif mdl.FunctionClass == "Q2"
-        q_upper = zeros(mdl.nDof*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
-        q_lower = zeros(mdl.nDof*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
-        C = Matrix(I,mdl.nDof*(2*mdl.ne+1)^mdl.ndim,mdl.nDof*(2*mdl.ne+1)^mdl.ndim)  # definition of the constraint matrix
-    end
-
-    if mdl.nDof == 1
+    tDof = mdl.nDof*size(mdl.NodeList,2)   
+    q_upper = zeros(tDof,1)                  # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
+    q_lower = zeros(tDof,1)                  # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
+    C = Matrix(I,tDof,tDof)      # definition of the constraint matrix
+    
+        if mdl.nDof == 1
         if mdl.ndim == 3
             Dbound1 = 0
             Dbound2 = 1
@@ -876,6 +866,80 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     return output, borderPts2DList, borderNodeList2D, splinep, splineq, mdl
 end
 
+function get_volume(mdl::model)
 
+    if mdl.ndim == 1
+        # gaussian quadrature points for the element [-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1)
+        
+        wpoints =  [w_ξ[1], w_ξ[2]]
+    
+        x = [ξ[1], ξ[2]]
+    elseif mdl.ndim == 2
+        # gaussian quadrature points for the element [-1,1]x[-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
+        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
 
+        x = Float64[]
+        y = Float64[]
+        wpoints =  Float64[]
+        
+        n = 1:size(ξ,1)
+        m = 1:size(η,1)
+        for j in m # loop over η
+            for i in n # loop over ξ
+                push!(x, ξ[i])
+                push!(y, η[j])
+                push!(wpoints, w_ξ[i]*w_η[j])
+            end
+        end
 
+    elseif mdl.ndim == 3
+        # gaussian quadrature points for the element [-1,1]x[-1,1]x[-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
+        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ζ, w_ζ = gaussian_quadrature(-1,1,nGaussPoints=3)
+
+        x = Float64[]
+        y = Float64[]
+        z = Float64[]
+        wpoints = Float64[]
+        
+        l = 1:size(ζ,1)
+        m = 1:size(η,1)
+        n = 1:size(ξ,1)
+        for k in l # loop over ζ
+            for j in m # loop over η
+                for i in n # loop over ξ
+                    push!(x, ξ[i])
+                    push!(y, η[j])
+                    push!(z, ζ[k])
+                    push!(wpoints, w_ξ[i]*w_η[j]*w_ζ[k])
+                end
+            end
+        end
+    end
+    vol = 0
+    
+    e_iter = 1:mdl.ne^mdl.ndim
+    # integration loop
+    gpiter = 1:length(wpoints)
+    for gp in gpiter
+        if mdl.ndim == 1
+            N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
+        elseif mdl.ndim == 2
+            N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
+        elseif mdl.ndim == 3
+            N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.FunctionClass) 
+        end
+        # element loop
+        for e in e_iter
+            coords = mdl.NodeList[:,mdl.IEN[:,e]] # get the coordinates of the nodes of the element
+
+            Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
+
+            w = wpoints[gp]*abs(det(Jac))
+            vol += w
+        end
+    end
+end

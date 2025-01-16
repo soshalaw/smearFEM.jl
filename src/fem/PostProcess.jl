@@ -63,11 +63,6 @@ function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = no
         end  
         TopLayer = sortslices(SideNodes2D[:,TopLayerList],dims=2)                     # top layer nodes
         BottomLayer = sortslices(SideNodes2D[:,BottomLayerList],dims=2)               # bottom layer nodes
-        
-        # topNodeList = sortperm(SideNodes2D[2,TopLayerList])
-        # TopLayer = SideNodes2D[:,topNodeList]
-        # bottomNodeList = sortperm(SideNodes2D[2,BottomLayerList])
-        # BottomLayer = SideNodes2D[:,bottomNodeList]
 
         BorderPoints = hcat(LeftborderPts, TopLayer, RightborderPts, BottomLayer)         # concatenate the left and right border nodes
         BorderNodes = vcat(LeftborderNodes, TopLayerList, reverse(RightborderNodes), reverse(BottomLayerList))            # concatenate the left and right border nodes 
@@ -92,9 +87,7 @@ function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = no
         BorderNodes = ch.vertices(hull)
     end
 
-    println(size(BorderPoints))
     BorderPoints_ = sort_points(BorderPoints)
-    println(size(BorderPoints_))
 
     return BorderPoints_, BorderNodes, SideNodes2D# return the border nodes
 end

@@ -31,8 +31,8 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, Func
 
     cMat = get_cMat(mode, Young, ν)
 
-    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/Python/"
-    CPointList, W, C, IEN, IEN_top, IEN_btm = read_h5(string(filePath,"/cylinder.h5"))
+    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
+    CPointList, W, C, IEN, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
     
     ndim = size(CPointList,1)
     ne = Int64((size(IEN,2))^(1/ndim))
@@ -47,7 +47,7 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, Func
     end 
 
     mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
-                        FunctionClass=FunctionClass, C = C, W = W, Young=Float64(Young), ν=ν, cMat=cMat)
+                        FunctionClass=FunctionClass, C = C, C_top = C_top, C_btm = C_btm, W = W, Young=Float64(Young), ν=ν, cMat=cMat)
     
     if DENSE == true
         q_tp, q_btm, C_uc = setboundaryCond_dense(mdl)
@@ -70,8 +70,8 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, Func
         q_f = K_free\(C_T*(-K_bar*q_d))         # solve the system of equations
     end
 
-    q = q_d + C_uc*q_f;                 # assemble the solution 
-    q_out = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]'
+    q = q_d + C_uc*q_f                 # assemble the solution 
+    q_out = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]';
 
     return q_out, mdl
 end

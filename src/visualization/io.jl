@@ -222,12 +222,13 @@ function write_json(filename, data)
 end
 
 """
-    read_h5(filename)
+    read_h5(filename, mode)
 
 Function to read mesh data from a .h5 file for IGA.
 
 # Arguments:
 - `filename::String`:Path to the the .h5 file.
+- `mode::String`:Simulation (sim) or test (test) mode. With the test modes the volume of the mesh is returned
 
 # Returns:
 -`CPointList::Vector{Float64}`:Control point list.
@@ -237,7 +238,7 @@ Function to read mesh data from a .h5 file for IGA.
 -`IEN_top::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the top surface mesh.
 -`IEN_btm::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the bottom surface mesh.
 """
-function read_h5(filename::String)
+function read_h5(filename::String, mode::String="sim")
     # Open the HDF5 file
     h5file = h5open(filename, "r")
 
@@ -245,17 +246,28 @@ function read_h5(filename::String)
     CPointList = read(h5file, "X")  # Control points
     W = read(h5file, "W")  # Control point weights
     IEN = read(h5file, "IEN").+1  # Element connectivity
-
-    # IEN_top = read(h5file, "IEN_top").+1  # Element connectivity
-    # IEN_btm = read(h5file, "IEN_btm").+1  # Element connectivity
-
     C = read(h5file, "C")  # Extraction operators
-    vol_BSpline = read(h5file, "BSpline_vol")
-    vol_NURBS = read(h5file, "NURBS_vol")
     C_new = permutedims(C,[2,1,3])
 
-    # Close the HDF5 file after reading
-    close(h5file)
+    if mode == "sim"
+        IEN_top = read(h5file, "IEN_top").+1  # Element connectivity
+        IEN_btm = read(h5file, "IEN_bottom").+1  # Element connectivity
+        C_top = read(h5file, "C_top")
+        C_top_new = permutedims(C_top,[2,1,3])
+        C_btm = read(h5file, "C_bottom")
+        C_btm_new = permutedims(C_btm,[2,1,3])
 
-    return CPointList, W, C_new, IEN, vol_BSpline, vol_NURBS #, IEN_top, IEN_btm
+        # Close the HDF5 file after reading
+        close(h5file)
+
+        return CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new
+    elseif mode == "test"
+        vol_BSpline = read(h5file, "BSpline_vol")
+        vol_NURBS = read(h5file, "NURBS_vol")
+
+        # Close the HDF5 file after reading
+        close(h5file)   
+
+        return CPointList, W, C_new, IEN, vol_BSpline, vol_NURBS
+    end
 end
