@@ -20,7 +20,7 @@ Project the 3D mesh to 2D image plane and extract the border nodes (left and rig
 - `NodeList::Matrix{Float64}{ndim,nbNodes}`: 2D coordinates of the border nodes
 - `BorderNodes::Vector{Int}`: Indexes of the border nodes
 """
-function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = nothing, nNodes = nothing)
+function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, SIDES::Bool=false, ne = nothing, nNodes = nothing)
 
     SideNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
     SideNodes2D = back_project(SideNodes, CameraMatrix) 
@@ -89,7 +89,33 @@ function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = no
 
     BorderPoints_ = sort_points(BorderPoints)
 
-    return BorderPoints_, BorderNodes, SideNodes2D# return the border nodes
+    if SIDES
+        sides = get_sides(BorderPoints_)
+        return sides, BorderNodes, SideNodes2D
+    else
+        return BorderPoints_, BorderNodes, SideNodes2D
+    end
+end
+
+function get_sides(Data::Matrix{Float64})
+    indexes = []
+    dataIter = 1:(size(Data,2)-1)
+    for i in dataIter
+        r = Data[:,i+1] - Data[:,i]
+        sθ = dot(r,[0,1])/norm(r)
+        println(asin(sθ)/π*180)
+        if abs(sθ) >= sin(π/4)
+            push!(indexes,i)
+        elseif i != 1
+            r_ = Data[:,i] - Data[:,i-1]
+            sθ_ = dot(r_,[0,1])/norm(r_)
+            if abs(sθ_) >= sin(π/4)
+                push!(indexes,i)
+            end
+        end
+    end
+    sides = Data[:,indexes]
+    return sides
 end
 
 function sort_points(Data::Matrix{Float64})
@@ -289,8 +315,6 @@ function rearrange(ndim, IEN)
     return IEN_new
 end
 
-
-
 """
     noramlize(q, IEN)
 
@@ -334,5 +358,3 @@ function truncate_colormap(minval=0.0, maxval=1.0, n=100)
     new_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("mycmap", get_cmap("jet")(collect(range(maxval, minval, n))))
     return new_cmap
 end
-
-AssertionError
