@@ -91,23 +91,21 @@ function assemble_system(mdl::model)
             end
         end
     end
-    vol = 0
 
     e_iter = 1:mdl.ne^mdl.ndim
-    
     # integration loop
     gpiter = 1:length(wpoints)
     for gp in gpiter
-        for e in e_iter
 
-            if mdl.ndim == 1
-                N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
-            elseif mdl.ndim == 2
-                N, ΔN = basis_function(x[gp], y[gp], mdl.C[:,:,e], mdl.W[mdl.IEN[:,e]], mdl.FunctionClass) 
-            elseif mdl.ndim == 3
-                N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.C[:,:,e], mdl.W[mdl.IEN[:,e]], mdl.FunctionClass) 
-            end
-            
+        if mdl.ndim == 1
+            N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
+        elseif mdl.ndim == 2
+            N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
+        elseif mdl.ndim == 3
+            N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.FunctionClass) 
+        end
+
+        for e in e_iter
             coords = mdl.NodeList[:,mdl.IEN[:,e]] # get the coordinates of the nodes of the element
             Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
 
@@ -391,26 +389,24 @@ function apply_boundary_conditions(mdl::model)
         # element loop
         for e in e_iter
             if mdl.ndim == 2
-                N_top, ΔN_top = basis_function(x[gp], mdl.C_top[:,:,e], mdl.W[mdl.IEN_top[:,e]], mdl.FunctionClass) 
-                N_btm, ΔN_btm = basis_function(x[gp], mdl.C_btm[:,:,e], mdl.W[mdl.IEN_btm[:,e]], mdl.FunctionClass) 
+                N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass) 
             elseif mdl.ndim == 3
-                N_top, ΔN_top = basis_function(x[gp], y[gp], mdl.C_top[:,:,e], mdl.W[mdl.IEN_top[:,e]], mdl.FunctionClass) 
-                N_btm, ΔN_btm = basis_function(x[gp], y[gp], mdl.C_btm[:,:,e], mdl.W[mdl.IEN_btm[:,e]], mdl.FunctionClass) 
+                N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
             end
         
             coords_top = mdl.NodeList[:,mdl.IEN_top[:,e]] # get the coordinates of the nodes of the element
             coords_btm = mdl.NodeList[:,mdl.IEN_btm[:,e]] # get the coordinates of the nodes of the element
 
-            dxdξ_top = coords_top*ΔN_top         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
-            dxdξ_btm = coords_btm*ΔN_btm         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
+            dxdξ_top = coords_top*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
+            dxdξ_btm = coords_btm*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
 
             w_top = wpoints[gp]*norm(cross(dxdξ_top[:,1],dxdξ_top[:,2]))     # weight of the quadrature point top surface
             w_btm = wpoints[gp]*norm(cross(dxdξ_btm[:,1],dxdξ_btm[:,2]))     # weight of the quadrature point bottom surface
             
-            M = zeros(3, mdl.ndim*length(N_top))
-            M[1,1:mdl.nDof:end] = N_top
-            M[2,2:mdl.nDof:end] = N_top
-            M[3,3:mdl.nDof:end] = N_top
+            M = zeros(3, mdl.ndim*length(N))
+            M[1,1:mdl.nDof:end] = N
+            M[2,2:mdl.nDof:end] = N
+            M[3,3:mdl.nDof:end] = N
 
             be = M'*M
             be_cols, be_rows = size(be)
@@ -554,7 +550,7 @@ Set the Dirichlet boundary conditions for the problem
 - `C_uc::SparseMatrixCSC{Float64,Int64}` : onstraint matrix
 """
 function setboundaryCond(mdl::model)
-    tDof = mdl.nDof*size(mdl.NodeList,2)                                # Total number of DOFs
+    tDof = mdl.nDof*size(mdl.NodeList,2)     # Total number of DOFs
     q_upper = zeros(tDof,1)                  # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
     q_lower = zeros(tDof,1)                  # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
     C = sparse(I,tDof,tDof)      # definition of the constraint matrix
@@ -592,7 +588,7 @@ function setboundaryCond(mdl::model)
             C_uc = C[:,((2*mdl.ne+1)^(mdl.ndim-1)+1):((2*mdl.ne+1)^mdl.ndim-(2*mdl.ne+1)^(mdl.ndim-1))]
         end
 
-    else
+    elseif mdl.nDof == 3
         z0Bound = 0
         z1Bound = 1
 
@@ -615,12 +611,12 @@ function setboundaryCond(mdl::model)
 end
 
 function setboundaryCond_dense(mdl::model)
-    tDof = mdl.nDof*size(mdl.NodeList,2)   
-    q_upper = zeros(tDof,1)                  # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
-    q_lower = zeros(tDof,1)                  # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
-    C = Matrix(I,tDof,tDof)      # definition of the constraint matrix
+    tDof = mdl.nDof*size(mdl.NodeList,2)    # Total number od Degrees od freedom
+    q_upper = zeros(tDof,1)                 # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
+    q_lower = zeros(tDof,1)                 # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
+    C = Matrix(I,tDof,tDof)                 # Definition of the constraint matrix
     
-        if mdl.nDof == 1
+    if mdl.nDof == 1
         if mdl.ndim == 3
             Dbound1 = 0
             Dbound2 = 1
@@ -738,7 +734,7 @@ Simulate the deformation of a cylindrical under compression
 - `writeData::Bool` : write the data to a file
 - `filepath::String` : path to the file
 """
-function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing)
+function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing, SIDES::Bool=false)
 
     time = collect(range(start=0,stop=endTime,length=tSteps)) # time vector
 
@@ -750,10 +746,8 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
                      FunctionClass=FunctionClass, Young=Float64(Young), ν=ν, cMat=cMat)
     
     q_tp, q_btm, C_uc = setboundaryCond(mdl)
-    
-    state = "init"
 
-    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne, 2*ne+1)
+    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, ne, 2*ne+1, SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
 
     SideBorders = BorderNodesList[1]
@@ -771,10 +765,8 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     output = Float64[] 
     writeborderList = [vcat(pi', qi')]
 
-    state = "update"
     μ_btm = 0      
     iter = 1
-
     pr = Progress(tSteps; desc= "Simulating with prescribed $Control ...", showspeed=true)
     if Control == "force"
         for t in time
@@ -799,7 +791,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             motion = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]'    # update the nodal positions
             NodeListCylinder = NodeListCylinder + motion    # update the node coordinates
 
-            BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
+            BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, SIDES)
             surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
             pi, qi = fit_curve(border=BorderPts2D)
 
@@ -838,7 +830,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             F_est = q_tp'*f_R                                         # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
             NodeListCylinder = NodeListCylinder + motion              # update the node coordinates
 
-            BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
+            BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, SIDES)
             surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
             pi, qi = fit_curve(border=BorderPts2D)
 
@@ -919,8 +911,8 @@ function get_volume(mdl::model)
             end
         end
     end
+
     vol = 0
-    
     e_iter = 1:mdl.ne^mdl.ndim
     # integration loop
     gpiter = 1:length(wpoints)

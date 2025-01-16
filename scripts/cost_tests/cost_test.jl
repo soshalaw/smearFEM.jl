@@ -58,7 +58,7 @@ function main()
                 ############################################################################################################################################
                 ## Testing with youngs modulus and poisson ratio
                 ############################################################################################################################################
-                filepath = string("/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/cost_function_test/exp_",dateTime,"/standard/")
+                filepath = string("/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
                 for Youngtst in YoungtstLst
                     for νtst in νtstLst
                         println("For testing with Young's modulus and Poisson ratio...")

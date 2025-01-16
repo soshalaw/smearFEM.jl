@@ -209,7 +209,7 @@ Test the simulation
 - `mode::String` : type of constitutive matrix
 """
 function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass::String, nDof::Int64, β, CameraMatrix, endTime, tSteps, Control::String; 
-              writeData::Bool=false, filepath=nothing, mode::String = "standard")
+              writeData::Bool=false, filepath=nothing, mode::String = "standard", SIDES::Bool=false)
     
     if writeData
         isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
@@ -228,7 +228,7 @@ function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass:
 
     μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, 
                                                                         CameraMatrix, endTime, tSteps, Control, cParam, cMat, writeData=writeData, 
-                                                                        filepath=filepath)
+                                                                        filepath=filepath, SIDES=SIDES)
 
     return μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl
 end
@@ -263,10 +263,10 @@ Compare the simulation with the observation data
 - `filepath::String` : path to the file
 """
 function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass::String, nDof::Int64, β, CameraMatrix, endTime, tSteps, Control::String, 
-                mode::String, ObsData, PLOT::Bool=false, filepath=nothing)
+                mode::String, ObsData, SIDES::Bool=false, PLOT::Bool=false, filepath=nothing)
 
     μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, 
-                                                                       endTime, tSteps, Control, mode=mode)  
+                                                                       endTime, tSteps, Control, mode=mode, SIDES=SIDES)  
     
     obsBorderPts = ObsData[1]
     splinexObs = ObsData[2]
@@ -276,14 +276,11 @@ function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionCla
     pairs = match_points(simBorderPts[1], [splinexObs[1],splineyObs[1]]) # match the points using the first border
     d_cp = closest_point(simBorderPts, obsBorderPts, pairs)
 
-    # test the height function
-    d_h, xObsintlst, xSimintlst, ySimintlst = height_sample(simBorderPts, obsBorderPts)
-
     if PLOT
+        @assert !isnothing(filepath) "File path not provided"
         plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/images/"))
-        plot_matches_h(xObsintlst, ySimintlst, xSimintlst, splinex, spliney, splinexObs, splineyObs, string(filepath,"/Results/images/"))
     end
-    
+    d_h = 0
     return d_h, d_cp
 end
 
@@ -305,7 +302,7 @@ Initialize the mesh and write the data to a file
 - `CameraMatrix::Matrix{Float64}` : camera matrix
 - `filepath::String` : path to the file
 """
-function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, CameraMatrix, filepath=nothing)
+function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, CameraMatrix, filepath=nothing, SIDES::Bool=false)
 
     isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
     set_file(filepath)
@@ -315,7 +312,7 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
 
     state = "init"
 
-    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne, (2*ne+1))
+    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, ne, (2*ne+1), SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
 
     SideBorders = BorderNodesList[1]

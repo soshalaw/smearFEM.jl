@@ -30,7 +30,7 @@ function main()
   ν = 1
   Control = "displacement"
 
-  filepath = string("/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/single_simulation/Stokes/fem_runs/",Control,"/",dateTime,"/")
+  filepath = string("/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/single_simulation/Stokes/fem_runs/",Control,"/",Date(dateTime),"/",Time(dateTime),"/")
   writeData = true
 
   if writeData
