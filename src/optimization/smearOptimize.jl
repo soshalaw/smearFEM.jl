@@ -24,38 +24,21 @@ function match_points(pSim,pObs)
     return pairs
 end
 
-function closest_point(simScene, obsScene, pairs)
+function closest_point(simScene, obsScene)
     # Define the cost function
-
     costList = Float64[]
     for (obsData, simData) in zip(obsScene[2:end], simScene[2:end]) # iterate over the scenes
         tcost = 0
-        # pSim, qSim = fit_curve(border=obsData)
-        # println(size(obsData))
+
         pSim, qSim = simData[1,:], simData[2,:]
         pObs, qObs = obsData[1,:], obsData[2,:]
+
+        pairs = match_points(obsData, simData) # match the points using the first border
 
         for pair in pairs
             tcost += (pSim[pair[1]] - pObs[pair[2]])^2 + (qSim[pair[1]] - qObs[pair[2]])^2
         end
-        # ObsCounter = 1
-        # PointCounter = 1
 
-        # for (pi,qi) in zip(pSim, qSim)
-        #     cost = 1000000
-        #     closestPointIdx = 0
-        #     for (pj,qj) in zip(pObs, qObs)
-        #         error = sqrt((pi - pj)^2 + (qi - qj)^2)
-        #         if error < cost
-        #             cost = error
-        #             closestPointIdx = ObsCounter
-        #         end
-        #         ObsCounter += 1
-        #     end
-        #     push!(pairs, [PointCounter, closestPointIdx])
-        #     tcost += cost
-        #     PointCounter += 1
-        # end
         mCost = tcost/length(pairs)
         push!(costList, mCost)
     end

@@ -261,15 +261,15 @@ function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionCla
     splineyObs = ObsData[3]
     
     # test the closest point function
-    pairs = match_points(simBorderPts[1], [splinexObs[1],splineyObs[1]]) # match the points using the first border
-    d_cp = closest_point(simBorderPts, obsBorderPts, pairs)
+    d_cp = closest_point(simBorderPts, obsBorderPts)
 
     # test the height function
-    d_h, xObsintlst, xSimintlst, ySimintlst = height_sample(simBorderPts, obsBorderPts)
+    # d_h, xObsintlst, xSimintlst, ySimintlst = height_sample(simBorderPts, obsBorderPts)
+    d_h = 0
 
     if PLOT
         plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/images/"))
-        plot_matches_h(xObsintlst, ySimintlst, xSimintlst, splinex, spliney, splinexObs, splineyObs, string(filepath,"/Results/images/"))
+        # plot_matches_h(xObsintlst, ySimintlst, xSimintlst, splinex, spliney, splinexObs, splineyObs, string(filepath,"/Results/images/"))
     end
     
     return d_h, d_cp
@@ -336,8 +336,10 @@ Read the data from a file
 - `nProfile::Int` : noise profile to be added to the data (1: uniform, 2: normal)
 - `nFactor::Int` : noise level
 """
-function readData(filepath::String; NOISE::Bool=false, nProfile::Int64=1, nFactor=0)
-    obsBorderPts, splinexObs, splineyObs = read_csv(string(filepath,"/Results/contour_data"),NOISE=NOISE, nProfile=nProfile, nFactor=nFactor)                    # read the observation data
+function readData(filepath::String; nFactor=0)
+    obsBorderPts, splinexObs, splineyObs, pdf = read_csv(string(filepath,"/Results/contour_data"), nFactor=nFactor)   
     animate_fields(filepath = string(filepath,"/Results/cost"),pObs=splinexObs, qObs=splineyObs) # animate the fields
+    plot(x->pdf(d, x))
+    savefig(string(filepath,"/Results"))
     return obsBorderPts, splinexObs, splineyObs
 end

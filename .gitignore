@@ -10,4 +10,6 @@ images
 /Manifest.toml
 /docs/Manifest.toml
 /docs/build/
-
+/cylindergen/vtkFiles/
+/cylindergen/__pycache__/
+/cylindergen/cylinder.h5

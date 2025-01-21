@@ -27,13 +27,13 @@ function main()
     dateTime = Dates.now()
     sampleNo = 13
     dev = 0.3
-    noiseProfileList = [1 2]
 
     noiseLevelLst = [0 0.5 1 2 4]
     YoungtstLst = [30 35 40]
     νtstLst = [0.25 0.3 0.35]
     βLst = [100 1000 10000]
     ControlList = ["force", "displacement"]
+    SIDES = [true, false]
 
     # Derived Lame constants from Young's modulus and Poisson ratio
     lambdatstLst_ = YoungtstLst.*νtstLst./((νtstLst.+1).*(-2*νtstLst.+1))
@@ -70,7 +70,7 @@ function main()
                                         filepathi = string(filepath,"experiment_",iter)
                                         write_sim_data(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepathi)
                                         
-                                        ObsDataList, splinex, spliney = read_csv(filepathi, NOISE=true, nProfile=noiseProfile, nFactor=noiseLevel)
+                                        ObsDataList, splinex, spliney = read_csv(filepathi, nFactor=noiseLevel)
 
                                         dev_ν = νtst*dev
                                         dev_Young = Youngtst*dev
@@ -171,7 +171,7 @@ function main()
 
                                         filepathi = string(filepathlame,"experiment_",iter)
                                         simBorderPts, simBorderNodes, splinex, spliney = write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, endTime, tSteps, Control,filepathi, mode="lame")
-                                        ObsDataList, splinexObs, splineyObs = readData(filepathi, NOISE=true, nProfile=noiseProfile, nFactor=noiseLevel)
+                                        ObsDataList, splinexObs, splineyObs = readData(filepathi, nFactor=noiseLevel)
                                         
                                         ObsData = [ObsDataList, splinexObs, splineyObs]
 
@@ -249,7 +249,7 @@ function main()
                                         Plots.savefig(string(filepathi,"/Results/cost/cost_cp_β.png"))
 
                                         params = Dict("Paramter type" => "Lame", "λ" => lambdatst, "μ" => mutst, "β" => βtst, "Control" => Control,
-                                                      "Noise Level" => noiseLevel, "Noise Profile" => noiseProfile)
+                                                      "Noise Level" => noiseLevel, "Sides" => noiseProfile)
 
                                         write_json(string(filepathi,"/Results/params"), params)
                                         iter += 1

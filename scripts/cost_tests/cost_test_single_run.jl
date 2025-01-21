@@ -25,7 +25,7 @@ function main()
     endTime = 30
     tSteps = 45
     noiseProfile = 1
-    noiseLevel = 4
+    noiseLevel = 1
     plot_matches = true
     Control = "displacement" # "force" or "displacement"
     dev = 0.5
@@ -43,7 +43,7 @@ function main()
     write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,
                     filepathi, mode=mode)
     
-    ObsDataList, splinexObs, splineyObs = readData(filepathi, NOISE=false, nProfile=noiseProfile, nFactor=noiseLevel)
+    ObsDataList, splinexObs, splineyObs = readData(filepathi, nFactor=noiseLevel)
     ObsData = [ObsDataList, splinexObs, splineyObs]
     
     Young = lambdatst*(1-dev)
