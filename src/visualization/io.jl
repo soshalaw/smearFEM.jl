@@ -18,7 +18,7 @@ Function to write the solution to a VTK file
 - `ndim::Integer`: Number of dimensions.
 - `q::Vector{Float64}`: Solution field.
 """
-function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64, ndim::Int64, q; ID=nothing, FunctionClass::String="Q1")
+function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ndim::Int64, q::Matrix{Float64}; FunctionClass::String="Q1")
     if FunctionClass == "Q1"
         if ndim == 1
             cellType = VTKCellTypes.VTK_LINE
@@ -60,7 +60,7 @@ Function to write the solution to a VTK file
 - `ndim::Integer`: Number of dimensions
 - `fields::Vector{Vector{Float64}}`: Solution fields.
 """
-function write_scene(fileName::String, NodeList, IEN, ne::Int64, ndim::Int64, fields; ID=nothing, FunctionClass::String="Q1")
+function write_scene(fileName::String, NodeList, IEN, ndim::Int64, fields; FunctionClass::String="Q1")
 
     if FunctionClass == "Q1"
         if ndim == 1
@@ -82,7 +82,8 @@ function write_scene(fileName::String, NodeList, IEN, ne::Int64, ndim::Int64, fi
         IEN = rearrange(ndim, IEN)  # rearrange the solution
     end
 
-    cells = [MeshCell(cellType,IEN[:,e]) for e in 1:size(IEN,2)]
+    eIter = 1:size(IEN,2)
+    cells = [MeshCell(cellType,IEN[:,e]) for e in eIter]
 
     fieldIter = 1:length(fields)
     paraview_collection(string(fileName,"/vtkFiles/displacement")) do pvd # create a paraview collection
@@ -181,9 +182,12 @@ function set_file(filepath)
         mkpath(filepath)
         mkdir(string(filepath,"/Results"))
         mkdir(string(filepath,"/Results/contour_data"))
-        mkdir(string(filepath,"/Results/vtkFiles"))
         mkdir(string(filepath,"/Results/images"))
         mkdir(string(filepath,"/Results/cost"))
+        mkdir(string(filepath,"/Results/c_net"))
+        mkdir(string(filepath,"/Results/c_net/vtkFiles"))
+        mkdir(string(filepath,"/Results/mesh"))
+        mkdir(string(filepath,"/Results/mesh/vtkFiles"))
     end
 end
 
@@ -246,6 +250,7 @@ function read_h5(filename::String, mode::String="sim")
     CPointList = read(h5file, "X")  # Control points
     W = read(h5file, "W")  # Control point weights
     IEN = read(h5file, "IEN").+1  # Element connectivity
+    IEN_cp = read(h5file, "IEN_cp").+1  # Element connectivity
     C = read(h5file, "C")  # Extraction operators
     C_new = permutedims(C,[2,1,3])
 
@@ -260,7 +265,7 @@ function read_h5(filename::String, mode::String="sim")
         # Close the HDF5 file after reading
         close(h5file)
 
-        return CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new
+        return CPointList, W, C_new, IEN, IEN_cp, IEN_top, C_top_new, IEN_btm, C_btm_new
     elseif mode == "test"
         vol_BSpline = read(h5file, "BSpline_vol")
         vol_NURBS = read(h5file, "NURBS_vol")

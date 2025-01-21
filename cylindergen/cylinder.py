@@ -51,10 +51,25 @@ vol_NURBS = domain.integrate(function.J(geom), degree=2*p)
 print(f'BSpline volume = {vol_BSpline}')
 print(f'NURBS volume = {vol_NURBS}')
 
+cp_domain, cp_geom = mesh.rectilinear([numpy.linspace(0,1,n) for n in cylinder.controlpoints.shape[:-1]])
+cp_basis = cp_domain.basis("std",1)
+cp_geom = function.matmat(cp_basis, X)
+
 # plot the CAD object
 bezier = domain.sample('bezier', 3)
 x = bezier.eval(geom)
 export.vtk('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/vtkFiles/cylinder', bezier.tri, x)
+
+# plot the CAD object
+cp_bezier = cp_domain.sample('bezier', 3)
+x_cp = cp_bezier.eval(cp_geom)
+export.vtk('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/vtkFiles/cylinder_cp', cp_bezier.tri, x_cp)
+
+map_cp = [0, 4, 6, 2, 1, 5, 7, 3]
+IEN_cp = numpy.empty(shape=(numpy.prod(cp_domain.shape),(2)**3),dtype=int)
+for e, ref  in enumerate(cp_domain.references):
+    IEN_e = cp_basis.get_dofs(e)
+    IEN_cp[e,:] = IEN_e[map_cp]
 
 # get the Lagrange extraction operators
 lagrange_basis = domain.basis('lagrange', degree=p)
@@ -120,6 +135,7 @@ with h5py.File('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/cy
     f.create_dataset('W', data=W)
     f.create_dataset('C', data=C)
     f.create_dataset('IEN', data=IEN)
+    f.create_dataset('IEN_cp', data=IEN_cp)
     for key in IEN_bound_lst:
         f.create_dataset(('IEN_'+str(key)), data=IEN_bound_lst[key])
     for key in C_bound_lst:

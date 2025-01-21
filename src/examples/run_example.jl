@@ -31,7 +31,7 @@ function simulate_single_tstep(Young, ν, FunctionClass, nDof, β, μ_tp, μ_btm
     cMat = get_cMat(mode, Young, ν)
 
     filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
-    CPointList, W, C, IEN, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
+    CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
     
     ndim = size(CPointList,1)
     ne = Int64((size(IEN,2))^(1/ndim))
@@ -45,8 +45,8 @@ function simulate_single_tstep(Young, ν, FunctionClass, nDof, β, μ_tp, μ_btm
         end
     end 
 
-    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
-                        FunctionClass=FunctionClass, C = C, C_top = C_top, C_btm = C_btm, W = W, Young=Float64(Young), ν=ν, cMat=cMat)
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, IEN_cp=IEN_cp, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
+                    FunctionClass=FunctionClass, C = C, C_top = C_top, C_btm = C_btm, W = W, Young=Float64(Young), ν=ν, cMat=cMat)
     
     if DENSE == true
         q_tp, q_btm, C_uc = setboundaryCond_dense(mdl)
@@ -221,7 +221,7 @@ function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass:
     end
 
     filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
-    CPointList, W, C, IEN, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
+    CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
 
     # get the ID array
     ID = zeros(Int64, ndim, size(CPointList,2))
@@ -237,7 +237,7 @@ function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass:
     ne = Int64((size(IEN,2))^(1/ndim))
     cMat = get_cMat(mode, Young, ν)
    
-    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, IEN_cp=IEN_cp, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
                     FunctionClass=FunctionClass, C = C, C_top = C_top, C_btm = C_btm, W = W, Young=Float64(Young), ν=ν, cMat=cMat)
 
     μ_tp = 0.3

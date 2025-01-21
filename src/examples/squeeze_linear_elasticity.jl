@@ -870,8 +870,8 @@ function simulate(mdl::model, β, CameraMatrix, endTime, tSteps, Control, cParam
     end
 
     if writeData
-        write_scene(string(filepath,"/Results"), NodeList_, IEN_list, mdl.ne, mdl.ndim, pos3D, ID=mdl.ID, FunctionClass="Q2")
-        # write_scene(string(filepath,"/Results"), mdl.NodeList, mdl.IEN, mdl.ne, mdl.ndim, cpList, ID=mdl.ID, FunctionClass="Q2")
+        write_scene(string(filepath,"/Results/mesh"), NodeList_, IEN_list, mdl.ndim, pos3D, FunctionClass="Q2")
+        write_scene(string(filepath,"/Results/c_net"), mdl.NodeList, mdl.IEN_cp, mdl.ndim, cpList, FunctionClass="Q1")
         # animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
         # write_contour_data(string(filepath,"/Results"), writeborderList)
     end

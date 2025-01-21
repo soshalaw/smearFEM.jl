@@ -9,6 +9,7 @@ function def_model(
 
     NodeList::Matrix{Float64} = [0.0 1.0 1.0 0.0; 0.0 0.0 1.0 1.0],
     IEN::Matrix{Int} = [1 2 3 4],
+    IEN_cp::Matrix{Int} = [1 2 3 4],
     IEN_top::Matrix{Int} = [1 2],
     IEN_btm::Matrix{Int} = [3 4],
     IEN_border::Matrix{Int} = [1 2 3 4],
@@ -40,7 +41,7 @@ function def_model(
     dcMatdμ::Matrix{Float64} = [0.0 1.0 1.1 0.1])
 
     if mdl == "linear_elasticity"
-        return linearElasticity(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass, C, C_top, C_btm, W, Young, ν, 
+        return linearElasticity(ne, ndim, NodeList, IEN, IEN_cp, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass, C, C_top, C_btm, W, Young, ν, 
                                 cMat, dcMatdλ, dcMatdμ)
     elseif mdl == "stokes"
         return stokes(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass,
@@ -54,6 +55,7 @@ mutable struct linearElasticity <: model
 
     NodeList::Matrix{Float64}
     IEN::Matrix{Int}
+    IEN_cp::Matrix{Int}
     IEN_top::Matrix{Int}
     IEN_btm::Matrix{Int}
     IEN_border::Matrix{Int}

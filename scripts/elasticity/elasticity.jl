@@ -17,8 +17,9 @@ filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
 ne = 1
 ndim = 3
 
-q_, model = simulate_single_tstep(Young, ν, FunctionClass, nDof, β, μ_tp, μ_btm)
+motion, model = simulate_single_tstep(Young, ν, FunctionClass, nDof, β, μ_tp, μ_btm)
 
-NodeList_, IEN_list, q = eval_on_cylinder(model, q_, nsub)
+NodeList_, IEN_list, q = eval_on_cylinder(model, motion, nsub)
 
-write_vtk(filePath, "q", NodeList_, IEN_list, ne, ndim, q, ID=model.ID, FunctionClass="Q2")
+write_vtk(string(filePath,"/c_net"), "q", model.NodeList, model.IEN_cp, ndim, motion, FunctionClass="Q1")
+write_vtk(filePath, "q", NodeList_, IEN_list, ndim, q, FunctionClass="Q2")

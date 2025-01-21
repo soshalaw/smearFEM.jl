@@ -13,10 +13,10 @@ function main()
     ndim = 3
     FunctionClass = "Q2"
     nDof = ndim  # number of degree of freedom per node
-    β = 1000
+    β = 1e-5
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
     endTime = 15
-    tSteps = 45
+    tSteps = 50
     Young = 30
     ν = 0.3
     Control = "displacement" # "force" or "displacement"
