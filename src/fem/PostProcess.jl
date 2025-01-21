@@ -20,79 +20,123 @@ Project the 3D mesh to 2D image plane and extract the border nodes (left and rig
 - `NodeList::Matrix{Float64}{ndim,nbNodes}`: 2D coordinates of the border nodes
 - `BorderNodes::Vector{Int}`: Indexes of the border nodes
 """
-function extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = nothing, nNodes = nothing)
+function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::Matrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, ne::Int64, nNodes::Int64, SIDES::Bool=false)
 
     SideNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
     SideNodes2D = back_project(SideNodes, CameraMatrix) 
 
     # project the nodes to the image plane and extract the border nodes as an ordered list
-    if state == "init"
-        @assert !isnothing(ne) "Number of elements must be provided"
 
-        LeftborderPts = zeros(2,(nNodes))                  # vector to store indexes of the border nodes
-        RightborderPts = zeros(2,(nNodes))                 # vector to store indexes of the border nodes
-        LeftborderNodes = Vector{Int64}(undef, 0)        # vector to store indexes of the border nodes
-        RightborderNodes = Vector{Int64}(undef, 0)   
-        TopLayerList = []                                # vector to store indexes of the border nodes
-        BottomLayerList = []                             # vector to store indexes of the border nodes
-        szSide = size(SideNodes2D,2)÷(nNodes)                            # size of each layer
-        BorderNodes = Vector{Int64}(undef, 0)            # vector to store indexes of the border nodes
-        for Layers in 1:nNodes                                        # loop through each layer
-            nodes = SideNodes2D[:,(Layers-1)*szSide+1:Layers*szSide]
-            minNode = (Layers-1)*szSide + argmin(nodes[1,:])
-            maxNode = (Layers-1)*szSide + argmax(nodes[1,:])
-            push!(LeftborderNodes, minNode)
-            push!(RightborderNodes, maxNode)
-            LeftborderPts[:,Layers] = SideNodes2D[:,minNode]         # left border nodes
-            RightborderPts[:,Layers] = SideNodes2D[:,maxNode]        # right border nodes
-            if Layers == nNodes
-                nodeIdi = 1:size(nodes,2)
-                for nodeId in nodeIdi
-                    if nodes[2,nodeId] > SideNodes2D[2,minNode]    
-                        push!(TopLayerList, (Layers-1)*szSide+nodeId)
-                    end
-                end 
-            elseif Layers == 1
-                nodeIdi = 1:size(nodes,2)
-                for nodeId in nodeIdi
-                    if nodes[2,nodeId] < SideNodes2D[2,minNode] 
-                        push!(BottomLayerList, nodeId)
-                    end
-                end 
-            end
-        end  
-        TopLayer = sortslices(SideNodes2D[:,TopLayerList],dims=2)                     # top layer nodes
-        BottomLayer = sortslices(SideNodes2D[:,BottomLayerList],dims=2)               # bottom layer nodes
-        
-        # topNodeList = sortperm(SideNodes2D[2,TopLayerList])
-        # TopLayer = SideNodes2D[:,topNodeList]
-        # bottomNodeList = sortperm(SideNodes2D[2,BottomLayerList])
-        # BottomLayer = SideNodes2D[:,bottomNodeList]
-
-        BorderPoints = hcat(LeftborderPts, TopLayer, reverse(RightborderPts,dims=2), reverse(BottomLayer,dims=2))         # concatenate the left and right border nodes
-        BorderNodes = vcat(LeftborderNodes, TopLayerList, reverse(RightborderNodes), reverse(BottomLayerList))            # concatenate the left and right border nodes 
-    elseif state == "update"
-        p = Array{Vector{Float64}}(undef,0)
-
-        iter = 1:size(SideNodes2D,2)
-        for i in iter
-            push!(p, SideNodes2D[:,i])
+    LeftborderPts = zeros(2,(nNodes))                  # vector to store indexes of the border nodes
+    RightborderPts = zeros(2,(nNodes))                 # vector to store indexes of the border nodes
+    LeftborderNodes = Vector{Int64}(undef, 0)        # vector to store indexes of the border nodes
+    RightborderNodes = Vector{Int64}(undef, 0)   
+    TopLayerList = []                                # vector to store indexes of the border nodes
+    BottomLayerList = []                             # vector to store indexes of the border nodes
+    szSide = size(SideNodes2D,2)÷(nNodes)                            # size of each layer
+    BorderNodes = Vector{Int64}(undef, 0)            # vector to store indexes of the border nodes
+    for Layers in 1:nNodes                                        # loop through each layer
+        nodes = SideNodes2D[:,(Layers-1)*szSide+1:Layers*szSide]
+        minNode = (Layers-1)*szSide + argmin(nodes[1,:])
+        maxNode = (Layers-1)*szSide + argmax(nodes[1,:])
+        push!(LeftborderNodes, minNode)
+        push!(RightborderNodes, maxNode)
+        LeftborderPts[:,Layers] = SideNodes2D[:,minNode]         # left border nodes
+        RightborderPts[:,Layers] = SideNodes2D[:,maxNode]        # right border nodes
+        if Layers == nNodes
+            nodeIdi = 1:size(nodes,2)
+            for nodeId in nodeIdi
+                if nodes[2,nodeId] > SideNodes2D[2,minNode]    
+                    push!(TopLayerList, (Layers-1)*szSide+nodeId)
+                end
+            end 
+        elseif Layers == 1
+            nodeIdi = 1:size(nodes,2)
+            for nodeId in nodeIdi
+                if nodes[2,nodeId] < SideNodes2D[2,minNode] 
+                    push!(BottomLayerList, nodeId)
+                end
+            end 
         end
+    end  
+    TopLayer = sortslices(SideNodes2D[:,TopLayerList],dims=2)                     # top layer nodes
+    BottomLayer = sortslices(SideNodes2D[:,BottomLayerList],dims=2)               # bottom layer nodes
 
-        hull = ch.ConvexHull(p)
-        points = ch.vertices(hull)
-        sz = length(points)
-        BorderPoints = zeros(2,sz)
+    BorderPoints = hcat(LeftborderPts, TopLayer, RightborderPts, BottomLayer)         # concatenate the left and right border nodes
+    BorderNodes = vcat(LeftborderNodes, TopLayerList, reverse(RightborderNodes), reverse(BottomLayerList))            # concatenate the left and right border nodes 
 
-        iter = 1:sz
-        for i in iter
-            BorderPoints[:,i] = points[i]
-        end
+    BorderPoints_ = sort_points(BorderPoints)
 
-        BorderNodes = ch.vertices(hull)
+    if SIDES
+        sides = get_sides(BorderPoints_)
+        return sides, BorderNodes, SideNodes2D
+    else
+        return BorderPoints_, BorderNodes, SideNodes2D
+    end
+end
+
+function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::Matrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, SIDES::Bool=false)
+
+    SideNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
+    SideNodes2D = back_project(SideNodes, CameraMatrix) 
+
+    p = Array{Vector{Float64}}(undef,0)
+
+    iter = 1:size(SideNodes2D,2)
+    for i in iter
+        push!(p, SideNodes2D[:,i])
     end
 
-    return BorderPoints, BorderNodes, SideNodes2D# return the border nodes
+    hull = ch.ConvexHull(p)
+    points = ch.vertices(hull)
+    sz = length(points)
+    BorderPoints = zeros(2,sz)
+
+    iter = 1:sz
+    for i in iter
+        BorderPoints[:,i] = points[i]
+    end
+
+    BorderNodes = ch.vertices(hull)
+
+    BorderPoints_ = sort_points(BorderPoints)
+
+    if SIDES
+        sides = get_sides(BorderPoints_)
+        return sides, BorderNodes, SideNodes2D
+    else
+        return BorderPoints_, BorderNodes, SideNodes2D
+    end
+end
+
+function get_sides(Data::Matrix{Float64})
+    indexes = []
+    dataIter = 1:(size(Data,2)-1)
+    for i in dataIter
+        r = Data[:,i+1] - Data[:,i]
+        sθ = dot(r,[0,1])/norm(r)
+        if abs(sθ) >= sin(π/4)
+            push!(indexes,i)
+        elseif i != 1
+            r_ = Data[:,i] - Data[:,i-1]
+            sθ_ = dot(r_,[0,1])/norm(r_)
+            if abs(sθ_) >= sin(π/4)
+                push!(indexes,i)
+            end
+        end
+    end
+    sides = Data[:,indexes]
+    return sides
+end
+
+function sort_points(Data::Matrix{Float64})
+
+    y_sorted = Data[:,sortperm(Data[2,:])]
+    
+    pointsLeft = y_sorted[:,findall(y_sorted[1,:].<=y_sorted[1,1])]
+    pointsRight = y_sorted[:,findall(y_sorted[1,:].>y_sorted[1,1])]
+   
+    return hcat(pointsLeft, reverse(pointsRight,dims=2))
 end
 
 """ 
@@ -150,7 +194,7 @@ function fit_curve(;border=nothing, borderx=nothing, bordery=nothing, samples=no
         x = borderx
         y = bordery
 
-        p = CubicSpline(x,y,extrapolate=true)
+        p = CubicSpline(x,y)
 
         pi = [p(i) for i in samples]
         
@@ -234,91 +278,53 @@ end
 """
     rearrange(q, ne, ndim, IEN, FunctionClass)
 
-Rearrange the solution vector from the lagrangian basis functions for to bilinear basis function for plotting and visualization in paraview
+Rearrange the connectivity vector to be visualised in paraview when langrangian basis functions are used.
 
 # Arguments:
-- `q::Vector{Float64}`: solution vector
-- `ne::Integer`: number of elements in each direction
 - `ndim::Integer`: number of dimensions
 - `IEN::Matrix{Float64}{nElem, nNodes}`: Connectivity matrix
-- `NodeList::Matrix{Float64}{nNodes, ndim}`: Node list
-- `FunctionClass::String`: type of basis function
 
 # Returns:
-- `q_new::Vector{Float64}`: rearranged solution vector
 - `IEN_new::Matrix{Int64}`: rearranged connectivity matrix
-- `NodeList_new::Matrix{Float64}`: rearranged node list
 """
-function rearrange(ne, ndim, IEN, ID  = nothing) 
-        
-    if isnothing(ID)
-        q_new = zeros((ne+1)^ndim,1)
-        IEN_new = zeros(Int64,ne^ndim,2^ndim)
-        if ndim == 2
-            for i in 1:ne+1
-                for j in 1:ne+1
-                    q_new[(i-1)*(ne+1)+j] = q[2*(i-1)*(2*ne+1) + (2*j-1)]
-                end
-            end
-
-            for e in 1:ne^ndim
-                IEN_new[e,:] = IEN[e,1:4]
-            end
-        elseif ndim == 3
-            for k in 1:ne+1
-                for j in 1:ne+1
-                    for i in 1:ne+1
-                        q_new[(k-1)*(ne+1)^2 + (j-1)*(ne+1) + i] = q[2*(k-1)*(2*ne+1)^2 + 2*(j-1)*(2*ne+1) + 2*i-1]
-                    end
-                end
-            end
-
-            for e in 1:ne^ndim
-                IEN_new[e,:] = IEN[e,1:8]
-            end
+function rearrange(ndim, IEN) 
+    IEN_new = zeros(Int64,size(IEN))
+    if ndim == 2
+        # TODO: Implement the 2D case
+    elseif ndim == 3
+        iter = 1:size(IEN,2)
+        for n in iter
+            IEN_new[1,n] = IEN[1,n]
+            IEN_new[2,n] = IEN[2,n]
+            IEN_new[3,n] = IEN[3,n]
+            IEN_new[4,n] = IEN[4,n]
+            IEN_new[5,n] = IEN[5,n]
+            IEN_new[6,n] = IEN[6,n]
+            IEN_new[7,n] = IEN[7,n]
+            IEN_new[8,n] = IEN[8,n]
+            IEN_new[9,n] = IEN[9,n]
+            IEN_new[10,n] = IEN[10,n]
+            IEN_new[11,n] = IEN[11,n]
+            IEN_new[12,n] = IEN[12,n]
+            IEN_new[13,n] = IEN[13,n]
+            IEN_new[14,n] = IEN[14,n]
+            IEN_new[15,n] = IEN[15,n]
+            IEN_new[16,n] = IEN[16,n]
+            IEN_new[17,n] = IEN[17,n]
+            IEN_new[18,n] = IEN[18,n]
+            IEN_new[19,n] = IEN[20,n]
+            IEN_new[20,n] = IEN[19,n]
+            IEN_new[21,n] = IEN[24,n]
+            IEN_new[22,n] = IEN[22,n]
+            IEN_new[23,n] = IEN[21,n]
+            IEN_new[24,n] = IEN[23,n]
+            IEN_new[25,n] = IEN[25,n]
+            IEN_new[26,n] = IEN[26,n]
+            IEN_new[27,n] = IEN[27,n]
         end
-        return q_new, IEN_new, ID_new
-    else
-        IEN_new = zeros(Int64,size(IEN))
-
-        if ndim == 2
-            # TODO: Implement the 2D case
-        elseif ndim == 3
-            iter = 1:size(IEN,1)
-            for n in iter
-                IEN_new[n,1] = IEN[n,1]
-                IEN_new[n,2] = IEN[n,2]
-                IEN_new[n,3] = IEN[n,3]
-                IEN_new[n,4] = IEN[n,4]
-                IEN_new[n,5] = IEN[n,5]
-                IEN_new[n,6] = IEN[n,6]
-                IEN_new[n,7] = IEN[n,7]
-                IEN_new[n,8] = IEN[n,8]
-                IEN_new[n,9] = IEN[n,9]
-                IEN_new[n,10] = IEN[n,10]
-                IEN_new[n,11] = IEN[n,11]
-                IEN_new[n,12] = IEN[n,12]
-                IEN_new[n,13] = IEN[n,13]
-                IEN_new[n,14] = IEN[n,14]
-                IEN_new[n,15] = IEN[n,15]
-                IEN_new[n,16] = IEN[n,16]
-                IEN_new[n,17] = IEN[n,17]
-                IEN_new[n,18] = IEN[n,18]
-                IEN_new[n,19] = IEN[n,20]
-                IEN_new[n,20] = IEN[n,19]
-                IEN_new[n,21] = IEN[n,24]
-                IEN_new[n,22] = IEN[n,22]
-                IEN_new[n,23] = IEN[n,21]
-                IEN_new[n,24] = IEN[n,23]
-                IEN_new[n,25] = IEN[n,25]
-                IEN_new[n,26] = IEN[n,26]
-                IEN_new[n,27] = IEN[n,27]
-            end
-        end
-        return IEN_new
     end
+    return IEN_new
 end
-
 
 """
     noramlize(q, IEN)

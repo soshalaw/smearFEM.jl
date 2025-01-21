@@ -62,8 +62,8 @@ function basis_function(ξ::Float64,η=nothing,ζ=nothing, FunctionClass::String
     return N, ΔN
 end
 
-function basis_function(ξ::Float64,η::Float64,ζ=nothing, FunctionClass::String = "Q2")
-    if FunctionClass == "Q1" # bilinear quadratic basis functions
+function basis_function(ξ::Float64, η::Float64, ζ=nothing, FunctionClass::String = "Q2")
+    if FunctionClass == "Q1" || FunctionClass == "S1"# bilinear quadratic basis functions
         # basis functions
         N = [(1-ξ)*(1-η)/4, (ξ+1)*(1-η)/4, (1+ξ)*(η+1)/4, (1-ξ)*(1+η)/4]
 
@@ -112,9 +112,9 @@ function basis_function(ξ::Float64,η::Float64,ζ=nothing, FunctionClass::Strin
     return N, ΔN
 end
 
-function basis_function(ξ::Float64,η::Float64,ζ::Float64, FunctionClass::String = "Q2")
+function basis_function(ξ::Float64, η::Float64, ζ::Float64, FunctionClass::String = "Q2")
     
-    if FunctionClass == "Q1" # bilinear quadratic basis functions
+    if FunctionClass == "Q1" || FunctionClass == "S1"# bilinear quadratic basis functions
         # basis functions
         N = [(1-ξ)*(1-η)*(1-ζ)/8, 
             (1+ξ)*(1-η)*(1-ζ)/8, 
@@ -267,4 +267,58 @@ function basis_function(ξ::Float64,η::Float64,ζ::Float64, FunctionClass::Stri
         ΔN = [∂N_ξ ∂N_η ∂N_ζ] # [dN/dξ dN/dη dN/dζ]
     end
     return N, ΔN
+end
+
+function basis_function(ξ::Float64, Ce::Matrix{Float64}, We::Vector{Float64}, FunctionClass::String = "S2")
+
+    N, ΔN = basis_function(ξ, nothing, nothing, "Q2")
+
+    # Compute the Bspline basis
+    Be = Ce*N
+    ΔBe = Ce*ΔN
+
+    we = Be'*We
+    Δwe = ΔBe'*We
+
+    # Compute the NURBS basis
+    Re = (We.*Be)/we
+    ΔRe = (We.*ΔBe)/we - ((We.*Be)*Δwe')/we^2
+
+    return Re, ΔRe
+end
+
+function basis_function(ξ::Float64, η::Float64, Ce::Matrix{Float64}, We::Vector{Float64}, FunctionClass::String = "S2")
+
+    N, ΔN = basis_function(ξ, η, nothing, "Q2")
+
+    # Compute the Bspline basis
+    Be = Ce*N
+    ΔBe = Ce*ΔN
+
+    we = Be'*We
+    Δwe = ΔBe'*We
+
+    # Compute the NURBS basis
+    Re = (We.*Be)/we
+    ΔRe = (We.*ΔBe)/we - ((We.*Be)*Δwe')/we^2
+
+    return Re, ΔRe
+end
+
+function basis_function(ξ::Float64, η::Float64, ζ::Float64, Ce::Matrix{Float64}, We::Vector{Float64}, FunctionClass::String = "S2")
+
+    N, ΔN = basis_function(ξ, η, ζ, "Q2")
+
+    # Compute the Bspline basis
+    Be = Ce*N
+    ΔBe = Ce*ΔN
+
+    we = Be'*We
+    Δwe = ΔBe'*We
+
+    # Compute the NURBS basis
+    Re = (We.*Be)/we
+    ΔRe = (We.*ΔBe)/we - ((We.*Be)*Δwe')/we^2
+
+    return Re, ΔRe
 end

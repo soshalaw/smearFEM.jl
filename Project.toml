@@ -1,8 +1,3 @@
-name = "smearFEM"
-uuid = "4eee6b04-631b-4815-bf2d-d057f3bb7676"
-authors = ["soshalaw <soshalaweerathunge@gmail.com> and contributors"]
-version = "1.0.0-DEV"
-
 [deps]
 ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 ConvexHulls2d = "438b5665-92b0-42e6-bc36-e4ac8449fa2d"

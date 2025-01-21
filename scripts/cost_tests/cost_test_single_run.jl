@@ -27,11 +27,12 @@ function main()
     noiseProfile = 1
     noiseLevel = 1
     plot_matches = true
+    sides_only = true
     Control = "displacement" # "force" or "displacement"
     dev = 0.5
     mode = "lame" # "standard" or "lame"
     dateTime = Dates.now()
-    filepathi = string("/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/cost_function_test/robusteness/",dateTime,"/")
+    filepathi = string("/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
 
     Youngtst = 30
     νtst = 0.4
@@ -50,9 +51,9 @@ function main()
     ν = mutst*(1-dev)
 
     hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, "lame", 
-                    ObsData, plot_matches, filepathi)
+                    ObsData, sides_only, plot_matches, filepathi)
 
-    plot( cpCost, label="Height Cost")
+    plot(cpCost, label="Height Cost")
     xlabel!("Time steps")
     ylabel!("Cost")
     savefig(string(filepathi,"/Results/cost/cost_cp.png"))

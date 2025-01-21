@@ -99,14 +99,18 @@ function assemble_system_A(mdl::model)
     gpiter = 1:length(wpoints)
     for gp in gpiter
         if mdl.ndim == 1
-            N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass_u)
+            N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass_u) # add function type
         elseif mdl.ndim == 2
             N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass_u) 
         elseif mdl.ndim == 3
             N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.FunctionClass_u) 
         end
+
+        # N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass_u, Ce, We) 
+        
         # element loop
         for e in e_iter
+            # basis function inside the elements
             coords = mdl.NodeList_u[:,mdl.IEN_u[:,e]] # get the coordinates of the nodes of the element
 
             Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
@@ -976,7 +980,7 @@ Simulate the Stokes problem
 # Returns:
 - `fields::Vector{Float64}` : Nodal positions of the mesh
 """
-function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing)
+function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing, SIDES::Bool=false)
 
     time = collect(range(start=0,stop=endTime,length=tSteps)) # time vector
     dateTime = Dates.now()
@@ -1025,9 +1029,7 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionCl
                         FunctionClass=FunctionClass_u, ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, 
                             ndim_2=ndim, nDof_2=nDof_p, FunctionClass_2=FunctionClass_p ) # define the model
     
-    state = "init"
-    
-    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList_u, state, ne, 2*ne+1)
+    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList_u, ne, 2*ne+1, SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
     
     SideBorders = BorderNodesList_u[1]
@@ -1044,10 +1046,8 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionCl
     splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
     output = Float64[] 
     writeborderList = [vcat(pi', qi')]
-    
-    state = "update"
+
     iter = 1
-    
     pr = Progress(tSteps; desc="Simulating with prescribed $Control ...", showspeed=true)
     for t in time
         A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
@@ -1078,7 +1078,7 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionCl
     
         NodeListCylinder = NodeListCylinder + motion*(endTime/tSteps) # update the mesh grid
     
-        BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList_u, state)
+        BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList_u, SIDES)
         surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
         pi, qi = fit_curve(border=BorderPts2D)
     

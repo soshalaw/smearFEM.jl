@@ -31,18 +31,30 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, Func
 
     cMat = get_cMat(mode, Young, ν)
 
-    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
-    NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1) # inflate the sphere to a unit sphere
+    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
+    CPointList, W, C, IEN, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
+    
+    ndim = size(CPointList,1)
+    ne = Int64((size(IEN,2))^(1/ndim))
 
-    mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeListCylinder, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
-                        FunctionClass=FunctionClass, Young=Float64(Young), ν=ν, cMat=cMat)
+    # get the ID array
+    ID = zeros(Int64, ndim, size(CPointList,2))
+    cpiter = 1:size(CPointList,2)
+    for m in cpiter
+        for l in 1:ndim
+            ID[l,m] = ndim*(m-1) + l
+        end
+    end 
+
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
+                        FunctionClass=FunctionClass, C = C, C_top = C_top, C_btm = C_btm, W = W, Young=Float64(Young), ν=ν, cMat=cMat)
     
     if DENSE == true
-        q_tp, q_btm, C_uc = setboundaryCond_dense(NodeList, ne, ndim, FunctionClass, nDof)
+        q_tp, q_btm, C_uc = setboundaryCond_dense(mdl)
         K = assemble_system_dense(mdl)                   # assemble the stiffness matrix
         b = apply_boundary_conditions_dense(mdl)         # apply the neumann boundary conditions
     else
-        q_tp, q_btm, C_uc = setboundaryCond(NodeList, ne, ndim, FunctionClass, nDof)
+        q_tp, q_btm, C_uc = setboundaryCond(mdl)
         K = assemble_system(mdl)                   # assemble the stiffness matrix
         b = apply_boundary_conditions(mdl)         # apply the neumann boundary conditions
     end
@@ -58,8 +70,8 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, Func
         q_f = K_free\(C_T*(-K_bar*q_d))         # solve the system of equations
     end
 
-    q = q_d + C_uc*q_f;                 # assemble the solution 
-    q_out = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]'
+    q = q_d + C_uc*q_f                 # assemble the solution 
+    q_out = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]';
 
     return q_out, mdl
 end
@@ -101,7 +113,7 @@ function simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, Func
     mdl = def_model("stokes", ne=ne, NodeList=NodeListCylinder, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u, 
                         FunctionClass=FunctionClass_u, ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, 
                             ndim_2=ndim, nDof_2=nDof_p, FunctionClass_2=FunctionClass_p ) # define the model
-
+                            
     if DENSE == true
         A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
         B = assemble_system_B(mdl)                   # assemble the stiffness matrix
@@ -197,7 +209,7 @@ Test the simulation
 - `mode::String` : type of constitutive matrix
 """
 function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass::String, nDof::Int64, β, CameraMatrix, endTime, tSteps, Control::String; 
-              writeData::Bool=false, filepath=nothing, mode::String = "standard")
+              writeData::Bool=false, filepath=nothing, mode::String = "standard", SIDES::Bool=false)
     
     if writeData
         isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
@@ -216,7 +228,7 @@ function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass:
 
     μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, 
                                                                         CameraMatrix, endTime, tSteps, Control, cParam, cMat, writeData=writeData, 
-                                                                        filepath=filepath)
+                                                                        filepath=filepath, SIDES=SIDES)
 
     return μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl
 end
@@ -251,27 +263,24 @@ Compare the simulation with the observation data
 - `filepath::String` : path to the file
 """
 function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass::String, nDof::Int64, β, CameraMatrix, endTime, tSteps, Control::String, 
-                mode::String, ObsData, PLOT::Bool=false, filepath=nothing)
+                mode::String, ObsData, SIDES::Bool=false, PLOT::Bool=false, filepath=nothing)
 
     μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, 
-                                                                       endTime, tSteps, Control, mode=mode)  
+                                                                       endTime, tSteps, Control, mode=mode, SIDES=SIDES)  
     
     obsBorderPts = ObsData[1]
     splinexObs = ObsData[2]
     splineyObs = ObsData[3]
     
     # test the closest point function
-    d_cp = closest_point(simBorderPts, obsBorderPts)
-
-    # test the height function
-    # d_h, xObsintlst, xSimintlst, ySimintlst = height_sample(simBorderPts, obsBorderPts)
-    d_h = 0
+    pairs = match_points(simBorderPts[1], [splinexObs[1],splineyObs[1]]) # match the points using the first border
+    d_cp = closest_point(simBorderPts, obsBorderPts, pairs)
 
     if PLOT
+        @assert !isnothing(filepath) "File path not provided"
         plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/images/"))
-        # plot_matches_h(xObsintlst, ySimintlst, xSimintlst, splinex, spliney, splinexObs, splineyObs, string(filepath,"/Results/images/"))
     end
-    
+    d_h = 0
     return d_h, d_cp
 end
 
@@ -293,7 +302,7 @@ Initialize the mesh and write the data to a file
 - `CameraMatrix::Matrix{Float64}` : camera matrix
 - `filepath::String` : path to the file
 """
-function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, CameraMatrix, filepath=nothing)
+function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, CameraMatrix, filepath=nothing, SIDES::Bool=false)
 
     isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
     set_file(filepath)
@@ -303,14 +312,14 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
 
     state = "init"
 
-    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne, (2*ne+1))
+    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, ne, (2*ne+1), SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
 
     SideBorders = BorderNodesList[1]
     BottomBorders = BorderNodesList[2]
     TopBorders = BorderNodesList[3]
         
-    fields = [NodeListCylinder]                                                               # store the solution fields of the mesh in 3D
+    pos3D = [NodeListCylinder]                                                               # store the solution fields of the mesh in 3D
     pos2D = [Nodes2D]                                                                   # store the solution fields of the mesh in 2D
     surfaceNodesList = [NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
     borderPts2DList = [BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
@@ -319,7 +328,7 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
     splineq = [qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
     writeborderList = [vcat(pi', qi')]
 
-    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D, p=splinep, q=splineq)
     write_contour_data(string(filepath,"/Results"), writeborderList)
 
     return borderPts2DList, borderNodeList2D, splinep, splineq
