@@ -26,9 +26,8 @@ Simulate the deformation of the mesh for a single time step using the linear ela
 - `DENSE::Bool` : use dense matrices
 - `CG::Bool` : use conjugate gradient method to solve the system of equations
 """
-function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, μ_tp, μ_btm; DENSE=false, CG=false)
+function simulate_single_tstep(Young, ν, FunctionClass, nDof, β, μ_tp, μ_btm; DENSE=false, CG=false)
     mode = "standard"
-
     cMat = get_cMat(mode, Young, ν)
 
     filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
@@ -61,6 +60,7 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, Func
     
     q_d = (μ_btm*q_btm + μ_tp*q_tp)            # apply the Dirichlet boundary conditions
     K_bar = K + β*b
+
     C_T = transpose(C_uc)                      # transpose the constraint matrix
     K_free = C_T*K_bar*C_uc                    # extract the free part of the stiffness matrix
 
@@ -71,8 +71,12 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, Func
     end
 
     q = q_d + C_uc*q_f                 # assemble the solution 
-    q_out = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]';
 
+    q_out = zeros(size(CPointList))
+    q_out[1,:] = q[ID[1,:]] 
+    q_out[2,:] = q[ID[2,:]]
+    q_out[3,:] = q[ID[3,:]]
+    
     return q_out, mdl
 end
 
@@ -110,9 +114,9 @@ function simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, Func
     NodeList_p, IEN_p, ID_p, IEN_p_top, IEN_p_btm, BorderNodesList_p = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass_p)  # generate the mesh grid
     NodeListCylinderp = inflate_cylinder(NodeList_p, x0, x1, y0, y1)
     
-    mdl = def_model("stokes", ne=ne, NodeList=NodeListCylinder, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u, 
-                        FunctionClass=FunctionClass_u, ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, 
-                            ndim_2=ndim, nDof_2=nDof_p, FunctionClass_2=FunctionClass_p ) # define the model
+    mdl = def_model("stokes", ne=ne, ndim=ndim,
+                    NodeList=NodeListCylinder,    IEN=IEN_u,   IEN_top=IEN_u_top,   IEN_btm=IEN_u_btm,   nDof=nDof_u,   FunctionClass=FunctionClass_u, ID=ID_u, 
+                    NodeList_2=NodeListCylinderp, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, nDof_2=nDof_p, FunctionClass_2=FunctionClass_p, ID_2=ID_p) # define the model
                             
     if DENSE == true
         A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
@@ -216,6 +220,26 @@ function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass:
         set_file(filepath)
     end
 
+    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
+    CPointList, W, C, IEN, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
+
+    # get the ID array
+    ID = zeros(Int64, ndim, size(CPointList,2))
+    cpiter = 1:size(CPointList,2)
+    for m in cpiter
+        for l in 1:ndim
+            ID[l,m] = ndim*(m-1) + l
+        end
+    end 
+
+    ndim = size(CPointList,1)
+    nDof = ndim
+    ne = Int64((size(IEN,2))^(1/ndim))
+    cMat = get_cMat(mode, Young, ν)
+   
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
+                    FunctionClass=FunctionClass, C = C, C_top = C_top, C_btm = C_btm, W = W, Young=Float64(Young), ν=ν, cMat=cMat)
+
     μ_tp = 0.3
 
     if Control == "force"
@@ -224,11 +248,8 @@ function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass:
         cParam = -(μ_tp/tSteps)*ones(tSteps)
     end
 
-    cMat = get_cMat(mode, Young, ν)
-
-    μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, 
-                                                                        CameraMatrix, endTime, tSteps, Control, cParam, cMat, writeData=writeData, 
-                                                                        filepath=filepath)
+    μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = simulate(mdl, β, CameraMatrix, endTime, tSteps, Control, cParam, writeData=writeData, 
+                                                                           filepath=filepath)
 
     return μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl
 end
@@ -276,14 +297,11 @@ function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionCla
     pairs = match_points(simBorderPts[1], [splinexObs[1],splineyObs[1]]) # match the points using the first border
     d_cp = closest_point(simBorderPts, obsBorderPts, pairs)
 
-    # test the height function
-    d_h, xObsintlst, xSimintlst, ySimintlst = height_sample(simBorderPts, obsBorderPts)
-
     if PLOT
         plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/images/"))
-        plot_matches_h(xObsintlst, ySimintlst, xSimintlst, splinex, spliney, splinexObs, splineyObs, string(filepath,"/Results/images/"))
     end
-    
+
+    d_h = 0
     return d_h, d_cp
 end
 
@@ -310,9 +328,29 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
     isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
     set_file(filepath)
     
-    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
-    NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
+    mode = "standard"
+    nsub = 0
 
+    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
+    CPointList, W, C, IEN, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
+
+    # get the ID array
+    ID = zeros(Int64, ndim, size(CPointList,2))
+    cpiter = 1:size(CPointList,2)
+    for m in cpiter
+        for l in 1:ndim
+            ID[l,m] = ndim*(m-1) + l
+        end
+    end 
+
+    ndim = size(CPointList,1)
+    ne = Int64((size(IEN,2))^(1/ndim))
+
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, ID = ID,
+                        FunctionClass=FunctionClass, C = C, C_top = C_top, C_btm = C_btm, W = W)
+
+    NodeListCylinder, IEN_list = eval_on_cylinder(mdl, nsub)
+    
     state = "init"
 
     BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne, (2*ne+1))
@@ -331,7 +369,7 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
     splineq = [qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
     writeborderList = [vcat(pi', qi')]
 
-    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D, p=splinep, q=splineq)
+    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN_list, BorderNodes2D=borderPts2DList, fields2D=pos2D, p=splinep, q=splineq)
     write_contour_data(string(filepath,"/Results"), writeborderList)
 
     return borderPts2DList, borderNodeList2D, splinep, splineq

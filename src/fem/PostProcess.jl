@@ -289,7 +289,153 @@ function rearrange(ndim, IEN)
     return IEN_new
 end
 
+function eval_on_cylinder(mdl::model, Data::Matrix{Float64}, nsub::Int64=0)
 
+    NodeList_ = zeros(Float64, 3, (2^(nsub*3))*size(mdl.IEN,2)*size(mdl.IEN,1))
+    sol_list = zeros(Float64, 3, (2^(nsub*3))*size(mdl.IEN,2)*size(mdl.IEN,1))
+    IEN_list = zeros(Int64, size(mdl.IEN,1), (2^(nsub*3))*size(mdl.IEN,2))
+
+    # get parent element
+    # get parent element
+    lPoints = zeros(27,3)
+    lPoints[1,:] = [-1 , -1, -1]
+    lPoints[2,:] = [1 , -1, -1]
+    lPoints[3,:] = [1 , 1, -1]
+    lPoints[4,:] = [-1 , 1, -1]
+
+    lPoints[5,:] = [-1 , -1, 1]
+    lPoints[6,:] = [1 , -1, 1]
+    lPoints[7,:] = [1 , 1, 1]
+    lPoints[8,:] = [-1 , 1, 1]
+    
+    lPoints[9,:] = [0 , -1, -1]
+    lPoints[10,:] = [1 , 0, -1]
+    lPoints[11,:] = [0 , 1, -1]
+    lPoints[12,:] = [-1 , 0, -1]
+
+    lPoints[13,:] = [0 , -1, 1]
+    lPoints[14,:] = [1 , 0, 1]
+    lPoints[15,:] = [0 , 1, 1]
+    lPoints[16,:] = [-1 , 0, 1]
+
+    lPoints[17,:] = [-1 , -1, 0]
+    lPoints[18,:] = [1 , -1, 0]
+    lPoints[19,:] = [1 , 1, 0]
+    lPoints[20,:] = [-1 , 1, 0]
+
+    lPoints[21,:] = [0 , -1, 0]
+    lPoints[22,:] = [1 , 0, 0]
+    lPoints[23,:] = [0 , 1, 0]
+    lPoints[24,:] = [-1 , 0, 0]
+
+    lPoints[25,:] = [0, 0, -1]
+    lPoints[26,:] = [0, 0, 1]
+    lPoints[27,:] = [0, 0, 0]
+
+    scale = 1/(2^nsub)
+
+    eiter = 1:size(mdl.IEN,2)
+    nodeiter = 1:size(lPoints,1)
+    for e in eiter
+        for xsub in 1:2^nsub
+            for ysub in 1:2^nsub
+                for zsub in 1:2^nsub
+
+                    cnte = (e-1)*(2^(nsub*3)) + (xsub-1)*(2^(nsub*2)) + (ysub-1)*(2^(nsub)) + zsub
+                    offset = [(xsub-1)*scale, (ysub-1)*scale, (zsub-1)*scale]
+
+                    for j in nodeiter
+
+                        scaledPoint = offset .+ scale*(0.5.+0.5*lPoints[j,:])
+                        scaledPoint = -1 .+ 2*scaledPoint
+  
+                        Re, ΔRe = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], mdl.C[:,:,e], mdl.W[mdl.IEN[:,e]], "S2")
+
+                        NodeList_[:,(cnte-1)*size(mdl.IEN,1)+j] = Re'*mdl.NodeList[:,mdl.IEN[:,e]]'
+                        sol_list[:,(cnte-1)*size(mdl.IEN,1)+j] = Re'*Data[:,mdl.IEN[:,e]]'
+
+                        IEN_list[j,cnte] = (cnte-1)*size(mdl.IEN,1)+j
+                    end
+                end
+            end
+        end
+    end
+
+    return NodeList_, IEN_list, sol_list
+end
+
+function eval_on_cylinder(mdl::model, nsub::Int64=0)
+
+    NodeList_ = zeros(Float64, 3, (2^(nsub*3))*size(mdl.IEN,2)*size(mdl.IEN,1))
+    IEN_list = zeros(Int64, size(mdl.IEN,1), (2^(nsub*3))*size(mdl.IEN,2))
+
+    # get parent element
+    # get parent element
+    lPoints = zeros(27,3)
+    lPoints[1,:] = [-1 , -1, -1]
+    lPoints[2,:] = [1 , -1, -1]
+    lPoints[3,:] = [1 , 1, -1]
+    lPoints[4,:] = [-1 , 1, -1]
+
+    lPoints[5,:] = [-1 , -1, 1]
+    lPoints[6,:] = [1 , -1, 1]
+    lPoints[7,:] = [1 , 1, 1]
+    lPoints[8,:] = [-1 , 1, 1]
+    
+    lPoints[9,:] = [0 , -1, -1]
+    lPoints[10,:] = [1 , 0, -1]
+    lPoints[11,:] = [0 , 1, -1]
+    lPoints[12,:] = [-1 , 0, -1]
+
+    lPoints[13,:] = [0 , -1, 1]
+    lPoints[14,:] = [1 , 0, 1]
+    lPoints[15,:] = [0 , 1, 1]
+    lPoints[16,:] = [-1 , 0, 1]
+
+    lPoints[17,:] = [-1 , -1, 0]
+    lPoints[18,:] = [1 , -1, 0]
+    lPoints[19,:] = [1 , 1, 0]
+    lPoints[20,:] = [-1 , 1, 0]
+
+    lPoints[21,:] = [0 , -1, 0]
+    lPoints[22,:] = [1 , 0, 0]
+    lPoints[23,:] = [0 , 1, 0]
+    lPoints[24,:] = [-1 , 0, 0]
+
+    lPoints[25,:] = [0, 0, -1]
+    lPoints[26,:] = [0, 0, 1]
+    lPoints[27,:] = [0, 0, 0]
+
+    scale = 1/(2^nsub)
+
+    eiter = 1:size(mdl.IEN,2)
+    nodeiter = 1:size(lPoints,1)
+    for e in eiter
+        for xsub in 1:2^nsub
+            for ysub in 1:2^nsub
+                for zsub in 1:2^nsub
+
+                    cnte = (e-1)*(2^(nsub*3)) + (xsub-1)*(2^(nsub*2)) + (ysub-1)*(2^(nsub)) + zsub
+                    offset = [(xsub-1)*scale, (ysub-1)*scale, (zsub-1)*scale]
+
+                    for j in nodeiter
+
+                        scaledPoint = offset .+ scale*(0.5.+0.5*lPoints[j,:])
+                        scaledPoint = -1 .+ 2*scaledPoint
+  
+                        Re, ΔRe = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], mdl.C[:,:,e], mdl.W[mdl.IEN[:,e]], "S2")
+
+                        NodeList_[:,(cnte-1)*size(mdl.IEN,1)+j] = Re'*mdl.NodeList[:,mdl.IEN[:,e]]'
+
+                        IEN_list[j,cnte] = (cnte-1)*size(mdl.IEN,1)+j
+                    end
+                end
+            end
+        end
+    end
+
+    return NodeList_, IEN_list
+end
 
 """
     noramlize(q, IEN)

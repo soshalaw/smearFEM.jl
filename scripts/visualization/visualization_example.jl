@@ -9,7 +9,7 @@ function main()
     y1 = 1
     z0 = 0
     z1 = 1
-    ne = 2
+    ne = 1
     ndim = 3
     FunctionClass = "Q2"
     nDof = ndim  # number of degree of freedom per node

@@ -6,7 +6,8 @@ using Test
 
     filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
 
-    CPointList, W, C, IEN, vol_BSpline, vol_NURBS = read_h5(string(filePath,"/cylinder.h5"),"test")
+    CPointList, W, C, IEN, vol_BSpline, vol_NURBS = read_h5(string(filePath,"/cylinder.h5"),"sim")
+
     NodeList = zeros(Float64, 3, size(IEN,2)*size(IEN,1))
     IEN_list = zeros(Int64, size(IEN))
 
@@ -24,6 +25,9 @@ using Test
             ID[l,m] = ndim*(m-1) + l
         end
     end 
+
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, ndim=ndim, nDof=ndim, ID = ID,
+    FunctionClass="Q2", C = C, W = W)
 
     # construct the parent element
     lPoints = zeros(27,3)
@@ -141,9 +145,27 @@ using Test
 
             w = wpoints[gp]*abs(det(Jac))
 
-            vol = vol + w
+            global vol = vol + w
         end
     end
-
+    
     @test vol ≈ vol_NURBS atol=1e-5
 end
+
+# for e in eiter 
+#     for j in nodeiter
+#         B, ΔB = basis_function(lPoints[j,1],lPoints[j,2],lPoints[j,3], C[:,:,e], W[IEN[:,e]], "S2")
+#         for b in B 
+#             if abs(b) > 1e-10
+#                 @test (b > 0)
+#             end
+#         end 
+#         @test 1.0 ≈ sum(B) atol=1e-5
+#         NodeList[:,(e-1)*size(IEN,1)+j] = B'*mdl.NodeList[:,IEN[:,e]]'
+#         IEN_list[j,e] = (e-1)*size(IEN,1)+j
+#     end
+# end
+
+
+# display(IEN_list)
+# write_vtk(filePath, "q", NodeList, IEN_list, ne, ndim, q, ID=ID, FunctionClass="Q2")

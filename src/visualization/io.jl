@@ -39,7 +39,7 @@ function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64
         IEN = rearrange(ndim, IEN)  # rearrange the solution
     end
 
-    cells = [MeshCell(cellType,IEN[:,e]) for e in 1:ne^ndim]
+    cells = [MeshCell(cellType,IEN[:,e]) for e in 1:size(IEN,2)]
 
     vtk_grid(string(filePath,"/vtkFiles/",fieldName), NodeList, cells) do vtk
         vtk[fieldName] = q
@@ -82,7 +82,7 @@ function write_scene(fileName::String, NodeList, IEN, ne::Int64, ndim::Int64, fi
         IEN = rearrange(ndim, IEN)  # rearrange the solution
     end
 
-    cells = [MeshCell(cellType,IEN[:,e]) for e in 1:ne^ndim]
+    cells = [MeshCell(cellType,IEN[:,e]) for e in 1:size(IEN,2)]
 
     fieldIter = 1:length(fields)
     paraview_collection(string(fileName,"/vtkFiles/displacement")) do pvd # create a paraview collection

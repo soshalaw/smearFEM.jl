@@ -77,7 +77,7 @@ for e, (Ae,be) in enumerate(zip(A,b)):
 
 tests.test_extraction_operators(C)
 
-boundaries = ['top', 'bottom']
+boundaries = ['top', 'bottom', 'front', 'back', 'left' , 'right']
 IEN_bound_lst = {}
 C_bound_lst = {}
 
@@ -92,6 +92,8 @@ for bound in boundaries:
     ne = A.shape[0]
     assert ne==2**(2*nref), 'Incorrect number of elements'
 
+    map_boundary = [0, 6, 8, 2, 3, 7, 5, 1, 4]
+
     IEN_boundary = numpy.empty(shape=(ne,(p+1)**2),dtype=int)
     C_boundary = numpy.empty(shape=(ne,(p+1)**2,(p+1)**2))
     for e, (Ae,be) in enumerate(zip(A,b)):
@@ -104,14 +106,13 @@ for bound in boundaries:
         print(f'boundary element {e} corresponds to volume element {i}')
 
         IEN_boundary[e,:] = [dof for dof in bspline_basis.get_dofs(i) if supp[dof]]
-        C_boundary[e,:,:] = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN_boundary[e,:])]))
-
+        Ce_boundary = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN_boundary[e,:])]))
+        C_boundary[e,:,:] = Ce_boundary[:,map_boundary]
+         
     tests.test_extraction_operators(C_boundary)
 
-    print(C_boundary.shape)
-    print(IEN_boundary.shape)
-    IEN_bound_lst[bound] = IEN_boundary
-    C_bound_lst[bound] = C_boundary
+    IEN_bound_lst[bound] = IEN_boundary.copy()
+    C_bound_lst[bound] = C_boundary.copy()
 
 # Save to an HDF5 file
 with h5py.File('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/cylinder.h5', 'w') as f:

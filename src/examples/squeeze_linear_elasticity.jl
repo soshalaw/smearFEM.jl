@@ -738,38 +738,35 @@ Simulate the deformation of a cylindrical under compression
 - `writeData::Bool` : write the data to a file
 - `filepath::String` : path to the file
 """
-function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing)
+function simulate(mdl::model, β, CameraMatrix, endTime, tSteps, Control, cParam; writeData=false, filepath=nothing)
 
     time = collect(range(start=0,stop=endTime,length=tSteps)) # time vector
-
-    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
-    NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
-
-    # mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, FunctionClass=FunctionClass, ID=ID, )
-    mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeListCylinder, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
-                     FunctionClass=FunctionClass, Young=Float64(Young), ν=ν, cMat=cMat)
-    
+    nsub = 1
     q_tp, q_btm, C_uc = setboundaryCond(mdl)
     
     state = "init"
 
-    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne, 2*ne+1)
-    pi, qi = fit_curve(border=BorderPts2D)
+    NodeList_, IEN_list = eval_on_cylinder(mdl, nsub)
 
-    SideBorders = BorderNodesList[1]
-    BottomBorders = BorderNodesList[2]
-    TopBorders = BorderNodesList[3]
-        
+
+    # BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state, ne, 2*ne+1)
+    # pi, qi = fit_curve(border=BorderPts2D)
+
+    # SideBorders = BorderNodesList[1]
+    # BottomBorders = BorderNodesList[2]
+    # TopBorders = BorderNodesList[3]
+
     fields = AbstractArray[]  
-    pos3D = AbstractArray[NodeListCylinder]                                                             # store the solution fields of the mesh in 3D
-    pos2D = AbstractArray[Nodes2D]                                                                   # store the solution fields of the mesh in 2D
-    surfaceNodesList = Float64[NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
-    borderPts2DList = AbstractArray[BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
-    borderNodeList2D = AbstractArray[BorderNodes2D]                                                       # store the solution fields of the border nodes in 2D
-    splinep = AbstractArray[pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
-    splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
+    pos3D = AbstractArray[NodeList_]                                                             # store the solution fields of the mesh in 3D
+    cpList = AbstractArray[mdl.NodeList]
     output = Float64[] 
-    writeborderList = [vcat(pi', qi')]
+    # pos2D = AbstractArray[Nodes2D]                                                                   # store the solution fields of the mesh in 2D
+    # surfaceNodesList = Float64[NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
+    # borderPts2DList = AbstractArray[BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
+    # borderNodeList2D = AbstractArray[BorderNodes2D]                                                       # store the solution fields of the border nodes in 2D
+    # splinep = AbstractArray[pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
+    # splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
+    # writeborderList = [vcat(pi', qi')]
 
     state = "update"
     μ_btm = 0      
@@ -795,23 +792,29 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             μ_tp = sol[end]           # solve the system of equations
             q = q_btm + C_uc*q_f + μ_tp*q_tp;                # assemble the solution
 
-            # post process the solution
-            motion = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]'    # update the nodal positions
-            NodeListCylinder = NodeListCylinder + motion    # update the node coordinates
+            motion = zeros(size(mdl.NodeList))
+            motion[1,:] = q[mdl.ID[1,:]] 
+            motion[2,:] = q[mdl.ID[2,:]]
+            motion[3,:] = q[mdl.ID[3,:]]
 
-            BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
-            surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
-            pi, qi = fit_curve(border=BorderPts2D)
+            mdl.NodeList = mdl.NodeList + motion    # update the node coordinates
+
+            # BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
+            # surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
+            # pi, qi = fit_curve(border=BorderPts2D)
+
+            NodeList_, IEN_list_, motion_ = eval_on_cylinder(mdl, motion, nsub)
 
             push!(output, μ_tp)
-            push!(fields, motion)
-            push!(pos2D, Nodes2D)
-            push!(pos3D, NodeListCylinder)
-            push!(borderPts2DList, BorderPts2D)
-            push!(borderNodeList2D, BorderNodes2D)
-            push!(splinep, pi)
-            push!(splineq, qi) 
-            push!(writeborderList, vcat(pi', qi'))
+            push!(fields, motion_)
+            # push!(pos2D, Nodes2D)
+            push!(pos3D, NodeList_)
+            push!(cpList,mdl.NodeList)
+            # push!(borderPts2DList, BorderPts2D)
+            # push!(borderNodeList2D, BorderNodes2D)
+            # push!(splinep, pi)
+            # push!(splineq, qi) 
+            # push!(writeborderList, vcat(pi', qi'))
 
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
@@ -834,24 +837,32 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
 
             # post process the solution
             f_R = K_bar*q
-            motion = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]'
             F_est = q_tp'*f_R                                         # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
-            NodeListCylinder = NodeListCylinder + motion              # update the node coordinates
+            
+            motion = zeros(size(mdl.NodeList))
+            motion[1,:] = q[mdl.ID[1,:]] 
+            motion[2,:] = q[mdl.ID[2,:]]
+            motion[3,:] = q[mdl.ID[3,:]]
 
-            BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
-            surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
-            pi, qi = fit_curve(border=BorderPts2D)
+            mdl.NodeList = mdl.NodeList + motion    # update the node coordinates
+
+            # BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, state)
+            # surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
+            # pi, qi = fit_curve(border=BorderPts2D)
+
+            NodeList_, IEN_list_, motion_ = eval_on_cylinder(mdl, motion, nsub)
 
             # store the solutions in a list
             push!(output, F_est[1])
-            push!(fields, motion)
-            push!(pos2D, Nodes2D)
-            push!(pos3D, NodeListCylinder)
-            push!(borderPts2DList, BorderPts2D)
-            push!(borderNodeList2D, BorderNodes2D)
-            push!(splinep, pi)
-            push!(splineq, qi) 
-            push!(writeborderList, vcat(pi', qi'))
+            push!(fields, motion_)
+            # push!(pos2D, Nodes2D)
+            push!(pos3D, NodeList_)
+            push!(cpList,mdl.NodeList)
+            # push!(borderPts2DList, BorderPts2D)
+            # push!(borderNodeList2D, BorderNodes2D)
+            # push!(splinep, pi)
+            # push!(splineq, qi) 
+            # push!(writeborderList, vcat(pi', qi'))
 
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
@@ -859,11 +870,12 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     end
 
     if writeData
-        write_scene(string(filepath,"/Results"), NodeListCylinder, IEN, ne, ndim, pos3D, ID=ID, FunctionClass=FunctionClass)
-        animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
-        write_contour_data(string(filepath,"/Results"), writeborderList)
+        write_scene(string(filepath,"/Results"), NodeList_, IEN_list, mdl.ne, mdl.ndim, pos3D, ID=mdl.ID, FunctionClass="Q2")
+        # write_scene(string(filepath,"/Results"), mdl.NodeList, mdl.IEN, mdl.ne, mdl.ndim, cpList, ID=mdl.ID, FunctionClass="Q2")
+        # animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+        # write_contour_data(string(filepath,"/Results"), writeborderList)
     end
-    return output, borderPts2DList, borderNodeList2D, splinep, splineq, mdl
+    return output #, borderPts2DList, borderNodeList2D, splinep, splineq, mdl
 end
 
 function get_volume(mdl::model)
