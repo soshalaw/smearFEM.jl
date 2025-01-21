@@ -72,7 +72,7 @@ function main()
                                             filepathi = string(filepath,"experiment_",iter)
                                             write_sim_data(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepathi)
                                             
-                                            ObsDataList, splinex, spliney = read_csv(filepathi, NOISE=true, nProfile=noiseProfile, nFactor=noiseLevel)
+                                            ObsDataList, splinexObs, splineyObs = readData(filepathi, nFactor=noiseLevel)
 
                                             dev_ν = νtst*dev
                                             dev_Young = Youngtst*dev
@@ -173,7 +173,7 @@ function main()
 
                                             filepathi = string(filepathlame,"experiment_",iter)
                                             simBorderPts, simBorderNodes, splinex, spliney = write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, endTime, tSteps, Control,filepathi, mode="lame")
-                                            ObsDataList, splinexObs, splineyObs = readData(filepathi, NOISE=true, nProfile=noiseProfile, nFactor=noiseLevel)
+                                            ObsDataList, splinexObs, splineyObs = ObsDataList, splinexObs, splineyObs = readData(filepathi, nFactor=noiseLevel)
                                             
                                             ObsData = [ObsDataList, splinexObs, splineyObs]
 
