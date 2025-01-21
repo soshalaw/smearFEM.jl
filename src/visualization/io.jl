@@ -2,6 +2,7 @@ using WriteVTK
 using ProgressMeter
 using DelimitedFiles
 using JSON3
+using Distributions
 using HDF5
 
 """
@@ -108,30 +109,24 @@ Function to read the CSV files in the directory and fit a curve to the border ob
 - `splinep::Vector{Float64}`: x coordinates samples of the spline parameters of the border nodes.
 - `splineq::Vector{Float64}`: y coordinates samples of the spline parameters of the border nodes.
 """
-function read_csv(csv_path::String; NOISE::Bool=false, nProfile::Int64=1, nFactor=0)   
+function read_csv(csv_path::String; nFactor=0)   
 
     csv_files = readdir(csv_path, join=true)        # get the list of the csv files in the directory
     ObsDataList = AbstractArray[]                                  # store the observation data
     splinex = AbstractArray[]
     spliney = AbstractArray[]
+    pdf = Normal(0,nFactor)
 
-    obsData_ = readdlm(csv_files[1], ',', Float64, '\n', header=false)  # read the observation data
-    w = zeros(Float64,size(obsData_))
-    if NOISE && nProfile == 1
-        w = nFactor*randn(size(obsData_))
-    end
     for file in csv_files
         obsData = readdlm(file, ',', Float64, '\n', header=false)  # read the observation data
-        if NOISE && nProfile == 2
-            w = nFactor*randn(size(obsData))
-        end
+        w = rand(pdf, size(obsData))
         obsData = obsData + w
         push!(ObsDataList, obsData') # store the transpose of the observation data to fit the comparison function
         push!(splinex, obsData[:,1])
         push!(spliney, obsData[:,2])
     end
 
-    return ObsDataList, splinex, spliney
+    return ObsDataList, splinex, spliney, pdf
 end
 
 """
