@@ -3,7 +3,7 @@ using Plots
 
 function match_points(pSim,pObs)
     pSim, qSim = pSim[1,:], pSim[2,:]
-    pObs, qObs = pObs[1], pObs[2]
+    pObs, qObs = pObs[1,:], pObs[2,:]
     pairs = AbstractArray[]
     PointCounter = 1
     for (pi,qi) in zip(pSim, qSim)
@@ -27,13 +27,14 @@ end
 function closest_point(simScene, obsScene)
     # Define the cost function
     costList = Float64[]
-    for (obsData, simData) in zip(obsScene[2:end], simScene[2:end]) # iterate over the scenes
+    pairsList = []
+    for (obsData, simData) in zip(obsScene[1:end], simScene[1:end]) # iterate over the scenes
         tcost = 0
+
+        pairs = match_points(simData, obsData) # match the points using the first border
 
         pSim, qSim = simData[1,:], simData[2,:]
         pObs, qObs = obsData[1,:], obsData[2,:]
-
-        pairs = match_points(obsData, simData) # match the points using the first border
 
         for pair in pairs
             tcost += (pSim[pair[1]] - pObs[pair[2]])^2 + (qSim[pair[1]] - qObs[pair[2]])^2
@@ -41,8 +42,9 @@ function closest_point(simScene, obsScene)
 
         mCost = tcost/length(pairs)
         push!(costList, mCost)
+        push!(pairsList,pairs)
     end
-    return costList
+    return costList, pairsList
 end
 
 function height_sample(simScene,obsScene)

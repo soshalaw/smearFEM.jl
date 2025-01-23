@@ -209,15 +209,15 @@ end
 
 function plot_matches(simborderfields, p, q, pObs, qObs, pairs, filepath="images")
     sz = length(simborderfields)
-    pr = Progress(sz; desc="Plotting matches...",showspeed=true)
+    pr = Progress(sz; desc="Plotting matches ...",showspeed=true)
     iter = 1:sz
     animation = @animate for i in iter
         borderp = simborderfields[i][1,:]
         borderq = simborderfields[i][2,:]
         plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y",title="Prospective Projection of the 3D Grid", label="", dpi=400)
-        Plots.plot!(p[i],q[i], legend=true, labels="Simulation",  dpi=:400)
+        # Plots.plot!(p[i],q[i], legend=true, labels="Simulation",  dpi=:400)
         Plots.plot!(pObs[i],qObs[i], labels="Observation",  dpi=:400)
-        for pair in pairs
+        for pair in pairs[i]
             Plots.plot!([borderp[pair[1]], pObs[i][pair[2]]], [borderq[pair[1]], qObs[i][pair[2]]], marker=1.5, lw=0.5, label="", dpi=:400)
         end
         Plots.xlims!(0,2048)

@@ -23,18 +23,19 @@ function main()
     β = 100
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
     endTime = 15
-    tSteps = 45
+    tSteps = 30
     dateTime = Dates.now()
-    sampleNo = 13
+    sampleNo = 21
     dev = 0.3
 
-    noiseLevelLst = [0 0.25 0.5 1]
+    # noiseLevelLst = [0 0.25 0.5 1 1.5 2]
+    noiseLevelLst = [2 3 4 5]
     YoungtstLst = [30 35 40]
     νtstLst = [0.25 0.3 0.35]
-    βLst = [100 1000 10000]
+    # βLst = [100 1000 10000]
+    βLst = [100]
     ControlList = ["force", "displacement"]
     sideList = [true, false]
-    SIDES = [true, false]
 
     # Derived Lame constants from Young's modulus and Poisson ratio
     lambdatstLst_ = YoungtstLst.*νtstLst./((νtstLst.+1).*(-2*νtstLst.+1))
@@ -48,216 +49,208 @@ function main()
     Lame = true # Test for Lame constants
 
     folder = string("/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
-    
-    iter = 1
-    for sides in sideList
-        for noiseLevel in noiseLevelLst
-            for noiseProfile in noiseProfileList
-                for Youngtst in YoungtstLst
-                    for νtst in νtstLst
-                        for βtst in βLst
-                            dev_β = βtst*dev
-                            βList = collect(range(βtst-dev_β, stop=βtst+dev_β, length=sampleNo))
-                            for Control in ControlList
-                                if Standard == true
-                                    ############################################################################################################################################
-                                    ## Testing with youngs modulus and poisson ratio
-                                    ############################################################################################################################################
-                                    filepath = string(folder,"/standard/")
 
-                                    for Youngtst in YoungtstLst
-                                        for νtst in νtstLst
-                                            println("For testing with Young's modulus and Poisson ratio...")
+    for βtst in βLst
+        dev_β = βtst*dev
+        βList = collect(range(βtst-dev_β, stop=βtst+dev_β, length=sampleNo))
+        for Control in ControlList
+            for sides in sideList
+                for noiseLevel in noiseLevelLst
+                    iter = 1
+                    if Lame == true        
+                    ############################################################################################################################################
+                    ## Testing with lame constants
+                    ############################################################################################################################################
+                        filepathlame = string(folder,"/Lame/")
+                        for lambdatst in lambdatstLst
+                            for mutst in mutstLst
+                                println("For testing with Lame constants...")
 
-                                            filepathi = string(filepath,"experiment_",iter)
-                                            write_sim_data(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepathi)
-                                            
-                                            ObsDataList, splinex, spliney = read_csv(filepathi, nFactor=noiseLevel)
+                                dev_λ = lambdatst*dev
+                                dev_μ = mutst*dev
 
-                                            dev_ν = νtst*dev
-                                            dev_Young = Youngtst*dev
-
-                                            YngList = collect(range(Youngtst-dev_Young, stop=Youngtst+dev_Young, length=sampleNo))
-                                            νList = collect(range(νtst-dev_ν, stop=νtst+dev_ν, length=sampleNo))
-
-                                            hcostListν = Float64[]
-                                            cpCostListν = Float64[]
-                                            hcostListYoung = Float64[]
-                                            cpcostListYoung = Float64[]
-                                            hCostListβ = Float64[]
-                                            cpCostListβ = Float64[]
-
-                                            for Young in YngList
-                                                hcost, cpCost = test(x0, x1, y0, y1, z0, z1, ne, Young, νtst, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
-                                                                    endTime, tSteps, Control, filepath=filepathi,NOISE=true, noiseProfile=noiseProfile,
-                                                                    noiseLevel=noiseLevel)                                       
-                                                push!(hcostListν, sum(hcost)/length(hcost))
-                                                push!(cpCostListν, sum(cpCost)/length(cpCost))
-                                            end
-
-                                            for ν in νList
-                                                hcost, cpCost = test(x0, x1, y0, y1, z0, z1, ne, Youngtst, ν, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
-                                                                    endTime, tSteps, Control, filepath=filepathi,NOISE=true, noiseProfile=noiseProfile,
-                                                                    noiseLevel=noiseLevel)
-                                                push!(hcostListYoung, sum(hcost)/length(hcost))
-                                                push!(cpcostListYoung, sum(cpCost)/length(cpCost))
-                                            end
-
-                                            for β in βList
-                                                hcost, cpCost = test(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, 
-                                                                    endTime, tSteps, Control, filepath=filepathi,NOISE=true, noiseProfile=noiseProfile,
-                                                                    noiseLevel=noiseLevel)
-                                                push!(hCostListβ, sum(hcost)/length(hcost))
-                                                push!(cpCostListβ, sum(cpCost)/length(cpCost))
-                                            end
-    
-                                            # plot the cost function with respect to the poisson ratio
-                                            Plots.plot(νList, hcostListν, label="Height sample Cost", marker=1, dpi=400)
-                                            Plots.vline!([νtst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("Poisson Ratio (ν)")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_height_nu.png"))
-
-                                            Plots.plot(νList, cpCostListν, label="Closest Point Cost", marker=1, dpi=400)
-                                            Plots.vline!([νtst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("Poisson Ratio (ν)")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_cp_nu.png"))
-
-                                            # plot the cost function with respect to the young's modulus
-                                            Plots.plot(YngList, hcostListYoung, label="Height sample Cost", marker=1, dpi=400)
-                                            Plots.vline!([Youngtst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("Young's Modulus (E)")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_height_young.png"))
-
-                                            Plots.plot(YngList, cpcostListYoung, label="Closest Point Cost", marker=1, dpi=400)
-                                            Plots.vline!([Youngtst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("Young's Modulus (E)")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_cp_young.png"))
-
-                                            # plot the cost function with respect to friction parameter
-                                            Plots.plot(βList, hCostListβ, label="Height sample Cost", marker=1, dpi=400)
-                                            Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("β")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_height_β.png"))
-
-                                            Plots.plot(βList, cpCostListβ, label="Closest Point Cost", marker=1, dpi=400)
-                                            Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("β")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_cp_β.png"))
-
-                                            params = Dict("Paramter type" => "Standard", "E" => Youngtst, "ν" => νtst, "β" => βtst, "Control" => Control,
-                                                        "Noise Level" => noiseLevel, "Noise Profile" => noiseProfile)
-
-                                            write_json(string(filepathi,"/Results/params"), params)
-                                            iter += 1
-                                        end
-                                    end
-                                end
+                                filepathi = string(filepathlame,"slip_",βtst,"/control_",Control,"/sides_",sides,"/noise_",noiseLevel,"/experiment_",iter,)
+                                simBorderPts, simBorderNodes, splinex, spliney = write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, endTime, tSteps, Control,filepathi, mode="lame")
+                                ObsDataList, splinexObs, splineyObs = readData(filepathi, nFactor=noiseLevel)
                                 
-                                if Lame == true
-                                ############################################################################################################################################
-                                ## Testing with lame constants
-                                ############################################################################################################################################
-                                    filepathlame = string(folder,"/Lame/")
-                                    for lambdatst in lambdatstLst
-                                        for mutst in mutstLst
-                                            println("For testing with Lame constants...")
+                                ObsData = [ObsDataList, splinexObs, splineyObs]
 
-                                            dev_λ = lambdatst*dev
-                                            dev_μ = mutst*dev
+                                println(size(splineyObs))
+                                # animate_fields(filepath = string(filepathi,"/Results"), p=splinex, q=spliney)
+                                animate_fields(filepath = string(filepathi,"/Results"), BorderNodes2D=simBorderPts, pObs=splinexObs, qObs=splineyObs)
+                                lambdaList = collect(range(lambdatst-dev_λ, stop=lambdatst+dev_λ, length=sampleNo))
+                                muList = collect(range(mutst-dev_μ, stop=mutst+dev_μ, length=sampleNo))
 
-                                            filepathi = string(filepathlame,"experiment_",iter)
-                                            simBorderPts, simBorderNodes, splinex, spliney = write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, endTime, tSteps, Control,filepathi, mode="lame")
-                                            ObsDataList, splinexObs, splineyObs = readData(filepathi, nFactor=noiseLevel)
-                                            
-                                            ObsData = [ObsDataList, splinexObs, splineyObs]
+                                hCostListμ = Float64[]
+                                cpCostListμ = Float64[]
+                                hCostListλ = Float64[]
+                                cpCostListλ = Float64[]
+                                hCostListβ = Float64[]
+                                cpCostListβ = Float64[]
 
-                                            println(size(splineyObs))
-                                            # animate_fields(filepath = string(filepathi,"/Results"), p=splinex, q=spliney)
-                                            animate_fields(filepath = string(filepathi,"/Results"), BorderNodes2D=simBorderPts, pObs=splinexObs, qObs=splineyObs)
-                                            lambdaList = collect(range(lambdatst-dev_λ, stop=lambdatst+dev_λ, length=sampleNo))
-                                            muList = collect(range(mutst-dev_μ, stop=mutst+dev_μ, length=sampleNo))
-
-                                            hCostListμ = Float64[]
-                                            cpCostListμ = Float64[]
-                                            hCostListλ = Float64[]
-                                            cpCostListλ = Float64[]
-                                            hCostListβ = Float64[]
-                                            cpCostListβ = Float64[]
-
-                                            for λ in lambdaList
-                                                hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, λ, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
-                                                                    endTime, tSteps, Control, "lame", ObsData)    
-                                                push!(hCostListλ, sum(hcost)/length(hcost))
-                                                push!(cpCostListλ, sum(cpCost)/length(cpCost))
-                                            end
-
-                                            for μ in muList
-                                                hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, lambdatst, μ, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
-                                                                        endTime, tSteps, Control, "lame", ObsData)
-                                                push!(hCostListμ, sum(hcost)/length(hcost))
-                                                push!(cpCostListμ, sum(cpCost)/length(cpCost))
-                                            end
-
-                                            for β in βList 
-                                                hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, 
-                                                                        endTime, tSteps, Control, "lame", ObsData)
-                                                push!(hCostListβ, sum(hcost)/length(hcost))
-                                                push!(cpCostListβ, sum(cpCost)/length(cpCost))
-                                            end
-
-                                            # plot the cost function with respect to λ
-                                            Plots.plot(lambdaList, hCostListλ, label="Height sample Cost", marker=1, dpi=400)
-                                            Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("λ")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_height_lbd.png"))
-
-                                            Plots.plot(lambdaList, cpCostListλ, label="Closest Point Cost", marker=1, dpi=400)
-                                            Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("λ")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_cp_lbd.png"))
-
-                                            # plot the cost function with respect to μ
-                                            Plots.plot(muList, hCostListμ, label="Height sample Cost", marker=1, dpi=400)
-                                            Plots.vline!([mutst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("μ")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_height_mu.png"))
-
-                                            Plots.plot(muList, cpCostListμ, label="Closest Point Cost", marker=1, dpi=400)
-                                            Plots.vline!([mutst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("μ")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_cp_mu.png"))
-
-                                            # plot the cost function with respect to friction parameter
-                                            Plots.plot(βList, hCostListβ, label="Height sample Cost", marker=1, dpi=400)
-                                            Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("β")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_height_β.png"))
-
-                                            Plots.plot(βList, cpCostListβ, label="Closest Point Cost", marker=1, dpi=400)
-                                            Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
-                                            Plots.xlabel!("β")
-                                            Plots.ylabel!("Mean Error")
-                                            Plots.savefig(string(filepathi,"/Results/cost/cost_cp_β.png"))
-
-                                            params = Dict("Paramter type" => "Lame", "λ" => lambdatst, "μ" => mutst, "β" => βtst, "Control" => Control,
-                                                        "Noise Level" => noiseLevel, "Sides" => noiseProfile)
-
-                                            write_json(string(filepathi,"/Results/params"), params)
-                                            iter += 1
-                                        end
-                                    end
+                                for λ in lambdaList
+                                    hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, λ, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
+                                                        endTime, tSteps, Control, "lame", ObsData, sides)    
+                                    # push!(hCostListλ, sum(hcost)/length(hcost))
+                                    push!(cpCostListλ, sum(cpCost)/length(cpCost))
                                 end
+
+                                for μ in muList
+                                    hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, lambdatst, μ, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
+                                                            endTime, tSteps, Control, "lame", ObsData, sides)
+                                    # push!(hCostListμ, sum(hcost)/length(hcost))
+                                    push!(cpCostListμ, sum(cpCost)/length(cpCost))
+                                end
+
+                                for β in βList 
+                                    hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, 
+                                                            endTime, tSteps, Control, "lame", ObsData, sides)
+                                    # push!(hCostListβ, sum(hcost)/length(hcost))
+                                    push!(cpCostListβ, sum(cpCost)/length(cpCost))
+                                end
+
+                                # plot the cost function with respect to λ
+                                # Plots.plot(lambdaList, hCostListλ, label="Height sample Cost", marker=1, dpi=400)
+                                # Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
+                                # Plots.xlabel!("λ")
+                                # Plots.ylabel!("Mean Error")
+                                # Plots.savefig(string(filepathi,"/Results/cost/cost_height_lbd.png"))
+
+                                Plots.plot(lambdaList, cpCostListλ, label="Closest Point Cost", marker=1, dpi=400)
+                                Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
+                                Plots.xlabel!("λ")
+                                Plots.ylabel!("Mean Error")
+                                Plots.savefig(string(filepathi,"/Results/cost/cost_cp_lbd.png"))
+
+                                # plot the cost function with respect to μ
+                                # Plots.plot(muList, hCostListμ, label="Height sample Cost", marker=1, dpi=400)
+                                # Plots.vline!([mutst],linestyle=:dash,linecolor=:grey)
+                                # Plots.xlabel!("μ")
+                                # Plots.ylabel!("Mean Error")
+                                # Plots.savefig(string(filepathi,"/Results/cost/cost_height_mu.png"))
+
+                                Plots.plot(muList, cpCostListμ, label="Closest Point Cost", marker=1, dpi=400)
+                                Plots.vline!([mutst],linestyle=:dash,linecolor=:grey)
+                                Plots.xlabel!("μ")
+                                Plots.ylabel!("Mean Error")
+                                Plots.savefig(string(filepathi,"/Results/cost/cost_cp_mu.png"))
+
+                                # plot the cost function with respect to friction parameter
+                                # Plots.plot(βList, hCostListβ, label="Height sample Cost", marker=1, dpi=400)
+                                # Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
+                                # Plots.xlabel!("β")
+                                # Plots.ylabel!("Mean Error")
+                                # Plots.savefig(string(filepathi,"/Results/cost/cost_height_β.png"))
+
+                                Plots.plot(βList, cpCostListβ, label="Closest Point Cost", marker=1, dpi=400)
+                                Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
+                                Plots.xlabel!("β")
+                                Plots.ylabel!("Mean Error")
+                                Plots.savefig(string(filepathi,"/Results/cost/cost_cp_β.png"))
+
+                                params = Dict("Paramter type" => "Lame", "λ" => lambdatst, "μ" => mutst, "β" => βtst, "Control" => Control,
+                                            "Noise Level" => noiseLevel, "Sides" => sides)
+
+                                write_json(string(filepathi,"/Results/params"), params)
+                                iter += 1
+                            end
+                        end
+                    end
+                    if Standard == true
+                        ############################################################################################################################################
+                        ## Testing with youngs modulus and poisson ratio
+                        ############################################################################################################################################
+                        filepath = string(folder,"/standard/")
+                        for Youngtst in YoungtstLst
+                            for νtst in νtstLst
+                                println("For testing with Young's modulus and Poisson ratio...")
+
+                                filepathi = string(filepath,"experiment_",iter)
+                                write_sim_data(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepathi)
+                                
+                                ObsDataList, splinex, spliney = read_csv(filepathi, nFactor=noiseLevel)
+
+                                dev_ν = νtst*dev
+                                dev_Young = Youngtst*dev
+
+                                YngList = collect(range(Youngtst-dev_Young, stop=Youngtst+dev_Young, length=sampleNo))
+                                νList = collect(range(νtst-dev_ν, stop=νtst+dev_ν, length=sampleNo))
+
+                                hcostListν = Float64[]
+                                cpCostListν = Float64[]
+                                hcostListYoung = Float64[]
+                                cpcostListYoung = Float64[]
+                                hCostListβ = Float64[]
+                                cpCostListβ = Float64[]
+
+                                for Young in YngList
+                                    hcost, cpCost = test(x0, x1, y0, y1, z0, z1, ne, Young, νtst, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
+                                                        endTime, tSteps, Control, filepath=filepathi,NOISE=true, noiseProfile=noiseProfile,
+                                                        noiseLevel=noiseLevel)                                       
+                                    push!(hcostListν, sum(hcost)/length(hcost))
+                                    push!(cpCostListν, sum(cpCost)/length(cpCost))
+                                end
+
+                                for ν in νList
+                                    hcost, cpCost = test(x0, x1, y0, y1, z0, z1, ne, Youngtst, ν, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
+                                                        endTime, tSteps, Control, filepath=filepathi,NOISE=true, noiseProfile=noiseProfile,
+                                                        noiseLevel=noiseLevel)
+                                    push!(hcostListYoung, sum(hcost)/length(hcost))
+                                    push!(cpcostListYoung, sum(cpCost)/length(cpCost))
+                                end
+
+                                for β in βList
+                                    hcost, cpCost = test(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, 
+                                                        endTime, tSteps, Control, filepath=filepathi,NOISE=true, noiseProfile=noiseProfile,
+                                                        noiseLevel=noiseLevel)
+                                    push!(hCostListβ, sum(hcost)/length(hcost))
+                                    push!(cpCostListβ, sum(cpCost)/length(cpCost))
+                                end
+
+                                # plot the cost function with respect to the poisson ratio
+                                Plots.plot(νList, hcostListν, label="Height sample Cost", marker=1, dpi=400)
+                                Plots.vline!([νtst],linestyle=:dash,linecolor=:grey)
+                                Plots.xlabel!("Poisson Ratio (ν)")
+                                Plots.ylabel!("Mean Error")
+                                Plots.savefig(string(filepathi,"/Results/cost/cost_height_nu.png"))
+
+                                Plots.plot(νList, cpCostListν, label="Closest Point Cost", marker=1, dpi=400)
+                                Plots.vline!([νtst],linestyle=:dash,linecolor=:grey)
+                                Plots.xlabel!("Poisson Ratio (ν)")
+                                Plots.ylabel!("Mean Error")
+                                Plots.savefig(string(filepathi,"/Results/cost/cost_cp_nu.png"))
+
+                                # plot the cost function with respect to the young's modulus
+                                Plots.plot(YngList, hcostListYoung, label="Height sample Cost", marker=1, dpi=400)
+                                Plots.vline!([Youngtst],linestyle=:dash,linecolor=:grey)
+                                Plots.xlabel!("Young's Modulus (E)")
+                                Plots.ylabel!("Mean Error")
+                                Plots.savefig(string(filepathi,"/Results/cost/cost_height_young.png"))
+
+                                Plots.plot(YngList, cpcostListYoung, label="Closest Point Cost", marker=1, dpi=400)
+                                Plots.vline!([Youngtst],linestyle=:dash,linecolor=:grey)
+                                Plots.xlabel!("Young's Modulus (E)")
+                                Plots.ylabel!("Mean Error")
+                                Plots.savefig(string(filepathi,"/Results/cost/cost_cp_young.png"))
+
+                                # plot the cost function with respect to friction parameter
+                                Plots.plot(βList, hCostListβ, label="Height sample Cost", marker=1, dpi=400)
+                                Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
+                                Plots.xlabel!("β")
+                                Plots.ylabel!("Mean Error")
+                                Plots.savefig(string(filepathi,"/Results/cost/cost_height_β.png"))
+
+                                Plots.plot(βList, cpCostListβ, label="Closest Point Cost", marker=1, dpi=400)
+                                Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
+                                Plots.xlabel!("β")
+                                Plots.ylabel!("Mean Error")
+                                Plots.savefig(string(filepathi,"/Results/cost/cost_cp_β.png"))
+
+                                params = Dict("Paramter type" => "Standard", "E" => Youngtst, "ν" => νtst, "β" => βtst, "Control" => Control,
+                                            "Noise Level" => noiseLevel, "Noise Profile" => sides)
+
+                                write_json(string(filepathi,"/Results/params"), params)
+                                iter += 1
                             end
                         end
                     end

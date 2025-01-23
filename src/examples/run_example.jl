@@ -273,8 +273,8 @@ function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionCla
     splineyObs = ObsData[3]
     
     # test the closest point function
-    pairs = match_points(simBorderPts[1], [splinexObs[1],splineyObs[1]]) # match the points using the first border
-    d_cp = closest_point(simBorderPts, obsBorderPts, pairs)
+    
+    d_cp, pairs = closest_point(simBorderPts, obsBorderPts)
 
     if PLOT
         @assert !isnothing(filepath) "File path not provided"
@@ -346,9 +346,9 @@ Read the data from a file
 - `nFactor::Int` : noise level
 """
 function readData(filepath::String; nFactor=0)
-    obsBorderPts, splinexObs, splineyObs, pdf = read_csv(string(filepath,"/Results/contour_data"), nFactor=nFactor)   
+    obsBorderPts, splinexObs, splineyObs, pdf_ = read_csv(string(filepath,"/Results/contour_data"), nFactor=nFactor)   
     animate_fields(filepath = string(filepath,"/Results/cost"),pObs=splinexObs, qObs=splineyObs) # animate the fields
-    plot(x->pdf(d, x))
+    plot(x->pdf(pdf_, x))
     savefig(string(filepath,"/Results"))
     return obsBorderPts, splinexObs, splineyObs
 end
