@@ -250,29 +250,35 @@ function read_h5(filename::String, mode::String="sim")
     CPointList = read(h5file, "X")  # Control points
     W = read(h5file, "W")  # Control point weights
     IEN = read(h5file, "IEN").+1  # Element connectivity
-    IEN_cp = read(h5file, "IEN_cp").+1  # Element connectivity
     C = read(h5file, "C")  # Extraction operators
     C_new = permutedims(C,[2,1,3])
 
-    if mode == "sim"
-        IEN_top = read(h5file, "IEN_top").+1  # Element connectivity
-        IEN_btm = read(h5file, "IEN_bottom").+1  # Element connectivity
-        C_top = read(h5file, "C_top")
-        C_top_new = permutedims(C_top,[2,1,3])
-        C_btm = read(h5file, "C_bottom")
-        C_btm_new = permutedims(C_btm,[2,1,3])
+    IEN_top = read(h5file, "IEN_back").+1  # Element connectivity
+    IEN_btm = read(h5file, "IEN_front").+1  # Element connectivity
+    C_top = read(h5file, "C_back")
+    C_top_new = permutedims(C_top,[2,1,3])
+    C_btm = read(h5file, "C_front")
+    C_btm_new = permutedims(C_btm,[2,1,3])
+
+    if mode == "test"
+        vol_BSpline = read(h5file, "BSpline_vol")
+        vol_NURBS = read(h5file, "NURBS_vol")
+        area_BSpline = read(h5file, "BSpline_area")
+        area_NURBS = read(h5file, "NURBS_area")
+
+        # Close the HDF5 file after reading
+        close(h5file)   
+
+        return CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new, vol_BSpline, vol_NURBS, area_BSpline, area_NURBS
+    elseif mode == "sim"
+
+        IEN_cp = read(h5file, "IEN_cp").+1  # Element connectivity
 
         # Close the HDF5 file after reading
         close(h5file)
 
         return CPointList, W, C_new, IEN, IEN_cp, IEN_top, C_top_new, IEN_btm, C_btm_new
-    elseif mode == "test"
-        vol_BSpline = read(h5file, "BSpline_vol")
-        vol_NURBS = read(h5file, "NURBS_vol")
-
-        # Close the HDF5 file after reading
-        close(h5file)   
-
-        return CPointList, W, C_new, IEN, vol_BSpline, vol_NURBS
     end
+
+
 end

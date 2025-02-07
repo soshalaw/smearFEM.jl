@@ -387,7 +387,9 @@ Read the data from a file
 - `nFactor::Int` : noise level
 """
 function readData(filepath::String; NOISE::Bool=false, nProfile::Int64=1, nFactor=0)
+
     obsBorderPts, splinexObs, splineyObs = read_csv(string(filepath,"/Results/contour_data"),NOISE=NOISE, nProfile=nProfile, nFactor=nFactor)                    # read the observation data
     animate_fields(filepath = string(filepath,"/Results/cost"),pObs=splinexObs, qObs=splineyObs) # animate the fields
+    
     return obsBorderPts, splinexObs, splineyObs
 end

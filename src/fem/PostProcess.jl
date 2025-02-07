@@ -414,15 +414,14 @@ function eval_on_cylinder(mdl::model, nsub::Int64=0)
         for xsub in 1:2^nsub
             for ysub in 1:2^nsub
                 for zsub in 1:2^nsub
-
+                    # counter within the elements
                     cnte = (e-1)*(2^(nsub*3)) + (xsub-1)*(2^(nsub*2)) + (ysub-1)*(2^(nsub)) + zsub
+
                     offset = [(xsub-1)*scale, (ysub-1)*scale, (zsub-1)*scale]
-
                     for j in nodeiter
-
                         scaledPoint = offset .+ scale*(0.5.+0.5*lPoints[j,:])
                         scaledPoint = -1 .+ 2*scaledPoint
-  
+                        # get the NURBs and the gradients
                         Re, ΔRe = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], mdl.C[:,:,e], mdl.W[mdl.IEN[:,e]], "S2")
 
                         NodeList_[:,(cnte-1)*size(mdl.IEN,1)+j] = Re'*mdl.NodeList[:,mdl.IEN[:,e]]'
@@ -433,7 +432,6 @@ function eval_on_cylinder(mdl::model, nsub::Int64=0)
             end
         end
     end
-
     return NodeList_, IEN_list
 end
 

@@ -6,7 +6,7 @@ using Test
 
     filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
 
-    CPointList, W, C, IEN, vol_BSpline, vol_NURBS = read_h5(string(filePath,"/cylinder.h5"),"sim")
+    CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new, vol_BSpline, vol_NURBS, area_BSpline, area_NURBS = read_h5(string(filePath,"/cylinder.h5"),"test")
 
     NodeList = zeros(Float64, 3, size(IEN,2)*size(IEN,1))
     IEN_list = zeros(Int64, size(IEN))
@@ -25,45 +25,6 @@ using Test
             ID[l,m] = ndim*(m-1) + l
         end
     end 
-
-    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, ndim=ndim, nDof=ndim, ID = ID,
-    FunctionClass="Q2", C = C, W = W)
-
-    # construct the parent element
-    lPoints = zeros(27,3)
-    lPoints[1,:] = [-1 , -1, -1]
-    lPoints[2,:] = [1 , -1, -1]
-    lPoints[3,:] = [1 , 1, -1]
-    lPoints[4,:] = [-1 , 1, -1]
-
-    lPoints[5,:] = [-1 , -1, 1]
-    lPoints[6,:] = [1 , -1, 1]
-    lPoints[7,:] = [1 , 1, 1]
-    lPoints[8,:] = [-1 , 1, 1]
-    
-    lPoints[9,:] = [0 , -1, -1]
-    lPoints[10,:] = [1 , 0, -1]
-    lPoints[11,:] = [0 , 1, -1]
-    lPoints[12,:] = [-1 , 0, -1]
-
-    lPoints[13,:] = [0 , -1, 1]
-    lPoints[14,:] = [1 , 0, 1]
-    lPoints[15,:] = [0 , 1, 1]
-    lPoints[16,:] = [-1 , 0, 1]
-
-    lPoints[17,:] = [-1 , -1, 0]
-    lPoints[18,:] = [1 , -1, 0]
-    lPoints[19,:] = [1 , 1, 0]
-    lPoints[20,:] = [-1 , 1, 0]
-
-    lPoints[21,:] = [0 , -1, 0]
-    lPoints[22,:] = [1 , 0, 0]
-    lPoints[23,:] = [0 , 1, 0]
-    lPoints[24,:] = [-1 , 0, 0]
-
-    lPoints[25,:] = [0, 0, -1]
-    lPoints[26,:] = [0, 0, 1]
-    lPoints[27,:] = [0, 0, 0]
 
     if ndim == 1
         # gaussian quadrature points for the element [-1,1] 
@@ -119,7 +80,6 @@ using Test
     vol = 0
 
     eiter = 1:size(IEN,2)
-    nodeiter = 1:size(lPoints,1)
 
     gpiter = 1:length(wpoints)
     for gp in gpiter
@@ -145,27 +105,89 @@ using Test
 
             w = wpoints[gp]*abs(det(Jac))
 
-            global vol = vol + w
+            vol += w
         end
     end
-    
     @test vol ≈ vol_NURBS atol=1e-5
 end
 
-# for e in eiter 
-#     for j in nodeiter
-#         B, ΔB = basis_function(lPoints[j,1],lPoints[j,2],lPoints[j,3], C[:,:,e], W[IEN[:,e]], "S2")
-#         for b in B 
-#             if abs(b) > 1e-10
-#                 @test (b > 0)
-#             end
-#         end 
-#         @test 1.0 ≈ sum(B) atol=1e-5
-#         NodeList[:,(e-1)*size(IEN,1)+j] = B'*mdl.NodeList[:,IEN[:,e]]'
-#         IEN_list[j,e] = (e-1)*size(IEN,1)+j
-#     end
-# end
+@testset "area test for BSplines and NURBS" begin
 
+    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
 
-# display(IEN_list)
-# write_vtk(filePath, "q", NodeList, IEN_list, ne, ndim, q, ID=ID, FunctionClass="Q2")
+    CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new, vol_BSpline, vol_NURBS, area_BSpline, area_NURBS = read_h5(string(filePath,"/cylinder.h5"),"test")
+
+    NodeList = zeros(Float64, 3, size(IEN,2)*size(IEN,1))
+    IEN_list = zeros(Int64, size(IEN))
+
+    ndim = size(CPointList,1)
+    ne = Int64(round((size(IEN,2))^(1/ndim)))
+
+    # dummy solution
+    q = ones(3,size(CPointList,2))
+
+    ID = zeros(Int64, ndim, size(CPointList,2))
+    cpiter = 1:size(CPointList,2)
+
+    for m in cpiter
+        for l in 1:ndim
+            ID[l,m] = ndim*(m-1) + l
+        end
+    end 
+
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, ndim=ndim, nDof=ndim, ID = ID,
+    FunctionClass="Q2", C = C, W = W)
+
+    if mdl.ndim == 2
+        # gaussian quadrature points for the element [-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1)
+
+        wpoints =  [w_ξ[1], w_ξ[2]]
+        
+        x = [ξ[1], ξ[2]]
+    elseif mdl.ndim == 3            
+        # gaussian quadrature points for the element [-1,1]x[-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
+        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
+
+        x = Float64[]
+        y = Float64[]
+        wpoints =  Float64[]
+        
+        n = 1:size(ξ,1)
+        m = 1:size(η,1)
+        for j in m # loop over η
+            for i in n # loop over ξ
+                push!(x, ξ[i])
+                push!(y, η[j])
+                push!(wpoints, w_ξ[i]*w_η[j])
+            end
+        end
+    end 
+    area_top = 0
+    area_btm = 0
+
+    e_iter = 1:mdl.ne^(mdl.ndim-1)
+    # integration loop
+    gpiter = 1:length(wpoints)
+    for gp in gpiter
+        for e in e_iter
+            N_top, ΔN_top = basis_function(x[gp], y[gp], C_top[:,:,e], W[IEN_top[:,e]], "S2") 
+            N_btm, ΔN_btm = basis_function(x[gp], y[gp], C_btm[:,:,e], W[IEN_btm[:,e]], "S2") 
+
+            coords_top = mdl.NodeList[:,IEN_top[:,e]] # get the coordinates of the nodes of the element
+            coords_btm = mdl.NodeList[:,IEN_btm[:,e]] # get the coordinates of the nodes of the element
+
+            dxdξ_top = coords_top*ΔN_top         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
+            dxdξ_btm = coords_btm*ΔN_btm         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
+
+            w_top = wpoints[gp]*norm(cross(dxdξ_top[:,1],dxdξ_top[:,2]))     # weight of the quadrature point top surface
+            w_btm = wpoints[gp]*norm(cross(dxdξ_btm[:,1],dxdξ_btm[:,2]))     # weight of the quadrature point bottom surface
+        
+            area_top += w_top
+            area_btm += w_btm
+        end
+    end
+    @test area_btm ≈ area_top atol=1e-5
+    @test area_top ≈ area_NURBS atol=1e-5
+end
