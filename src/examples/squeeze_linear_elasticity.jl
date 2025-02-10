@@ -24,8 +24,12 @@ Assembles the finite element system. # Returns the global stiffness matrix
 # Returns:
 - `K::SparseMatrixCSC{Float64,Int64}{ndof,ndof}` : sparse stiffness matrix 
 """
-function assemble_system(mdl::model)
+function assemble_system(mdl::model; ∂C=zeros(1,1))
 
+    if ∂C != zeros(1,1)
+        mdl.cMat = ∂C # replace cMat with ∂C/∂θ_i for getting ∂K/∂θ_i
+    end
+    
     # (I,J,V) vectors for COO sparse matrix
     IEN_rows = size(mdl.IEN,1)
     if mdl.nDof == 1
@@ -183,7 +187,7 @@ function assemble_system(mdl::model)
     return K
 end
 
-function assemble_system_dense(mdl::model)
+function assemble_system_dense(mdl::model; ∂C = zeros(1,1))
 
     # (I,J,V) vectors for COO sparse matrix
     IEN_rows = size(mdl.IEN,1)
@@ -194,6 +198,10 @@ function assemble_system_dense(mdl::model)
     else
         sz = mdl.nDof*(2*mdl.ne+1)^mdl.ndim # no elements x no nodes x no dofs
         K = zeros(Float64, sz,sz)  
+    end
+
+    if ∂C != zeros(1,1)
+        mdl.cMat = ∂C # replace cMat with ∂C/∂θ_i for getting ∂K/∂θ_i
     end
 
     # element loop
@@ -706,6 +714,84 @@ function get_cMat(type="standard", c1=nothing, c2=nothing)
     return cMat
 end
 
+function get_volume(mdl::model)
+
+    if mdl.ndim == 1
+        # gaussian quadrature points for the element [-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1)
+        
+        wpoints =  [w_ξ[1], w_ξ[2]]
+    
+        x = [ξ[1], ξ[2]]
+    elseif mdl.ndim == 2
+        # gaussian quadrature points for the element [-1,1]x[-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
+        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
+
+        x = Float64[]
+        y = Float64[]
+        wpoints =  Float64[]
+        
+        n = 1:size(ξ,1)
+        m = 1:size(η,1)
+        for j in m # loop over η
+            for i in n # loop over ξ
+                push!(x, ξ[i])
+                push!(y, η[j])
+                push!(wpoints, w_ξ[i]*w_η[j])
+            end
+        end
+
+    elseif mdl.ndim == 3
+        # gaussian quadrature points for the element [-1,1]x[-1,1]x[-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
+        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ζ, w_ζ = gaussian_quadrature(-1,1,nGaussPoints=3)
+
+        x = Float64[]
+        y = Float64[]
+        z = Float64[]
+        wpoints = Float64[]
+        
+        l = 1:size(ζ,1)
+        m = 1:size(η,1)
+        n = 1:size(ξ,1)
+        for k in l # loop over ζ
+            for j in m # loop over η
+                for i in n # loop over ξ
+                    push!(x, ξ[i])
+                    push!(y, η[j])
+                    push!(z, ζ[k])
+                    push!(wpoints, w_ξ[i]*w_η[j]*w_ζ[k])
+                end
+            end
+        end
+    end
+
+    vol = 0
+    e_iter = 1:mdl.ne^mdl.ndim
+    # integration loop
+    gpiter = 1:length(wpoints)
+    for gp in gpiter
+        if mdl.ndim == 1
+            N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
+        elseif mdl.ndim == 2
+            N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
+        elseif mdl.ndim == 3
+            N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.FunctionClass) 
+        end
+        # element loop
+        for e in e_iter
+            coords = mdl.NodeList[:,mdl.IEN[:,e]] # get the coordinates of the nodes of the element
+
+            Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
+
+            w = wpoints[gp]*abs(det(Jac))
+            vol += w
+        end
+    end
+end
+
 """
     simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing)
 
@@ -741,7 +827,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
     NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
 
-    # mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, FunctionClass=FunctionClass, ID=ID, )
+
     mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeListCylinder, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
                      FunctionClass=FunctionClass, Young=Float64(Young), ν=ν, cMat=cMat)
     
@@ -828,7 +914,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             f_R = K_bar*q
             motion = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]'
             F_est = q_tp'*f_R                                         # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
-            NodeListCylinder = NodeListCylinder + motion              # update the node coordinates
+            mdl.NodeList = mdl.NodeList + motion              # update the node coordinates
 
             BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, SIDES)
             surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
@@ -856,82 +942,4 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
         write_contour_data(string(filepath,"/Results"), writeborderList)
     end
     return output, borderPts2DList, borderNodeList2D, splinep, splineq, mdl
-end
-
-function get_volume(mdl::model)
-
-    if mdl.ndim == 1
-        # gaussian quadrature points for the element [-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1)
-        
-        wpoints =  [w_ξ[1], w_ξ[2]]
-    
-        x = [ξ[1], ξ[2]]
-    elseif mdl.ndim == 2
-        # gaussian quadrature points for the element [-1,1]x[-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
-        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
-
-        x = Float64[]
-        y = Float64[]
-        wpoints =  Float64[]
-        
-        n = 1:size(ξ,1)
-        m = 1:size(η,1)
-        for j in m # loop over η
-            for i in n # loop over ξ
-                push!(x, ξ[i])
-                push!(y, η[j])
-                push!(wpoints, w_ξ[i]*w_η[j])
-            end
-        end
-
-    elseif mdl.ndim == 3
-        # gaussian quadrature points for the element [-1,1]x[-1,1]x[-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
-        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
-        ζ, w_ζ = gaussian_quadrature(-1,1,nGaussPoints=3)
-
-        x = Float64[]
-        y = Float64[]
-        z = Float64[]
-        wpoints = Float64[]
-        
-        l = 1:size(ζ,1)
-        m = 1:size(η,1)
-        n = 1:size(ξ,1)
-        for k in l # loop over ζ
-            for j in m # loop over η
-                for i in n # loop over ξ
-                    push!(x, ξ[i])
-                    push!(y, η[j])
-                    push!(z, ζ[k])
-                    push!(wpoints, w_ξ[i]*w_η[j]*w_ζ[k])
-                end
-            end
-        end
-    end
-
-    vol = 0
-    e_iter = 1:mdl.ne^mdl.ndim
-    # integration loop
-    gpiter = 1:length(wpoints)
-    for gp in gpiter
-        if mdl.ndim == 1
-            N, ΔN = basis_function(x[gp], nothing, nothing, mdl.FunctionClass)
-        elseif mdl.ndim == 2
-            N, ΔN = basis_function(x[gp], y[gp], nothing, mdl.FunctionClass) 
-        elseif mdl.ndim == 3
-            N, ΔN = basis_function(x[gp], y[gp], z[gp], mdl.FunctionClass) 
-        end
-        # element loop
-        for e in e_iter
-            coords = mdl.NodeList[:,mdl.IEN[:,e]] # get the coordinates of the nodes of the element
-
-            Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
-
-            w = wpoints[gp]*abs(det(Jac))
-            vol += w
-        end
-    end
 end

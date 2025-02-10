@@ -3,6 +3,7 @@ using DataInterpolations
 using ElasticArrays
 using ConvexHulls2d
 import ConvexHulls2d as ch
+using Distributions
 
 """ 
     Extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = nothing)
@@ -368,4 +369,23 @@ Function to truncate a colormap
 function truncate_colormap(minval=0.0, maxval=1.0, n=100)
     new_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("mycmap", get_cmap("jet")(collect(range(maxval, minval, n))))
     return new_cmap
+end
+
+function add_noise(obsScene; nFactor=0)
+
+    nScene = AbstractArray[]      
+    nSplinex = AbstractArray[]
+    nSpliney = AbstractArray[] 
+    pd = Normal(0,nFactor)
+
+    iter=1:size(obsScene,1)                           
+    for i in iter
+        Data = obsScene[i]
+        w = rand(pd, size(Data))
+        Data = Data + w
+        push!(nScene,Data)
+        push!(nSplinex, Data[1,:])
+        push!(nSpliney, Data[2,:])
+    end
+    return nScene, nSplinex, nSpliney, pd
 end

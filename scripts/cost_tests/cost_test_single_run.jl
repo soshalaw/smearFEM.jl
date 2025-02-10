@@ -4,7 +4,7 @@ using SparseArrays
 
 using smearFEM
 using Plots
-
+using Distributions
 using Dates
 
 function main()
@@ -32,10 +32,11 @@ function main()
     dev = 0.4
     mode = "lame" # "standard" or "lame"
     dateTime = Dates.now()
-    filepathi = string("/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
+    filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
 
     Youngtst = 30
     νtst = 0.4
+    nSamples = 10
 
     # Derived Lame constants from Young's modulus and Poisson ratio
     lambdatst = round(Youngtst*νtst/((νtst+1).*(-2*νtst+1)))
@@ -44,24 +45,37 @@ function main()
     write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,
                     filepathi, mode=mode)
     
-    ObsDataList, splinexObs, splineyObs = readData(filepathi, nFactor=noiseLevel)
-    ObsData = [ObsDataList, splinexObs, splineyObs]
+    ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data"))  
     
+    println(size(ObsDataList))
     Young = lambdatst*(1-dev)
     ν = mutst*(1-dev)
+    cSample = zeros(tSteps+1)
+    for n = 1:nSamples
 
-    hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, "lame", 
+        nScene, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
+        ObsData = [nScene, nSplinex, nSpliney]
+
+        if n == 1
+            plot(x->pdf(pd, x))
+            savefig(string(filepathi,"/Results"))
+        end
+
+        hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, "lame", 
                     ObsData, sides_only, plot_matches, filepathi)
 
-    plot(cpCost, label="Height Cost")
+        cSample = cSample + cpCost 
+    end
+    cost = cSample/nSamples
+    plot(cost, label="Height Cost")
     xlabel!("Time steps")
     ylabel!("Cost")
     savefig(string(filepathi,"/Results/cost/cost_cp.png"))
 
-    plot(hcost, label="Closest Point Cost")
-    xlabel!("Time steps")
-    ylabel!("Cost")
-    savefig(string(filepathi,"/Results/cost/cost_height.png"))
+    # plot(hcost, label="Closest Point Cost")
+    # xlabel!("Time steps")
+    # ylabel!("Cost")
+    # savefig(string(filepathi,"/Results/cost/cost_height.png"))
 
     params = Dict("Paramter type" => "Lame", "λ" => lambdatst, "μ" => mutst, "β" => β, "Control" => Control, "Noise Level" => noiseLevel, 
                   "Noise Profile" => noiseProfile)

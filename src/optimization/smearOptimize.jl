@@ -40,7 +40,7 @@ function closest_point(simScene, obsScene)
             tcost += (pSim[pair[1]] - pObs[pair[2]])^2 + (qSim[pair[1]] - qObs[pair[2]])^2
         end
 
-        mCost = tcost/length(pairs)
+        mCost = tcost/length(pairs) # Σ(xi-x_obs)/n (mean error)
         push!(costList, mCost)
         push!(pairsList,pairs)
     end
@@ -82,41 +82,31 @@ function height_sample(simScene,obsScene)
     return costList, xObsintlst, xSimintlst, ySimintlst
 end
 
-function get_grad(model,θ,u)
+function get_grad(model)
 
-    λ = θ[1]
-    μ = θ[2]
-
-    model.cMat = [[ 2*μ+λ  λ    λ    0 0 0]; 
-                  [  λ   2*μ+λ  λ    0 0 0]; 
-                  [  λ     λ   2*μ+λ 0 0 0]; 
-                  [  0     0    0    μ 0 0]; 
-                  [  0     0    0    0 μ 0]
-                  [  0     0    0    0 0 μ]]  # constitutive matrix
-
-    K = assemble_system(model)    
-
-    model.dcMatdλ = [[ 1  1  1  0 0 0]; 
+    dcMatdλ = [[ 1  1  1  0 0 0]; 
                [ 1  1  1  0 0 0]; 
                [ 1  1  1  0 0 0]; 
                [ 0  0  0  0 0 0]; 
                [ 0  0  0  0 0 0]
                [ 0  0  0  0 0 0]]  # constitutive matrix
 
-    model.dcMatdμ = [[ 2  0  0  0 0 0]; 
+    dcMatdμ = [[ 2  0  0  0 0 0]; 
                [ 0  2  0  0 0 0]; 
                [ 0  0  2  0 0 0]; 
                [ 0  0  0  1 0 0]; 
                [ 0  0  0  0 1 0]
                [ 0  0  0  0 0 1]]  # constitutive matrix
 
-    dKdθ = assemble_system(model)
+    dKdλ = assemble_system(model, ∂C=dcMatdλ)
+    dKdμ = assemble_system(model, ∂C=dcMatdμ)
 
     invK = inv(K)
 
-    grad = -invK*dKdθ*u
+    dudλ = -invK*dKdλ
+    dudμ = -invK*dKdμ
 
-    return grad
+    return dudλ, dudμ
 end
 
 
@@ -130,11 +120,11 @@ function fit_model(simborderfields, obsborderfields, model)
     λ = Young*ν/((1+ν)*(1-2*ν))
     μ = Young/(2*(1+ν))
 
-    θ = [λ, μ]
+    dudλ, dudμ = get_grad(model)
 
     # TODO add simulate function to simulate the model
-    simborderfields = simulate()
-    ∇f = get_grad(model, θ, simborderfields)
+    # simborderfields = simulate()
+
     
     for i in 1:100
         x = update(opt, x, ∇f)

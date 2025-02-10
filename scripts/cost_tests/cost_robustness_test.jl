@@ -5,6 +5,7 @@ using SparseArrays
 
 using smearFEM
 using Plots
+using Distributions
 
 using Dates
 function main()
@@ -23,15 +24,18 @@ function main()
     β = 100
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
     endTime = 15
-    tSteps = 30
+    tSteps = 10
     dateTime = Dates.now()
     sampleNo = 21
     dev = 0.3
 
-    # noiseLevelLst = [0 0.25 0.5 1 1.5 2]
-    noiseLevelLst = [2 3 4 5]
-    YoungtstLst = [30 35 40]
-    νtstLst = [0.25 0.3 0.35]
+    # noiseLevelLst = [0 0.25 0.5 1 1.5 2 3 4 5]
+    nSamples = 10
+    noiseLevelLst = [2]
+    YoungtstLst = [30]
+    # YoungtstLst = [30 35 40]
+    νtstLst = [0.25]
+    # νtstLst = [0.25 0.3 0.35]
     # βLst = [100 1000 10000]
     βLst = [100]
     ControlList = ["force", "displacement"]
@@ -48,7 +52,7 @@ function main()
     Standard = false # Test for Poisson ratio and Young's modulus
     Lame = true # Test for Lame constants
 
-    folder = string("/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
+    folder = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
 
     for βtst in βLst
         dev_β = βtst*dev
@@ -69,46 +73,60 @@ function main()
                                 dev_λ = lambdatst*dev
                                 dev_μ = mutst*dev
 
-                                filepathi = string(filepathlame,"slip_",βtst,"/control_",Control,"/sides_",sides,"/noise_",noiseLevel,"/experiment_",iter,)
-                                simBorderPts, simBorderNodes, splinex, spliney = write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, endTime, tSteps, Control,filepathi, mode="lame")
-                                ObsDataList, splinexObs, splineyObs = readData(filepathi, nFactor=noiseLevel)
-                                
-                                ObsData = [ObsDataList, splinexObs, splineyObs]
-
-                                println(size(splineyObs))
-                                # animate_fields(filepath = string(filepathi,"/Results"), p=splinex, q=spliney)
-                                animate_fields(filepath = string(filepathi,"/Results"), BorderNodes2D=simBorderPts, pObs=splinexObs, qObs=splineyObs)
                                 lambdaList = collect(range(lambdatst-dev_λ, stop=lambdatst+dev_λ, length=sampleNo))
                                 muList = collect(range(mutst-dev_μ, stop=mutst+dev_μ, length=sampleNo))
 
-                                hCostListμ = Float64[]
-                                cpCostListμ = Float64[]
-                                hCostListλ = Float64[]
-                                cpCostListλ = Float64[]
-                                hCostListβ = Float64[]
-                                cpCostListβ = Float64[]
+                                filepathi = string(filepathlame,"slip_",βtst,"/control_",Control,"/sides_",sides,"/noise_",noiseLevel,"/experiment_",iter,)
+                                simBorderPts, simBorderNodes, splinex, spliney = write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, endTime, tSteps, Control,filepathi, mode="lame")
+                                ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data")) 
+                                
+                                cSampleλ = zeros(size(lambdaList))
+                                cSampleμ = zeros(size(muList))
+                                cSampleβ = zeros(size(βList))
 
-                                for λ in lambdaList
-                                    hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, λ, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
-                                                        endTime, tSteps, Control, "lame", ObsData, sides)    
-                                    # push!(hCostListλ, sum(hcost)/length(hcost))
-                                    push!(cpCostListλ, sum(cpCost)/length(cpCost))
+                                for n = 1:nSamples
+
+                                    cpCostListμ = zeros(size(lambdaList))
+                                    cpCostListλ = zeros(size(muList))
+                                    cpCostListβ = zeros(size(βList))
+    
+                                    nScene, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
+                                    ObsData = [nScene, nSplinex, nSpliney]
+                            
+                                    if n == 1
+                                        plot(x->pdf(pd, x))
+                                        savefig(string(filepathi,"/Results"))
+                                        animate_fields(filepath = string(filepathi,"/Results"), BorderNodes2D=simBorderPts, pObs=nSplinex, qObs=nSpliney)
+                                    end
+                                    
+                                    λ_iter = 1:size(lambdaList,1)
+                                    for i in λ_iter
+                                        hcost, cpCostλ = compare(x0, x1, y0, y1, z0, z1, ne, lambdaList[i], mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
+                                                            endTime, tSteps, Control, "lame", ObsData, sides)    
+                                        cpCostListλ[i] = sum(cpCostλ)/length(cpCostλ)
+                                    end
+                                    cSampleλ = cSampleλ + cpCostListλ
+
+                                    μ_iter = 1:size(muList,1)
+                                    for j in μ_iter
+                                        hcost, cpCostμ = compare(x0, x1, y0, y1, z0, z1, ne, lambdatst, muList[j], ndim, FunctionClass, nDof, βtst, CameraMatrix, 
+                                                                endTime, tSteps, Control, "lame", ObsData, sides)
+                                        cpCostListμ[j] = sum(cpCostμ)/length(cpCostμ)
+                                    end
+                                    cSampleμ = cSampleμ + cpCostListμ
+
+                                    β_iter = 1:size(βList,1)
+                                    for k in β_iter
+                                        hcost, cpCostβ = compare(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βList[k], CameraMatrix, 
+                                                                endTime, tSteps, Control, "lame", ObsData, sides)
+                                        cpCostListβ[k] = sum(cpCostβ)/length(cpCostβ)
+                                    end
+                                    cSampleβ = cSampleβ + cpCostListβ
                                 end
 
-                                for μ in muList
-                                    hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, lambdatst, μ, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
-                                                            endTime, tSteps, Control, "lame", ObsData, sides)
-                                    # push!(hCostListμ, sum(hcost)/length(hcost))
-                                    push!(cpCostListμ, sum(cpCost)/length(cpCost))
-                                end
-
-                                for β in βList 
-                                    hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, 
-                                                            endTime, tSteps, Control, "lame", ObsData, sides)
-                                    # push!(hCostListβ, sum(hcost)/length(hcost))
-                                    push!(cpCostListβ, sum(cpCost)/length(cpCost))
-                                end
-
+                                CostListλ = cSampleλ/nSamples
+                                CostListμ = cSampleμ/nSamples
+                                CostListβ = cSampleβ/nSamples
                                 # plot the cost function with respect to λ
                                 # Plots.plot(lambdaList, hCostListλ, label="Height sample Cost", marker=1, dpi=400)
                                 # Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
@@ -116,7 +134,7 @@ function main()
                                 # Plots.ylabel!("Mean Error")
                                 # Plots.savefig(string(filepathi,"/Results/cost/cost_height_lbd.png"))
 
-                                Plots.plot(lambdaList, cpCostListλ, label="Closest Point Cost", marker=1, dpi=400)
+                                Plots.plot(lambdaList, CostListλ, label="Closest Point Cost", marker=1, dpi=400)
                                 Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
                                 Plots.xlabel!("λ")
                                 Plots.ylabel!("Mean Error")
@@ -129,7 +147,7 @@ function main()
                                 # Plots.ylabel!("Mean Error")
                                 # Plots.savefig(string(filepathi,"/Results/cost/cost_height_mu.png"))
 
-                                Plots.plot(muList, cpCostListμ, label="Closest Point Cost", marker=1, dpi=400)
+                                Plots.plot(muList, CostListμ, label="Closest Point Cost", marker=1, dpi=400)
                                 Plots.vline!([mutst],linestyle=:dash,linecolor=:grey)
                                 Plots.xlabel!("μ")
                                 Plots.ylabel!("Mean Error")
@@ -142,14 +160,14 @@ function main()
                                 # Plots.ylabel!("Mean Error")
                                 # Plots.savefig(string(filepathi,"/Results/cost/cost_height_β.png"))
 
-                                Plots.plot(βList, cpCostListβ, label="Closest Point Cost", marker=1, dpi=400)
+                                Plots.plot(βList, CostListβ, label="Closest Point Cost", marker=1, dpi=400)
                                 Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
                                 Plots.xlabel!("β")
                                 Plots.ylabel!("Mean Error")
                                 Plots.savefig(string(filepathi,"/Results/cost/cost_cp_β.png"))
 
                                 params = Dict("Paramter type" => "Lame", "λ" => lambdatst, "μ" => mutst, "β" => βtst, "Control" => Control,
-                                            "Noise Level" => noiseLevel, "Sides" => sides)
+                                            "Noise Level" => noiseLevel, "Sides" => sides, "Samples" => nSamples)
 
                                 write_json(string(filepathi,"/Results/params"), params)
                                 iter += 1

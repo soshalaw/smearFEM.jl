@@ -115,18 +115,15 @@ function read_csv(csv_path::String; nFactor=0)
     ObsDataList = AbstractArray[]                                  # store the observation data
     splinex = AbstractArray[]
     spliney = AbstractArray[]
-    pdf = Normal(0,nFactor)
 
     for file in csv_files
         obsData = readdlm(file, ',', Float64, '\n', header=false)  # read the observation data
-        w = rand(pdf, size(obsData))
-        obsData = obsData + w
         push!(ObsDataList, obsData') # store the transpose of the observation data to fit the comparison function
         push!(splinex, obsData[:,1])
         push!(spliney, obsData[:,2])
     end
 
-    return ObsDataList, splinex, spliney, pdf
+    return ObsDataList, splinex, spliney
 end
 
 """
