@@ -24,11 +24,7 @@ Assembles the finite element system. # Returns the global stiffness matrix
 # Returns:
 - `K::SparseMatrixCSC{Float64,Int64}{ndof,ndof}` : sparse stiffness matrix 
 """
-function assemble_system(mdl::model; ∂C=zeros(1,1))
-
-    if ∂C != zeros(1,1)
-        mdl.cMat = ∂C # replace cMat with ∂C/∂θ_i for getting ∂K/∂θ_i
-    end
+function assemble_system(mdl::model; GRAD::Bool=false)
     
     # (I,J,V) vectors for COO sparse matrix
     IEN_rows = size(mdl.IEN,1)
@@ -41,6 +37,12 @@ function assemble_system(mdl::model; ∂C=zeros(1,1))
         E = zeros(  Int64, mdl.ne^mdl.ndim*((ID_rows*IEN_rows)^2))
         J = zeros(  Int64, mdl.ne^mdl.ndim*((ID_rows*IEN_rows)^2))
         V = zeros(Float64, mdl.ne^mdl.ndim*((ID_rows*IEN_rows)^2))  
+
+        if GRAD == true
+            dE = zeros(  Int64, mdl.ne^mdl.ndim*((ID_rows*IEN_rows)^2))
+            dJ = zeros(  Int64, mdl.ne^mdl.ndim*((ID_rows*IEN_rows)^2))
+            dV = zeros(Float64, mdl.ne^mdl.ndim*((ID_rows*IEN_rows)^2))  
+        end
     end
 
     # element loop
@@ -155,6 +157,7 @@ function assemble_system(mdl::model; ∂C=zeros(1,1))
                 end
 
                 Ke = B*mdl.cMat*B'*w # element stiffness matrix
+                dKedλ = B*mdl.dcMatdλ*B'*w # element stiffness matrix
         
                 # code optimization
                 Ke_rows, Ke_cols = size(Ke)
@@ -176,6 +179,12 @@ function assemble_system(mdl::model; ∂C=zeros(1,1))
                                 E[inz] = mdl.ID[iDof,mdl.IEN[iNode,e]] # row index 
                                 J[inz] = mdl.ID[jDof,mdl.IEN[jNode,e]] # column index
                                 V[inz] += Ke[i,j] 
+                                
+                                if GRAD == true
+                                    dE[inz] = mdl.ID[iDof,mdl.IEN[iNode,e]] # row index 
+                                    dJ[inz] = mdl.ID[jDof,mdl.IEN[jNode,e]] # column index
+                                    dV[inz] += dKedλ[i,j] 
+                                end
                             end
                         end
                     end
@@ -184,7 +193,13 @@ function assemble_system(mdl::model; ∂C=zeros(1,1))
         end
     end
     K = sparse(E,J,V)
-    return K
+
+    if GRAD == true
+        dKdλ = sparse(dE,dJ,dV)
+        return K, dKdλ
+    else
+        return K
+    end
 end
 
 function assemble_system_dense(mdl::model; ∂C = zeros(1,1))
@@ -355,7 +370,7 @@ q_n: {[ndof] Vector{Float64}} : Neumann boundary conditions
 K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix with the boundary conditions applied
 F: {[ndof] Vector{Float64}} : force vector
 """
-function apply_boundary_conditions(mdl::model)
+function set_slip_conditions(mdl::model)
 
     IEN_btm_rows = size(mdl.IEN_btm,1)
     ID_rows = size(mdl.ID,1)
@@ -453,7 +468,7 @@ function apply_boundary_conditions(mdl::model)
     return  K
 end
 
-function apply_boundary_conditions_dense(mdl::model)
+function set_slip_conditions_dense(mdl::model)
 
     IEN_btm_rows = size(mdl.IEN_btm,1)
     IEN_rows = size(mdl.IEN,1)
@@ -557,7 +572,7 @@ Set the Dirichlet boundary conditions for the problem
 - `q_lower::Vector{Float64}` : vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
 - `C_uc::SparseMatrixCSC{Float64,Int64}` : onstraint matrix
 """
-function setboundaryCond(mdl::model)
+function set_boundary_conditions(mdl::model)
     tDof = mdl.nDof*size(mdl.NodeList,2)     # Total number of DOFs
     q_upper = zeros(tDof,1)                  # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
     q_lower = zeros(tDof,1)                  # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
@@ -618,7 +633,7 @@ function setboundaryCond(mdl::model)
     return q_upper, q_lower, C_uc
 end
 
-function setboundaryCond_dense(mdl::model)
+function set_boundary_conditions_dense(mdl::model)
     tDof = mdl.nDof*size(mdl.NodeList,2)    # Total number od Degrees od freedom
     q_upper = zeros(tDof,1)                 # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
     q_lower = zeros(tDof,1)                 # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
@@ -820,7 +835,8 @@ Simulate the deformation of a cylindrical under compression
 - `writeData::Bool` : write the data to a file
 - `filepath::String` : path to the file
 """
-function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing, SIDES::Bool=false)
+function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, 
+                    filepath=nothing, SIDES::Bool=false, dcdλ::Matrix{Float64}=zeros(Float64,1,1))
 
     time = collect(range(start=0,stop=endTime,length=tSteps)) # time vector
 
@@ -829,9 +845,9 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
 
 
     mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeListCylinder, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
-                     FunctionClass=FunctionClass, Young=Float64(Young), ν=ν, cMat=cMat)
+                     FunctionClass=FunctionClass, Young=Float64(Young), ν=ν, cMat=cMat,dcMatdλ=dcdλ)
     
-    q_tp, q_btm, C_uc = setboundaryCond(mdl)
+    q_tp, q_btm, C_uc = set_boundary_conditions(mdl)
 
     BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, ne, 2*ne+1, SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
@@ -841,6 +857,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     TopBorders = BorderNodesList[3]
         
     fields = AbstractArray[]  
+    dfields = AbstractArray[]  
     pos3D = AbstractArray[NodeListCylinder]                                                             # store the solution fields of the mesh in 3D
     pos2D = AbstractArray[Nodes2D]                                                                   # store the solution fields of the mesh in 2D
     surfaceNodesList = Float64[NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
@@ -851,14 +868,16 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     output = Float64[] 
     writeborderList = [vcat(pi', qi')]
 
+    # K, dKdλ = assemble_system(mdl,GRAD=true)             # assemble the stiffness matrix
+    K = assemble_system(mdl)  
+    b = set_slip_conditions(mdl)   # apply the neumann boundary conditions
+
     μ_btm = 0      
     iter = 1
     pr = Progress(tSteps; desc= "Simulating with prescribed $Control ...", showspeed=true)
     if Control == "force"
         for t in time
 
-            K = assemble_system(mdl)                   # assemble the stiffness matrix
-            b = apply_boundary_conditions(mdl)   # apply the neumann boundary conditions
             q_btm = μ_btm*q_btm
             
             K_bar = K + β*b
@@ -872,9 +891,11 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             q_f = sol[1:end-1]        # solve the system of equations
             μ_tp = sol[end]           # solve the system of equations
             q = q_btm + C_uc*q_f + μ_tp*q_tp;                # assemble the solution
+            # dqdλ = -K_free\(dKdλ*q)
 
             # post process the solution
             motion = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]'    # update the nodal positions
+            # dmotion = [dqdλ[ID[1,:]] dqdλ[ID[2,:]] dqdλ[ID[3,:]]]'
             NodeListCylinder = NodeListCylinder + motion    # update the node coordinates
 
             BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, SIDES)
@@ -883,6 +904,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
 
             push!(output, μ_tp)
             push!(fields, motion)
+            # push!(dfields,dmotion)
             push!(pos2D, Nodes2D)
             push!(pos3D, NodeListCylinder)
             push!(borderPts2DList, BorderPts2D)
@@ -898,8 +920,6 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
         pr = Progress(tSteps; desc="Simulating with prescribed $Control ...", showspeed=true)
         for t in time
         
-            K = assemble_system(mdl)                   # assemble the stiffness matrix
-            b = apply_boundary_conditions(mdl)       # apply the neumann boundary conditions
             q_d = (μ_btm*q_btm + cParam[iter]*q_tp)                  # apply the Dirichlet boundary conditions
 
             K_bar = K + β*b
@@ -910,11 +930,14 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             q_f = K_free\(C_T*(-K_bar*q_d))         # solve the system of equations
             q = q_d + C_uc*q_f;                 # assemble the solution 
 
+            # dqdλ = -K_bar\(dKdλ*q)
+
             # post process the solution
             f_R = K_bar*q
             motion = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]'
+            # dmotion = [dqdλ[ID[1,:]] dqdλ[ID[2,:]] dqdλ[ID[3,:]]]'
             F_est = q_tp'*f_R                                         # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
-            mdl.NodeList = mdl.NodeList + motion              # update the node coordinates
+            NodeListCylinder = NodeListCylinder + motion            # update the node coordinates
 
             BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, SIDES)
             surfaceNodesList = [NodeListCylinder[:,SideBorders] NodeListCylinder[:,BottomBorders] NodeListCylinder[:,TopBorders]]
@@ -923,6 +946,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             # store the solutions in a list
             push!(output, F_est[1])
             push!(fields, motion)
+            # push!(dfields,dmotion)
             push!(pos2D, Nodes2D)
             push!(pos3D, NodeListCylinder)
             push!(borderPts2DList, BorderPts2D)
@@ -941,5 +965,6 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
         animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
         write_contour_data(string(filepath,"/Results"), writeborderList)
     end
+
     return output, borderPts2DList, borderNodeList2D, splinep, splineq, mdl
 end

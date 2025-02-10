@@ -24,11 +24,10 @@ function main()
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
     endTime = 30
     tSteps = 30
-    noiseProfile = 1
-    noiseLevel = 1
+    noiseLevel = 0
     plot_matches = true
     sides_only = false
-    Control = "force" # "force" or "displacement"
+    Control = "displacement" # "force" or "displacement"
     dev = 0.4
     mode = "lame" # "standard" or "lame"
     dateTime = Dates.now()
@@ -36,7 +35,7 @@ function main()
 
     Youngtst = 30
     νtst = 0.4
-    nSamples = 10
+    nSamples = 1
 
     # Derived Lame constants from Young's modulus and Poisson ratio
     lambdatst = round(Youngtst*νtst/((νtst+1).*(-2*νtst+1)))
@@ -47,9 +46,8 @@ function main()
     
     ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data"))  
     
-    println(size(ObsDataList))
-    Young = lambdatst*(1-dev)
-    ν = mutst*(1-dev)
+    λ = lambdatst*(1-dev)
+    μ = mutst*(1-dev)
     cSample = zeros(tSteps+1)
     for n = 1:nSamples
 
@@ -61,7 +59,7 @@ function main()
             savefig(string(filepathi,"/Results"))
         end
 
-        hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, "lame", 
+        hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, λ, μ, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, "lame", 
                     ObsData, sides_only, plot_matches, filepathi)
 
         cSample = cSample + cpCost 
@@ -72,13 +70,8 @@ function main()
     ylabel!("Cost")
     savefig(string(filepathi,"/Results/cost/cost_cp.png"))
 
-    # plot(hcost, label="Closest Point Cost")
-    # xlabel!("Time steps")
-    # ylabel!("Cost")
-    # savefig(string(filepathi,"/Results/cost/cost_height.png"))
-
     params = Dict("Paramter type" => "Lame", "λ" => lambdatst, "μ" => mutst, "β" => β, "Control" => Control, "Noise Level" => noiseLevel, 
-                  "Noise Profile" => noiseProfile)
+                    "Sample_no" => nSamples)
 
     write_json(string(filepathi,"/Results/params"), params) 
 end

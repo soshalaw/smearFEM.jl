@@ -33,11 +33,11 @@ function def_model(
     C_2_btm::Array{Float64, 3} = zeros(2,2,2),
     W_2::Vector{Float64}= zeros(1),   
 
-    cMat::Matrix{Float64} = [1.0 0.3 0.3 0.0; 0.3 1.0 0.3 0.0; 0.3 0.3 1.0 0.0; 0.0 0.0 0.0 0.5],
     Young = 1.0, 
     ν = 1, 
-    dcMatdλ::Matrix{Float64} = [0.0 1.0 1.1 0.1],
-    dcMatdμ::Matrix{Float64} = [0.0 1.0 1.1 0.1])
+    cMat::Matrix{Float64} = zeros(Float64,1,1),
+    dcMatdλ::Matrix{Float64} = zeros(Float64,1,1),
+    dcMatdμ::Matrix{Float64} = zeros(Float64,1,1))
 
     if mdl == "linear_elasticity"
         return linearElasticity(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass, C, C_top, C_btm, W, Young, ν, 

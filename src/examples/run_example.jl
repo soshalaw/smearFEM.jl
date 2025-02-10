@@ -50,13 +50,13 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, Func
                         FunctionClass=FunctionClass, C = C, C_top = C_top, C_btm = C_btm, W = W, Young=Float64(Young), ν=ν, cMat=cMat)
     
     if DENSE == true
-        q_tp, q_btm, C_uc = setboundaryCond_dense(mdl)
+        q_tp, q_btm, C_uc = set_boundary_conditions_dense(mdl)
         K = assemble_system_dense(mdl)                   # assemble the stiffness matrix
-        b = apply_boundary_conditions_dense(mdl)         # apply the neumann boundary conditions
+        b = set_slip_conditions_dense(mdl)         # apply the neumann boundary conditions
     else
-        q_tp, q_btm, C_uc = setboundaryCond(mdl)
+        q_tp, q_btm, C_uc = set_boundary_conditions(mdl)
         K = assemble_system(mdl)                   # assemble the stiffness matrix
-        b = apply_boundary_conditions(mdl)         # apply the neumann boundary conditions
+        b = set_slip_conditions(mdl)         # apply the neumann boundary conditions
     end
     
     q_d = (μ_btm*q_btm + μ_tp*q_tp)            # apply the Dirichlet boundary conditions
@@ -208,8 +208,8 @@ Test the simulation
 - `filepath::String` : path to the file
 - `mode::String` : type of constitutive matrix
 """
-function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass::String, nDof::Int64, β, CameraMatrix, endTime, tSteps, Control::String; 
-              writeData::Bool=false, filepath=nothing, mode::String = "standard", SIDES::Bool=false)
+function test(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim::Int64, FunctionClass::String, nDof::Int64, β, CameraMatrix, endTime, tSteps, Control::String; 
+              writeData::Bool=false, filepath=nothing, mode::String = "lame", SIDES::Bool=false)
     
     if writeData
         isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
@@ -224,11 +224,12 @@ function test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass:
         cParam = -(μ_tp/tSteps)*ones(tSteps)
     end
 
-    cMat = get_cMat(mode, Young, ν)
+    cMat = get_cMat(mode, c1, c2) # E, ν or λ, μ
+    dcdλ = get_cMat(mode, 1.0 , 0.0)
 
-    μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, 
+    μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = simulate(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim, FunctionClass, nDof, β, 
                                                                         CameraMatrix, endTime, tSteps, Control, cParam, cMat, writeData=writeData, 
-                                                                        filepath=filepath, SIDES=SIDES)
+                                                                        filepath=filepath, SIDES=SIDES, dcdλ=dcdλ)
 
     return μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl
 end
@@ -266,8 +267,8 @@ function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionCla
                 mode::String, ObsData, SIDES::Bool=false, PLOT::Bool=false, filepath=nothing)
 
     μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, 
-                                                                       endTime, tSteps, Control, mode=mode, SIDES=SIDES)  
-    
+                                                                       endTime, tSteps, Control, mode=mode, SIDES=SIDES)    
+
     obsBorderPts = ObsData[1]
     splinexObs = ObsData[2]
     splineyObs = ObsData[3]

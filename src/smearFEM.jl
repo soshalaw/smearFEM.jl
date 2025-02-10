@@ -12,8 +12,8 @@ export GradDescent, update
 
 export simulate, write_sim_data, test, simulate_single_tstep, compare, readData
 export simulate_single_tstep_stokes
-export setboundaryCond, simulate, set_file, initialize_mesh_test, assemble_system, apply_boundary_conditions, get_cMat, get_volume
-export setboundaryCond_dense, assemble_system_dense, apply_boundary_conditions_dense
+export set_boundary_conditions, simulate, set_file, initialize_mesh_test, assemble_system, set_slip_conditions, get_cMat, get_volume
+export set_boundary_conditions_dense, assemble_system_dense, set_slip_conditions_dense
 export assemble_system_A, assemble_system_B, apply_boundary_conditions_stokes, set_boundary_cond_stokes
 export set_boundary_cond_flow_cube, set_boundary_cond_flow_cyl
 

@@ -24,7 +24,7 @@ function match_points(pSim,pObs)
     return pairs
 end
 
-function closest_point(simScene, obsScene)
+function closest_point(simScene, obsScene, )
     # Define the cost function
     costList = Float64[]
     pairsList = []
