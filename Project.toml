@@ -2,6 +2,10 @@ authors = ["Soshala Weerathunge <soshalaweerathunge@gmail.com"]
 
 name = "smearFEM"
 
+uuid = "32d72433-781f-45e8-9eeb-4584292dcb2c"
+
+version = "1.0.0"
+
 [deps]
 ArgCheck = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 ConvexHulls2d = "438b5665-92b0-42e6-bc36-e4ac8449fa2d"
