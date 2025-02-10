@@ -21,23 +21,22 @@ function main()
     ndim = 3
     FunctionClass = "Q2"
     nDof = ndim  # number of degree of freedom per node
-    β = 100
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
     endTime = 15
-    tSteps = 10
+    tSteps = 45
     dateTime = Dates.now()
     sampleNo = 21
     dev = 0.3
 
-    # noiseLevelLst = [0 0.25 0.5 1 1.5 2 3 4 5]
+    noiseLevelLst = [0 0.25 0.5 1 1.5 2 3 4 5]
     nSamples = 10
-    noiseLevelLst = [2]
-    YoungtstLst = [30]
-    # YoungtstLst = [30 35 40]
-    νtstLst = [0.25]
-    # νtstLst = [0.25 0.3 0.35]
-    # βLst = [100 1000 10000]
-    βLst = [100]
+    # noiseLevelLst = [2]
+    # YoungtstLst = [30]
+    YoungtstLst = [30 35 40]
+    # νtstLst = [0.25]
+    νtstLst = [0.25 0.3 0.35]
+    βLst = [100 1000 10000]
+    # βLst = [100]
     ControlList = ["force", "displacement"]
     sideList = [true, false]
 
@@ -127,12 +126,6 @@ function main()
                                 CostListλ = cSampleλ/nSamples
                                 CostListμ = cSampleμ/nSamples
                                 CostListβ = cSampleβ/nSamples
-                                # plot the cost function with respect to λ
-                                # Plots.plot(lambdaList, hCostListλ, label="Height sample Cost", marker=1, dpi=400)
-                                # Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
-                                # Plots.xlabel!("λ")
-                                # Plots.ylabel!("Mean Error")
-                                # Plots.savefig(string(filepathi,"/Results/cost/cost_height_lbd.png"))
 
                                 Plots.plot(lambdaList, CostListλ, label="Closest Point Cost", marker=1, dpi=400)
                                 Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
@@ -140,25 +133,11 @@ function main()
                                 Plots.ylabel!("Mean Error")
                                 Plots.savefig(string(filepathi,"/Results/cost/cost_cp_lbd.png"))
 
-                                # plot the cost function with respect to μ
-                                # Plots.plot(muList, hCostListμ, label="Height sample Cost", marker=1, dpi=400)
-                                # Plots.vline!([mutst],linestyle=:dash,linecolor=:grey)
-                                # Plots.xlabel!("μ")
-                                # Plots.ylabel!("Mean Error")
-                                # Plots.savefig(string(filepathi,"/Results/cost/cost_height_mu.png"))
-
                                 Plots.plot(muList, CostListμ, label="Closest Point Cost", marker=1, dpi=400)
                                 Plots.vline!([mutst],linestyle=:dash,linecolor=:grey)
                                 Plots.xlabel!("μ")
                                 Plots.ylabel!("Mean Error")
                                 Plots.savefig(string(filepathi,"/Results/cost/cost_cp_mu.png"))
-
-                                # plot the cost function with respect to friction parameter
-                                # Plots.plot(βList, hCostListβ, label="Height sample Cost", marker=1, dpi=400)
-                                # Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
-                                # Plots.xlabel!("β")
-                                # Plots.ylabel!("Mean Error")
-                                # Plots.savefig(string(filepathi,"/Results/cost/cost_height_β.png"))
 
                                 Plots.plot(βList, CostListβ, label="Closest Point Cost", marker=1, dpi=400)
                                 Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
