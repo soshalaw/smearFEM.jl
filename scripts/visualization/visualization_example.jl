@@ -14,15 +14,15 @@ function main()
     FunctionClass = "Q2"
     nDof = ndim  # number of degree of freedom per node
     β = 100
-    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
+    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
     endTime = 30
     tSteps = 45
     
     Control = "displacement" # "force" or "displacement"
 
-    filepath = "/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/Lame/test_experiment/"
+    filepath = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Lame/test_experiment/"
     set_file(filepath)
-    SIDES = true
+    SIDES = false
     mode = "standard" # "standard" or "lame"
 
     initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, CameraMatrix, filepath, SIDES)

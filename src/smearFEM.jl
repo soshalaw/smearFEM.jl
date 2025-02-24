@@ -1,10 +1,10 @@
 module smearFEM
 
 export gaussian_quadrature, basis_function #fem.jl
-export fit_curve, extract_borders, filter_points, rearrange, add_noise #PostProcess.jl
+export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project #PostProcess.jl
 export read_csv, write_vtk, write_scene, write_csv, write_json, write_contour_data, read_h5 #io.jl
 export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h #plotting.jl
-export closest_point, height_sample, match_points
+export closest_point, height_sample, match_points, grad_check
 export meshgrid_line, meshgrid_square, meshgrid_cube, inflate_cylinder, meshgrid_ring #Meshes.jl
 export def_model, linearElasticity, stokes #models.jl
 

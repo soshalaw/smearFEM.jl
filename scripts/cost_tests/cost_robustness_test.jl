@@ -4,7 +4,7 @@ using ProgressMeter
 using SparseArrays
 
 using smearFEM
-using Plots
+using StatsPlots
 using Distributions
 
 using Dates
@@ -21,7 +21,7 @@ function main()
     ndim = 3
     FunctionClass = "Q2"
     nDof = ndim  # number of degree of freedom per node
-    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
+    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
     endTime = 15
     tSteps = 45
     dateTime = Dates.now()
@@ -79,9 +79,9 @@ function main()
                                 simBorderPts, simBorderNodes, splinex, spliney = write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, endTime, tSteps, Control,filepathi, mode="lame")
                                 ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data")) 
                                 
-                                cSampleλ = zeros(size(lambdaList))
-                                cSampleμ = zeros(size(muList))
-                                cSampleβ = zeros(size(βList))
+                                cSampleλ = zeros(size(lambdaList),nSamples)
+                                cSampleμ = zeros(size(muList),nSamples)
+                                cSampleβ = zeros(size(βList),nSamples)
 
                                 for n = 1:nSamples
 
@@ -104,7 +104,7 @@ function main()
                                                             endTime, tSteps, Control, "lame", ObsData, sides)    
                                         cpCostListλ[i] = sum(cpCostλ)/length(cpCostλ)
                                     end
-                                    cSampleλ = cSampleλ + cpCostListλ
+                                    cSampleλ[:,n] = cpCostListλ
 
                                     μ_iter = 1:size(muList,1)
                                     for j in μ_iter
@@ -112,7 +112,7 @@ function main()
                                                                 endTime, tSteps, Control, "lame", ObsData, sides)
                                         cpCostListμ[j] = sum(cpCostμ)/length(cpCostμ)
                                     end
-                                    cSampleμ = cSampleμ + cpCostListμ
+                                    cSampleμ[:,n] =  cpCostListμ
 
                                     β_iter = 1:size(βList,1)
                                     for k in β_iter
@@ -120,30 +120,50 @@ function main()
                                                                 endTime, tSteps, Control, "lame", ObsData, sides)
                                         cpCostListβ[k] = sum(cpCostβ)/length(cpCostβ)
                                     end
-                                    cSampleβ = cSampleβ + cpCostListβ
+                                    cSampleβ[:,n] =  cpCostListβ
                                 end
 
-                                CostListλ = cSampleλ/nSamples
-                                CostListμ = cSampleμ/nSamples
-                                CostListβ = cSampleβ/nSamples
+                                if nSamples == 1
+                                    CostListλ = cSampleλ/nSamples
+                                    CostListμ = cSampleμ/nSamples
+                                    CostListβ = cSampleβ/nSamples
 
-                                Plots.plot(lambdaList, CostListλ, label="Closest Point Cost", marker=1, dpi=400)
-                                Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
-                                Plots.xlabel!("λ")
-                                Plots.ylabel!("Mean Error")
-                                Plots.savefig(string(filepathi,"/Results/cost/cost_cp_lbd.png"))
+                                    Plots.plot(lambdaList, CostListλ, label="Closest Point Cost", marker=1, dpi=400)
+                                    Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
+                                    Plots.xlabel!("λ")
+                                    Plots.ylabel!("Mean Error")
+                                    Plots.savefig(string(filepathi,"/Results/cost/cost_cp_lbd.png"))
 
-                                Plots.plot(muList, CostListμ, label="Closest Point Cost", marker=1, dpi=400)
-                                Plots.vline!([mutst],linestyle=:dash,linecolor=:grey)
-                                Plots.xlabel!("μ")
-                                Plots.ylabel!("Mean Error")
-                                Plots.savefig(string(filepathi,"/Results/cost/cost_cp_mu.png"))
+                                    Plots.plot(muList, CostListμ, label="Closest Point Cost", marker=1, dpi=400)
+                                    Plots.vline!([mutst],linestyle=:dash,linecolor=:grey)
+                                    Plots.xlabel!("μ")
+                                    Plots.ylabel!("Mean Error")
+                                    Plots.savefig(string(filepathi,"/Results/cost/cost_cp_mu.png"))
 
-                                Plots.plot(βList, CostListβ, label="Closest Point Cost", marker=1, dpi=400)
-                                Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
-                                Plots.xlabel!("β")
-                                Plots.ylabel!("Mean Error")
-                                Plots.savefig(string(filepathi,"/Results/cost/cost_cp_β.png"))
+                                    Plots.plot(βList, CostListβ, label="Closest Point Cost", marker=1, dpi=400)
+                                    Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
+                                    Plots.xlabel!("β")
+                                    Plots.ylabel!("Mean Error")
+                                    Plots.savefig(string(filepathi,"/Results/cost/cost_cp_β.png"))
+                                else
+                                    StatsPlots.errorline(lambdaList, cSampleλ, label="Closest Point Cost", marker=1, dpi=400)
+                                    Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
+                                    Plots.xlabel!("λ")
+                                    Plots.ylabel!("Mean Error")
+                                    Plots.savefig(string(filepathi,"/Results/cost/cost_cp_lbd.png"))
+
+                                    StatsPlots.errorline(muList, cSampleμ, label="Closest Point Cost", marker=1, dpi=400)
+                                    Plots.vline!([mutst],linestyle=:dash,linecolor=:grey)
+                                    Plots.xlabel!("μ")
+                                    Plots.ylabel!("Mean Error")
+                                    Plots.savefig(string(filepathi,"/Results/cost/cost_cp_mu.png"))
+
+                                    StatsPlots.errorline(βList, cSampleβ, label="Closest Point Cost", marker=1, dpi=400)
+                                    Plots.vline!([βtst],linestyle=:dash,linecolor=:grey)
+                                    Plots.xlabel!("β")
+                                    Plots.ylabel!("Mean Error")
+                                    Plots.savefig(string(filepathi,"/Results/cost/cost_cp_β.png"))
+                                end
 
                                 params = Dict("Paramter type" => "Lame", "λ" => lambdatst, "μ" => mutst, "β" => βtst, "Control" => Control,
                                             "Noise Level" => noiseLevel, "Sides" => sides, "Samples" => nSamples)

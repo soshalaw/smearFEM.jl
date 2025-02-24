@@ -3,7 +3,7 @@ using ProgressMeter
 using SparseArrays
 
 using smearFEM
-using Plots
+using StatsPlots
 using Distributions
 using Dates
 
@@ -21,10 +21,10 @@ function main()
     FunctionClass = "Q2"
     nDof = ndim  # number of degree of freedom per node
     β = 100
-    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
+    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
     endTime = 30
-    tSteps = 30
-    noiseLevel = 0
+    tSteps = 45
+    noiseLevel = 1
     plot_matches = true
     sides_only = false
     Control = "displacement" # "force" or "displacement"
@@ -35,7 +35,7 @@ function main()
 
     Youngtst = 30
     νtst = 0.4
-    nSamples = 1
+    nSamples = 10
 
     # Derived Lame constants from Young's modulus and Poisson ratio
     lambdatst = round(Youngtst*νtst/((νtst+1).*(-2*νtst+1)))
@@ -48,7 +48,7 @@ function main()
     
     λ = lambdatst*(1-dev)
     μ = mutst*(1-dev)
-    cSample = zeros(tSteps+1)
+    cSample = zeros(tSteps+1,nSamples)
     for n = 1:nSamples
 
         nScene, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
@@ -62,10 +62,15 @@ function main()
         hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, λ, μ, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, "lame", 
                     ObsData, sides_only, plot_matches, filepathi)
 
-        cSample = cSample + cpCost 
+        cSample[:,n] = cpCost 
     end
-    cost = cSample/nSamples
-    plot(cost, label="Height Cost")
+
+    if nSamples == 1
+        cost = cSample/nSamples
+        plot(cost, label="Cost") 
+    else
+        errorline(cSample, errorstyle=:ribbon, label="Height Cost")
+    end
     xlabel!("Time steps")
     ylabel!("Cost")
     savefig(string(filepathi,"/Results/cost/cost_cp.png"))

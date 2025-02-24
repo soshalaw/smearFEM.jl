@@ -26,36 +26,28 @@ Simulate the deformation of the mesh for a single time step using the linear ela
 - `DENSE::Bool` : use dense matrices
 - `CG::Bool` : use conjugate gradient method to solve the system of equations
 """
-function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, μ_tp, μ_btm; DENSE=false, CG=false)
-    mode = "standard"
+function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim, FunctionClass, nDof, β, μ_tp, μ_btm; mode::String="lame", GRAD::Bool=false, DENSE::Bool=false, CG::Bool=false)
 
-    cMat = get_cMat(mode, Young, ν)
+    cMat = get_cMat(mode, c1, c2)
+    dcdλ = get_cMat(mode, 1.0 , 0.0)
 
-    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
-    CPointList, W, C, IEN, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
+    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
+    NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1) # inflate the sphere to a unit sphere
     
-    ndim = size(CPointList,1)
-    ne = Int64((size(IEN,2))^(1/ndim))
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeListCylinder, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
+                        FunctionClass=FunctionClass, Young=Float64(c1), ν=c2, cMat=cMat, dcMatdλ=dcdλ)
 
-    # get the ID array
-    ID = zeros(Int64, ndim, size(CPointList,2))
-    cpiter = 1:size(CPointList,2)
-    for m in cpiter
-        for l in 1:ndim
-            ID[l,m] = ndim*(m-1) + l
-        end
-    end 
-
-    mdl = def_model("linear_elasticity", ne=ne, NodeList=CPointList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
-                        FunctionClass=FunctionClass, C = C, C_top = C_top, C_btm = C_btm, W = W, Young=Float64(Young), ν=ν, cMat=cMat)
-    
     if DENSE == true
         q_tp, q_btm, C_uc = set_boundary_conditions_dense(mdl)
         K = assemble_system_dense(mdl)                   # assemble the stiffness matrix
         b = set_slip_conditions_dense(mdl)         # apply the neumann boundary conditions
     else
         q_tp, q_btm, C_uc = set_boundary_conditions(mdl)
-        K = assemble_system(mdl)                   # assemble the stiffness matrix
+        if GRAD
+            K, dKdλ = assemble_system(mdl, GRAD=true)              
+        else
+            K = assemble_system(mdl)                   # assemble the stiffness matrix
+        end
         b = set_slip_conditions(mdl)         # apply the neumann boundary conditions
     end
     
@@ -71,9 +63,18 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, Func
     end
 
     q = q_d + C_uc*q_f                 # assemble the solution 
-    q_out = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]';
+    q_out = hcat([q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]])'    # update the nodal positions
 
-    return q_out, mdl
+
+    if GRAD && CG==false
+        dqfdλ = -K_free\(C_T*dKdλ*C_uc*q_f + C_T*dKdλ*q_d)
+        
+        dqdλ = zeros(size(q_d)) + C_uc*dqfdλ
+        dqdλ_out = hcat(dqdλ[ID[1,:]], dqdλ[ID[2,:]], dqdλ[ID[3,:]])'
+        return q_out, dqdλ_out, mdl
+    else
+        return q_out, mdl
+    end
 end
 
 """
@@ -108,11 +109,9 @@ function simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, Func
     q_tp, q_side, q_btm, C_uc = set_boundary_cond_stokes(NodeList_u, ne, ndim, FunctionClass_u, nDof_u)
     
     NodeList_p, IEN_p, ID_p, IEN_p_top, IEN_p_btm, BorderNodesList_p = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass_p)  # generate the mesh grid
-    NodeListCylinderp = inflate_cylinder(NodeList_p, x0, x1, y0, y1)
     
-    mdl = def_model("stokes", ne=ne, NodeList=NodeListCylinder, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u, 
-                        FunctionClass=FunctionClass_u, ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, 
-                            ndim_2=ndim, nDof_2=nDof_p, FunctionClass_2=FunctionClass_p ) # define the model
+    mdl = def_model("stokes", ne=ne, NodeList=NodeListCylinder, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u, FunctionClass=FunctionClass_u, 
+                    ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, nDof_2=nDof_p, FunctionClass_2=FunctionClass_p ) # define the model
                             
     if DENSE == true
         A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
@@ -227,11 +226,11 @@ function test(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim::Int64, FunctionClass::St
     cMat = get_cMat(mode, c1, c2) # E, ν or λ, μ
     dcdλ = get_cMat(mode, 1.0 , 0.0)
 
-    μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = simulate(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim, FunctionClass, nDof, β, 
+    μ_list, gradList, borderPts2DList, splinep, splineq, mdl = simulate(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim, FunctionClass, nDof, β, 
                                                                         CameraMatrix, endTime, tSteps, Control, cParam, cMat, writeData=writeData, 
                                                                         filepath=filepath, SIDES=SIDES, dcdλ=dcdλ)
 
-    return μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl
+    return μ_list, gradList, borderPts2DList, splinep, splineq, mdl
 end
 
 """
@@ -266,7 +265,7 @@ Compare the simulation with the observation data
 function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass::String, nDof::Int64, β, CameraMatrix, endTime, tSteps, Control::String, 
                 mode::String, ObsData, SIDES::Bool=false, PLOT::Bool=false, filepath=nothing)
 
-    μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, 
+    μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, 
                                                                        endTime, tSteps, Control, mode=mode, SIDES=SIDES)    
 
     obsBorderPts = ObsData[1]
@@ -275,7 +274,7 @@ function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionCla
     
     # test the closest point function
     
-    d_cp, pairs = closest_point(simBorderPts, obsBorderPts)
+    d_cp, ∂d_cp, ∂2d_cp, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
     
     if PLOT
         @assert !isnothing(filepath) "File path not provided"

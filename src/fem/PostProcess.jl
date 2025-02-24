@@ -23,94 +23,117 @@ Project the 3D mesh to 2D image plane and extract the border nodes (left and rig
 """
 function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::Matrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, ne::Int64, nNodes::Int64, SIDES::Bool=false)
 
-    SideNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
-    SideNodes2D = back_project(SideNodes, CameraMatrix) 
+    SurfaceNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
+    SurfacePts2D = back_project(SurfaceNodes, CameraMatrix)     # project the nodes to the image plane
 
-    # project the nodes to the image plane and extract the border nodes as an ordered list
-
-    LeftborderPts = zeros(2,(nNodes))                  # vector to store indexes of the border nodes
-    RightborderPts = zeros(2,(nNodes))                 # vector to store indexes of the border nodes
+    LeftborderPts = zeros(2,(nNodes))                # vector to store indexes of the border nodes
+    RightborderPts = zeros(2,(nNodes))               # vector to store indexes of the border nodes
     LeftborderNodes = Vector{Int64}(undef, 0)        # vector to store indexes of the border nodes
     RightborderNodes = Vector{Int64}(undef, 0)   
     TopLayerList = []                                # vector to store indexes of the border nodes
     BottomLayerList = []                             # vector to store indexes of the border nodes
-    szSide = size(SideNodes2D,2)÷(nNodes)                            # size of each layer
-    BorderNodes = Vector{Int64}(undef, 0)            # vector to store indexes of the border nodes
+    szSide = size(SurfacePts2D,2)÷(nNodes)           # size of each layer
+
     for Layers in 1:nNodes                                        # loop through each layer
-        nodes = SideNodes2D[:,(Layers-1)*szSide+1:Layers*szSide]
+        nodes = SurfacePts2D[:,(Layers-1)*szSide+1:Layers*szSide]
         minNode = (Layers-1)*szSide + argmin(nodes[1,:])
         maxNode = (Layers-1)*szSide + argmax(nodes[1,:])
         push!(LeftborderNodes, minNode)
         push!(RightborderNodes, maxNode)
-        LeftborderPts[:,Layers] = SideNodes2D[:,minNode]         # left border nodes
-        RightborderPts[:,Layers] = SideNodes2D[:,maxNode]        # right border nodes
+        LeftborderPts[:,Layers] = SurfacePts2D[:,minNode]         # left border nodes
+        RightborderPts[:,Layers] = SurfacePts2D[:,maxNode]        # right border nodes
         if Layers == nNodes
             nodeIdi = 1:size(nodes,2)
             for nodeId in nodeIdi
-                if nodes[2,nodeId] > SideNodes2D[2,minNode]    
+                if nodes[2,nodeId] > SurfacePts2D[2,minNode]    
                     push!(TopLayerList, (Layers-1)*szSide+nodeId)
                 end
             end 
         elseif Layers == 1
             nodeIdi = 1:size(nodes,2)
             for nodeId in nodeIdi
-                if nodes[2,nodeId] < SideNodes2D[2,minNode] 
+                if nodes[2,nodeId] < SurfacePts2D[2,minNode] 
                     push!(BottomLayerList, nodeId)
                 end
             end 
         end
     end  
-    TopLayer = sortslices(SideNodes2D[:,TopLayerList],dims=2)                     # top layer nodes
-    BottomLayer = sortslices(SideNodes2D[:,BottomLayerList],dims=2)               # bottom layer nodes
 
-    BorderPoints = hcat(LeftborderPts, TopLayer, RightborderPts, BottomLayer)         # concatenate the left and right border nodes
-    BorderNodes = vcat(LeftborderNodes, TopLayerList, reverse(RightborderNodes), reverse(BottomLayerList))            # concatenate the left and right border nodes 
+    TopBorderPts = sortslices(SurfacePts2D[:,TopLayerList],dims=2)                     # top layer nodes
+    BottomBorderPts = sortslices(SurfacePts2D[:,BottomLayerList],dims=2)               # bottom layer nodes
 
-    BorderPoints_ = sort_points(BorderPoints)
+    BorderPts = hcat(LeftborderPts, TopBorderPts, RightborderPts, BottomBorderPts)         # concatenate the left and right border nodes
+    BorderPtsSorted, BorderPtsSortedIds = sort_points(BorderPts)
 
     if SIDES
-        sides = get_sides(BorderPoints_)
-        return sides, BorderNodes, SideNodes2D
+        sidePts, index = get_sides(BorderPtsSorted)
+        sidePts = BorderPtsSorted[index]
+
+        return sidePts, SurfacePts2D
     else
-        return BorderPoints_, BorderNodes, SideNodes2D
+        return BorderPtsSorted, SurfacePts2D
     end
 end
 
-function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::Matrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, SIDES::Bool=false)
-
-    SideNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
-    SideNodes2D = back_project(SideNodes, CameraMatrix) 
+function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::Matrix{Float64}, BorderNodesList::Vector{Vector{Int64}}; GRAD::Bool=false, dqdλ::AbstractMatrix{Float64}=zeros(2,2), SIDES::Bool=false)
+    
+    SurfaceNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
+    if GRAD
+        SurfacePts2D, ∇SurfacePts2D = back_project(SurfaceNodes, CameraMatrix, dqdλ) 
+    else
+        SurfacePts2D = back_project(SurfaceNodes, CameraMatrix) 
+    end
 
     p = Array{Vector{Float64}}(undef,0)
 
-    iter = 1:size(SideNodes2D,2)
+    iter = 1:size(SurfacePts2D,2)
     for i in iter
-        push!(p, SideNodes2D[:,i])
+        push!(p, SurfacePts2D[:,i])
     end
 
     hull = ch.ConvexHull(p)
-    points = ch.vertices(hull)
-    sz = length(points)
-    BorderPoints = zeros(2,sz)
+    # points = ch.vertices(hull)
+    # sz = length(points)
+    # BorderPoints = zeros(2,sz)
 
-    iter = 1:sz
-    for i in iter
-        BorderPoints[:,i] = points[i]
-    end
+    # iter = 1:sz
+    # for i in iter
+    #     BorderPoints[:,i] = points[i]
+    # end
 
-    BorderNodes = ch.vertices(hull)
+    BorderPtIds = ch.indices(hull)
+    BorderPts = SurfacePts2D[:,BorderPtIds]
+    BorderPtsSorted, BorderPtsSortedIds = sort_points(BorderPts)
 
-    BorderPoints_ = sort_points(BorderPoints)
+    if GRAD
+        ∇BorderPts = ∇SurfacePts2D[:,BorderPtIds]
+        ∇BorderPtsSorted = ∇BorderPts[:,BorderPtsSortedIds]
+        if SIDES
+            sidePts, index = get_sides(BorderPtsSorted)
 
-    if SIDES
-        sides = get_sides(BorderPoints_)
-        return sides, BorderNodes, SideNodes2D
+            sidePtsIds = BorderPtsSortedIds[index]
+            ∇sidePts = ∇BorderPtsSorted[:,sidePtsIds]
+
+            return sidePts, ∇sidePts, SurfacePts2D
+        else
+            return BorderPtsSorted, ∇BorderPtsSorted, SurfacePts2D
+        end
     else
-        return BorderPoints_, BorderNodes, SideNodes2D
+        if SIDES
+            sidePts, index = get_sides(BorderPtsSorted)
+    
+            sidePts = BorderPtsSorted[index]
+            sidePtsIds = BorderPtsSortedIds[index]
+    
+            return sidePts, SurfacePts2D
+        else
+            return BorderPtsSorted, SurfacePts2D
+        end
     end
 end
 
 function get_sides(Data::Matrix{Float64})
+
     indexes = []
     dataIter = 1:(size(Data,2)-1)
     for i in dataIter
@@ -127,54 +150,110 @@ function get_sides(Data::Matrix{Float64})
         end
     end
     sides = Data[:,indexes]
-    return sides
+    return sides, indexes
 end
 
 function sort_points(Data::Matrix{Float64})
 
-    y_sorted = Data[:,sortperm(Data[2,:])]
+    y_sorted_id = sortperm(Data[2,:])
+    y_sorted = Data[:,y_sorted_id]
     
-    pointsLeft = y_sorted[:,findall(y_sorted[1,:].<=y_sorted[1,1])]
-    pointsRight = y_sorted[:,findall(y_sorted[1,:].>y_sorted[1,1])]
-   
-    return hcat(pointsLeft, reverse(pointsRight,dims=2))
+    pointsLeft_id = findall(y_sorted[1,:].<=y_sorted[1,1])
+    leftElements = y_sorted_id[pointsLeft_id]
+    pointsLeft = y_sorted[:,pointsLeft_id]
+
+    pointsRight_id = findall(y_sorted[1,:].>y_sorted[1,1])
+    rightElements = y_sorted_id[pointsRight_id]
+    pointsRight = y_sorted[:,pointsRight_id]
+
+    return hcat(pointsLeft, reverse(pointsRight,dims=2)), vcat(leftElements, reverse(rightElements))
 end
 
 """ 
-    back_project(NodeList, CameraMatrix)
+    back_project(x::Matrix{Float64}, CameraMatrix::Matrix{Float64}, GRAD:Bool)
 
 Project the 3D mesh to 2D image plane
     
 # Arguments:
-- `NodeList::Matrix{Float64}{3,nbNodes}`: 3D mesh grid
+- `x::Matrix{Float64}{3,nNodes}`: 3D mesh grid
 - `CameraMatrix::Matrix{Float64}{3,3}`: Camera matrix
 
 # Returns:
-- `NodeList2D::Matrix{Float64}{2,nbNodes}`: 2D coordinates of the nodes
+- `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
+- `dπdx::Array{Float64, nNodes}`{2×3×nNodes}: ∂π(x(θ))/∂(x(θ))
 """
-function back_project(NodeList, CameraMatrix)
+function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, dqdλ::AbstractMatrix{Float64})
+    
+    nx = size(x,2)
+    xNorm = zeros(3,nx)
+    dudλ = zeros(3,nx)
+
+    # transform point cloud wrt to camera frame 
+    R = [1 0 0; 0 0 1; 0 -1 0]     # rotation matrix
+    t = [0; -0.5; 4]               # translation vector
+
+    xTrans = R*x .+ t
+
+    iter = 1:nx
+    for i in iter
+        xNorm[1,i] = xTrans[1,i]/xTrans[3,i]
+        xNorm[2,i] = xTrans[2,i]/xTrans[3,i]
+        xNorm[3,i] = xTrans[3,i]/xTrans[3,i]
+
+        dπdx = CameraMatrix*[1/xTrans[3,i] 0 -xTrans[1,i]/xTrans[3,i]^2; 0 1/xTrans[3,i] -xTrans[2,i]/xTrans[3,i]^2; 0 0 0]
+        dudλ[:,i] = dπdx*dqdλ[:,i]
+    end
+
+    xProj = CameraMatrix*xNorm   # project to image plane
+
+    x2D = xProj[1:2,:]            # extract x and y coordinates
+    dudx2D = dudλ[1:2,:]
+
+    return x2D, dudx2D
+end 
+
+""" 
+    back_project(x::Matrix{Float64}, CameraMatrix::Matrix{Float64}, GRAD:Bool)
+
+Project the 3D mesh to 2D image plane
+    
+# Arguments:
+- `x::Matrix{Float64}{3,nNodes}`: 3D mesh grid
+- `CameraMatrix::Matrix{Float64}{3,3}`: Camera matrix
+
+# Returns:
+- `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
+"""
+function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64})
                 
     # transform point cloud wrt to camera frame 
     R = [1 0 0; 0 0 1; 0 -1 0]     # rotation matrix
     t = [0; -0.5; 4]               # translation vector
 
-    NodeListTrans = R*NodeList .+ t
+    xTrans = R*x .+ t
     
-    NodeListNorm = zeros(3,size(NodeListTrans,2))
+    xProj = project_to(xTrans, CameraMatrix)
 
-    iter = 1:size(NodeListNorm,2)
+    x2D = xProj[1:2,:]            # extract x and y coordinates
+
+    return x2D
+end 
+
+function project_to(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64})
+
+    nNodes = size(x,2)
+    xNorm = zeros(3,nNodes)
+
+    iter = 1:nNodes
     for i in iter
-        NodeListNorm[1,i] = NodeListTrans[1,i]/NodeListTrans[3,i]
-        NodeListNorm[2,i] = NodeListTrans[2,i]/NodeListTrans[3,i]
-        NodeListNorm[3,i] = NodeListTrans[3,i]/NodeListTrans[3,i]
+        xNorm[1,i] = x[1,i]/x[3,i]
+        xNorm[2,i] = x[2,i]/x[3,i]
+        xNorm[3,i] = x[3,i]/x[3,i]
     end
     
-    NodeListProj = CameraMatrix'*NodeListNorm   # project to image plane
-
-    NodeList2D = NodeListProj[1:2,:]            # extract x and y coordinates
-
-    return NodeList2D
-end 
+    xProj = CameraMatrix*xNorm   # project to image plane
+    return xProj
+end
 
 """
     fit_curve(; border, borderx, bordery)
@@ -254,6 +333,7 @@ Select the nodes on the right side of the centerline and sort them
 - `newBorderySrt::Vector{Float64}`: y coordinates of the sorted border nodes
 """
 function filter_points(border, centerx)
+
     # half_border = ElasticArray{Float64}(undef, 2, size(border,2))
     new_borderx = Array{Float64}(undef, 0)
     new_bordery = Array{Float64}(undef, 0)

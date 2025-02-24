@@ -1,5 +1,6 @@
 using Plots
 using ProgressMeter
+using ArgCheck
 
 """
     PlotGrid(IEN, NodeList)
@@ -13,7 +14,6 @@ Function to plot the grid
 function PlotGrid(IEN, NodeList)
 
     fig1 = plt.figure()
-    println(size(IEN))
     if size(IEN,2) == 4 # 2D element with 4 nodes 
         ax = fig1.add_subplot(111)
         iter = 1:size(IEN,1)
@@ -209,13 +209,14 @@ end
 
 function plot_matches(simborderfields, p, q, pObs, qObs, pairs, filepath="images")
     sz = length(simborderfields)
+    @argcheck length(simborderfields) == length(pairs)
     pr = Progress(sz; desc="Plotting matches ...",showspeed=true)
     iter = 1:sz
     animation = @animate for i in iter
         borderp = simborderfields[i][1,:]
         borderq = simborderfields[i][2,:]
         plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y",title="Prospective Projection of the 3D Grid", label="", dpi=400)
-        # Plots.plot!(p[i],q[i], legend=true, labels="Simulation",  dpi=:400)
+        Plots.plot!(p[i],q[i], legend=true, labels="Simulation",  dpi=:400)
         Plots.plot!(pObs[i],qObs[i], labels="Observation",  dpi=:400)
         for pair in pairs[i]
             Plots.plot!([borderp[pair[1]], pObs[i][pair[2]]], [borderq[pair[1]], qObs[i][pair[2]]], marker=1.5, lw=0.5, label="", dpi=:400)

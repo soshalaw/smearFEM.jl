@@ -12,7 +12,7 @@ function main()
   tSteps = 45
   time = collect(range(start=0,stop=endTime,length=tSteps)) # time vector
   dateTime = Dates.now()
-  CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]
+  CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
 
   x0 = 0
   x1 = 1
