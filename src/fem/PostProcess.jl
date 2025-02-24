@@ -12,7 +12,7 @@ Project the 3D mesh to 2D image plane and extract the border nodes (left and rig
     
 # Arguments:
 - `NodeList::Matrix{Float64}{ndim,nNodes}` : coordinates of the nodes
-- `CameraMatrix::Matrix{Float64}{3,3}` : Camera matrix
+- `CameraMatrix::AbstractMatrix{Float64}{3,3}` : Camera matrix
 - `BorderNodesList::Vector{Vector{Any}{4,N}`:  : List of border nodes
 - `state::String` : State of the function (init:During the initialization of the mesh or update: when the mesh is updated)
 - `ne::Integer`: Number of elements in each direction
@@ -21,7 +21,7 @@ Project the 3D mesh to 2D image plane and extract the border nodes (left and rig
 - `NodeList::Matrix{Float64}{ndim,nbNodes}`: 2D coordinates of the border nodes
 - `BorderNodes::Vector{Int}`: Indexes of the border nodes
 """
-function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::Matrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, ne::Int64, nNodes::Int64, SIDES::Bool=false)
+function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, ne::Int64, nNodes::Int64, SIDES::Bool=false)
 
     SurfaceNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
     SurfacePts2D = back_project(SurfaceNodes, CameraMatrix)     # project the nodes to the image plane
@@ -75,7 +75,7 @@ function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::Matrix{Float64
     end
 end
 
-function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::Matrix{Float64}, BorderNodesList::Vector{Vector{Int64}}; GRAD::Bool=false, dqdλ::AbstractMatrix{Float64}=zeros(2,2), SIDES::Bool=false)
+function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}; GRAD::Bool=false, dqdλ::AbstractMatrix{Float64}=zeros(2,2), SIDES::Bool=false)
     
     SurfaceNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
     if GRAD
@@ -170,13 +170,13 @@ function sort_points(Data::Matrix{Float64})
 end
 
 """ 
-    back_project(x::Matrix{Float64}, CameraMatrix::Matrix{Float64}, GRAD:Bool)
+    back_project(x::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, GRAD:Bool)
 
 Project the 3D mesh to 2D image plane
     
 # Arguments:
 - `x::Matrix{Float64}{3,nNodes}`: 3D mesh grid
-- `CameraMatrix::Matrix{Float64}{3,3}`: Camera matrix
+- `CameraMatrix::AbstractMatrix{Float64}{3,3}`: Camera matrix
 
 # Returns:
 - `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
@@ -213,13 +213,13 @@ function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{F
 end 
 
 """ 
-    back_project(x::Matrix{Float64}, CameraMatrix::Matrix{Float64}, GRAD:Bool)
+    back_project(x::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, GRAD:Bool)
 
 Project the 3D mesh to 2D image plane
     
 # Arguments:
 - `x::Matrix{Float64}{3,nNodes}`: 3D mesh grid
-- `CameraMatrix::Matrix{Float64}{3,3}`: Camera matrix
+- `CameraMatrix::AbstractMatrix{Float64}{3,3}`: Camera matrix
 
 # Returns:
 - `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
