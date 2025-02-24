@@ -65,7 +65,6 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim, Functio
     q = q_d + C_uc*q_f                 # assemble the solution 
     q_out = hcat([q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]])'    # update the nodal positions
 
-
     if GRAD && CG==false
         dqfdλ = -K_free\(C_T*dKdλ*C_uc*q_f + C_T*dKdλ*q_d)
         
@@ -274,7 +273,7 @@ function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionCla
     
     # test the closest point function
     
-    d_cp, ∂d_cp, ∂2d_cp, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
+    d_cp, pairs = closest_point(simBorderPts, obsBorderPts)
     
     if PLOT
         @assert !isnothing(filepath) "File path not provided"
@@ -309,8 +308,6 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
     
     NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
     NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
-
-    state = "init"
 
     BorderPts2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, ne, 2*ne+1, SIDES)
     pi, qi = fit_curve(border=BorderPts2D)

@@ -25,8 +25,8 @@ function main()
     endTime = 30
     tSteps = 45
     noiseLevel = 1
-    plot_matches = true
-    sides_only = false
+    PLOT_MATCHES = true
+    SIDES = false
     Control = "force" # "force" or "displacement"
     dev = 0.4
     mode = "lame" # "standard" or "lame"
@@ -60,7 +60,7 @@ function main()
         end
 
         hcost, cpCost = compare(x0, x1, y0, y1, z0, z1, ne, λ, μ, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, "lame", 
-                    ObsData, sides_only, plot_matches, filepathi)
+                    ObsData, SIDES, PLOT_MATCHES, filepathi)
 
         cSample[:,n] = cpCost 
     end

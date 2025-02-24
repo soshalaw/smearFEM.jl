@@ -33,7 +33,7 @@ function closest_point(simScene::Vector{AbstractArray}, obsScene::Vector{Abstrac
     for (obs_t, sim_t) in zip(obsScene[1:end], simScene[1:end]) # iterate over the scenes
         tcost = 0
 
-        pairs = match_points(simData, obsData) # match the points using the first border
+        pairs = match_points(sim_t, obs_t) # match the points using the first border
 
         pSim, qSim = sim_t[1,:], sim_t[2,:]
         pObs, qObs = obs_t[1,:], obs_t[2,:]
@@ -52,16 +52,18 @@ end
 function closest_point(simScene::Vector{AbstractArray}, obsScene::Vector{AbstractArray}, dudλ::Vector{AbstractArray})
     # Define the cost function
     costList = Float64[]
-    dcostList = AbstractMatrix[]
-    dcost2List = AbstractMatrix[]
+    dcostList = []
+    dcost2List = []
     pairsList = []
     @argcheck length(simScene) == length(obsScene)
     @argcheck length(simScene) == length(dudλ)
 
     for (obs_t, sim_t, du_tdλ) in zip(obsScene, simScene, dudλ) # iterate over the scenes
         tcost = 0.0
-        dtcost = zeros(Float64,1,size(du_tdλ,2))
-        dt2cost = zeros(Float64,size(du_tdλ,2),size(du_tdλ,2))
+        dtcost = 0.0
+        dt2cost = 0.0
+        # dtcost = zeros(Float64,1,size(du_tdλ,2))
+        # dt2cost = zeros(Float64,size(du_tdλ,2),size(du_tdλ,2))
         
         pairs = match_points(sim_t, obs_t) # match the points using the first border
         
@@ -70,12 +72,12 @@ function closest_point(simScene::Vector{AbstractArray}, obsScene::Vector{Abstrac
         pObs, qObs = obs_t[1,:], obs_t[2,:]
 
         for pair in pairs
-            u = [(pSim[pair[1]] - pObs[pair[2]]) (qSim[pair[1]] - qObs[pair[2]])]
-            du = [dpSim[pair[1]] dqSim[pair[1]]] 
+            u = [(pSim[pair[1]] - pObs[pair[2]]); (qSim[pair[1]] - qObs[pair[2]])]
+            du = [dpSim[pair[1]]; dqSim[pair[1]]]
 
-            tcost =+ dot(u,u)
-            dtcost =+ u*du'
-            dt2cost =+ du*du'
+            tcost = tcost + u'*u
+            dtcost = dtcost + u'*du
+            dt2cost = dt2cost + du'*du
         end
 
         mCost = tcost/length(pairs) # 1/m(Σ(√(xi-x_obs)^2+(yi-y_obs)^2))^2 (mean error)
@@ -168,22 +170,7 @@ function fit_model(simborderfields, obsborderfields, model)
 
 end
 
-function fit(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim::Int64, FunctionClass::String, nDof::Int64, β, CameraMatrix, endTime, tSteps, Control::String, 
-    mode::String, ObsData, SIDES::Bool=false, PLOT::Bool=false, filepath=nothing)
-    
-    # test run with c1 = λ
-    obsBorderPts = ObsData[1]
-
-    μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim, FunctionClass, nDof, β, CameraMatrix, 
-                                                            endTime, tSteps, Control, mode=mode, SIDES=SIDES)    
-
-    # test the closest point function
-    d, ∂d, ∂d2, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
-
-    p = ∂d/∂d2
-    α = 0.1
-
-    c1 = c1 + α*p
-end
+# function fit(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim::Int64, FunctionClass::String, nDof::Int64, β, CameraMatrix, endTime, tSteps, Control::String, 
+#     mode::String, ObsData, SIDES::Bool=false, PLOT::Bool=false, filepath=nothing)
 
 # grad_check()

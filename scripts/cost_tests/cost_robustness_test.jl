@@ -28,17 +28,20 @@ function main()
     sampleNo = 21
     dev = 0.3
 
-    noiseLevelLst = [0 0.25 0.5 1 1.5 2 3 4 5]
-    nSamples = 10
-    # noiseLevelLst = [2]
-    # YoungtstLst = [30]
-    YoungtstLst = [30 35 40]
-    # νtstLst = [0.25]
-    νtstLst = [0.25 0.3 0.35]
-    βLst = [100 1000 10000]
-    # βLst = [100]
-    ControlList = ["force", "displacement"]
-    sideList = [true, false]
+    # noiseLevelLst = [0 0.25 0.5 1 1.5 2 3 4 5]
+    # YoungtstLst = [30 35 40]
+    # νtstLst = [0.25 0.3 0.35]
+    # βLst = [100 1000 10000]
+    # ControlList = ["force", "displacement"]
+    # sideList = [true, false]
+
+    nSamples = 1
+    noiseLevelLst = [0]
+    YoungtstLst = [30]
+    νtstLst = [0.3]
+    ControlList = ["displacement"]
+    βLst = [100]
+    sideList = [false]
 
     # Derived Lame constants from Young's modulus and Poisson ratio
     lambdatstLst_ = YoungtstLst.*νtstLst./((νtstLst.+1).*(-2*νtstLst.+1))
@@ -69,15 +72,15 @@ function main()
                             for mutst in mutstLst
                                 println("For testing with Lame constants...")
 
+                                filepathi = string(filepathlame,"slip_",βtst,"/control_",Control,"/sides_",sides,"/noise_",noiseLevel,"/experiment_",iter,)
+                                simBorderPts, simBorderNodes, splinex, spliney = write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, endTime, tSteps, Control,filepathi, mode="lame")
+                                ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data")) 
+
                                 dev_λ = lambdatst*dev
                                 dev_μ = mutst*dev
 
                                 lambdaList = collect(range(lambdatst-dev_λ, stop=lambdatst+dev_λ, length=sampleNo))
                                 muList = collect(range(mutst-dev_μ, stop=mutst+dev_μ, length=sampleNo))
-
-                                filepathi = string(filepathlame,"slip_",βtst,"/control_",Control,"/sides_",sides,"/noise_",noiseLevel,"/experiment_",iter,)
-                                simBorderPts, simBorderNodes, splinex, spliney = write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, endTime, tSteps, Control,filepathi, mode="lame")
-                                ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data")) 
                                 
                                 cSampleλ = zeros(size(lambdaList,1),nSamples)
                                 cSampleμ = zeros(size(muList,1),nSamples)
@@ -102,7 +105,7 @@ function main()
                                     for i in λ_iter
                                         hcost, cpCostλ = compare(x0, x1, y0, y1, z0, z1, ne, lambdaList[i], mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, 
                                                             endTime, tSteps, Control, "lame", ObsData, sides)    
-                                        cpCostListλ[i] = sum(cpCostλ)/length(cpCostλ)
+                                        cpCostListλ[i] = sum(cpCostλ)
                                     end
                                     cSampleλ[:,n] = cpCostListλ
 
@@ -110,7 +113,7 @@ function main()
                                     for j in μ_iter
                                         hcost, cpCostμ = compare(x0, x1, y0, y1, z0, z1, ne, lambdatst, muList[j], ndim, FunctionClass, nDof, βtst, CameraMatrix, 
                                                                 endTime, tSteps, Control, "lame", ObsData, sides)
-                                        cpCostListμ[j] = sum(cpCostμ)/length(cpCostμ)
+                                        cpCostListμ[j] = sum(cpCostμ)
                                     end
                                     cSampleμ[:,n] =  cpCostListμ
 
@@ -118,15 +121,15 @@ function main()
                                     for k in β_iter
                                         hcost, cpCostβ = compare(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βList[k], CameraMatrix, 
                                                                 endTime, tSteps, Control, "lame", ObsData, sides)
-                                        cpCostListβ[k] = sum(cpCostβ)/length(cpCostβ)
+                                        cpCostListβ[k] = sum(cpCostβ)
                                     end
                                     cSampleβ[:,n] =  cpCostListβ
                                 end
 
                                 if nSamples == 1
-                                    CostListλ = cSampleλ/nSamples
-                                    CostListμ = cSampleμ/nSamples
-                                    CostListβ = cSampleβ/nSamples
+                                    CostListλ = cSampleλ
+                                    CostListμ = cSampleμ
+                                    CostListβ = cSampleβ
 
                                     Plots.plot(lambdaList, CostListλ, label="Closest Point Cost", marker=1, dpi=400)
                                     Plots.vline!([lambdatst],linestyle=:dash,linecolor=:grey)
