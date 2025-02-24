@@ -312,26 +312,25 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
 
     state = "init"
 
-    BorderPts2D, BorderNodes2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, ne, (2*ne+1), SIDES)
+    BorderPts2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, ne, 2*ne+1, SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
 
     SideBorders = BorderNodesList[1]
     BottomBorders = BorderNodesList[2]
     TopBorders = BorderNodesList[3]
         
-    pos3D = [NodeListCylinder]                                                               # store the solution fields of the mesh in 3D
-    pos2D = [Nodes2D]                                                                   # store the solution fields of the mesh in 2D
-    surfaceNodesList = [NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
-    borderPts2DList = [BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
-    borderNodeList2D = [BorderNodes2D]                                                       # store the solution fields of the border nodes in 2D
-    splinep = [pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
-    splineq = [qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
+    pos3D = AbstractArray[NodeListCylinder]                                                             # store the solution fields of the mesh in 3D
+    pos2D = AbstractArray[Nodes2D]                                                                   # store the solution fields of the mesh in 2D
+    surfaceNodesList = Float64[NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
+    borderPts2DList = AbstractArray[BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
+    splinep = AbstractArray[pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
+    splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes 
     writeborderList = [vcat(pi', qi')]
 
-    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D, p=splinep, q=splineq)
+    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
     write_contour_data(string(filepath,"/Results"), writeborderList)
 
-    return borderPts2DList, borderNodeList2D, splinep, splineq
+    return borderPts2DList, surfaceNodesList, splinep, splineq
 end
 
 """

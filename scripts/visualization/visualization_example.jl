@@ -22,7 +22,7 @@ function main()
 
     filepath = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Lame/test_experiment/"
     set_file(filepath)
-    SIDES = false
+    SIDES = true
     mode = "standard" # "standard" or "lame"
 
     initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, CameraMatrix, filepath, SIDES)

@@ -67,7 +67,6 @@ function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix
 
     if SIDES
         sidePts, index = get_sides(BorderPtsSorted)
-        sidePts = BorderPtsSorted[index]
 
         return sidePts, SurfacePts2D
     else
@@ -286,7 +285,7 @@ function fit_curve(;border=nothing, borderx=nothing, bordery=nothing, samples=no
 
         len = length(x)
         seq = 1:(len)
-        
+
         p = CubicSpline(x,seq)
         q = CubicSpline(y,seq)
         pi = [p(i) for i in 1:0.1:len]

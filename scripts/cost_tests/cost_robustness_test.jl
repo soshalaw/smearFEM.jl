@@ -79,9 +79,9 @@ function main()
                                 simBorderPts, simBorderNodes, splinex, spliney = write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, βtst, CameraMatrix, endTime, tSteps, Control,filepathi, mode="lame")
                                 ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data")) 
                                 
-                                cSampleλ = zeros(size(lambdaList),nSamples)
-                                cSampleμ = zeros(size(muList),nSamples)
-                                cSampleβ = zeros(size(βList),nSamples)
+                                cSampleλ = zeros(size(lambdaList,1),nSamples)
+                                cSampleμ = zeros(size(muList,1),nSamples)
+                                cSampleβ = zeros(size(βList,1),nSamples)
 
                                 for n = 1:nSamples
 

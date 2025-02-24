@@ -27,7 +27,7 @@ function main()
     noiseLevel = 1
     plot_matches = true
     sides_only = false
-    Control = "displacement" # "force" or "displacement"
+    Control = "force" # "force" or "displacement"
     dev = 0.4
     mode = "lame" # "standard" or "lame"
     dateTime = Dates.now()

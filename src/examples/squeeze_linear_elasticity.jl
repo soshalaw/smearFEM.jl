@@ -899,7 +899,7 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
 
             BorderPts2D, dudλ, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, GRAD=true, dqdλ=dqdλ, SIDES=SIDES)
             pi, qi = fit_curve(border=BorderPts2D)
-
+            
             push!(output, μ_tp)
             push!(fields, motion)
             push!(gradList,dudλ)
