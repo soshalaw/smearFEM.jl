@@ -28,20 +28,20 @@ function main()
     sampleNo = 21
     dev = 0.3
 
-    # noiseLevelLst = [0 0.25 0.5 1 1.5 2 3 4 5]
-    # YoungtstLst = [30 35 40]
-    # νtstLst = [0.25 0.3 0.35]
-    # βLst = [100 1000 10000]
-    # ControlList = ["force", "displacement"]
-    # sideList = [true, false]
+    noiseLevelLst = [0 0.25 0.5 1 1.5 2 3 4 5]
+    YoungtstLst = [30 35 40 45]
+    νtstLst = [0.25 0.3 0.35 0.4]
+    βLst = [100 1000 10000]
+    ControlList = ["force", "displacement"]
+    sideList = [true, false]
 
-    nSamples = 1
-    noiseLevelLst = [0]
-    YoungtstLst = [30]
-    νtstLst = [0.3]
-    ControlList = ["displacement"]
-    βLst = [100]
-    sideList = [false]
+    # nSamples = 1
+    # noiseLevelLst = [0]
+    # YoungtstLst = [30]
+    # νtstLst = [0.3]
+    # ControlList = ["displacement"]
+    # βLst = [100]
+    # sideList = [false]
 
     # Derived Lame constants from Young's modulus and Poisson ratio
     lambdatstLst_ = YoungtstLst.*νtstLst./((νtstLst.+1).*(-2*νtstLst.+1))
