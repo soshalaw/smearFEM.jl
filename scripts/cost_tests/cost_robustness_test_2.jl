@@ -36,10 +36,10 @@ function main()
     # ControlList = ["force", "displacement"]
     # sideList = [true, false]
 
-    noiseLevelLst = [0 1.5]
+    noiseLevelLst = [0 1 2]
     ControlList = ["force"]
     βLst = [100]
-    sideList = [false]
+    sideList = [false true]
     lambdatstLst = [12.0]
     mutstLst = [16.0]
 
