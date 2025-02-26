@@ -169,7 +169,7 @@ function sort_points(Data::Matrix{Float64})
 end
 
 """ 
-    back_project(x::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, GRAD:Bool)
+    back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, GRAD:Bool)
 
 Project the 3D mesh to 2D image plane
     
@@ -179,12 +179,13 @@ Project the 3D mesh to 2D image plane
 
 # Returns:
 - `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
-- `dπdx::Array{Float64, nNodes}`{2×3×nNodes}: ∂π(x(θ))/∂(x(θ))
+- `dπdx::Array{Float64, nNodes}`{nNodes×2×nParams}: ∇π(x)
 """
 function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, dqdλ::AbstractMatrix{Float64})
     
     nx = size(x,2)
     xNorm = zeros(3,nx)
+    xProj = zeros(3,nx)
     dudλ = zeros(3,nx)
 
     # transform point cloud wrt to camera frame 
@@ -199,11 +200,11 @@ function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{F
         xNorm[2,i] = xTrans[2,i]/xTrans[3,i]
         xNorm[3,i] = xTrans[3,i]/xTrans[3,i]
 
+        xProj[:,i] = CameraMatrix*xNorm[:,i]
+
         dπdx = CameraMatrix*[1/xTrans[3,i] 0 -xTrans[1,i]/xTrans[3,i]^2; 0 1/xTrans[3,i] -xTrans[2,i]/xTrans[3,i]^2; 0 0 0]
         dudλ[:,i] = dπdx*dqdλ[:,i]
     end
-
-    xProj = CameraMatrix*xNorm   # project to image plane
 
     x2D = xProj[1:2,:]            # extract x and y coordinates
     dudx2D = dudλ[1:2,:]
@@ -212,7 +213,7 @@ function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{F
 end 
 
 """ 
-    back_project(x::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, GRAD:Bool)
+    back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64})
 
 Project the 3D mesh to 2D image plane
     
@@ -240,17 +241,19 @@ end
 
 function project_to(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64})
 
-    nNodes = size(x,2)
-    xNorm = zeros(3,nNodes)
+    nx = size(x,2)
+    xNorm = zeros(3,nx)
+    xProj = zeros(3,nx)
 
-    iter = 1:nNodes
+    iter = 1:nx
     for i in iter
         xNorm[1,i] = x[1,i]/x[3,i]
         xNorm[2,i] = x[2,i]/x[3,i]
         xNorm[3,i] = x[3,i]/x[3,i]
+
+        xProj[:,i] = CameraMatrix*xNorm[:,i]
     end
-    
-    xProj = CameraMatrix*xNorm   # project to image plane
+
     return xProj
 end
 

@@ -36,24 +36,13 @@ function main()
     # ControlList = ["force", "displacement"]
     # sideList = [true, false]
 
-    noiseLevelLst = [0]
-    YoungtstLst = [30]
-    νtstLst = [0.3]
-    ControlList = ["displacement"]
+    noiseLevelLst = [0 1.5]
+    ControlList = ["force"]
     βLst = [100]
     sideList = [false]
-
-    # Derived Lame constants from Young's modulus and Poisson ratio
-    lambdatstLst_ = YoungtstLst.*νtstLst./((νtstLst.+1).*(-2*νtstLst.+1))
-    mutstLst_ = YoungtstLst./(2*(νtstLst.+1))
-
-    # Round the values
-    lambdatstLst = [round(i) for i in lambdatstLst_]
-    mutstLst = [round(j) for j in mutstLst_]
-
     lambdatstLst = [12]
     mutstLst = [16]
-    
+
     Standard = false # Test for Poisson ratio and Young's modulus
     Lame = true # Test for Lame constants
 
