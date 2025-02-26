@@ -40,8 +40,8 @@ function main()
     ControlList = ["force"]
     βLst = [100]
     sideList = [false]
-    lambdatstLst = [12]
-    mutstLst = [16]
+    lambdatstLst = [12.0]
+    mutstLst = [16.0]
 
     Standard = false # Test for Poisson ratio and Young's modulus
     Lame = true # Test for Lame constants
