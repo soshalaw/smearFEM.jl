@@ -27,21 +27,22 @@ function main()
     dateTime = Dates.now()
     sampleNo = 21
     dev = 0.3
+    dev_β_ = 0.1
     nSamples = 10
     
-    # noiseLevelLst = [0 0.25 0.5 1 1.5 2 3 4 5]
-    # YoungtstLst = [30 35 40 45]
-    # νtstLst = [0.25 0.3 0.35 0.4]
-    # βLst = [100 1000 10000]
-    # ControlList = ["force", "displacement"]
-    # sideList = [true, false]
+    noiseLevelLst = [0 0.25 0.5 1 1.5 2 3 4 5]
+    YoungtstLst = [30 35 40 45]
+    νtstLst = [0.25 0.3 0.35 0.4]
+    βLst = [100 1000 10000]
+    ControlList = ["force", "displacement"]
+    sideList = [true, false]
 
-    noiseLevelLst = [0]
-    YoungtstLst = [30]
-    νtstLst = [0.3]
-    ControlList = ["displacement"]
-    βLst = [100]
-    sideList = [false]
+    # noiseLevelLst = [0]
+    # YoungtstLst = [30]
+    # νtstLst = [0.3]
+    # ControlList = ["displacement"]
+    # βLst = [100]
+    # sideList = [false]
 
     # Derived Lame constants from Young's modulus and Poisson ratio
     lambdatstLst_ = YoungtstLst.*νtstLst./((νtstLst.+1).*(-2*νtstLst.+1))
@@ -51,16 +52,13 @@ function main()
     lambdatstLst = [round(i) for i in lambdatstLst_]
     mutstLst = [round(j) for j in mutstLst_]
 
-    lambdatstLst = [12]
-    mutstLst = [16]
-    
     Standard = false # Test for Poisson ratio and Young's modulus
     Lame = true # Test for Lame constants
 
     folder = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
 
     for βtst in βLst
-        dev_β = βtst*dev
+        dev_β = βtst*dev_β_
         βList = collect(range(βtst-dev_β, stop=βtst+dev_β, length=sampleNo))
         for Control in ControlList
             for sides in sideList
