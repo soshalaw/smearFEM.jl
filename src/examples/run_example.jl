@@ -261,7 +261,6 @@ function test(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim::Int64, FunctionClass::St
         cParam = -3*ones(round(Int,endTime/tSteps))
     elseif Control == "displacement"
         μ_tp = -0.03 
-        # cParam = collect(range(start=tSteps,stop=endTime,step=tSteps))*μ_tp 
         cParam = μ_tp*ones(round(Int,endTime/tSteps))
     end
 
