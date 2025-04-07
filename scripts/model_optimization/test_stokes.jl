@@ -83,7 +83,7 @@ function fit()
 
     iter = 0
 
-    while ratio > 0.00005
+    while ratio > 0.005
         t∂2d = zeros(size(∂2d[1]))
         t∂d = zeros(size(∂d[1]))
         
