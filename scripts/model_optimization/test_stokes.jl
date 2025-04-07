@@ -89,8 +89,6 @@ function fit()
             t∂2d = t∂2d + ∂2d[i]
             t∂d = t∂d + ∂d[i]
         end
-        println("grad d: ", t∂d)
-        println("grad2 d: ", t∂2d)
 
         p = t∂2d\t∂d
         α = 1
@@ -127,31 +125,19 @@ function fit()
     η_iter = 1:size(ηList,1)
     β_iter = 1:size(βList,1)
 
-    # for i in η_iter
-    #     η = ηList[i]
-    #     for j in β_iter
-    #         β = βList[j]
+    for i in η_iter
+        η = ηList[i]
+        for j in β_iter
+            β = βList[j]
 
-    #         μ_list, gradList, simBorderPts, splinex, spliney, mdl = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
-    #                                                                     nDof_p, β, CameraMatrix, endTime, tSteps, Control, SIDES=SIDES)
+            μ_list, gradList, simBorderPts, splinex, spliney, mdl = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
+                                                                        nDof_p, β, CameraMatrix, endTime, tSteps, Control, SIDES=SIDES)
 
-    #         # test the closest point function
-    #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
-
-    #         # # if η == 820
-    #             # costβ[j] = sum(d_cp)
-    #         # # elseif β == 130
-    #         #     costη[i] = sum(d_cp)
-    #         # end
-    #         # plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/images/matches","matches_eta_", η, "_beta_", β))
-    #         CostMat[i,j] = sum(d_cp)
-
-    #         # plot(time, cost, label="Cost") 
-    #         # xlabel!("Time steps")
-    #         # ylabel!("Cost")
-    #         # savefig(string(filepathi,"/Results/cost/cost_cp.png"))
-    #     end
-    # end
+            # test the closest point function
+            d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+            CostMat[i,j] = sum(d_cp)
+        end
+    end
 
     # Plot the cost function with iterations
     Plots.plot(iterList, costList, label="Cost", marker=1, dpi=400, yscale=:log10)
