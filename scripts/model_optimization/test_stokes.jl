@@ -25,8 +25,8 @@ function fit()
 
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
 
-    endTime = 15
-    steps = 15 
+    endTime = 10
+    steps = 10 
     tSteps = endTime/steps
 
     dateTime = Dates.now()
