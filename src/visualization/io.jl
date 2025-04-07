@@ -88,7 +88,7 @@ function write_scene(fileName::String, NodeList, IEN, ne::Int64, ndim::Int64, fi
     fieldIter = 1:length(fields)
     paraview_collection(string(fileName,"/vtkFiles/displacement")) do pvd # create a paraview collection
         @showprogress "Writing out to VTK..." for i in fieldIter
-            vtk_grid(string(fileName,"/vtkFiles/timestep_$i"), NodeList, cells) do vtk # write out the fields to VTK
+            vtk_grid(string(fileName,"/vtkFiles/timestep_$i"), NodeList[i], cells) do vtk # write out the fields to VTK
                 vtk["u"] = fields[i]
                 time = (i - 1)
                 pvd[time] = vtk
@@ -176,6 +176,7 @@ function set_file(filepath)
         mkdir(string(filepath,"/Results/vtkFiles"))
         mkdir(string(filepath,"/Results/images"))
         mkdir(string(filepath,"/Results/cost"))
+        mkdir(string(filepath,"/Results/Blender_obj"))
     end
 end
 

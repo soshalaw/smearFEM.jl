@@ -710,7 +710,7 @@ Returns the stiffness matrix for a given type of material
 # Returns:
 - `cMat::Matrix{Float64}`: constitutive matrix
 """
-function get_cMat(type="standard", c1=nothing, c2=nothing)
+function get_cMat(type="lame", c1=nothing, c2=nothing)
 
     if type == "lame"
         cMat =  [[ 2*c2+c1  c1    c1    0  0  0]; 
@@ -719,15 +719,18 @@ function get_cMat(type="standard", c1=nothing, c2=nothing)
                         [  0      0      0     c2 0  0]; 
                         [  0      0      0     0 c2  0]
                     [  0      0      0     0  0 c2]]  # constitutive matrix
+        return cMat
     elseif type == "standard"
         cMat =  (c1/((1+c2)*(1-2*c2)))*[[1-c2 c2 c2   0      0      0]; 
                                                 [c2 1-c2 c2   0      0      0]; 
                                                 [c2 c2 1-c2   0      0      0]; 
                                                 [0 0  0 (1-2*c2)/2 0      0]; 
                                                 [0 0  0    0   (1-2*c2)/2 0]; 
-                                                [0 0  0    0      0   (1-2*c2)/2]]  # constitutive matrix   
+                                                [0 0  0    0      0   (1-2*c2)/2]]  # constitutive matrix 
+        return cMat
+    else
+        ArgumentError("Type of cMat unknown it should be either 'lame' or 'standard'")  
     end
-    return cMat
 end
 
 function get_volume(mdl::model)
@@ -839,7 +842,7 @@ Simulate the deformation of a cylindrical under compression
 function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, 
                     filepath=nothing, SIDES::Bool=false, dcdλ::Matrix{Float64}=zeros(Float64,1,1))
 
-    time = collect(range(start=0,stop=endTime,length=tSteps)) # time vector
+    time = collect(range(start=tSteps,stop=endTime,step=tSteps)) # time vector
 
     NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
     NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
@@ -850,61 +853,79 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     
     q_tp, q_btm, C_uc = set_boundary_conditions(mdl)
 
-    BorderPts2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, ne, 2*ne+1, SIDES)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, 2*ne+1, SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
-
-    SideBorders = BorderNodesList[1]
-    BottomBorders = BorderNodesList[2]
-    TopBorders = BorderNodesList[3]
         
     fields = AbstractArray[]  
-    gradList = AbstractArray[zeros(size(BorderPts2D))]                                                 # store the solution fields of the border nodes in 2D 
-    pos3D = AbstractArray[NodeListCylinder]                                                             # store the solution fields of the mesh in 3D
-    pos2D = AbstractArray[Nodes2D]                                                                   # store the solution fields of the mesh in 2D
-    surfaceNodesList = Float64[NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
+    gradList = AbstractArray[zeros(size(BorderPts2D,1),size(BorderPts2D,2),2)]                                                 # store the solution fields of the border nodes in 2D 
+    pos3D = AbstractArray[mdl.NodeList]                                                             # store the solution fields of the mesh in 3D
+    pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
     borderPts2DList = AbstractArray[BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
     splinep = AbstractArray[pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
     splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
     output = Float64[] 
     writeborderList = [vcat(pi', qi')]
 
-    K, dKdλ = assemble_system(mdl,GRAD=true)             # assemble the stiffness matrix
-    b = set_slip_conditions(mdl)   # apply the neumann boundary conditions
-    K_bar = K + β*b
-
-    C_T = transpose(C_uc)              # transpose the constraint matrix
-
     μ_btm = 0      
+    dqdλ = zeros(size(q_tp))
+    dqdβ = zeros(size(q_tp))
+
     iter = 1
-    pr = Progress(tSteps; desc= "Simulating with prescribed $Control ...", showspeed=true)
+    pr = Progress(round(Int,endTime/tSteps); desc= "Simulating with prescribed $Control ...", showspeed=true)
     if Control == "force"
         for t in time
 
+            K, dKdλ = assemble_system(mdl,GRAD=true)             # assemble the stiffness matrix
+            b = set_slip_conditions(mdl)   # apply the neumann boundary conditions
+            K_bar = K + β*b
+            dKdβ = b
+        
+            C_T = transpose(C_uc)              # transpose the constraint matrix
+        
             q_btm = μ_btm*q_btm
 
             M = [C_T*K_bar*C_uc C_T*K_bar*q_tp; q_tp'*K_bar*C_uc q_tp'*K_bar*q_tp] # assemble the system of equations]
+            dMdλ = [C_T*dKdλ*C_uc C_T*dKdλ*q_tp; q_tp'*dKdλ*C_uc q_tp'*dKdλ*q_tp] # assemble the system of equations
+            dMdβ = [C_T*dKdβ*C_uc C_T*dKdβ*q_tp; q_tp'*dKdβ*C_uc q_tp'*dKdβ*q_tp] # assemble the system of equations
 
-            sol = M\([-C_T*K_bar*q_btm; cParam[iter].-q_tp'*K_bar*q_btm]) # solve the system of equations
+            r = [-C_T*K_bar*q_btm; cParam[iter].-q_tp'*K_bar*q_btm]
+            drdλ = [-C_T*dKdλ*q_btm; -q_tp'*dKdλ*q_btm]
+            drdβ = [-C_T*dKdβ*q_btm; -q_tp'*dKdβ*q_btm]
+
+            sol = M\r # solve the system of equations
+            dsoldλ = M\(drdλ-dMdλ*sol) # solve the system of equations
+            dsoldβ = M\(drdβ-dMdβ*sol) # solve the system of equations
 
             q_f = sol[1:end-1]        # solve the system of equations
+            dqfdλ = dsoldλ[1:end-1]    # solve the system of equations
+            dqfdβ = dsoldβ[1:end-1]    # solve the system of equations
+
             μ_tp = sol[end]           # solve the system of equations
+            dμfdλ = dsoldλ[end]        # solve the system of equations
+            dμfdβ = dsoldβ[end]        # solve the system of equations
+
             q = q_btm + C_uc*q_f + μ_tp*q_tp;                # assemble the solution
-            dqidλ = -K\(dKdλ*q)
+            dqdλ = dqdλ + C_uc*dqfdλ + dμfdλ*q_tp;               # assemble the solution
+            dqdβ = dqdβ + C_uc*dqfdβ + dμfdβ*q_tp;               # assemble the solution
 
             # post process the solution
             motion = hcat([q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]])'    # update the nodal positions
-            dqdλ = hcat(dqidλ[ID[1,:]], dqidλ[ID[2,:]], dqidλ[ID[3,:]])'
-  
-            NodeListCylinder = NodeListCylinder + motion    # update the node coordinates
+            dqdλ_out = hcat(dqdλ[ID[1,:]], dqdλ[ID[2,:]], dqdλ[ID[3,:]])'
+            dqdβ_out = hcat(dqdβ[ID[1,:]], dqdβ[ID[2,:]], dqdβ[ID[3,:]])'
 
-            BorderPts2D, dudλ, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, GRAD=true, dqdλ=dqdλ, SIDES=SIDES)
+            dqdθ_out = cat(dqdλ_out,dqdβ_out,dims=(3,3)) # concatenate the gradients in to a tensor
+  
+            NodePose =  mdl.NodeList + motion    # update the node coordinates
+            mdl.NodeList = NodePose
+
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodePose, CameraMatrix, BorderNodesList, GRAD=true, dqdθ=dqdθ_out, SIDES=SIDES)
             pi, qi = fit_curve(border=BorderPts2D)
             
             push!(output, μ_tp)
             push!(fields, motion)
-            push!(gradList,dudλ)
-            push!(pos2D, Nodes2D)
-            push!(pos3D, NodeListCylinder)
+            push!(gradList,dudθ)
+            push!(pos2D, SurfacePts2D)
+            push!(pos3D, NodePose)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, pi)
             push!(splineq, qi) 
@@ -914,35 +935,49 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
         end
     elseif Control == "displacement"
-        pr = Progress(tSteps; desc="Simulating with prescribed $Control ...", showspeed=true)
+        # pr = Progress(round(Int,endTime/tSteps*endTime); desc="Simulating with prescribed $Control ...", showspeed=true)
         for t in time
+            
+            K, dKdλ = assemble_system(mdl,GRAD=true)             # assemble the stiffness matrix
+            b = set_slip_conditions(mdl)   # apply the neumann boundary conditions
+            K_bar = K + β*b
+            dKdβ = b
+        
+            C_T = transpose(C_uc)              # transpose the constraint matrix
+            K_free = C_T*K_bar*C_uc         # extract the free part of the stiffness matrix
         
             q_d = (μ_btm*q_btm + cParam[iter]*q_tp)           # apply the Dirichlet boundary conditions
-
-            K_free = C_T*K_bar*C_uc         # extract the free part of the stiffness matrix
 
             q_f = K_free\(C_T*(-K_bar*q_d))     # solve the system of equations
             q = q_d + C_uc*q_f;                 # assemble the solution 
 
-            dqidλ = -K\(dKdλ*q)
+            dqfdλ = -K_free\(C_T*dKdλ*C_uc*q_f + C_T*dKdλ*q_d)
+            dqfdβ = -K_free\(C_T*dKdβ*C_uc*q_f + C_T*dKdβ*q_d)
+
+            dqdλ = dqdλ + C_uc*dqfdλ
+            dqdβ = dqdβ + C_uc*dqfdβ
 
             # post process the solution
             f_R = K_bar*q
-            motion = [q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]]'
-            dqdλ = [dqidλ[ID[1,:]] dqidλ[ID[2,:]] dqidλ[ID[3,:]]]'
+            motion = hcat([q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]])'    # update the nodal positions
+            dqdλ_out = hcat(dqdλ[ID[1,:]], dqdλ[ID[2,:]], dqdλ[ID[3,:]])'
+            dqdβ_out = hcat(dqdβ[ID[1,:]], dqdβ[ID[2,:]], dqdβ[ID[3,:]])'
+
+            dqdθ_out = cat(dqdλ_out,dqdβ_out,dims=(3,3)) # concatenate the gradients in to a tensor
 
             F_est = q_tp'*f_R                                        # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
-            NodeListCylinder = NodeListCylinder + motion             # update the node coordinates
+            NodePose =  mdl.NodeList + motion    # update the node coordinates
+            mdl.NodeList = NodePose
 
-            BorderPts2D, dudλ, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, GRAD=true, dqdλ=dqdλ, SIDES=SIDES)
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodePose, CameraMatrix, BorderNodesList, GRAD=true, dqdθ=dqdθ_out, SIDES=SIDES)
             pi, qi = fit_curve(border=BorderPts2D)
 
             # store the solutions in a list
             push!(output, F_est[1])
             push!(fields, motion)
-            push!(gradList,dudλ)
-            push!(pos2D, Nodes2D)
-            push!(pos3D, NodeListCylinder)
+            push!(gradList,dudθ)
+            push!(pos2D, SurfacePts2D)
+            push!(pos3D, NodePose)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, pi)
             push!(splineq, qi) 
@@ -954,10 +989,10 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
     end
 
     if writeData
-        write_scene(string(filepath,"/Results"), NodeListCylinder, IEN, ne, ndim, pos3D, ID=ID, FunctionClass=FunctionClass)
+        write_scene(string(filepath,"/Results"), pos3D, IEN, ne, ndim, fields, ID=ID, FunctionClass=FunctionClass)
         animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
         write_contour_data(string(filepath,"/Results"), writeborderList)
     end
 
-    return output, gradList, borderPts2DList, splinep, splineq, mdl
+    return output, gradList, borderPts2DList, splinep, splineq, mdl, pos2D
 end

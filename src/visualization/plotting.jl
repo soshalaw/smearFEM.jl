@@ -207,9 +207,9 @@ function animate3D(fields; filepath="images/3D_grid.gif")
     gif(animation, string(filepath,"/3D_grid.gif"), fps=10)
 end
 
-function plot_matches(simborderfields, p, q, pObs, qObs, pairs, filepath="images")
+function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath="images")
     sz = length(simborderfields)
-    @argcheck length(simborderfields) == length(pairs)
+    @argcheck length(simborderfields) == length(pairsList)
     pr = Progress(sz; desc="Plotting matches ...",showspeed=true)
     iter = 1:sz
     animation = @animate for i in iter
@@ -218,8 +218,10 @@ function plot_matches(simborderfields, p, q, pObs, qObs, pairs, filepath="images
         plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y",title="Prospective Projection of the 3D Grid", label="", dpi=400)
         Plots.plot!(p[i],q[i], legend=true, labels="Simulation",  dpi=:400)
         Plots.plot!(pObs[i],qObs[i], labels="Observation",  dpi=:400)
-        for pair in pairs[i]
-            Plots.plot!([borderp[pair[1]], pObs[i][pair[2]]], [borderq[pair[1]], qObs[i][pair[2]]], marker=1.5, lw=0.5, label="", dpi=:400)
+        pairs = pairsList[i]
+        pairtIter = 1:size(pairs,1)
+        for j in pairtIter
+            Plots.plot!([borderp[pairs[j,1]], pObs[i][pairs[j,2]]], [borderq[pairs[j,1]], qObs[i][pairs[j,2]]], marker=1.5, lw=0.5, label="", dpi=:400)
         end
         Plots.xlims!(0,2048)
         Plots.ylims!(0,1536) 

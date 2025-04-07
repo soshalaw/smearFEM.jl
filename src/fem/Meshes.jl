@@ -60,6 +60,8 @@ function meshgrid_line(x0,x1,ne;FunctionClass="Q1")
             IEN[3,n] = 2*i
             n = n + 1
         end 
+    else
+        throw(ArgumentError("Basis function type $FunctionClass is unknown"))
     end
     return NodeList, IEN, BorderNodes
 end
@@ -173,6 +175,8 @@ function meshgrid_square(x0,x1,y0,y1,ne,ndim;FunctionClass="Q1")
                 n = n + 1
             end
         end 
+    else
+        throw(ArgumentError("Basis function type $FunctionClass is unknown"))
     end
     return NodeList, IEN, ID, IEN_top, IEN_btm, [BorderNodes, BottomBorderNodes, TopBorderNodes]
 end
@@ -377,6 +381,8 @@ function meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim;FunctionClass=FunctionClass)
                 end
             end
         end
+    else
+        throw(ArgumentError("Basis function type $FunctionClass is unknown"))
     end
 
     return NodeList, IEN, ID, IEN_top, IEN_btm, [BorderNodes, BottomBorderNodes, TopBorderNodes]

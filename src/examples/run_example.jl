@@ -43,12 +43,14 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim, Functio
         b = set_slip_conditions_dense(mdl)         # apply the neumann boundary conditions
     else
         q_tp, q_btm, C_uc = set_boundary_conditions(mdl)
+        b = set_slip_conditions(mdl)         # apply the neumann boundary conditions
         if GRAD
-            K, dKdλ = assemble_system(mdl, GRAD=true)              
+            K, dKdλ = assemble_system(mdl, GRAD=true) 
+            dKdβ = b             
         else
             K = assemble_system(mdl)                   # assemble the stiffness matrix
         end
-        b = set_slip_conditions(mdl)         # apply the neumann boundary conditions
+        
     end
     
     q_d = (μ_btm*q_btm + μ_tp*q_tp)            # apply the Dirichlet boundary conditions
@@ -66,11 +68,18 @@ function simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim, Functio
     q_out = hcat([q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]])'    # update the nodal positions
 
     if GRAD && CG==false
+
         dqfdλ = -K_free\(C_T*dKdλ*C_uc*q_f + C_T*dKdλ*q_d)
-        
+        dqfdβ = -K_free\(C_T*dKdβ*C_uc*q_f + C_T*dKdβ*q_d)
+
         dqdλ = zeros(size(q_d)) + C_uc*dqfdλ
+        dqdβ = zeros(size(q_d)) + C_uc*dqfdβ
+
         dqdλ_out = hcat(dqdλ[ID[1,:]], dqdλ[ID[2,:]], dqdλ[ID[3,:]])'
-        return q_out, dqdλ_out, mdl
+        dqdβ_out = hcat(dqdβ[ID[1,:]], dqdβ[ID[2,:]], dqdβ[ID[3,:]])'
+
+        dqdθ_out = cat(dqdλ_out,dqdβ_out,dims=(3,3)) # concatenate the gradients in to a tensor
+        return q_out, dqdθ_out, mdl
     else
         return q_out, mdl
     end
@@ -101,7 +110,7 @@ Simulate the deformation of the mesh for a single time step using the Stokes mod
 - `μu_side::Float64` : side boundary condition
 - `DENSE::Bool` : use dense matrix
 """
-function simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, μu_side; DENSE=false)
+function simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, μu_side; GRAD::Bool=false, DENSE=false)
     
     NodeList_u, IEN_u, ID_u, IEN_u_top, IEN_u_btm, BorderNodesList_u = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass_u)  # generate the mesh grid
     NodeListCylinder = inflate_cylinder(NodeList_u, x0, x1, y0, y1)
@@ -124,7 +133,12 @@ function simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, Func
 
     q_d = (μu_btm*q_btm + μu_tp*q_tp + μu_side*q_side)      # apply the Dirichlet boundary conditions
 
-    A = A_bar + β*b
+    if GRAD
+        dAdη = A_bar
+        dAdβ = b        
+    end
+
+    A = η*A_bar + β*b
 
     C_Tu = transpose(C_uc)           # transpose the constraint matrix
 
@@ -133,8 +147,8 @@ function simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, Func
 
     K_free = [A_free B_free; B_free' zeros(size(B_free,2),size(B_free,2))]     # assemble the system of equations
 
-    r = -[C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
-    sol = K_free\r                 # solve the system of equations
+    r = [C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
+    sol = -K_free\r                 # solve the system of equations
 
     q_f = sol[1:size(A_free,1)]     # extract the free part of the solution
     p_f = sol[size(A_free,1)+1:end] # extract the free part of the solution 
@@ -144,7 +158,36 @@ function simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, Func
 
     q_out = [q[ID_u[1,:]] q[ID_u[2,:]] q[ID_u[3,:]]]'
 
-    return q_out, mdl
+    if GRAD
+        dKdη = [C_Tu*dAdη*C_uc zeros(size(B_free)); zeros(size(B_free')) zeros(size(B,2),size(B,2))] # assemble the system of equations
+        dKdβ = [C_Tu*dAdβ*C_uc zeros(size(B_free)); zeros(size(B_free')) zeros(size(B,2),size(B,2))] # assemble the system of equations
+    
+        drdη = [C_Tu*dAdη*q_d; zeros(size(B,2),size(q_d,2))] # solve the system of equations
+        drdβ = [C_Tu*dAdβ*q_d; zeros(size(B,2),size(q_d,2))] # solve the system of equations
+
+        dsoldη = -K_free\(drdη + dKdη*sol) # solve the system of equations
+        dsoldβ = -K_free\(drdβ + dKdβ*sol) # solve the system of equations
+
+        dqfdη = dsoldη[1:size(A_free,1)] # extract the free part of the solution
+        dqfdβ = dsoldβ[1:size(A_free,1)] # extract the free part of the solution
+
+        dpfdη = dsoldη[size(A_free,1)+1:end] # extract the free part of the solution 
+        dpfdβ = dsoldβ[size(A_free,1)+1:end] # extract the free part of the solution
+
+        dqdη = C_uc*dqfdη;              # assemble the solution
+        dqdβ = C_uc*dqfdβ;              # assemble the solution
+
+        dpdη = dpfdη;                  # assemble the solution
+        dpdβ = dpfdβ;                  # assemble the solution
+
+        dqdη_out = hcat(dqdη[ID_u[1,:]], dqdη[ID_u[2,:]], dqdη[ID_u[3,:]])'
+        dqdβ_out = hcat(dqdβ[ID_u[1,:]], dqdβ[ID_u[2,:]], dqdβ[ID_u[3,:]])'
+
+        dqdθ_out = cat(dqdη_out,dqdβ_out,dims=(3,3)) # concatenate the gradients in to a tensor
+        return q_out, dqdθ_out, mdl
+    else
+        return q_out, mdl
+    end
 end
 
 """
@@ -172,9 +215,9 @@ Initialize the simulation and write the data to a file
 - `Control::String` : type of control (force or displacement)
 - `filename::String` : path to the file
 """
-function write_sim_data(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, filename; mode = "standard")
+function write_sim_data(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control::String, filename::String; mode::String = "lame")
     writeData = true
-    μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, writeData=writeData, filepath=filename, mode = mode)
+    μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl, SurfacePt2D = test(x0, x1, y0, y1, z0, z1, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, writeData=writeData, filepath=filename, mode = mode)
 
     return simBorderPts, simBorderNodes, splinex, spliney
 end
@@ -214,22 +257,23 @@ function test(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim::Int64, FunctionClass::St
         set_file(filepath)
     end
 
-    μ_tp = 0.3
-
     if Control == "force"
-        cParam = -0.5*ones(tSteps)
+        cParam = -ones(round(Int,endTime/tSteps))
     elseif Control == "displacement"
-        cParam = -(μ_tp/tSteps)*ones(tSteps)
+        μ_tp = -0.03 
+        # cParam = collect(range(start=tSteps,stop=endTime,step=tSteps))*μ_tp 
+        cParam = μ_tp*ones(round(Int,endTime/tSteps))
     end
 
     cMat = get_cMat(mode, c1, c2) # E, ν or λ, μ
     dcdλ = get_cMat(mode, 1.0 , 0.0)
+    # dcdβ = get_cMat(mode, 0.0 , 1.0)
 
-    μ_list, gradList, borderPts2DList, splinep, splineq, mdl = simulate(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim, FunctionClass, nDof, β, 
+    μ_list, gradList, borderPts2DList, splinep, splineq, mdl, SurfacePt2D = simulate(x0, x1, y0, y1, z0, z1, ne, c1, c2, ndim, FunctionClass, nDof, β, 
                                                                         CameraMatrix, endTime, tSteps, Control, cParam, cMat, writeData=writeData, 
                                                                         filepath=filepath, SIDES=SIDES, dcdλ=dcdλ)
 
-    return μ_list, gradList, borderPts2DList, splinep, splineq, mdl
+    return μ_list, gradList, borderPts2DList, splinep, splineq, mdl, SurfacePt2D
 end
 
 """
@@ -264,7 +308,7 @@ Compare the simulation with the observation data
 function compare(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim::Int64, FunctionClass::String, nDof::Int64, β, CameraMatrix, endTime, tSteps, Control::String, 
                 mode::String, ObsData, SIDES::Bool=false, PLOT::Bool=false, filepath=nothing)
 
-    μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, 
+    μ_list, gradList, simBorderPts, splinex, spliney, mdl, SurfacePt2D = test(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, 
                                                                        endTime, tSteps, Control, mode=mode, SIDES=SIDES)    
 
     obsBorderPts = ObsData[1]
@@ -309,7 +353,7 @@ function initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, C
     NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
     NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
 
-    BorderPts2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, ne, 2*ne+1, SIDES)
+    BorderPts2D, Nodes2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, 2*ne+1, SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
 
     SideBorders = BorderNodesList[1]

@@ -6,22 +6,24 @@ import ConvexHulls2d as ch
 using Distributions
 
 """ 
-    Extract_borders(NodeList, CameraMatrix, BorderNodesList, state, ne = nothing)
+    Extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, nNodes::Int64, GRAD::Bool=false, dqdθ::AbstractMatrix{Float64}=zeros(2,2), SIDES::Bool=false)
 
 Project the 3D mesh to 2D image plane and extract the border nodes (left and right)
     
 # Arguments:
 - `NodeList::Matrix{Float64}{ndim,nNodes}` : coordinates of the nodes
 - `CameraMatrix::AbstractMatrix{Float64}{3,3}` : Camera matrix
-- `BorderNodesList::Vector{Vector{Any}{4,N}`:  : List of border nodes
-- `state::String` : State of the function (init:During the initialization of the mesh or update: when the mesh is updated)
-- `ne::Integer`: Number of elements in each direction
+- `BorderNodesList::Vector{Vector{Any}{4,N}`: List of border nodes
+- `nNodes::Int64`: number of nodes
+- `GRAD::Bool=false`: gradient flag
+- `dqdθ::AbstractMatrix{Float64}{2,2}`: gradient of the solution
+- `SIDES::Bool=false`: sides flag
 
 # Returns:
 - `NodeList::Matrix{Float64}{ndim,nbNodes}`: 2D coordinates of the border nodes
 - `BorderNodes::Vector{Int}`: Indexes of the border nodes
 """
-function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, ne::Int64, nNodes::Int64, SIDES::Bool=false)
+function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, nNodes::Int64, SIDES::Bool=false)
 
     SurfaceNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
     SurfacePts2D = back_project(SurfaceNodes, CameraMatrix)     # project the nodes to the image plane
@@ -74,11 +76,13 @@ function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix
     end
 end
 
-function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}; GRAD::Bool=false, dqdλ::AbstractMatrix{Float64}=zeros(2,2), SIDES::Bool=false)
+function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}; GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
     
     SurfaceNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
+
     if GRAD
-        SurfacePts2D, ∇SurfacePts2D = back_project(SurfaceNodes, CameraMatrix, dqdλ) 
+        ∇SurfaceNodes = dqdθ[:,BorderNodesList[1],:] 
+        SurfacePts2D, ∇SurfacePts2D = back_project(SurfaceNodes, CameraMatrix, ∇SurfaceNodes) 
     else
         SurfacePts2D = back_project(SurfaceNodes, CameraMatrix) 
     end
@@ -105,17 +109,17 @@ function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix
     BorderPtsSorted, BorderPtsSortedIds = sort_points(BorderPts)
 
     if GRAD
-        ∇BorderPts = ∇SurfacePts2D[:,BorderPtIds]
-        ∇BorderPtsSorted = ∇BorderPts[:,BorderPtsSortedIds]
+        ∇BorderPts = ∇SurfacePts2D[:,BorderPtIds,:]
+        ∇BorderPtsSorted = ∇BorderPts[:,BorderPtsSortedIds,:]
         if SIDES
             sidePts, index = get_sides(BorderPtsSorted)
 
             sidePtsIds = BorderPtsSortedIds[index]
-            ∇sidePts = ∇BorderPtsSorted[:,sidePtsIds]
+            ∇sidePts = ∇BorderPtsSorted[:,sidePtsIds,:]
 
             return sidePts, ∇sidePts, SurfacePts2D
         else
-            return BorderPtsSorted, ∇BorderPtsSorted, SurfacePts2D
+            return BorderPtsSorted, ∇BorderPtsSorted, SurfacePts2D, ∇SurfacePts2D
         end
     else
         if SIDES
@@ -169,7 +173,7 @@ function sort_points(Data::Matrix{Float64})
 end
 
 """ 
-    back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, GRAD:Bool)
+    back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, dxdλ::AbstractMatrix{Float64}=nothing)
 
 Project the 3D mesh to 2D image plane
     
@@ -181,12 +185,13 @@ Project the 3D mesh to 2D image plane
 - `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
 - `dπdx::Array{Float64, nNodes}`{nNodes×2×nParams}: ∇π(x)
 """
-function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, dqdλ::AbstractMatrix{Float64})
+function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, dxdθ::AbstractArray{Float64})
     
     nx = size(x,2)
+    nθ = size(dxdθ,3)
     xNorm = zeros(3,nx)
     xProj = zeros(3,nx)
-    dudλ = zeros(3,nx)
+    dudθ = zeros(3,nx,nθ)
 
     # transform point cloud wrt to camera frame 
     R = [1 0 0; 0 0 1; 0 -1 0]     # rotation matrix
@@ -195,35 +200,30 @@ function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{F
     xTrans = R*x .+ t
 
     iter = 1:nx
-    for i in iter
-        xNorm[1,i] = xTrans[1,i]/xTrans[3,i]
-        xNorm[2,i] = xTrans[2,i]/xTrans[3,i]
-        xNorm[3,i] = xTrans[3,i]/xTrans[3,i]
+    iterθ = 1:nθ
+    for j in iter
+        xNorm[1,j] = xTrans[1,j]/xTrans[3,j]
+        xNorm[2,j] = xTrans[2,j]/xTrans[3,j]
+        xNorm[3,j] = xTrans[3,j]/xTrans[3,j]
 
-        xProj[:,i] = CameraMatrix*xNorm[:,i]
+        xProj[:,j] = CameraMatrix*xNorm[:,j]
 
-        dπdx = CameraMatrix*[1/xTrans[3,i] 0 -xTrans[1,i]/xTrans[3,i]^2; 0 1/xTrans[3,i] -xTrans[2,i]/xTrans[3,i]^2; 0 0 0]
-        dudλ[:,i] = dπdx*dqdλ[:,i]
+        dπdx = ∇π(xTrans[:,j],CameraMatrix)
+
+        # iterate over the model parameters
+        for i in iterθ
+            dxdθi = R*dxdθ[:,:,i]           # rigid transformation applied to the gradient
+            dudθ[:,j,i] = dπdx*dxdθi[:,j]
+        end
     end
 
+    # NOTE: Outout should be the 2D matrix removed for testing
     x2D = xProj[1:2,:]            # extract x and y coordinates
-    dudx2D = dudλ[1:2,:]
+    dudθ2D = dudθ[1:2,:,:]
 
-    return x2D, dudx2D
+    return x2D, dudθ2D
 end 
 
-""" 
-    back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64})
-
-Project the 3D mesh to 2D image plane
-    
-# Arguments:
-- `x::Matrix{Float64}{3,nNodes}`: 3D mesh grid
-- `CameraMatrix::AbstractMatrix{Float64}{3,3}`: Camera matrix
-
-# Returns:
-- `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
-"""
 function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64})
                 
     # transform point cloud wrt to camera frame 
@@ -257,6 +257,12 @@ function project_to(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Flo
     return xProj
 end
 
+function ∇π(x::Array{Float64},CameraMatrix::AbstractMatrix{Float64})
+
+    dπdx = CameraMatrix*[1/x[3] 0 -x[1]/x[3]^2; 0 1/x[3] -x[2]/x[3]^2; 0 0 0]
+
+    return dπdx
+end
 """
     fit_curve(; border, borderx, bordery)
 
