@@ -30,7 +30,7 @@ function fit()
 
     noiseLevel = 0
     SIDES = false
-    Control = "force" # "force" or "displacement"
+    Control = "displacement" # "force" or "displacement"
     mode = "lame" # "standard" or "lame"
     filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/linear_elasticity/",Control,"/test")
 
@@ -54,8 +54,7 @@ function fit()
     
     obsBorderPts = ObsData[1]
 
-    # dev_λ = λ*dev
-    dev_λ = 0
+    dev_λ = λ*dev
     dev_β = β*dev
     
     λStart = λ-dev_λ

@@ -33,7 +33,7 @@ function fit()
     sampleNo = 21
     dev = 0.3
 
-    Control = "force" # "force" or "velocity"
+    Control = "velocity" # "force" or "velocity"
     noiseLevel = 0
     SIDES = false
     filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",Control,"/test1")
@@ -132,7 +132,7 @@ function fit()
     else
         βStop = β+dev_β
     end
-    
+
     if minimum(βpList) < β-dev_β
         βStart = minimum(βpList)*0.9
     else
