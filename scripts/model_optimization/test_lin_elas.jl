@@ -39,12 +39,12 @@ function fit()
     νtst = 0.4
 
     # Derived Lame constants from Young's modulus and Poisson ratio
-    λtst = round(Youngtst*νtst/((νtst+1)*(-2*νtst+1)))
-    mutst = round(Youngtst/(2*(νtst+1)))
+    λ = round(Youngtst*νtst/((νtst+1)*(-2*νtst+1)))
+    μ = round(Youngtst/(2*(νtst+1))) 
 
-    println("Ground truth: η :", λtst, " β :", mutst)
+    println("Ground truth: η :", λ, " β :", μ)
 
-    write_sim_data(x0, x1, y0, y1, z0, z1, ne, λtst, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,
+    write_sim_data(x0, x1, y0, y1, z0, z1, ne, λtst, μ, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,
                     filepathi, mode=mode)
     
     ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data"))  
@@ -54,26 +54,23 @@ function fit()
     
     obsBorderPts = ObsData[1]
 
-    dev_λ = λtst*dev
+    dev_λ = λ*dev
     dev_β = β*dev
     
-    λStart = λtst-dev_λ
+    λStart = λ-dev_λ
     βStart = β-dev_β
 
     θ = [λStart; βStart]
 
-    μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, θ[1], mutst, ndim, FunctionClass, nDof, θ[2], CameraMatrix, 
+    μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, θ[1], μ, ndim, FunctionClass, nDof, θ[2], CameraMatrix, 
                                                                 endTime, tSteps, Control, mode=mode, SIDES=SIDES)
     
     # test the closest point function
     d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
     
-    λ = θ[1]
-    β = θ[2]
-
     totdinit = sum(d)
     println("Initial cost: ", totdinit)
-    println("initial λ: ", λ, " initial β: ", β)
+    println("initial λ: ", θ[1], " initial β: ", θ[2])
     ratio = 1
 
     λpList = Float64[θ[1]]
@@ -102,9 +99,9 @@ function fit()
         println("step: ", p)
         θ = θ - α*p
 
-        println("new λ: ", λ, " new beta: ", β)
+        println("new λ: ", θ[1], " new beta: ", θ[2])
 
-        μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, θ[1], mutst, ndim, FunctionClass, nDof, θ[2], CameraMatrix, 
+        μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, θ[1], μ, ndim, FunctionClass, nDof, θ[2], CameraMatrix, 
                                                                     endTime, tSteps, Control, mode=mode, SIDES=SIDES)
 
         d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
@@ -127,10 +124,22 @@ function fit()
         λStop = λ+dev_λ
     end
 
+    if minimum(λpList) < λ-dev_λ
+        λStart = minimum(λpList)*0.9
+    else
+        λStart = λ-dev_λ
+    end
+
     if maximum(βpList) > β+dev_β
         βStop = maximum(βpList)*1.1
     else
         βStop = β+dev_β
+    end
+
+    if minimum(βpList) < β-dev_β
+        βStart = minimum(βpList)*0.9
+    else
+        βStart = β-dev_β
     end
 
     sampleNo = 11
@@ -145,7 +154,7 @@ function fit()
         for j in β_iter
             θ = [λList[i]; βList[j]]
 
-            μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, θ[1], mutst, ndim, FunctionClass, nDof, θ[2], CameraMatrix, 
+            μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, θ[1], μ, ndim, FunctionClass, nDof, θ[2], CameraMatrix, 
                                                                     endTime, tSteps, Control, mode=mode, SIDES=SIDES)
 
             # test the closest point function

@@ -121,10 +121,22 @@ function fit()
         ηStop = η+dev_η
     end
 
+    if minimum(ηpList) < η-dev_η
+        ηStart = minimum(ηpList)*0.9
+    else
+        ηStart = η-dev_η
+    end
+
     if maximum(βpList) > β+dev_β
         βStop = maximum(βpList)*1.1
     else
         βStop = β+dev_β
+    end
+    
+    if minimum(βpList) < β-dev_β
+        βStart = minimum(βpList)*0.9
+    else
+        βStart = β-dev_β
     end
 
     sampleNo = 11
