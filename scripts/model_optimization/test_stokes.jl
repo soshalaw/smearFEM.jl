@@ -53,7 +53,7 @@ function fit()
     
     obsBorderPts = ObsData[1]
 
-    dev_η = η*dev
+    dev_η = η*0.1
     dev_β = β*dev
     
     ηStart = η-dev_η
