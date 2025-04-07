@@ -1279,7 +1279,7 @@ function test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim::Int64, FunctionClass_
     end
 
     if Control == "force"
-        cParam = -ones(round(Int,endTime/tSteps))
+        cParam = -3*ones(round(Int,endTime/tSteps))
     elseif Control == "velocity"
         cParam = -0.02*ones(round(Int,endTime/tSteps))
     else

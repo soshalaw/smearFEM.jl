@@ -32,7 +32,7 @@ function fit()
     SIDES = false
     Control = "force" # "force" or "displacement"
     mode = "lame" # "standard" or "lame"
-    filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/",Control,"/test1")
+    filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/linear_elasticity",Control,"/test1")
 
     β = 100
     Youngtst = 30
