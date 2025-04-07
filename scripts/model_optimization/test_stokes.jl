@@ -115,9 +115,21 @@ function fit()
         push!(iterList,iter)
     end
 
+    if maximum(ηpList) > η+dev_η
+        ηStop = maximum(ηpList)*1.1
+    else
+        ηStop = η+dev_η
+    end
+
+    if maximum(βpList) > β+dev_β
+        βStop = maximum(βpList)*1.1
+    else
+        βStop = β+dev_β
+    end
+
     sampleNo = 11
-    ηList = collect(range(ηStart, stop=η+dev_η, length=sampleNo))
-    βList = collect(range(βStart, stop=β+dev_β, length=sampleNo))
+    ηList = collect(range(ηStart, stop=ηStop, length=sampleNo))
+    βList = collect(range(βStart, stop=βStop, length=sampleNo))
     CostMat = zeros(size(ηList,1),size(βList,1))
     costη = zeros(size(ηList,1))
     costβ = zeros(size(βList,1))
@@ -141,16 +153,18 @@ function fit()
 
     # Plot the cost function with iterations
     Plots.plot(iterList, costList, label="Cost", marker=1, dpi=400, yscale=:log10)
-    # Plots.semilogy(iterList, costList, label="Cost", marker=1, dpi=400)
-    # PLots.semilogy
     Plots.xlabel!("Iterations")
     Plots.ylabel!("Error")
     Plots.savefig(string(filepathi,"/Results/cost/cost_steps.png"))
     
     # Plot the cost function surface
     Plots.contour(ηList, βList, CostMat, color=:turbo, fill=false, levels=50, xlabel="η", ylabel="β", dpi=400)
-    # Plots.contourf(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
     Plots.plot!(ηpList, βpList, label="Estimations", marker=1)
+    Plots.xlabel!("η")
+    Plots.ylabel!("β")
+    Plots.savefig(string(filepathi,"/Results/cost/cost_surface_iter.png"))
+
+    Plots.contourf(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
     Plots.xlabel!("η")
     Plots.ylabel!("β")
     Plots.savefig(string(filepathi,"/Results/cost/cost_surface.png"))

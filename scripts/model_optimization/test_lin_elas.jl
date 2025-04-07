@@ -39,12 +39,12 @@ function fit()
     νtst = 0.4
 
     # Derived Lame constants from Young's modulus and Poisson ratio
-    lambdatst = round(Youngtst*νtst/((νtst+1)*(-2*νtst+1)))
+    λtst = round(Youngtst*νtst/((νtst+1)*(-2*νtst+1)))
     mutst = round(Youngtst/(2*(νtst+1)))
 
-    println(lambdatst)
+    println("Ground truth: η :", λtst, " β :", mutst)
 
-    write_sim_data(x0, x1, y0, y1, z0, z1, ne, lambdatst, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,
+    write_sim_data(x0, x1, y0, y1, z0, z1, ne, λtst, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,
                     filepathi, mode=mode)
     
     ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data"))  
@@ -54,13 +54,13 @@ function fit()
     
     obsBorderPts = ObsData[1]
 
-    dev_λ = lambdatst*dev
+    dev_λ = λtst*dev
     dev_β = β*dev
     
-    lambdatstStart = lambdatst-dev_λ
+    λStart = λtst-dev_λ
     βStart = β-dev_β
 
-    θ = [lambdatstStart; βStart]
+    θ = [λStart; βStart]
 
     μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, θ[1], mutst, ndim, FunctionClass, nDof, θ[2], CameraMatrix, 
                                                                 endTime, tSteps, Control, mode=mode, SIDES=SIDES)
@@ -73,10 +73,10 @@ function fit()
 
     totdinit = sum(d)
     println("Initial cost: ", totdinit)
-    println("initial lambda: ", λ, " initial beta: ", β)
+    println("initial λ: ", λ, " initial β: ", β)
     ratio = 1
 
-    lambdapList = Float64[θ[1]]
+    λpList = Float64[θ[1]]
     βpList = Float64[θ[2]]
     costList = Float64[totdinit]
     iterList = Int64[0]
@@ -102,13 +102,10 @@ function fit()
         println("step: ", p)
         θ = θ - α*p
 
-        λ = θ[1]
-        β = θ[2]
+        println("new λ: ", λ, " new beta: ", β)
 
-        println("new lambda: ", λ, " new beta: ", β)
-
-        μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, λ, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, 
-                                                                endTime, tSteps, Control, mode=mode, SIDES=SIDES)
+        μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, θ[1], mutst, ndim, FunctionClass, nDof, θ[2], CameraMatrix, 
+                                                                    endTime, tSteps, Control, mode=mode, SIDES=SIDES)
 
         d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
 
@@ -118,27 +115,37 @@ function fit()
 
         iter = iter + 1
         
-        push!(lambdapList,λ)
-        push!(βpList,β)
+        push!(λpList,θ[1])
+        push!(βpList,θ[2])
         push!(costList,totd)
         push!(iterList,iter)
     end
 
-    sampleNo = 20
-    lambdaList = collect(range(lambdatstStart, stop=lambdatst+dev_λ, length=sampleNo))
-    βList = collect(range(βStart, stop=β+dev_β, length=sampleNo))
-    CostMat = zeros(size(lambdaList,1),size(βList,1))
+    if maximum(λpList) > λ+dev_λ
+        λStop = maximum(λpList)*1.1
+    else
+        λStop = λ+dev_λ
+    end
+
+    if maximum(βpList) > β+dev_β
+        βStop = maximum(βpList)*1.1
+    else
+        βStop = β+dev_β
+    end
+
+    sampleNo = 11
+    λList = collect(range(λStart, stop=λStop, length=sampleNo))
+    βList = collect(range(βStart, stop=βStop, length=sampleNo))
+    CostMat = zeros(size(λList,1),size(βList,1))
         
-    λ_iter = 1:size(lambdaList,1)
+    λ_iter = 1:size(λList,1)
     β_iter = 1:size(βList,1)
 
     for i in λ_iter
         for j in β_iter
-            θ = [lambdaList[i]; βList[j]]
-            λ = θ[1]
-            β = θ[2]
+            θ = [λList[i]; βList[j]]
 
-            μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, λ, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, 
+            μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, θ[1], mutst, ndim, FunctionClass, nDof, θ[2], CameraMatrix, 
                                                                     endTime, tSteps, Control, mode=mode, SIDES=SIDES)
 
             # test the closest point function
@@ -155,8 +162,13 @@ function fit()
     Plots.savefig(string(filepathi,"/Results/cost/cost_steps.png"))
     
     # Plot the cost function surface
-    Plots.contour(lambdaList, βList, CostMat, color=:turbo, fill=false, levels=50, xlabel="λ", ylabel="β", dpi=400)
-    Plots.plot!(lambdapList, βpList, label="Estimations", marker=1)
+    Plots.contour(λList, βList, CostMat, color=:turbo, fill=false, levels=50, xlabel="λ", ylabel="β", dpi=400)
+    Plots.plot!(λpList, βpList, label="Estimations", marker=1)
+    Plots.xlabel!("λ")
+    Plots.ylabel!("β") 
+    Plots.savefig(string(filepathi,"/Results/cost/cost_surface_iter.png"))
+
+    Plots.contourf(λList, βList, CostMat, color=:turbo, fill=false, levels=50, xlabel="λ", ylabel="β", dpi=400)
     Plots.xlabel!("λ")
     Plots.ylabel!("β") 
     Plots.savefig(string(filepathi,"/Results/cost/cost_surface.png"))
