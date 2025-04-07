@@ -59,11 +59,7 @@ function fit()
     ηStart = η-dev_η
     βStart = β-dev_β
 
-    # θ = [ηStart, βStart]
     θ = [ηStart; βStart]
-
-    # μ_list, gradList, simBorderPts, splinex, spliney, mdl = test_stokes(x0, x1, y0, y1, z0, z1, ne, θ[1], ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
-    #                                                             nDof_p, θ[2], CameraMatrix, endTime, tSteps, Control, SIDES=SIDES)
 
     μ_list, gradList, simBorderPts, splinex, spliney, mdl = test_stokes(x0, x1, y0, y1, z0, z1, ne, θ[1], ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
                                                                                     nDof_p, θ[2], CameraMatrix, endTime, tSteps, Control, SIDES=SIDES)
@@ -77,7 +73,7 @@ function fit()
     ratio = 1
 
     ηpList = Float64[θ[1]]
-    βpList = Float64[θ[1]]
+    βpList = Float64[θ[2]]
     costList = Float64[totdinit]
     iterList = Int64[0]
 
@@ -131,31 +127,31 @@ function fit()
     η_iter = 1:size(ηList,1)
     β_iter = 1:size(βList,1)
 
-    for i in η_iter
-        η = ηList[i]
-        for j in β_iter
-            β = βList[j]
+    # for i in η_iter
+    #     η = ηList[i]
+    #     for j in β_iter
+    #         β = βList[j]
 
-            μ_list, gradList, simBorderPts, splinex, spliney, mdl = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
-                                                                        nDof_p, β, CameraMatrix, endTime, tSteps, Control, SIDES=SIDES)
+    #         μ_list, gradList, simBorderPts, splinex, spliney, mdl = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
+    #                                                                     nDof_p, β, CameraMatrix, endTime, tSteps, Control, SIDES=SIDES)
 
-            # test the closest point function
-            d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+    #         # test the closest point function
+    #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
 
-            # # if η == 820
-                # costβ[j] = sum(d_cp)
-            # # elseif β == 130
-            #     costη[i] = sum(d_cp)
-            # end
-            # plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/images/matches","matches_eta_", η, "_beta_", β))
-            CostMat[i,j] = sum(d_cp)
+    #         # # if η == 820
+    #             # costβ[j] = sum(d_cp)
+    #         # # elseif β == 130
+    #         #     costη[i] = sum(d_cp)
+    #         # end
+    #         # plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/images/matches","matches_eta_", η, "_beta_", β))
+    #         CostMat[i,j] = sum(d_cp)
 
-            # plot(time, cost, label="Cost") 
-            # xlabel!("Time steps")
-            # ylabel!("Cost")
-            # savefig(string(filepathi,"/Results/cost/cost_cp.png"))
-        end
-    end
+    #         # plot(time, cost, label="Cost") 
+    #         # xlabel!("Time steps")
+    #         # ylabel!("Cost")
+    #         # savefig(string(filepathi,"/Results/cost/cost_cp.png"))
+    #     end
+    # end
 
     # Plot the cost function with iterations
     Plots.plot(iterList, costList, label="Cost", marker=1, dpi=400, yscale=:log10)
