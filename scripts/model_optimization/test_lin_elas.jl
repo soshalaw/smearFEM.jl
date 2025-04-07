@@ -44,7 +44,7 @@ function fit()
 
     println("Ground truth: η :", λ, " β :", μ)
 
-    write_sim_data(x0, x1, y0, y1, z0, z1, ne, λtst, μ, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,
+    write_sim_data(x0, x1, y0, y1, z0, z1, ne, λ, μ, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,
                     filepathi, mode=mode)
     
     ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data"))  
