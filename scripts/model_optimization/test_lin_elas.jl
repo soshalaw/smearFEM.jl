@@ -132,21 +132,21 @@ function fit()
     λ_iter = 1:size(lambdaList,1)
     β_iter = 1:size(βList,1)
 
-    # for i in λ_iter
-    #     for j in β_iter
-    #         θ = [lambdaList[i]; βList[j]]
-    #         λ = θ[1]
-    #         β = θ[2]
+    for i in λ_iter
+        for j in β_iter
+            θ = [lambdaList[i]; βList[j]]
+            λ = θ[1]
+            β = θ[2]
 
-    #         μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, λ, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, 
-    #                                                                 endTime, tSteps, Control, mode=mode, SIDES=SIDES)
+            μ_list, gradList, simBorderPts, splinex, spliney, mdl = test(x0, x1, y0, y1, z0, z1, ne, λ, mutst, ndim, FunctionClass, nDof, β, CameraMatrix, 
+                                                                    endTime, tSteps, Control, mode=mode, SIDES=SIDES)
 
-    #         # test the closest point function
-    #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+            # test the closest point function
+            d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
 
-    #         CostMat[i,j] = sum(d_cp)
-    #     end
-    # end
+            CostMat[i,j] = sum(d_cp)
+        end
+    end
 
     # Plot the cost function with iterations
     Plots.plot(iterList, costList, label="Cost", marker=1, dpi=400, yscale=:log10)
