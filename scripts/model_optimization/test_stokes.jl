@@ -10,12 +10,8 @@ using Plots
 
 function fit()
     # test case 
-    x0 = 0
-    x1 = 1
-    y0 = 0
-    y1 = 1
-    z0 = 0
-    z1 = 1
+    r = 1
+    h = 1 
     ne = 4
     ndim = 3
     FunctionClass_u = "Q2"
@@ -43,7 +39,7 @@ function fit()
     η = 20
 
     println("Ground truth: η :", η, " β :", β)
-    write_sim_data_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, CameraMatrix, endTime, tSteps, Control,
+    write_sim_data_stokes(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, CameraMatrix, endTime, tSteps, Control,
                     filepathi)
     
     ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data"))  

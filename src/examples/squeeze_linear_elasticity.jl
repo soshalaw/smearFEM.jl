@@ -3,27 +3,18 @@ using ProgressMeter
 using SparseArrays
 using StaticArrays
 
-# set up mesh grid
-
-""" 
+"""
     assemble_system(mdl::model; GRAD::Bool=false)
 
-Assembles the finite element system. # Returns the global stiffness matrix
+Assembles the finite element system.
 
-# Arguments:
-- `ne::Interger`: number of elements in each direction
-- `NodeList::Matrix{Float64}{ndim,nNodes}` : coordinates of the nodes
-- `IEN::Matrix{Int}{nLocalNodes,nElements}` : connectivity matrix
-- `ndim::Interger`: number of dimensions
-- `nDof::Interger`: number of degree of freedom per node
-- `FunctionClass::String`: type of basis functions to be considered (Q1:quadratic or Q2:Lagrange)
-- `ID::Matrix{Int}{nDof,nNodes}` : matrix that maps the global degrees of freedom to the local degrees of freedom
-- `Young::Float64`: Young's modulus
-- `ν::Float64`: Poisson's ratio
+# Arguments
+- `mdl::model`: Model object containing mesh and material properties.
+- `GRAD::Bool`: Whether to compute gradients (default: `false`).
 
-# Returns:
-- `K::SparseMatrixCSC{Float64,Int64}{ndof,ndof}` : sparse stiffness matrix 
-- `∇K::SparseMatrixCSC{Float64,Int64}{ndof,ndof}` : sparse matrix with the gradient of the stiffness matrix 
+# Returns
+- `K::SparseMatrixCSC{Float64,Int64}`: Global stiffness matrix.
+- `∇K::SparseMatrixCSC{Float64,Int64}` (if `GRAD=true`): Gradient of the stiffness matrix with respect to λ.
 """
 function assemble_system(mdl::model; GRAD::Bool=false)
     
@@ -203,7 +194,19 @@ function assemble_system(mdl::model; GRAD::Bool=false)
     end
 end
 
-function assemble_system_dense(mdl::model; ∂C = zeros(1,1))
+"""
+    assemble_system_dense(mdl::model; ∇C=zeros(1,1))
+
+Assembles the finite element system using dense matrices.
+
+# Arguments
+- `mdl::model`: Model object containing mesh and material properties.
+- `∂C::Matrix{Float64}`: Constitutive matrix derivative (default: `zeros(1,1)`).
+
+# Returns
+- `K::Matrix{Float64}`: Global stiffness matrix.
+"""
+function assemble_system_dense(mdl::model; ∇C = zeros(1,1)) ∇
 
     # (I,J,V) vectors for COO sparse matrix
     IEN_rows = size(mdl.IEN,1)
@@ -216,8 +219,8 @@ function assemble_system_dense(mdl::model; ∂C = zeros(1,1))
         K = zeros(Float64, sz,sz)  
     end
 
-    if ∂C != zeros(1,1)
-        mdl.cMat = ∂C # replace cMat with ∂C/∂θ_i for getting ∂K/∂θ_i
+    if ∇C != zeros(1,1)
+        mdl.cMat = ∇C # replace cMat with ∂C/∂θ_i for getting ∂K/∂θ_i
     end
 
     # element loop
@@ -334,7 +337,6 @@ function assemble_system_dense(mdl::model; ∂C = zeros(1,1))
         
                 # code optimization
                 Ke_rows, Ke_cols = size(Ke)
-                # Ke_len = length(Ke)
 
                 # loop between basis functions of the element
                 iNodes = 1:Ke_rows÷mdl.nDof
@@ -360,16 +362,16 @@ function assemble_system_dense(mdl::model; ∂C = zeros(1,1))
     return K
 end
 
-""" Apply the Neumann slip boundary conditions to the global stiffness matrix
-# Arguments:
-K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix 
-ID: {[nNodes,nDof] Matrix{Int}} : matrix that maps the global degrees of freedom to the local degrees of freedom
-q_d: {[ndof] Vector{Float64}} : Dirichlet boundary conditions
-q_n: {[ndof] Vector{Float64}} : Neumann boundary conditions
+"""
+    set_slip_conditions(mdl)
 
-# Returns:
-K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix with the boundary conditions applied
-F: {[ndof] Vector{Float64}} : force vector
+Applies Neumann slip boundary conditions to the global stiffness matrix.
+
+# Arguments
+- `mdl::model`: Model object containing mesh and material properties.
+
+# Returns
+- `K::SparseMatrixCSC{Float64,Int64}`: Stiffness matrix with boundary conditions applied.
 """
 function set_slip_conditions(mdl::model)
 
@@ -469,6 +471,17 @@ function set_slip_conditions(mdl::model)
     return  K
 end
 
+"""
+    set_slip_conditions_dense(mdl)
+
+Applies Neumann slip boundary conditions using dense matrices.
+
+# Arguments
+- `mdl::model`: Model object containing mesh and material properties.
+
+# Returns
+- `K::Matrix{Float64}`: Stiffness matrix with boundary conditions applied.
+"""
 function set_slip_conditions_dense(mdl::model)
 
     IEN_btm_rows = size(mdl.IEN_btm,1)
@@ -533,7 +546,6 @@ function set_slip_conditions_dense(mdl::model)
 
             be = M'*M
             be_cols, be_rows = size(be)
-            be_len = length(be)
 
             # loop between basis functions of the element
             iNodes = 1:be_cols÷mdl.nDof
@@ -560,18 +572,17 @@ function set_slip_conditions_dense(mdl::model)
 end
 
 """
-Set the Dirichlet boundary conditions for the problem
+    set_boundary_conditions(mdl)
 
-# Arguments:
-- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
-- `ne::Int` : number of elements
-- `ndim::Int` : number of dimensions
-- `FunctionClass::String` : type of basis function
+Sets Dirichlet boundary conditions for the problem.
 
-# Returns:
-- `q_upper::Vector{Float64}` : vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-- `q_lower::Vector{Float64}` : vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-- `C_uc::SparseMatrixCSC{Float64,Int64}` : onstraint matrix
+# Arguments
+- `mdl::model`: Model object containing mesh and material properties.
+
+# Returns
+- `q_upper::Vector{Float64}`: Dirichlet boundary conditions for the upper surface.
+- `q_lower::Vector{Float64}`: Dirichlet boundary conditions for the lower surface.
+- `C_uc::SparseMatrixCSC{Float64,Int64}`: Constraint matrix.
 """
 function set_boundary_conditions(mdl::model)
     tDof = mdl.nDof*size(mdl.NodeList,2)     # Total number of DOFs
@@ -634,6 +645,19 @@ function set_boundary_conditions(mdl::model)
     return q_upper, q_lower, C_uc
 end
 
+"""
+    set_boundary_conditions_dense(mdl)
+
+Sets Dirichlet boundary conditions using dense matrices.
+
+# Arguments
+- `mdl::model`: Model object containing mesh and material properties.
+
+# Returns
+- `q_upper::Vector{Float64}`: Dirichlet boundary conditions for the upper surface.
+- `q_lower::Vector{Float64}`: Dirichlet boundary conditions for the lower surface.
+- `C_uc::Matrix{Float64}`: Constraint matrix.
+"""
 function set_boundary_conditions_dense(mdl::model)
     tDof = mdl.nDof*size(mdl.NodeList,2)    # Total number od Degrees od freedom
     q_upper = zeros(tDof,1)                 # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
@@ -695,20 +719,20 @@ function set_boundary_conditions_dense(mdl::model)
     return q_upper, q_lower, C_uc
 end
 
-""" 
+"""
     get_cMat(type; λ=nothing, μ=nothing, Young=nothing, ν=nothing)
 
-Returns the stiffness matrix for a given type of material
+Returns the constitutive matrix for a given material type.
 
-# Arguments:
-- `type::String`: type of constitutive matrix to be considered (lame or standard)
-- `λ::Float64`: Lame's first parameter
-- `μ::Float64`: Sheer modulus
-- `Young::Float64`: Young's modulus
-- `ν::Float64`: Poisson's ratio
+# Arguments
+- `type::String`: Type of constitutive matrix ("lame" or "standard").
+- `λ::Float64`: Lame's first parameter.
+- `μ::Float64`: Shear modulus.
+- `Young::Float64`: Young's modulus.
+- `ν::Float64`: Poisson's ratio.
 
-# Returns:
-- `cMat::Matrix{Float64}`: constitutive matrix
+# Returns
+- `cMat::Matrix{Float64}`: Constitutive matrix.
 """
 function get_cMat(type="lame", c1=nothing, c2=nothing)
 
@@ -733,7 +757,18 @@ function get_cMat(type="lame", c1=nothing, c2=nothing)
     end
 end
 
-function get_volume(mdl::model)
+"""
+    get_volume(mdl)
+
+Calculates the volume of the mesh.
+
+# Arguments
+- `mdl::model`: Model object containing mesh and material properties.
+
+# Returns
+- `vol::Float64`: Volume of the mesh.
+"""
+function get_volume(mdl)
 
     if mdl.ndim == 1
         # gaussian quadrature points for the element [-1,1] 
@@ -812,66 +847,71 @@ function get_volume(mdl::model)
 end
 
 """
-    simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, filepath=nothing)
+    simulate(r, h, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, time, Control, cParam, cMat; writeData=false, filepath="nothing", SIDES=false, dcdλ=zeros(Float64,1,1))
 
-Simulate the deformation of a cylindrical under compression
+Simulates the deformation of a cylinder under compression.
 
-# Arguments:
-- `x0::Float64` : x-coordinate of the lower left corner of the domain
-- `x1::Float64` : x-coordinate of the upper right corner of the domain
-- `y0::Float64` : y-coordinate of the lower left corner of the domain
-- `y1::Float64` : y-coordinate of the upper right corner of the domain
-- `z0::Float64` : z-coordinate of the lower left corner of the domain
-- `z1::Float64` : z-coordinate of the upper right corner of the domain
-- `ne::Int` : number of elements
-- `Young::Float64` : Young's modulus
-- `ν::Float64` : Poisson's ratio
-- `ndim::Int` : number of dimensions
-- `FunctionClass::String` : type of basis function
-- `nDof::Int` : number of degree of freedom per node
-- `β::Float64` : friction parameter
-- `CameraMatrix::Matrix{Float64}` : camera matrix
-- `endTime::Float64` : end time
-- `tSteps::Int` : number of time steps to be taken
-- `Control::String` : type of control (force or displacement)
-- `cParam::Vector{Float64}` : control parameter (force or displacement prescribed at the top surface per time step)
-- `cMat::Matrix{Float64}` : control matrix
-- `writeData::Bool` : write the data to a file
-- `filepath::String` : path to the file
+# Arguments
+- `r::Number`: Radius of the cylinder.
+- `h::Number`: Height of the cylinder.
+- `ne::Int64`: Number of elements.
+- `Young::Number`: Young's modulus.
+- `ν::Number`: Poisson's ratio.
+- `ndim::Int64`: Number of dimensions.
+- `FunctionClass::String`: Type of basis function.
+- `nDof::Int64`: Degrees of freedom per node.
+- `β::Number`: Friction parameter.
+- `CameraMatrix::Matrix{Float64}`: Camera matrix.
+- `time::Vector{Float64}`: Time steps.
+- `Control::String`: Type of control ("force" or "displacement").
+- `cParam::Matrix{Float64}`: Force / displacement applied on the top boundary.
+- `cMat::Matrix{Float64}`: Constitutive matrix.
+
+# Keyword Arguments
+- `writeData::Bool`: Whether to write data to a file (default: `false`).
+- `filepath::String`: Path to the output file (default: `"nothing"`).
+- `SIDES::Bool`: Whether to include side boundaries (default: `false`).
+- `dcdλ::Matrix{Float64}`: Gradient of the constitutive matrix (default: `zeros(Float64,1,1)`).
+
+# Returns
+- `μ_list::Vector{Float64}`: Force applied on the top boundary in the force constrolled scenario / Force applied on the top boundary in the displacement controlled scenario.
+- `gradList::Vector{Matrix{Float64}}`: List of gradients wrt to model parameters of the border points at each timestep.
+- `borderPts2DList::Vector{Matrix{Float64}}`: List of 2D border points at each timestep.
+- `splinep::Vector{Vector{Float64}}`: x coordinates of the border observation at each timestep interpolated.
+- `splineq::Vector{Vector{Float64}}`: y coordinates of the border observation at each timestep interpolated.
+- `mdl::model`: Model object containing mesh and material properties.
+- `pos2D::Vector{Matrix{Float64}}`: List of surface nodes of the mesh at each timestep.
 """
-function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, cParam, cMat; writeData=false, 
-                    filepath=nothing, SIDES::Bool=false, dcdλ::Matrix{Float64}=zeros(Float64,1,1))
+function simulate(r::Number, h::Number, ne::Int64, Young::Number, ν::Number, ndim::Int64, FunctionClass::String, nDof::Int64, β::Number, CameraMatrix::AbstractMatrix{Float64}, 
+                time::Vector{Float64}, Control::String, cParam::Vector{Float64}, cMat::Matrix{Float64}; writeData::Bool=false, filepath::String="nothing", 
+                SIDES::Bool=false, dcdλ::Matrix{Float64}=zeros(Float64,1,1))
 
-    time = collect(range(start=tSteps,stop=endTime,step=tSteps)) # time vector
+    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)  # generate the mesh grid                         # inflate the sphere to a unit sphere
 
-    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
-    NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)                                 # inflate the sphere to a unit sphere
-
-
-    mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeListCylinder, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
+    mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
                      FunctionClass=FunctionClass, Young=Float64(Young), ν=ν, cMat=cMat,dcMatdλ=dcdλ)
     
     q_tp, q_btm, C_uc = set_boundary_conditions(mdl)
 
-    BorderPts2D, SurfacePts2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList, 2*ne+1, SIDES)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList, CameraMatrix, BorderNodesList, 2*ne+1, SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
         
     fields = AbstractArray[]  
-    gradList = AbstractArray[zeros(size(BorderPts2D,1),size(BorderPts2D,2),2)]                                                 # store the solution fields of the border nodes in 2D 
-    pos3D = AbstractArray[mdl.NodeList]                                                             # store the solution fields of the mesh in 3D
-    pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
-    borderPts2DList = AbstractArray[BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
-    splinep = AbstractArray[pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
-    splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
+    gradList = AbstractArray[zeros(size(BorderPts2D,1),size(BorderPts2D,2),2)]          # store the gradients of the border nodes
+    pos3D = AbstractArray[mdl.NodeList]                                                 # store the 3D coordinates of the nodes
+    pos2D = AbstractArray[SurfacePts2D]                                                 # store the 2D coordinates of the surface nodes
+    borderPts2DList = AbstractArray[BorderPts2D]                                        # store the 2D coordinates of the border nodes
+    splinep = AbstractArray[pi]                                                         # store the x coordinates samples of the spline parameters of the border nodes
+    splineq = AbstractArray[qi]                                                         # store the y coordinates samples of the spline parameters of the border nodes
     output = Float64[] 
-    writeborderList = [vcat(pi', qi')]
+    writeborderList = [vcat(pi', qi')]                                                  # store the x and y coordinates samples of the spline parameters of the border nodes
 
     μ_btm = 0      
     dqdλ = zeros(size(q_tp))
     dqdβ = zeros(size(q_tp))
 
     iter = 1
-    pr = Progress(round(Int,endTime/tSteps); desc= "Simulating with prescribed $Control ...", showspeed=true)
+    pr = Progress(length(time); desc= "Simulating with prescribed $Control ...", showspeed=true)
     if Control == "force"
         for t in time
 
@@ -885,38 +925,39 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             q_btm = μ_btm*q_btm
 
             M = [C_T*K_bar*C_uc C_T*K_bar*q_tp; q_tp'*K_bar*C_uc q_tp'*K_bar*q_tp] # assemble the system of equations]
-            dMdλ = [C_T*dKdλ*C_uc C_T*dKdλ*q_tp; q_tp'*dKdλ*C_uc q_tp'*dKdλ*q_tp] # assemble the system of equations
-            dMdβ = [C_T*dKdβ*C_uc C_T*dKdβ*q_tp; q_tp'*dKdβ*C_uc q_tp'*dKdβ*q_tp] # assemble the system of equations
+            dMdλ = [C_T*dKdλ*C_uc C_T*dKdλ*q_tp; q_tp'*dKdλ*C_uc q_tp'*dKdλ*q_tp]  # assemble the system of equations
+            dMdβ = [C_T*dKdβ*C_uc C_T*dKdβ*q_tp; q_tp'*dKdβ*C_uc q_tp'*dKdβ*q_tp]  # assemble the system of equations
 
             r = [-C_T*K_bar*q_btm; cParam[iter].-q_tp'*K_bar*q_btm]
             drdλ = [-C_T*dKdλ*q_btm; -q_tp'*dKdλ*q_btm]
             drdβ = [-C_T*dKdβ*q_btm; -q_tp'*dKdβ*q_btm]
 
-            sol = M\r # solve the system of equations
-            dsoldλ = M\(drdλ-dMdλ*sol) # solve the system of equations
-            dsoldβ = M\(drdβ-dMdβ*sol) # solve the system of equations
-
-            q_f = sol[1:end-1]        # solve the system of equations
-            dqfdλ = dsoldλ[1:end-1]    # solve the system of equations
-            dqfdβ = dsoldβ[1:end-1]    # solve the system of equations
-
-            μ_tp = sol[end]           # solve the system of equations
-            dμfdλ = dsoldλ[end]        # solve the system of equations
-            dμfdβ = dsoldβ[end]        # solve the system of equations
-
-            q = q_btm + C_uc*q_f + μ_tp*q_tp;                # assemble the solution
-            dqdλ = dqdλ + C_uc*dqfdλ + dμfdλ*q_tp;               # assemble the solution
-            dqdβ = dqdβ + C_uc*dqfdβ + dμfdβ*q_tp;               # assemble the solution
+            sol = M\r                   # solve the system of equations
+            dsoldλ = M\(drdλ-dMdλ*sol)  # derivative of the solution with respect to λ
+            dsoldβ = M\(drdβ-dMdβ*sol)  # derivative of the solution with respect to β
 
             # post process the solution
-            motion = hcat([q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]])'    # update the nodal positions
+            q_f = sol[1:end-1]         
+            dqfdλ = dsoldλ[1:end-1]    
+            dqfdβ = dsoldβ[1:end-1]    
+
+            μ_tp = sol[end]            
+            dμfdλ = dsoldλ[end]        
+            dμfdβ = dsoldβ[end]        
+
+            q = q_btm + C_uc*q_f + μ_tp*q_tp;                # assemble the solution
+            dqdλ = dqdλ + C_uc*dqfdλ + dμfdλ*q_tp;           # assemble the solution
+            dqdβ = dqdβ + C_uc*dqfdβ + dμfdβ*q_tp;           # assemble the solution
+
+            # rearrange the solution and the gradients to a 2xnNodes matrix
+            motion = hcat([q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]])'
             dqdλ_out = hcat(dqdλ[ID[1,:]], dqdλ[ID[2,:]], dqdλ[ID[3,:]])'
             dqdβ_out = hcat(dqdβ[ID[1,:]], dqdβ[ID[2,:]], dqdβ[ID[3,:]])'
 
-            dqdθ_out = cat(dqdλ_out,dqdβ_out,dims=(3,3)) # concatenate the gradients in to a tensor
+            dqdθ_out = cat(dqdλ_out,dqdβ_out,dims=3) # concatenate the gradients in to a tensor
   
-            NodePose =  mdl.NodeList + motion    # update the node coordinates
-            mdl.NodeList = NodePose
+            NodePose =  mdl.NodeList + motion   # update the node coordinates
+            mdl.NodeList = NodePose             # update mesh
 
             BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodePose, CameraMatrix, BorderNodesList, GRAD=true, dqdθ=dqdθ_out, SIDES=SIDES)
             pi, qi = fit_curve(border=BorderPts2D)
@@ -935,39 +976,39 @@ function simulate(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nD
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
         end
     elseif Control == "displacement"
-        # pr = Progress(round(Int,endTime/tSteps*endTime); desc="Simulating with prescribed $Control ...", showspeed=true)
         for t in time
             
-            K, dKdλ = assemble_system(mdl,GRAD=true)             # assemble the stiffness matrix
-            b = set_slip_conditions(mdl)   # apply the neumann boundary conditions
-            K_bar = K + β*b
+            K, dKdλ = assemble_system(mdl,GRAD=true)      # assemble the stiffness matrix
             dKdβ = b
+            b = set_slip_conditions(mdl)                  # apply the neumann boundary conditions
+            K_bar = K + β*b
         
-            C_T = transpose(C_uc)              # transpose the constraint matrix
+            C_T = transpose(C_uc)           # transpose the constraint matrix
             K_free = C_T*K_bar*C_uc         # extract the free part of the stiffness matrix
         
             q_d = (μ_btm*q_btm + cParam[iter]*q_tp)           # apply the Dirichlet boundary conditions
 
-            q_f = K_free\(C_T*(-K_bar*q_d))     # solve the system of equations
-            q = q_d + C_uc*q_f;                 # assemble the solution 
+            q_f = K_free\(C_T*(-K_bar*q_d))                    # solve the system of equations
+            dqfdλ = -K_free\(C_T*dKdλ*C_uc*q_f + C_T*dKdλ*q_d) # derivative of the solution with respect to λ
+            dqfdβ = -K_free\(C_T*dKdβ*C_uc*q_f + C_T*dKdβ*q_d) # derivative of the solution with respect to β
 
-            dqfdλ = -K_free\(C_T*dKdλ*C_uc*q_f + C_T*dKdλ*q_d)
-            dqfdβ = -K_free\(C_T*dKdβ*C_uc*q_f + C_T*dKdβ*q_d)
-
+            # assemble the solution 
+            q = q_d + C_uc*q_f;                 
             dqdλ = dqdλ + C_uc*dqfdλ
             dqdβ = dqdβ + C_uc*dqfdβ
 
-            # post process the solution
-            f_R = K_bar*q
-            motion = hcat([q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]])'    # update the nodal positions
+            f_R = K_bar*q   # calculate the reaction force at the top surface f = K*q
+
+            # rearrange the solution and the gradients to a 2xnNodes matrix
+            motion = hcat([q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]])'   
             dqdλ_out = hcat(dqdλ[ID[1,:]], dqdλ[ID[2,:]], dqdλ[ID[3,:]])'
             dqdβ_out = hcat(dqdβ[ID[1,:]], dqdβ[ID[2,:]], dqdβ[ID[3,:]])'
 
-            dqdθ_out = cat(dqdλ_out,dqdβ_out,dims=(3,3)) # concatenate the gradients in to a tensor
+            dqdθ_out = cat(dqdλ_out,dqdβ_out,dims=3) # concatenate the gradients in to a tensor
 
-            F_est = q_tp'*f_R                                        # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
+            F_est = q_tp'*f_R                        # calculate the reaction force at the top surface F = Σf^{tp}_{iR} = q_tp'*f_R
             NodePose =  mdl.NodeList + motion    # update the node coordinates
-            mdl.NodeList = NodePose
+            mdl.NodeList = NodePose              # update mesh
 
             BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodePose, CameraMatrix, BorderNodesList, GRAD=true, dqdθ=dqdθ_out, SIDES=SIDES)
             pi, qi = fit_curve(border=BorderPts2D)

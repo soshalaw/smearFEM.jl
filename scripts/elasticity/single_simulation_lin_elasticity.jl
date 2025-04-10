@@ -3,12 +3,8 @@ using Dates
 
 function main()
     # test case 
-    x0 = 0
-    x1 = 1
-    y0 = 0
-    y1 = 1
-    z0 = 0
-    z1 = 1
+    r = 0.5
+    h = 1
     ne = 3
     ndim = 3
     FunctionClass = "Q2"
@@ -32,7 +28,7 @@ function main()
     # filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Linear_Elasticity/",mode,"/",Control,"/",Date(dateTime),"/",Time(dateTime),"/")
     # filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Linear_Elasticity/",mode,"/",Control,"/",Date(dateTime),"/09:41:12.027/")
     filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Linear_Elasticity/standard/displacement/2025-03-07/09:41:12.027")
-    write_sim_data(x0, x1, y0, y1, z0, z1, ne, λ, μ, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepath)
+    write_sim_data(r, h, ne, λ, μ, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepath)
 end
 
 main()

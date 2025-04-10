@@ -106,8 +106,9 @@ Function to read the CSV files in the directory and fit a curve to the border ob
 - `csv_path::String`: path to the directory containing the CSV files.
 
 # Returns:
-- `splinep::Vector{Float64}`: x coordinates samples of the spline parameters of the border nodes.
-- `splineq::Vector{Float64}`: y coordinates samples of the spline parameters of the border nodes.
+- `ObsDataList::Vector{Matrix{Float64}}`: list of observation data.
+- `splinep::Vector{Vector{Float64}}`: x coordinates samples of the spline parameters of the border nodes.
+- `splineq::Vector{Vector{Float64}}`: y coordinates samples of the spline parameters of the border nodes.
 """
 function read_csv(csv_path::String; nFactor=0)   
 

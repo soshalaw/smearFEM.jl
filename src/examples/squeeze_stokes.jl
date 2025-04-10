@@ -603,7 +603,7 @@ q_n: {[ndof] Vector{Float64}} : Neumann boundary conditions
 K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix with the boundary conditions applied
 F: {[ndof] Vector{Float64}} : force vector
 """
-function apply_boundary_conditions_stokes(mdl)
+function apply_boundary_conditions_stokes(mdl::model)
 
     ID_u_rows = size(mdl.ID_u,1)
     IEN_u_btm_rows = size(mdl.IEN_u_btm,1)
@@ -695,7 +695,7 @@ function apply_boundary_conditions_stokes(mdl)
     return  K
 end
 
-function apply_boundary_conditions_stokes_dense(mdl)
+function apply_boundary_conditions_stokes_dense(mdl::model)
 
     IEN_btm_rows = size(mdl.IEN_btm,1)
     IEN_rows = size(mdl.IEN,1)
@@ -799,37 +799,37 @@ Set the Dirichlet boundary conditions for the problem
 - `q_lower::Vector{Float64}` : vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
 - `C_uc::SparseMatrixCSC{Float64,Int64}` : onstraint matrix
 """
-function set_boundary_cond_stokes(NodeList, ne, ndim, FunctionClass, nDof=1)
-    if FunctionClass == "Q1"
-        q_upper = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-        q_lower = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        q_side = zeros(nDof*(ne+1)^ndim,1)                   # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        C = sparse(I,nDof*(ne+1)^ndim,nDof*(ne+1)^ndim)      # definition of the constraint matrix
-    elseif FunctionClass == "Q2"
-        q_upper = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-        q_lower = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        q_side = zeros(nDof*(2*ne+1)^ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        C = sparse(I,nDof*(2*ne+1)^ndim,nDof*(2*ne+1)^ndim)  # definition of the constraint matrix
+function set_boundary_cond_stokes(mdl::model)
+    if mdl.FunctionClass_u == "Q1"
+        q_upper = zeros(mdl.nDof_u*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        q_lower = zeros(mdl.nDof_u*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        q_side = zeros(mdl.nDof_u*(mdl.ne+1)^mdl.ndim,1)                   # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        C = sparse(I,mdl.nDof_u*(mdl.ne+1)^mdl.ndim,mdl.nDof_u*(mdl.ne+1)^mdl.ndim)      # definition of the constraint matrix
+    elseif mdl.FunctionClass_u == "Q2"
+        q_upper = zeros(mdl.nDof_u*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        q_lower = zeros(mdl.nDof_u*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        q_side = zeros(mdl.nDof_u*(2*mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        C = sparse(I,mdl.nDof_u*(2*mdl.ne+1)^mdl.ndim,mdl.nDof_u*(2*mdl.ne+1)^mdl.ndim)  # definition of the constraint matrix
     end
-    if nDof == 1
-        if ndim == 3
+    if mdl.nDof_u == 1
+        if mdl.ndim == 3
             Dbound1 = 0
             Dbound2 = 1
-            iter = 1:size(NodeList,2)
+            iter = 1:size(mdl.NodeList_u,2)
             for n in iter
-                coord = NodeList[:,n] # get the coordinates of the node
+                coord = mdl.NodeList_u[:,n] # get the coordinates of the node
                 if coord[3] == Dbound1 # bottom boundary
                     q_upper[n] = 0
                 elseif coord[3] == Dbound2 # top boundary
                     q_upper[n] = -1
                 end
             end
-        elseif ndim == 2
+        elseif mdl.ndim == 2
             Dbound1 = 0
             Dbound2 = 1
-            iter = 1:size(NodeList,2)
+            iter = 1:size(mdl.NodeList_u,2)
             for n in iter
-                coord = NodeList[:,n] # get the coordinates of the node
+                coord = mdl.NodeList_u[:,n] # get the coordinates of the node
                 if coord[2] == Dbound1 # bottom boundary
                     q_upper[n] = 0
                 elseif coord[2] == Dbound2 # top boundary
@@ -838,19 +838,19 @@ function set_boundary_cond_stokes(NodeList, ne, ndim, FunctionClass, nDof=1)
             end
         end
 
-        if FunctionClass == "Q1"
-            C_uc = C[:,((ne+1)^(ndim-1)+1):((ne+1)^ndim-(ne+1)^(ndim-1))]
-        elseif FunctionClass == "Q2"
-            C_uc = C[:,((2*ne+1)^(ndim-1)+1):((2*ne+1)^ndim-(2*ne+1)^(ndim-1))]
+        if mdl.FunctionClass_u == "Q1"
+            C_uc = C[:,((mdl.ne+1)^(mdl.ndim-1)+1):((mdl.ne+1)^mdl.ndim-(mdl.ne+1)^(mdl.ndim-1))]
+        elseif mdl.FunctionClass_u == "Q2"
+            C_uc = C[:,((2*mdl.ne+1)^(mdl.ndim-1)+1):((2*mdl.ne+1)^mdl.ndim-(2*mdl.ne+1)^(mdl.ndim-1))]
         end
     else
         z0Bound = 0
         z1Bound = 1
 
         rCol = Array{Int}(undef,0)
-        iter = 1:size(NodeList,2)
+        iter = 1:size(mdl.NodeList_u,2)
         for nNode in iter
-            coord = NodeList[:,nNode]    # get the coordinates of the node
+            coord = mdl.NodeList_u[:,nNode]    # get the coordinates of the node
             if coord[3] == z1Bound   # top boundary
                 q_upper[3*nNode] = 1     # constraint the z displacement to be -d
                 push!(rCol,3*nNode)
@@ -880,37 +880,37 @@ Set the Dirichlet boundary conditions for the problem
 - `q_lower::Vector{Float64}` : vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
 - `C_uc::SparseMatrixCSC{Float64,Int64}` : onstraint matrix
 """
-function set_boundary_cond_stokes_dense(NodeList, ne, ndim, FunctionClass, nDof=1)
-    if FunctionClass == "Q1"
-        q_upper = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-        q_lower = zeros(nDof*(ne+1)^ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        q_side = zeros(nDof*(ne+1)^ndim,1)                   # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        C = zeros(I,nDof*(ne+1)^ndim,nDof*(ne+1)^ndim)      # definition of the constraint matrix
-    elseif FunctionClass == "Q2"
-        q_upper = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-        q_lower = zeros(nDof*(2*ne+1)^ndim,1)                # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        q_side = zeros(nDof*(2*ne+1)^ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-        C = zeros(I,nDof*(2*ne+1)^ndim,nDof*(2*ne+1)^ndim)  # definition of the constraint matrix
+function set_boundary_cond_stokes_dense(mdl::model)
+    if mdl.FunctionClass_u == "Q1"
+        q_upper = zeros(mdl.nDof_u*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        q_lower = zeros(mdl.nDof_u*(mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        q_side = zeros(mdl.nDof_u*(mdl.ne+1)^mdl.ndim,1)                   # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        C = zeros(I,mdl.nDof_u*(mdl.ne+1)^mdl.ndim,mdl.nDof_u*(mdl.ne+1)^mdl.ndim)      # definition of the constraint matrix
+    elseif mdl.FunctionClass_u == "Q2"
+        q_upper = zeros(mdl.nDof_u*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        q_lower = zeros(mdl.nDof_u*(2*mdl.ne+1)^mdl.ndim,1)                # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        q_side = zeros(mdl.nDof_u*(2*mdl.ne+1)^mdl.ndim,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        C = zeros(I,mdl.nDof_u*(2*mdl.ne+1)^mdl.ndim,mdl.nDof_u*(2*mdl.ne+1)^mdl.ndim)  # definition of the constraint matrix
     end
-    if nDof == 1
-        if ndim == 3
+    if mdl.nDof_u == 1
+        if mdl.ndim == 3
             Dbound1 = 0
             Dbound2 = 1
-            iter = 1:size(NodeList,2)
+            iter = 1:size(mdl.NodeList,2)
             for n in iter
-                coord = NodeList[:,n] # get the coordinates of the node
+                coord = mdl.NodeList[:,n] # get the coordinates of the node
                 if coord[3] == Dbound1 # bottom boundary
                     q_upper[n] = 0
                 elseif coord[3] == Dbound2 # top boundary
                     q_upper[n] = -1
                 end
             end
-        elseif ndim == 2
+        elseif mdl.ndim == 2
             Dbound1 = 0
             Dbound2 = 1
-            iter = 1:size(NodeList,2)
+            iter = 1:size(mdl.NodeList,2)
             for n in iter
-                coord = NodeList[:,n] # get the coordinates of the node
+                coord = mdl.NodeList[:,n] # get the coordinates of the node
                 if coord[2] == Dbound1 # bottom boundary
                     q_upper[n] = 0
                 elseif coord[2] == Dbound2 # top boundary
@@ -919,19 +919,19 @@ function set_boundary_cond_stokes_dense(NodeList, ne, ndim, FunctionClass, nDof=
             end
         end
 
-        if FunctionClass == "Q1"
-            C_uc = C[:,((ne+1)^(ndim-1)+1):((ne+1)^ndim-(ne+1)^(ndim-1))]
-        elseif FunctionClass == "Q2"
-            C_uc = C[:,((2*ne+1)^(ndim-1)+1):((2*ne+1)^ndim-(2*ne+1)^(ndim-1))]
+        if mdl.FunctionClass_u == "Q1"
+            C_uc = C[:,((mdl.ne+1)^(mdl.ndim-1)+1):((mdl.ne+1)^mdl.ndim-(mdl.ne+1)^(mdl.ndim-1))]
+        elseif mdl.FunctionClass_u == "Q2"
+            C_uc = C[:,((2*mdl.ne+1)^(mdl.ndim-1)+1):((2*mdl.ne+1)^mdl.ndim-(2*mdl.ne+1)^(mdl.ndim-1))]
         end
     else
         z0Bound = 0
         z1Bound = 1
 
         rCol = Array{Int}(undef,0)
-        iter = 1:size(NodeList,2)
+        iter = 1:size(mdl.NodeList,2)
         for nNode in iter
-            coord = NodeList[:,nNode]    # get the coordinates of the node
+            coord = mdl.NodeList[:,nNode]    # get the coordinates of the node
             if coord[3] == z1Bound   # top boundary
                 q_upper[3*nNode] = 1     # constraint the z displacement to be -d
                 push!(rCol,3*nNode)
@@ -950,7 +950,7 @@ end
 """
 simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, CameraMatrix, endTime, tSteps, Control, cParam; writeData=false, filepath=nothing, SIDES::Bool=false)
 
-Simulate the Stokes problem
+Simulate the Stokes problem for a given mesh over a given time period. 
 
 # Arguments:
 - `x0::Float64` : x coordinate of the lower left corner of the domain
@@ -960,51 +960,53 @@ Simulate the Stokes problem
 - `z0::Float64` : z coordinate of the lower left corner of the domain
 - `z1::Float64` : z coordinate of the upper right corner of the domain
 - `ne::Int` : number of elements
-- `Young::Float64` : Young's modulus
-- `ν::Float64` : Poisson's ratio
+- `η::Float64` : viscosity of the fluid
 - `ndim::Int` : number of dimensions
-- `FunctionClass::String` : type of basis function
-- `nDof::Int` : number of degree of freedom per node
-- `β::Float64` : penalty parameter
+- `FunctionClass_u::String` : type of basis function for the velocity field
+- `nDof_u::Int` : number of degrees of freedom for the velocity field
+- `FunctionClass_p::String` : type of basis function for the pressure field
+- `nDof_p::Int` : number of degrees of freedom for the pressure field
+- `β::Float64` : parameter for the pressure field
 - `CameraMatrix::Matrix{Float64}` : camera matrix
-- `endTime::Float64` : end time
-- `tSteps::Int` : number of time steps
-- `Control::String` : type of control
-- `cParam::Float64` : control parameter
-- `cMat::Matrix{Float64}` : control matrix
+- `endTime::Float64` : end time of the simulation
+- `tSteps::Float64` : time step of the simulation
+- `Control::String` : type of control for the simulation
+- `cParam::Float64` : parameter for the control
 
 # Optional arguments:
 - `writeData::Bool` : write the data to a file
 - `filepath::String` : path to write the data
+- `SIDES::Bool` : if true, only the sides of the cylinder are extracted in the simulation. Simulates the partial observability of the borders.
 
 # Returns:
-- `fields::Vector{Float64}` : Nodal positions of the mesh
+- `output::Vector{Float64}` : output of the simulation
+- `gradList`::Vector{Float64}` : gradient of the solution
+- `borderPts2DList::Vector{Float64}` : border points in 2D 
+- `splinep::Vector{Float64}` : x coordinates samples of the spline parameters of the border nodes
+- `splineq::Vector{Float64}` : y coordinates samples of the spline parameters of the border nodes
+- `mdl::model` : model of the simulation
+- `pos2D::Vector{Float64}` : position of the mesh in 2D
 """
-function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, CameraMatrix, endTime, tSteps, Control, 
-                        cParam; writeData=false, filepath=nothing, SIDES::Bool=false)
-
-    time = collect(range(start=tSteps,stop=endTime,step=tSteps)) # time vector
-    
+function simulate_stokes(r::Number, h::Number, ne::Int64, η::Number, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
+                        nDof_p::Int64, β::Number, CameraMatrix::AbstractMatrix{Float64}, time::Vector{Float64}, Control::String, cParam; 
+                        writeData::Bool=false, filepath::String="None", SIDES::Bool=false)
     μu_btm = 0  
     μu_side = 0
     
-    NodeList_u, IEN_u, ID_u, IEN_u_top, IEN_u_btm, BorderNodesList_u = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass_u)  # generate the mesh grid
-    NodeListCylinder = inflate_cylinder(NodeList_u, x0, x1, y0, y1)
-    q_tp, q_side, q_btm, C_uc = set_boundary_cond_stokes(NodeList_u, ne, ndim, FunctionClass_u, nDof_u)
-
-    dqdη = zeros(size(q_tp))
-    dqdβ = zeros(size(q_tp))
+    NodeList_u, IEN_u, ID_u, IEN_u_top, IEN_u_btm, BorderNodesList_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
+    NodeList_p, IEN_p, ID_p, IEN_p_top, IEN_p_btm, BorderNodesList_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
     
-    NodeList_p, IEN_p, ID_p, IEN_p_top, IEN_p_btm, BorderNodesList_p = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass_p)  # generate the mesh grid
-    NodeListCylinderp = inflate_cylinder(NodeList_p, x0, x1, y0, y1)
-    
-    mdl = def_model("stokes", ne=ne, NodeList=NodeListCylinder, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u, 
+    mdl = def_model("stokes", ne=ne, NodeList=NodeList_u, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u, 
                         FunctionClass=FunctionClass_u, ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, 
                         nDof_2=nDof_p, FunctionClass_2=FunctionClass_p ) # define the model
+    q_tp, q_side, q_btm, C_uc = set_boundary_cond_stokes(mdl) # set the boundary conditions
     
-    BorderPts2D, SurfacePts2D = extract_borders(NodeListCylinder, CameraMatrix, BorderNodesList_u, 2*ne+1, SIDES)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_u, CameraMatrix, BorderNodesList_u, 2*ne+1, SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
-        
+    
+    dqdη = zeros(size(q_tp))
+    dqdβ = zeros(size(q_tp))
+
     fields = AbstractArray[]  
     gradList = AbstractArray[zeros(size(BorderPts2D,1),size(BorderPts2D,2),2)]                                                 # store the solution fields of the border nodes in 2D 
     pos3D = AbstractArray[mdl.NodeList_u]                                                             # store the solution fields of the mesh in 3D
@@ -1016,7 +1018,7 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, 
     writeborderList = [vcat(pi', qi')]
 
     iter = 1
-    pr = Progress(round(Int,endTime/tSteps); desc= "Simulating with prescribed $Control ...", showspeed=true)
+    pr = Progress(length(time); desc= "Simulating with prescribed $Control ...", showspeed=true)
     if Control == "force"
         for t in time
             A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
@@ -1039,16 +1041,6 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, 
             dA_freedη = C_Tu*dAdη*C_uc        # extract the free part of the stiffness matrix
             dA_freedβ = C_Tu*dAdβ*C_uc             # extract the free part of the stiffness matrix
             dB_free = zeros(size(B_free))
-
-            # println("A_free: ", size(A_free))
-            # println("B_free: ", size(B_free))
-            # println("C_Tu*A*q_tp: ", size(C_Tu*A*q_tp))
-            # println("B_free': ", size(B_free'))
-            # println("zeros(size(B_free,2),size(B_free,2)): ", size(zeros(size(B_free,2),size(B_free,2))))
-            # println("B*q_tp: ", size(B'*q_tp))
-            # println("q_tp'*A*C_uc: ", size(q_tp'*A*C_uc))
-            # println("q_tp'*B: ", size(q_tp'*B))
-            # println("q_tp'*A*q_tp: ", size(q_tp'*A*q_tp))
 
             M = [A_free B_free C_Tu*A*q_tp; B_free' zeros(size(B_free,2),size(B_free,2)) B'*q_tp; q_tp'*A*C_uc q_tp'B q_tp'A*q_tp] # assemble the system of equations
             dMdη = [dA_freedη dB_free C_Tu*dAdη*q_tp; dB_free' zeros(size(B_free,2),size(B_free,2)) dB'*q_tp; q_tp'*dAdη*C_uc q_tp'dB q_tp'dAdη*q_tp]
@@ -1088,15 +1080,12 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, 
             dmdη_out = hcat(dqdη[ID_u[1,:]], dqdη[ID_u[2,:]], dqdη[ID_u[3,:]])'
             dmdβ_out = hcat(dqdβ[ID_u[1,:]], dqdβ[ID_u[2,:]], dqdβ[ID_u[3,:]])'
 
-            dmdθ_out = cat(dmdη_out,dmdβ_out,dims=(3,3)) # concatenate the gradients in to a tensor
-            # dmdθ_out = dmdη_out
-            # dmdθ_out = dmdβ_out
+            dmdθ_out = cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
             
             NodePose = mdl.NodeList_u + motion # update the mesh grid
             mdl.NodeList_u = NodePose # update the mesh grid
         
             BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodePose, CameraMatrix, BorderNodesList_u, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES)
-            # BorderPts2D, SurfacePts2D = extract_borders(NodePose, CameraMatrix, BorderNodesList_u, SIDES=SIDES)
             pi, qi = fit_curve(border=BorderPts2D)
 
             # store the solutions in a list
@@ -1104,7 +1093,7 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, 
             push!(fields, motion)
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
-            push!(pos3D, NodeListCylinder)
+            push!(pos3D, NodePose)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, pi)
             push!(splineq, qi) 
@@ -1133,7 +1122,7 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, 
             B_free = C_Tu*B             # extract the free part of the stiffness matrix
 
             dA_freedη = C_Tu*dAdη*C_uc        # extract the free part of the stiffness matrix
-            dA_freedβ = C_Tu*dAdβ             # extract the free part of the stiffness matrix
+            dA_freedβ = C_Tu*dAdβ*C_uc             # extract the free part of the stiffness matrix
             dB_free = zeros(size(B_free))
         
             K_free = [A_free B_free; B_free' zeros(size(B_free,2),size(B_free,2))]     # assemble the system of equations
@@ -1170,9 +1159,7 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, 
             dmdη_out = hcat(dqdη[ID_u[1,:]], dqdη[ID_u[2,:]], dqdη[ID_u[3,:]])'
             dmdβ_out = hcat(dqdβ[ID_u[1,:]], dqdβ[ID_u[2,:]], dqdβ[ID_u[3,:]])'
 
-            dmdθ_out = cat(dmdη_out,dmdβ_out,dims=(3,3)) # concatenate the gradients in to a tensor
-            # dmdθ_out = dmdη_out
-            # dmdθ_out = dmdβ_out
+            dmdθ_out = cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
             
             NodePose = mdl.NodeList_u + motion # update the mesh grid
             mdl.NodeList_u = NodePose # update the mesh grid
@@ -1185,7 +1172,7 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, 
             push!(fields, motion)
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
-            push!(pos3D, NodeListCylinder)
+            push!(pos3D, NodePose)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, pi)
             push!(splineq, qi) 
@@ -1195,7 +1182,7 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, 
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
             end
     else
-            error("Control type not unknown")
+            throw(ArgumentError("Control type not unknown"))
     end
 
     # write the data to a file
@@ -1205,7 +1192,245 @@ function simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, 
         write_contour_data(string(filepath,"/Results"), writeborderList)
     end
     
-    return output, gradList, borderPts2DList, splinep, splineq, mdl, pos2D
+    return output, gradList, borderPts2DList, splinep, splineq, pos2D
+end
+
+function simulate_stokes(r::Number, h::Number, ne::Int64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
+                        nDof_p::Int64, β::Number, CameraMatrix::AbstractMatrix{Float64}, time::Vector{Float64}, Control::String, cParam; 
+                        writeData::Bool=false, filepath::String="None", SIDES::Bool=false)
+    μu_btm = 0  
+    μu_side = 0
+
+    NodeList_u, IEN_u, ID_u, IEN_u_top, IEN_u_btm, BorderNodesList_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
+    NodeList_p, IEN_p, ID_p, IEN_p_top, IEN_p_btm, BorderNodesList_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
+    
+    mdl = def_model("stokes", ne=ne, NodeList=NodeList_u, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u, 
+                        FunctionClass=FunctionClass_u, ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, 
+                        nDof_2=nDof_p, FunctionClass_2=FunctionClass_p) # define the model
+    q_tp, q_side, q_btm, C_uc = set_boundary_cond_stokes(mdl) # set the boundary conditions
+    
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_u, CameraMatrix, BorderNodesList_u, 2*ne+1, SIDES)
+    pi, qi = fit_curve(border=BorderPts2D)
+    
+    dqdη = zeros(size(q_tp))
+    dqdβ = zeros(size(q_tp))
+
+    fields = AbstractArray[]  
+    gradList = AbstractArray[zeros(size(BorderPts2D,1),size(BorderPts2D,2),2)]          # store the solution fields of the border nodes in 2D 
+    pos3D = AbstractArray[mdl.NodeList_u]                                               # store the solution fields of the mesh in 3D
+    pos2D = AbstractArray[SurfacePts2D]                                                 # store the solution fields of the mesh in 2D
+    borderPts2DList = AbstractArray[BorderPts2D]                                        # store the solution fields of the surfaces in 2D
+    splinep = AbstractArray[pi]                                         # store the x coordinates samples of the spline parameters of the border nodes
+    splineq = AbstractArray[qi]                                         # store the y coordinates samples of the spline parameters of the border nodes
+    output = Float64[] 
+    writeborderList = [vcat(pi', qi')]
+
+    iter = 1
+    pr = Progress(length(time); desc= "Simulating with prescribed $Control ...", showspeed=true)
+    if Control == "force"
+        for t in time
+            A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
+            B = assemble_system_B(mdl)                   # assemble the stiffness matrix
+            b = apply_boundary_conditions_stokes(mdl)           # apply the neumann boundary conditions
+
+            q_d = (μu_btm*q_btm + μu_side*q_side)      # apply the Dirichlet boundary conditions
+
+            A = η[iter]*A_bar + β*b
+
+            dAdη = A_bar
+            dAdβ = b
+            dB = zeros(size(B))
+
+            C_Tu = transpose(C_uc)           # transpose the constraint matrix
+
+            A_free = C_Tu*A*C_uc        # extract the free part of the stiffness matrix
+            B_free = C_Tu*B             # extract the free part of the stiffness matrix
+
+            dA_freedη = C_Tu*dAdη*C_uc        # extract the free part of the stiffness matrix
+            dA_freedβ = C_Tu*dAdβ*C_uc             # extract the free part of the stiffness matrix
+            dB_free = zeros(size(B_free))
+
+            M = [A_free B_free C_Tu*A*q_tp; B_free' zeros(size(B_free,2),size(B_free,2)) B'*q_tp; q_tp'*A*C_uc q_tp'B q_tp'A*q_tp] # assemble the system of equations
+            dMdη = [dA_freedη dB_free C_Tu*dAdη*q_tp; dB_free' zeros(size(B_free,2),size(B_free,2)) dB'*q_tp; q_tp'*dAdη*C_uc q_tp'dB q_tp'dAdη*q_tp]
+            dMdβ = [dA_freedβ dB_free C_Tu*dAdβ*q_tp; dB_free' zeros(size(B_free,2),size(B_free,2)) dB'*q_tp; q_tp'*dAdβ*C_uc q_tp'dB q_tp'dAdβ*q_tp]
+
+            r = [-C_Tu*A*q_d; -B'*q_d; cParam[iter].-q_tp'A*q_d]    # assemble the system of equations
+            drdη = -[C_Tu*dAdη*q_d; zeros(size(B,2),size(q_d,2)); q_tp'dAdη*q_d] # solve the system of equations
+            drdβ = -[C_Tu*dAdβ*q_d; zeros(size(B,2),size(q_d,2)); q_tp'dAdβ*q_d] # solve the system of equations
+
+            invM = inv(Matrix(M)) # inverse of the system of equations
+
+            sol = invM*r                 # solve the system of equations
+            dsoldη = invM*(drdη - dMdη*sol) # solve the system of equations
+            dsoldβ = invM*(drdβ - dMdβ*sol) # solve the system of equations
+
+            q_f = sol[1:size(A_free,1)]     # extract the free part of the solution
+            dqfdη = dsoldη[1:size(A_free,1)] # extract the free part of the solution
+            dqfdβ = dsoldβ[1:size(A_free,1)] # extract the free part of the solution
+
+            p_f = sol[size(A_free,1)+1:end] # extract the free part of the solution
+            dpfdη = dsoldη[size(A_free,1)+1:end] # extract the free part of the solution 
+            dpfdβ = dsoldβ[size(A_free,1)+1:end] # extract the free part of the solution
+
+            μ_tp = sol[end]
+            dμdη = dsoldη[end]
+            dμdβ = dsoldβ[end]
+
+            q = q_d + C_uc*q_f + μ_tp*q_tp;              # assemble the solution 
+            dqdη = dqdη + C_uc*dqfdη + dμdη*q_tp;               # assemble the solution
+            dqdβ = dqdβ + C_uc*dqfdβ + dμdβ*q_tp;               # assemble the solution
+
+            p = p_f;
+            dpdη = dpfdη;                  # assemble the solution
+            dpdβ = dpfdβ;                  # assemble the solution
+
+            motion = hcat(q[ID_u[1,:]], q[ID_u[2,:]], q[ID_u[3,:]])'
+            dmdη_out = hcat(dqdη[ID_u[1,:]], dqdη[ID_u[2,:]], dqdη[ID_u[3,:]])'
+            dmdβ_out = hcat(dqdβ[ID_u[1,:]], dqdβ[ID_u[2,:]], dqdβ[ID_u[3,:]])'
+
+            dmdθ_out = cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
+
+            NodePose = mdl.NodeList_u + motion # update the mesh grid
+            mdl.NodeList_u = NodePose # update the mesh grid
+
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodePose, CameraMatrix, BorderNodesList_u, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES)
+            # BorderPts2D, SurfacePts2D = extract_borders(NodePose, CameraMatrix, BorderNodesList_u, SIDES=SIDES)
+            pi, qi = fit_curve(border=BorderPts2D)
+
+            # store the solutions in a list
+            push!(output, μ_tp)
+            push!(fields, motion)
+            push!(gradList,dudθ)
+            push!(pos2D, SurfacePts2D)
+            push!(pos3D, NodePose)
+            push!(borderPts2DList, BorderPts2D)
+            push!(splinep, pi)
+            push!(splineq, qi) 
+            push!(writeborderList, vcat(pi', qi'))
+
+            iter += 1
+            next!(pr, showvalues = [(:iterations,iter),(:time,t)])
+        end
+    elseif Control == "velocity"
+        for t in time
+            A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
+            B = assemble_system_B(mdl)                   # assemble the stiffness matrix
+            b = apply_boundary_conditions_stokes(mdl)           # apply the neumann boundary conditions
+
+            q_d = (μu_btm*q_btm + cParam[iter]*q_tp + μu_side*q_side)      # apply the Dirichlet boundary conditions
+
+            A = η[iter]*A_bar + β*b
+
+            dAdη = A_bar
+            dAdβ = b
+            dB = zeros(size(B))
+
+            C_Tu = transpose(C_uc)           # transpose the constraint matrix
+
+            A_free = C_Tu*A*C_uc        # extract the free part of the stiffness matrix
+            B_free = C_Tu*B             # extract the free part of the stiffness matrix
+
+            dA_freedη = C_Tu*dAdη*C_uc        # extract the free part of the stiffness matrix
+            dA_freedβ = C_Tu*dAdβ*C_uc             # extract the free part of the stiffness matrix
+            dB_free = zeros(size(B_free))
+
+            K_free = [A_free B_free; B_free' zeros(size(B_free,2),size(B_free,2))]     # assemble the system of equations
+            dKdη = [C_Tu*dAdη*C_uc dB_free; dB_free' zeros(size(B,2),size(B,2))] # assemble the system of equations
+            dKdβ = [C_Tu*dAdβ*C_uc dB_free; dB_free' zeros(size(B,2),size(B,2))] # assemble the system of equations
+
+            invK = inv(Matrix(K_free))
+
+            r = [C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
+            drdη = [C_Tu*dAdη*q_d; zeros(size(B,2),size(q_d,2))] # solve the system of equations
+            drdβ = [C_Tu*dAdβ*q_d; zeros(size(B,2),size(q_d,2))] # solve the system of equations
+
+            sol = -invK*r                 # solve the system of equations
+            dsoldη = -invK*(drdη + dKdη*sol) # solve the system of equations
+            dsoldβ = -invK*(drdβ + dKdβ*sol) # solve the system of equations
+
+            q_f = sol[1:size(A_free,1)]     # extract the free part of the solution
+            dqfdη = dsoldη[1:size(A_free,1)] # extract the free part of the solution
+            dqfdβ = dsoldβ[1:size(A_free,1)] # extract the free part of the solution
+
+            p_f = sol[size(A_free,1)+1:end] # extract the free part of the solution
+            dpfdη = dsoldη[size(A_free,1)+1:end] # extract the free part of the solution 
+            dpfdβ = dsoldβ[size(A_free,1)+1:end] # extract the free part of the solution
+
+            q = q_d + C_uc*q_f;              # assemble the solution 
+            dqdη = dqdη + C_uc*dqfdη;              # assemble the solution
+            dqdβ = dqdβ + C_uc*dqfdβ;              # assemble the solution
+
+            p = p_f;
+            dpdη = dpfdη;                  # assemble the solution
+            dpdβ = dpfdβ;                  # assemble the solution
+
+            motion = hcat(q[ID_u[1,:]], q[ID_u[2,:]], q[ID_u[3,:]])'
+            dmdη_out = hcat(dqdη[ID_u[1,:]], dqdη[ID_u[2,:]], dqdη[ID_u[3,:]])'
+            dmdβ_out = hcat(dqdβ[ID_u[1,:]], dqdβ[ID_u[2,:]], dqdβ[ID_u[3,:]])'
+
+            dmdθ_out = cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
+
+            NodePose = mdl.NodeList_u + motion # update the mesh grid
+            mdl.NodeList_u = NodePose # update the mesh grid
+
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodePose, CameraMatrix, BorderNodesList_u, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES)
+            pi, qi = fit_curve(border=BorderPts2D)
+
+            # store the solutions in a list
+            # push!(output, F_est[1])
+            push!(fields, motion)
+            push!(gradList,dudθ)
+            push!(pos2D, SurfacePts2D)
+            push!(pos3D, NodePose)
+            push!(borderPts2DList, BorderPts2D)
+            push!(splinep, pi)
+            push!(splineq, qi) 
+            push!(writeborderList, vcat(pi', qi'))
+
+            iter += 1
+            next!(pr, showvalues = [(:iterations,iter),(:time,t)])
+        end
+    else
+        throw(ArgumentError("Control type not unknown"))
+    end
+
+    # write the data to a file
+    if writeData
+        write_scene(string(filepath,"/Results"), pos3D, IEN_u, ne, ndim, fields, ID=ID_u, FunctionClass=FunctionClass_u)
+        animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN_u, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+        write_contour_data(string(filepath,"/Results"), writeborderList)
+    end
+
+    return output, gradList, borderPts2DList, splinep, splineq, pos2D
+end
+"""
+    get_η(t::Float64, F::Float64, R_0::Float64, H_0::Float64, η_0::Float64, n::Float64, K::Float64)
+Calculate the shear viscosity of the fluid.
+# Arguments:
+- `t` : time
+- `F::Float64` : force
+- `R_0::Float64` : initial radius
+- `H_0::Float64` : initial height
+- `η_0::Float64` : initial viscosity
+- `n::Float64` : power law index
+- `K::Float64` : consistency index
+
+# Returns:
+- `η::Float64` : shear viscosity
+"""
+function get_η(t::Number, F::Number, R_0::Number, H_0::Number, η_0::Number, n::Number, K::Number)
+
+    H(t) = H_0*(1+8*H_0^2*F*t/(3*π*η_0*R_0^4))^(-1/4) # height with time
+    
+    R(t) = R_0*(1+8*H_0^2*F*t/(3*π*η_0*R_0^4))^(1/8) # radius with time
+
+    H_dot(t) = 8/3*(-2*F*H(t)^3/(8*π*η_0*R(t)^4)) # rate of change of height
+
+    γ_dot(t) = H_dot(t)/H(t) # shear rate
+
+    η(t) = K*(abs(γ_dot(t)))^(n-1) # shear viscosity
+
+    return η(t)
 end
 
 """
@@ -1233,14 +1458,13 @@ Initialize the simulation and write the data to a file
 - `Control::String` : type of control (force or displacement)
 - `filename::String` : path to the file
 """
-function write_sim_data_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, CameraMatrix, endTime, tSteps, 
-                                Control, filename; SIDES::Bool=false)
-    writeData = true
-    μ_list, simBorderPts, simBorderNodes, splinex, spliney, mdl, SurfacePt2D = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, 
-                                                                                        FunctionClass_p, nDof_p, β, CameraMatrix, endTime, tSteps, Control, 
-                                                                                        writeData=writeData, filepath=filename, SIDES=SIDES)
+function write_sim_data_stokes(r::Number, h::Number, ne::Int64, η::Number, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, nDof_p::Int64, 
+                                β::Number, CameraMatrix::AbstractMatrix{Float64}, endTime::Number, tSteps::Number, Control::String, 
+                                filepath::String="nothing", SIDES::Bool=false)
 
-    return simBorderPts, simBorderNodes, splinex, spliney
+    μ_list, gradList, simBorderPts, splinex, spliney, SurfacePt2D = test_stokes(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, 
+                                                                                CameraMatrix, endTime, tSteps, Control, SIDES=SIDES, writeData=true, 
+                                                                                filepath=filepath)
 end
 
 """
@@ -1270,36 +1494,43 @@ Test the simulation
 - `filepath::String` : path to the file
 - `mode::String` : type of constitutive matrix
 """
-function test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, nDof_p::Int64, β, CameraMatrix, endTime, tSteps, Control::String; 
-              writeData::Bool=false, filepath=nothing, SIDES::Bool=false)
-
+function test_stokes(r::Number, h::Number, ne::Int64, η_0::Number, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, nDof_p::Int64, 
+                    β::Number, CameraMatrix::AbstractMatrix{Float64}, endTime::Number, tSteps::Number, Control::String; writeData::Bool=false, 
+                    filepath::String="nothing", SIDES::Bool=false)
+    n = 0.5
+    K = 2.0
     if writeData
         isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
         set_file(filepath)
     end
 
+    time = collect(Float64, range(start=tSteps, stop=endTime, step=tSteps))
+    len_t = length(time)
+
     if Control == "force"
-        cParam = -3*ones(round(Int,endTime/tSteps))
+        F = 3.0
+        cParam = -F*ones(len_t)
+        η = get_η.(time, F, r, h, η_0, n, K)
     elseif Control == "velocity"
-        cParam = -0.02*ones(round(Int,endTime/tSteps))
+        cParam = -0.02*ones(len_t)
     else
-        ArgumentError("Control type not recognized")
+        throw(ArgumentError("Control type not recognized"))
     end
 
-    μ_list, gradList, borderPts2DList, splinep, splineq, mdl, SurfacePt2D = simulate_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, 
-                                                                                            FunctionClass_p, nDof_p, β, CameraMatrix, endTime, tSteps, 
-                                                                                            Control, cParam, writeData=writeData, filepath=filepath, 
-                                                                                            SIDES=SIDES)
 
-    return μ_list, gradList, borderPts2DList, splinep, splineq, mdl, SurfacePt2D
+    μ_list, gradList, borderPts2DList, splinep, splineq, SurfacePt2D = simulate_stokes(r,h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, 
+                                                                                        β, CameraMatrix, time, Control, cParam, writeData=writeData, 
+                                                                                        filepath=filepath, SIDES=SIDES)
+
+    return μ_list, gradList, borderPts2DList, splinep, splineq, SurfacePt2D
 end
 
-function compare_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, nDof_p::Int64, β, CameraMatrix, endTime, tSteps, Control::String, 
-    ObsData, SIDES::Bool=false, PLOT::Bool=false, filepath=nothing)
+function compare_stokes(r::Number, h::Number, ne::Int64, η::Number, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, nDof_p::Int64, 
+                    β::Number, CameraMatrix::AbstractMatrix{Float64}, endTime::Number, tSteps::Number, Control::String, ObsData::AbstractArray, SIDES::Bool=false, 
+                    PLOT::Bool=false, filepath::String="nothing")
 
-    μ_list, gradList, simBorderPts, splinex, spliney, mdl, SurfacePt2D = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, 
-                                                                                        FunctionClass_p, nDof_p, β, CameraMatrix, endTime, tSteps, Control, 
-                                                                                        SIDES=SIDES)    
+    μ_list, gradList, simBorderPts, splinex, spliney, SurfacePt2D = test_stokes(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, 
+                                                                                CameraMatrix, endTime, tSteps, Control, SIDES=SIDES)    
 
     obsBorderPts = ObsData[1]
     splinexObs = ObsData[2]
@@ -1310,8 +1541,8 @@ function compare_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim::Int64, FunctionCla
     d_cp, pairs = closest_point(simBorderPts, obsBorderPts)
 
     if PLOT
-    @assert !isnothing(filepath) "File path not provided"
-    plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/images/"))
+        @assert !isnothing(filepath) "File path not provided"
+        plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/images/"))
     end
     d_h = 0
     return d_h, d_cp
