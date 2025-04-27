@@ -39,10 +39,10 @@ function main()
     F = 3.0
 
     ηLst = [30 40 50 60 70 80 90]
-    βLst = [0.00001 100 1000 10000]
+    βLst = [100 1000 10000]
 
-    noiseLevelLst = [0 0.25 0.5 1 1.5 2 3 4 5]
-    sideList = [false]
+    noiseLevelLst = [0]
+    sideList = [false true]
 
     exp_iter::Int = 1
     for β::Float64 in βLst

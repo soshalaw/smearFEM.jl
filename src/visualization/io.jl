@@ -98,7 +98,7 @@ function write_scene(fileName::String, NodeList, IEN, ne::Int64, ndim::Int64, fi
 end 
 
 """
-    read_csv(csv_path)
+    add_noise(csv_path)
 
 Function to read the CSV files in the directory and fit a curve to the border observations in the CSV files.
 

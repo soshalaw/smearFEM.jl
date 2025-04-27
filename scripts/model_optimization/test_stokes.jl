@@ -72,7 +72,6 @@ function test_opt()
     ηpList = Vector{Float64}(undef,gt_time_frame)
     βpList = Vector{Float64}(undef,gt_time_frame)
 
-
     println("Number of time windows: ", windows)
     titer::Int = 1
     for ti::Int in 1:windows
@@ -82,7 +81,7 @@ function test_opt()
         av_η = mean(gt_η)
         printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β)\n"; color = :green)
 
-        stats = fit(model, scene, conditions, obsBorderPts[(sim_time_frame*(titer-1)+1):(sim_time_frame*titer)+1], θ)
+        stats = fit_model(model, scene, conditions, obsBorderPts[(sim_time_frame*(titer-1)+1):(sim_time_frame*titer)+1], θ)
 
         ηpList[(sim_time_frame*(titer-1)+1):(sim_time_frame*titer)] .= stats["η"]
         βpList[(sim_time_frame*(titer-1)+1):(sim_time_frame*titer)] .= stats["β"]
@@ -177,72 +176,5 @@ function test_opt()
 
 end
 
-function fit(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64})
-
-    model.η = [θ[1]]
-    scene.β = [θ[2]]
-
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-    d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
-    totdinit::Float64 = sum(d)
-    
-    ηpList = Vector{Float64}(undef,0)
-    βpList = Vector{Float64}(undef,0)
-    costList = Vector{Float64}(undef,0)
-    iterList = Vector{Float64}(undef,0)
-
-    iter::Int = 0
-    c_grad::Float64 = 1.0
-    while c_grad > 0.005
-        reset_model(model)
-
-        t∂2d = zeros(size(∂2d[1]))
-        t∂d = zeros(size(∂d[1]))
-        
-        szd = 1:length(d)
-
-        for i in szd
-            t∂2d = t∂2d + ∂2d[i]
-            t∂d = t∂d + ∂d[i]
-        end
-
-        p = t∂2d\t∂d
-        α = 1
-        
-        println("step: ", p)
-        θ = θ - α*p
-
-        println("new η: ", θ[1], " new beta: ", θ[2])
-
-        model.η = [θ[1]]
-        scene.β = [θ[2]]
-        μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-
-        # test the closest point function
-        d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
-
-        totd = sum(d)
-        c_grad = abs(totdinit - totd)
-        totdinit = totd
-
-        iter = iter + 1
-        
-        push!(ηpList,θ[1]) 
-        push!(βpList,θ[2])
-        push!(costList,totd)
-        push!(iterList,iter)
-        println("iteration: ", iter, " ratio: ", c_grad)
-    end
-
-    stats = Dict("η" => θ[1],
-                 "β" => θ[2],
-                 "ηList" => ηpList, 
-                 "βList" => βpList,
-                 "costList" => costList,
-                 "iterList" => iterList,
-                 "η" => θ[1],
-                 "β" => θ[2])
-    return stats
-end
 test_opt()
 
