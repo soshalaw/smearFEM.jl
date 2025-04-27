@@ -2,12 +2,9 @@ using Test
 using smearFEM
 
 @testset "testing basis functions" begin
-    x0 = -1
-    x1 = 1
-    y0 = -1
-    y1 = 1
-    z0 = -1
-    z1 = 1
+    lx = 2
+    ly = 2
+    lz = 2
     ne = 1
 
     FunctionsClasses = ["Q1", "Q2"]
@@ -16,7 +13,7 @@ using smearFEM
     for FunctionClass in FunctionsClasses
         for ndim in ndims
             if ndim == 1
-                NodeList, IEN, BorderNodesList = meshgrid_line(x0,x1,ne;FunctionClass=FunctionClass)
+                NodeList, IEN, BorderNodesList = meshgrid_line(lx,ne;FunctionClass=FunctionClass)
                 iter = 1:size(IEN,1)
                 for i in iter
                     coord = NodeList[:,IEN[i]]
@@ -24,7 +21,7 @@ using smearFEM
                     @test findall(x->x==1,N)==[i]
                 end 
             elseif ndim == 2
-                NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_square(x0,x1,y0,y1,ne,ndim;FunctionClass=FunctionClass)
+                NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_square(lx,ly,ne,FunctionClass=FunctionClass)
                 iter = 1:size(IEN,2)
                 for i in iter
                     coord = NodeList[:,IEN[i]]
@@ -32,10 +29,11 @@ using smearFEM
                     @test findall(x->x==1,N)==[i]
                 end 
             elseif ndim == 3
-                NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)
+                NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(lx,ly,lz,ne,FunctionClass=FunctionClass)
                 iter = 1:size(IEN,2)
                 for i in iter
                     coord = NodeList[:,IEN[i]]
+                    println(FunctionClass)
                     N, dN = basis_function(coord[1],coord[2],coord[3], FunctionClass)
                     @test findall(x->x==1,N)==[i]
                 end 

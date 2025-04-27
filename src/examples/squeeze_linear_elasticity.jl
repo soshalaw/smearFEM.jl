@@ -4,19 +4,19 @@ using SparseArrays
 using StaticArrays
 
 """
-    assemble_system(mdl::model; GRAD::Bool=false)
+    assemble_system(mdl::LinearElasticity; GRAD::Bool=false)
 
 Assembles the finite element system.
 
 # Arguments
-- `mdl::model`: Model object containing mesh and material properties.
+- `mdl::LinearElasticity`: Model object containing mesh and material properties.
 - `GRAD::Bool`: Whether to compute gradients (default: `false`).
 
 # Returns
 - `K::SparseMatrixCSC{Float64,Int64}`: Global stiffness matrix.
 - `∇K::SparseMatrixCSC{Float64,Int64}` (if `GRAD=true`): Gradient of the stiffness matrix with respect to λ.
 """
-function assemble_system(mdl::model; GRAD::Bool=false)
+function assemble_system(mdl::LinearElasticity; GRAD::Bool=false)
     
     # (I,J,V) vectors for COO sparse matrix
     IEN_rows = size(mdl.IEN,1)
@@ -149,8 +149,10 @@ function assemble_system(mdl::model; GRAD::Bool=false)
                 end
 
                 Ke = B*mdl.cMat*B'*w # element stiffness matrix
-                dKedλ = B*mdl.dcMatdλ*B'*w # element stiffness matrix
-        
+                if GRAD == true
+                    dKedλ = B*mdl.dcMatdθ1*B'*w  # element stiffness matrix
+                end
+                
                 # code optimization
                 Ke_rows, Ke_cols = size(Ke)
                 Ke_len = length(Ke)
@@ -195,18 +197,18 @@ function assemble_system(mdl::model; GRAD::Bool=false)
 end
 
 """
-    assemble_system_dense(mdl::model; ∇C=zeros(1,1))
+    assemble_system_dense(mdl::LinearElasticity; ∇C=zeros(1,1))
 
 Assembles the finite element system using dense matrices.
 
 # Arguments
-- `mdl::model`: Model object containing mesh and material properties.
+- `mdl::LinearElasticity`: Model object containing mesh and material properties.
 - `∂C::Matrix{Float64}`: Constitutive matrix derivative (default: `zeros(1,1)`).
 
 # Returns
 - `K::Matrix{Float64}`: Global stiffness matrix.
 """
-function assemble_system_dense(mdl::model; ∇C = zeros(1,1)) ∇
+function assemble_system_dense(mdl::LinearElasticity; ∇C = zeros(1,1))
 
     # (I,J,V) vectors for COO sparse matrix
     IEN_rows = size(mdl.IEN,1)
@@ -368,12 +370,12 @@ end
 Applies Neumann slip boundary conditions to the global stiffness matrix.
 
 # Arguments
-- `mdl::model`: Model object containing mesh and material properties.
+- `mdl::LinearElasticity`: Model object containing mesh and material properties.
 
 # Returns
 - `K::SparseMatrixCSC{Float64,Int64}`: Stiffness matrix with boundary conditions applied.
 """
-function set_slip_conditions(mdl::model)
+function set_slip_conditions(mdl::LinearElasticity)::SparseMatrixCSC{Float64,Int64}
 
     IEN_btm_rows = size(mdl.IEN_btm,1)
     ID_rows = size(mdl.ID,1)
@@ -477,12 +479,12 @@ end
 Applies Neumann slip boundary conditions using dense matrices.
 
 # Arguments
-- `mdl::model`: Model object containing mesh and material properties.
+- `mdl::LinearElasticity`: Model object containing mesh and material properties.
 
 # Returns
 - `K::Matrix{Float64}`: Stiffness matrix with boundary conditions applied.
 """
-function set_slip_conditions_dense(mdl::model)
+function set_slip_conditions_dense(mdl::LinearElasticity)::Matrix{Float64}
 
     IEN_btm_rows = size(mdl.IEN_btm,1)
     IEN_rows = size(mdl.IEN,1)
@@ -577,14 +579,14 @@ end
 Sets Dirichlet boundary conditions for the problem.
 
 # Arguments
-- `mdl::model`: Model object containing mesh and material properties.
+- `mdl::LinearElasticity`: Model object containing mesh and material properties.
 
 # Returns
 - `q_upper::Vector{Float64}`: Dirichlet boundary conditions for the upper surface.
 - `q_lower::Vector{Float64}`: Dirichlet boundary conditions for the lower surface.
 - `C_uc::SparseMatrixCSC{Float64,Int64}`: Constraint matrix.
 """
-function set_boundary_conditions(mdl::model)
+function set_boundary_conditions(mdl::LinearElasticity)
     tDof = mdl.nDof*size(mdl.NodeList,2)     # Total number of DOFs
     q_upper = zeros(tDof,1)                  # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
     q_lower = zeros(tDof,1)                  # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
@@ -651,14 +653,14 @@ end
 Sets Dirichlet boundary conditions using dense matrices.
 
 # Arguments
-- `mdl::model`: Model object containing mesh and material properties.
+- `mdl::LinearElasticity`: Model object containing mesh and material properties.
 
 # Returns
 - `q_upper::Vector{Float64}`: Dirichlet boundary conditions for the upper surface.
 - `q_lower::Vector{Float64}`: Dirichlet boundary conditions for the lower surface.
 - `C_uc::Matrix{Float64}`: Constraint matrix.
 """
-function set_boundary_conditions_dense(mdl::model)
+function set_boundary_conditions_dense(mdl::LinearElasticity)
     tDof = mdl.nDof*size(mdl.NodeList,2)    # Total number od Degrees od freedom
     q_upper = zeros(tDof,1)                 # initialize the vector of the Dirichlet boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions upper surface (for mdl.nDof > 1)
     q_lower = zeros(tDof,1)                 # initialize the vector of the mdl.neumann boundary conditions (for mdl.nDof = 1) / Dirichlet boundary conditions lower surface (for mdl.nDof > 1)
@@ -734,8 +736,7 @@ Returns the constitutive matrix for a given material type.
 # Returns
 - `cMat::Matrix{Float64}`: Constitutive matrix.
 """
-function get_cMat(type="lame", c1=nothing, c2=nothing)
-
+function get_cMat(c1::Float64, c2::Float64; type::String="lame")::Matrix{Float64}
     if type == "lame"
         cMat =  [[ 2*c2+c1  c1    c1    0  0  0]; 
                         [  c1   2*c2+c1  c1    0  0  0]; 
@@ -753,7 +754,7 @@ function get_cMat(type="lame", c1=nothing, c2=nothing)
                                                 [0 0  0    0      0   (1-2*c2)/2]]  # constitutive matrix 
         return cMat
     else
-        ArgumentError("Type of cMat unknown it should be either 'lame' or 'standard'")  
+        throw(ArgumentError("Type of cMat unknown it should be either 'lame' or 'standard'"))  
     end
 end
 
@@ -763,12 +764,12 @@ end
 Calculates the volume of the mesh.
 
 # Arguments
-- `mdl::model`: Model object containing mesh and material properties.
+- `mdl::LinearElasticity`: Model object containing mesh and material properties.
 
 # Returns
 - `vol::Float64`: Volume of the mesh.
 """
-function get_volume(mdl)
+function get_volume(mdl::LinearElasticity)::Float64
 
     if mdl.ndim == 1
         # gaussian quadrature points for the element [-1,1] 
@@ -844,6 +845,8 @@ function get_volume(mdl)
             vol += w
         end
     end
+
+    return vol
 end
 
 """
@@ -879,17 +882,17 @@ Simulates the deformation of a cylinder under compression.
 - `borderPts2DList::Vector{Matrix{Float64}}`: List of 2D border points at each timestep.
 - `splinep::Vector{Vector{Float64}}`: x coordinates of the border observation at each timestep interpolated.
 - `splineq::Vector{Vector{Float64}}`: y coordinates of the border observation at each timestep interpolated.
-- `mdl::model`: Model object containing mesh and material properties.
+- `mdl::LinearElasticity`: Model object containing mesh and material properties.
 - `pos2D::Vector{Matrix{Float64}}`: List of surface nodes of the mesh at each timestep.
 """
-function simulate(r::Number, h::Number, ne::Int64, Young::Number, ν::Number, ndim::Int64, FunctionClass::String, nDof::Int64, β::Number, CameraMatrix::AbstractMatrix{Float64}, 
+function simulate(r::Number, h::Number, ne::Int64, θ1::Number, θ2::Number, ndim::Int64, FunctionClass::String, nDof::Int64, β::Number, CameraMatrix::AbstractMatrix{Float64}, 
                 time::Vector{Float64}, Control::String, cParam::Vector{Float64}, cMat::Matrix{Float64}; writeData::Bool=false, filepath::String="nothing", 
                 SIDES::Bool=false, dcdλ::Matrix{Float64}=zeros(Float64,1,1))
 
     NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)  # generate the mesh grid                         # inflate the sphere to a unit sphere
 
     mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
-                     FunctionClass=FunctionClass, Young=Float64(Young), ν=ν, cMat=cMat,dcMatdλ=dcdλ)
+                     FunctionClass=FunctionClass, θ1=θ1, θ2=θ2, cMat=cMat, dcMatdθ1=dcdλ)
     
     q_tp, q_btm, C_uc = set_boundary_conditions(mdl)
 
@@ -979,6 +982,7 @@ function simulate(r::Number, h::Number, ne::Int64, Young::Number, ν::Number, nd
         for t in time
             
             K, dKdλ = assemble_system(mdl,GRAD=true)      # assemble the stiffness matrix
+            b = set_slip_conditions(mdl)   # apply the neumann boundary conditions
             dKdβ = b
             b = set_slip_conditions(mdl)                  # apply the neumann boundary conditions
             K_bar = K + β*b

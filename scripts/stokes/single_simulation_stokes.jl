@@ -1,5 +1,4 @@
 using smearFEM
-
 using Dates
 
 function main()
@@ -15,20 +14,23 @@ function main()
 
   CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
 
-  endTime = 15
-  steps = 15
-  tSteps = endTime/steps
+  sim_time = 15.0
+  steps = 15.0
+  t_steps = sim_time/steps
+  viscosity_type = "constant" # "constant" or "linear"
 
-  β = 100
-  η = 20
-  Control = "force" # "force" or "displacement"
+  β = 100.0
+  η = 40.0
+  F = 1.0
+  control = "force" # "force" or "displacement"
   dateTime = Dates.now()
 
+  model, scene = def_problem(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time, t_steps)
+  
   # filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Linear_Elasticity/",mode,"/",Control,"/",Date(dateTime),"/",Time(dateTime),"/")
   # filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Linear_Elasticity/",mode,"/",Control,"/",Date(dateTime),"/09:41:12.027/")
-  filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Stokes/",Control,"_gt/2025-03-07/09:41:12.027")
-  write_sim_data_stokes(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, CameraMatrix, endTime, tSteps, Control,
-                        filepath)
+  filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Stokes/",control,"_gt/2025-03-07/09:41:12.027")
+  write_sim_data(model, scene, CameraMatrix, filepath)
 end
 
 fields = main()

@@ -3,7 +3,7 @@ using Plots
 F = 3.0
 R_0 = 1.2
 H_0 = 12.4
-η_0 = 20.0
+η_0 = 40.0
 n = 0.5
 K = 2.0
 
@@ -22,9 +22,11 @@ function get_η(t::Float64, F::Float64, R_0::Float64, H_0::Float64, η_0::Float6
     return η(t)
 end
 
-endTime = 10
-steps = 10
+endTime = 90
+steps = 90
 tSteps = endTime/steps
 time = collect(range(start=tSteps,stop=endTime,step=tSteps))
 
 η = get_η.(time, F, R_0, H_0, η_0, n, K)
+
+Plots.plot(time, η, label="η", marker=1)

@@ -23,9 +23,9 @@ Project the 3D mesh to 2D image plane and extract the border nodes (left and rig
 - `NodeList::Matrix{Float64}{ndim,nbNodes}`: 2D coordinates of the border nodes
 - `BorderNodes::Vector{Int}`: Indexes of the border nodes
 """
-function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, nNodes::Int64, SIDES::Bool=false)
+function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Int64}, nNodes::Int64, SIDES::Bool=false)
 
-    SurfaceNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
+    SurfaceNodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
     SurfacePts2D = back_project(SurfaceNodes, CameraMatrix)     # project the nodes to the image plane
 
     LeftborderPts = zeros(2,(nNodes))                # vector to store indexes of the border nodes
@@ -76,12 +76,12 @@ function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix
     end
 end
 
-function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}; GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
+function extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Int64}; GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
     
-    SurfaceNodes = NodeList[:,BorderNodesList[1]]  # extract the border nodes from the NodeList
+    SurfaceNodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
 
     if GRAD
-        ∇SurfaceNodes = dqdθ[:,BorderNodesList[1],:] 
+        ∇SurfaceNodes = dqdθ[:,BorderNodesList,:] 
         SurfacePts2D, ∇SurfacePts2D = back_project(SurfaceNodes, CameraMatrix, ∇SurfaceNodes) 
     else
         SurfacePts2D = back_project(SurfaceNodes, CameraMatrix) 

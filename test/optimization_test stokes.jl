@@ -5,19 +5,14 @@ CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 
 file = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/test3"
 
 # test case 
-x0 = 0
-x1 = 1
-y0 = 0
-y1 = 1
-z0 = 0
-z1 = 1
-H = z1 - z0
-ne = 3
+r = 0.5
+h = 1
+ne = 4
 ndim = 3
 FunctionClass_u = "Q2"
-FunctionClass_p = "Q1"
 nDof_u = ndim  # number of degree of freedom per node
-nDof_p = 1
+FunctionClass_p = "Q1"
+nDof_p = 1  # number of degree of freedom per node
 
 μu_tp = -0.02
 μu_btm = 0
@@ -31,32 +26,24 @@ tSteps = endTime/steps
 time = collect(range(start=tSteps,stop=endTime,step=tSteps)) # time vector
 
 println("tStep ", tSteps)
-η = 10
-β = 100
+η = 10.0
+β = 100.0
 Control = "force" 
 
 Δη = 1e-8
 Δβ = 1e-8
 
-NodeList_u, IEN_u, ID_u, IEN_u_top, IEN_u_btm, BorderNodesList_u = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass_u)  # generate the mesh grid
-NodeListCylinder = inflate_cylinder(NodeList_u, x0, x1, y0, y1)
-# q_tp, q_side, q_btm, C_uc = set_boundary_cond_stokes(NodeList_u, ne, ndim, FunctionClass_u, nDof_u)
+mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
+mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
-# NodeList_p, IEN_p, ID_p, IEN_p_top, IEN_p_btm, BorderNodesList_p = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass_p)  # generate the mesh grid
-# NodeListCylinderp = inflate_cylinder(NodeList_p, x0, x1, y0, y1)
+mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
+# q_tp, q_side, q_btm, C_uc = set_boundary_cond(mdl)
 
-
-# mDη = def_model("stokes", ne=ne, NodeList=NodeListCylinder, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u, 
-#                 FunctionClass=FunctionClass_u, ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, 
-#                 nDof_2=nDof_p, FunctionClass_2=FunctionClass_p ) # define the model
-
-# A_bar = assemble_system_A(mDη)                   # assemble the stiffness matrix
-# B = assemble_system_B(mDη)                   # assemble the stiffness matrix
-# b = apply_boundary_conditions_stokes(mDη)           # apply the neumann boundary conditions
+# A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
+# B = assemble_system_B(mdl)                   # assemble the stiffness matrix
+# b = apply_boundary_conditions_stokes(mdl)           # apply the neumann boundary conditions
 
 # # get ∂K/∂θ with finite (central) difference
-
-
 # ΔKp = assemble_system(model)
 
 # ΔcMatm = get_cMat(mode, (η-Δη), μ)
@@ -73,27 +60,28 @@ NodeListCylinder = inflate_cylinder(NodeList_u, x0, x1, y0, y1)
 #     end
 # end
 
-p, dp, model = simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne,η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
+p, dp, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
 μu_side, GRAD=true)
-Nodes = model.NodeList_u + p
+
+Nodes = model.mesh_u.NodeList + p
 
 # estimate dp with finite (central) difference
-Δp_ηp, model = simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, (η+Δη), ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
+Δp_ηp, model = simulate_single_tstep_stokes(r, h, ne, (η+Δη), ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
 μu_side)
-ΔNodesηp = model.NodeList_u + Δp_ηp
+ΔNodesηp = model.mesh_u.NodeList + Δp_ηp
 
-Δp_ηm, model = simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, (η-Δη), ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
+Δp_ηm, model = simulate_single_tstep_stokes(r, h, ne, (η-Δη), ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
 μu_side)
-ΔNodesηm = model.NodeList_u + Δp_ηm
+ΔNodesηm = model.mesh_u.NodeList + Δp_ηm
 
 # estimate dp with finite (central) difference
-Δp_βp, model = simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, (β+Δβ), μu_tp, μu_btm, 
-μu_side )
-ΔNodesβp = model.NodeList_u + Δp_βp
-
-Δp_βm, model = simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, (β-Δβ), μu_tp, μu_btm, 
+Δp_βp, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, (β+Δβ), μu_tp, μu_btm, 
 μu_side)
-ΔNodesβm = model.NodeList_u + Δp_βm
+ΔNodesβp = model.mesh_u.NodeList + Δp_βp
+
+Δp_βm, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, (β-Δβ), μu_tp, μu_btm, 
+μu_side)
+ΔNodesβm = model.mesh_u.NodeList + Δp_βm
 
 dηp_approx = (ΔNodesηp-ΔNodesηm)/(2*Δη)
 dβp_approx = (ΔNodesβp-ΔNodesβm)/(2*Δβ)
@@ -113,14 +101,14 @@ for i in 1:iIter
 end
 
 ## Testing ∇u(θ)
-BorderPts2D, dudη, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, CameraMatrix, BorderNodesList_u, GRAD=true, dqdθ=dp, SIDES=false)
+BorderPts2D, dudη, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, CameraMatrix, mdl.mesh_u.side_nodes, GRAD=true, dqdθ=dp, SIDES=false)
 
 # estimate dudη with finite (central) difference
-ΔBorderPts2Dηp, ΔSurfacePts2Dηp = extract_borders(ΔNodesηp, CameraMatrix, BorderNodesList_u, GRAD=false)
-ΔBorderPts2Dηm, ΔSurfacePts2Dηm = extract_borders(ΔNodesηm, CameraMatrix, BorderNodesList_u, GRAD=false)
+ΔBorderPts2Dηp, ΔSurfacePts2Dηp = extract_borders(ΔNodesηp, CameraMatrix, mdl.mesh_u.side_nodes, GRAD=false)
+ΔBorderPts2Dηm, ΔSurfacePts2Dηm = extract_borders(ΔNodesηm, CameraMatrix, mdl.mesh_u.side_nodes, GRAD=false)
 
-ΔBorderPts2Dβp, ΔSurfacePts2Dβp = extract_borders(ΔNodesβp, CameraMatrix, BorderNodesList_u, GRAD=false)
-ΔBorderPts2Dβm, ΔSurfacePts2Dβm = extract_borders(ΔNodesβm, CameraMatrix, BorderNodesList_u, GRAD=false)
+ΔBorderPts2Dβp, ΔSurfacePts2Dβp = extract_borders(ΔNodesβp, CameraMatrix, mdl.mesh_u.side_nodes, GRAD=false)
+ΔBorderPts2Dβm, ΔSurfacePts2Dβm = extract_borders(ΔNodesβm, CameraMatrix, mdl.mesh_u.side_nodes, GRAD=false)
 
 ∇SurfacePts2dη_approx = (ΔSurfacePts2Dηp - ΔSurfacePts2Dηm)/(2*Δη)
 ∇SurfacePts2Dβ_approx = (ΔSurfacePts2Dβp - ΔSurfacePts2Dβm)/(2*Δβ)
@@ -159,9 +147,9 @@ end
 # println("dudβ: ")
 # display(dudη[:,:,2])
 
-p_gt, model = simulate_single_tstep_stokes(x0, x1, y0, y1, z0, z1, ne, 1.3*η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
+p_gt, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
 μu_side)
-Nodes_gt = model.NodeList_u + p_gt
+Nodes_gt = model.mesh_u.NodeList + p_gt
 
 BorderPts2D_gt = back_project(Nodes_gt, CameraMatrix)
 
@@ -181,8 +169,11 @@ iIter = size(∇d[1],1)
 @test ∇d[1][1] ≈ ∇dη_approx[1] atol=10^(-4)
 @test ∇d[1][2] ≈ ∇dβ_approx[1] atol=10^(-4)
 
+conditions = Conditions(CameraMatrix=CameraMatrix)
+model, scene = def_problem(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time, t_steps)
+
 ## testing Σ∇p(θ)
-μ_list, gradList, simBorderPts, splinex, spliney, mdl, SurfacePt2D = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
+μ_list, gradList, simBorderPts, splinex, spliney, SurfacePt2D = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
                                                                                 nDof_p, β, CameraMatrix, endTime, tSteps, Control)
 
 μ_list, simBorderPts, ΔsimBorderPts_pL, splinex, spliney, mdl, ΔSurfacePt2D_pL = test_stokes(x0, x1, y0, y1, z0, z1, ne, (η+Δη), ndim, FunctionClass_u, nDof_u, FunctionClass_p, 

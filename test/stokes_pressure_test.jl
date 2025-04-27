@@ -1,12 +1,8 @@
 using smearFEM
 using LinearAlgebra
 
-x0 = -0.5
-x1 = 0.5
-y0 = -0.5
-y1 = 0.5
-z0 = -0.5
-z1 = 0.5
+r = 0.5
+h = 1
 ne = 5
 ndim = 3
 FunctionClass_u = "Q2"
@@ -24,8 +20,7 @@ h = z1 - z0
 μp_tp = 0
 μp_side = 0
 
-NodeList_p, IEN_p, ID_p, IEN_p_top, IEN_p_btm, BorderNodesList_p = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass_p)  # generate the mesh grid
-NodeListCylinderp = inflate_cylinder(NodeList_p, x0, x1, y0, y1)
+NodeList_p, IEN_p, ID_p, IEN_p_top, IEN_p_btm, BorderNodesList_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)  # generate the mesh grid
 
 p = zeros(size(NodeListCylinderp, 2))
 

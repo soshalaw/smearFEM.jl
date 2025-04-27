@@ -5,30 +5,29 @@ function main()
     # test case 
     r = 0.5
     h = 1
-    ne = 3
+    ne = 8
     ndim = 3
     FunctionClass = "Q2"
     nDof = ndim  # number of degree of freedom per node
     β = 100
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
 
-
     endTime = 15
-    steps = 15
+    steps = 5
     tSteps = endTime/steps
 
-    Youngtst = 30
+    Youngtst = 40
     νtst = 0.4
-    λ = Youngtst*νtst/((1+νtst)*(1-2*νtst))
-    μ = Youngtst/(2*(1+νtst))
-    Control = "force" # "force" or "displacement"
-    mode = "lame" # "standard" or "lame"
+    # λ = Youngtst*νtst/((1+νtst)*(1-2*νtst))
+    # μ = Youngtst/(2*(1+νtst))
+    Control = "displacement" # "force" or "displacement"
+    mode = "standard" # "standard" or "lame"
     dateTime = Dates.now()
 
     # filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Linear_Elasticity/",mode,"/",Control,"/",Date(dateTime),"/",Time(dateTime),"/")
     # filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Linear_Elasticity/",mode,"/",Control,"/",Date(dateTime),"/09:41:12.027/")
     filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Linear_Elasticity/standard/displacement/2025-03-07/09:41:12.027")
-    write_sim_data(r, h, ne, λ, μ, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepath)
+    write_sim_data(r, h, ne, Youngtst, νtst, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepath, mode=mode)
 end
 
 main()
