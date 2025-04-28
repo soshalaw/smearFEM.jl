@@ -35,16 +35,16 @@ function main()
     steps = 10.0
     t_steps = sim_time/steps
 
-    # ηLst = [40 100 500 1000 2000 5000 10000]
-    # βLst = [100 1000 10000]
+    ηLst = [40 100 500 1000 2000 5000 10000]
+    βLst = [100 1000 10000]
 
-    # noiseLevelLst = [0.0 1.0 2.0 3.0 4.0 5.0]
-    # sideList = [false true]
+    noiseLevelLst = [0.0 1.0 2.0 3.0 4.0 5.0]
+    sideList = [false true]
 
-    βLst = [100.0]
-    ηLst = [40.0]
-    noiseLevelLst = [0.0]
-    sideList = [false]
+    # βLst = [100.0]
+    # ηLst = [40.0]
+    # noiseLevelLst = [0.0]
+    # sideList = [false]
     F = 3.0
 
     exp_iter::Int = 1
