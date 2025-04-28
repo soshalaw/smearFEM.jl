@@ -116,7 +116,7 @@ function main()
                         βStart = β_gt-dev_β
                     end
 
-                    sample_space = 3
+                    sample_space = 15
                     ηList = collect(range(ηStart, stop=ηStop, length=sample_space))
                     βList = collect(range(βStart, stop=βStop, length=sample_space))
                     CostMat = zeros(size(ηList,1),size(βList,1))
