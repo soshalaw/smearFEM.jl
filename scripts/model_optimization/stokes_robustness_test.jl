@@ -38,8 +38,8 @@ function main()
     ηLst = [40 100 500 1000 2000 5000 10000]
     βLst = [100 1000 10000]
 
-    noiseLevelLst = [0.0 1.0 2.0 3.0 4.0 5.0]
-    sideList = [false true]
+    noiseLevelLst = [0.0]
+    sideList = [false]
 
     # βLst = [100.0]
     # ηLst = [40.0]
@@ -48,15 +48,15 @@ function main()
     F = 3.0
 
     exp_iter::Int = 1
-    for β::Float64 in βLst
-        dev_β::Float64 = dev*β
-        βStart::Float64 = β - dev_β
-        for η::Float64 in ηLst
-            dev_η::Float64 = dev*η
-            ηStart::Float64 = η - dev_η
+    for β_gt::Float64 in βLst
+        dev_β::Float64 = dev*β_gt
+        βStart::Float64 = β_gt - dev_β
+        for η_gt::Float64 in ηLst
+            dev_η::Float64 = dev*η_gt
+            ηStart::Float64 = η_gt - dev_η
 
-            println("Ground truth: η :", η, " β :", β)
-            model, scene = def_problem(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time, t_steps)
+            println("Ground truth: η :", η_gt, " β :", β_gt)
+            model, scene = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
             filepath_gt = string(filepath,"/experiment_$(exp_iter)/ground_truth")
             write_sim_data(model, scene, CameraMatrix, filepath_gt)
             
@@ -77,32 +77,46 @@ function main()
                     costList = stats["costList"]
                     ηpList = stats["ηList"]
                     βpList = stats["βList"]
+                    η = stats["η"]
+                    β = stats["β"]
 
-                    if maximum(ηpList) > η+dev_η
+                    η_accuracy = abs(η - η_gt)/η_gt*100
+                    β_accuracy = abs(β - β_gt)/β_gt*100
+                    printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
+                    printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
+
+                    params = Dict("η" => η,
+                              "β" => β,
+                              "η_accuracy" => η_accuracy,
+                              "β_accuracy" => β_accuracy)
+
+                    write_json(string(filepathi,"/Results/params"), params)
+
+                    if maximum(ηpList) > η_gt+dev_η
                         ηStop = maximum(ηpList)*1.1
                     else
-                        ηStop = η+dev_η
+                        ηStop = η_gt+dev_η
                     end
 
-                    if minimum(ηpList) < η-dev_η
+                    if minimum(ηpList) < η_gt-dev_η
                         ηStart = minimum(ηpList)*0.9
                     else
-                        ηStart = η-dev_η
+                        ηStart = η_gt-dev_η
                     end
 
-                    if maximum(βpList) > β+dev_β
+                    if maximum(βpList) > β_gt+dev_β
                         βStop = maximum(βpList)*1.1
                     else
-                        βStop = β+dev_β
+                        βStop = β_gt+dev_β
                     end
 
-                    if minimum(βpList) < β-dev_β
+                    if minimum(βpList) < β_gt-dev_β
                         βStart = minimum(βpList)*0.9
                     else
-                        βStart = β-dev_β
+                        βStart = β_gt-dev_β
                     end
 
-                    sample_space = 21
+                    sample_space = 3
                     ηList = collect(range(ηStart, stop=ηStop, length=sample_space))
                     βList = collect(range(βStart, stop=βStop, length=sample_space))
                     CostMat = zeros(size(ηList,1),size(βList,1))
@@ -134,15 +148,12 @@ function main()
                     
                     # Plot the cost function surface
                     Plots.contour(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
-                    # Plots.plot!(ηpList, βpList, label="Estimations", marker=1)
+                    Plots.plot!(ηpList, βpList, label="Estimations", marker=1)
+                    Plots.plot!([η_gt], [β_gt], label="Ground truth", marker=:star5, markersize=8, markercolor=:green)
                     Plots.xlabel!("η")
                     Plots.ylabel!("β")
                     Plots.savefig(string(filepathi,"/Results/cost/cost_surface_iter.png"))
 
-                    # Plots.contourf(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
-                    # Plots.xlabel!("η")
-                    # Plots.ylabel!("β")
-                    # Plots.savefig(string(filepathi,"/Results/cost/cost_surface.png"))
                 end
             end
         end
