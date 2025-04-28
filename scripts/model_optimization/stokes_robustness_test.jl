@@ -1,4 +1,3 @@
-
 using LinearAlgebra
 using ProgressMeter
 using SparseArrays
@@ -24,7 +23,7 @@ function main()
 
     dateTime = Dates.now()
     sampleNo = 21
-    dev = 0.1
+    dev = 0.3
 
     control = "force" # "force" or "velocity"
     viscosity_type = "constant" # "constant" or "bulk_viscosity"
@@ -36,23 +35,25 @@ function main()
     steps = 10.0
     t_steps = sim_time/steps
 
+    # ηLst = [40 100 500 1000 2000 5000 10000]
+    # βLst = [100 1000 10000]
+
+    # noiseLevelLst = [0.0 1.0 2.0 3.0 4.0 5.0]
+    # sideList = [false true]
+
+    βLst = [100.0]
+    ηLst = [40.0]
+    noiseLevelLst = [0.0]
+    sideList = [false]
     F = 3.0
-
-    ηLst = [30 40 50 60 70 80 90]
-    βLst = [100 1000 10000]
-
-    noiseLevelLst = [0]
-    sideList = [false true]
 
     exp_iter::Int = 1
     for β::Float64 in βLst
         dev_β::Float64 = dev*β
         βStart::Float64 = β - dev_β
-        # βList = collect(range(βtst-dev_β, stop=βtst+dev_β, length=sampleNo))
         for η::Float64 in ηLst
             dev_η::Float64 = dev*η
             ηStart::Float64 = η - dev_η
-            # ηList = collect(range(ηtst-dev_η, stop=ηtst+dev_η, length=sampleNo))
 
             println("Ground truth: η :", η, " β :", β)
             model, scene = def_problem(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time, t_steps)
@@ -60,14 +61,12 @@ function main()
             write_sim_data(model, scene, CameraMatrix, filepath_gt)
             
             for noiseLevel::Float64 in noiseLevelLst
-
                 ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/Results/contour_data"))  
                 nScene, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
                 ObsData = [nScene, nSplinex, nSpliney]
                 obsBorderPts = ObsData[1]
                 
                 for sides::Bool in sideList
-    
                     filepathi = string(filepath,"/experiment_$(exp_iter)/trials/noise_$(noiseLevel)/sides_$(sides)")
                     conditions = Conditions(CameraMatrix=CameraMatrix,SIDES=sides,filepath=filepathi)
 
@@ -116,12 +115,13 @@ function main()
                         for j::Int in β_iter
                             β = βList[j]
                             reset_model(model)
-                            model.η = [θ[1]]
-                            scene.β = [θ[2]]
+                            model.η = [η]
+                            scene.β = [β]
                             μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
 
                             # test the closest point function
                             d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+
                             CostMat[i,j] = sum(d_cp)
                         end
                     end
@@ -133,8 +133,8 @@ function main()
                     Plots.savefig(string(filepathi,"/Results/cost/cost_steps.png"))
                     
                     # Plot the cost function surface
-                    Plots.contour(ηList, βList, CostMat, color=:turbo, fill=false, levels=50, xlabel="η", ylabel="β", dpi=400)
-                    Plots.plot!(ηpList, βpList, label="Estimations", marker=1)
+                    Plots.contour(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
+                    # Plots.plot!(ηpList, βpList, label="Estimations", marker=1)
                     Plots.xlabel!("η")
                     Plots.ylabel!("β")
                     Plots.savefig(string(filepathi,"/Results/cost/cost_surface_iter.png"))

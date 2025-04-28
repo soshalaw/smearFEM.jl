@@ -20,6 +20,8 @@ Function to write the solution to a VTK file
 - `q::Vector{Float64}`: Solution field.
 """
 function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64, ndim::Int64, q; ID=nothing, FunctionClass::String="Q1")
+
+    set_file(string(filePath,"/vtkFiles")) # create the directory to store the VTK files
     if FunctionClass == "Q1"
         if ndim == 1
             cellType = VTKCellTypes.VTK_LINE
@@ -63,6 +65,7 @@ Function to write the solution to a VTK file
 """
 function write_scene(fileName::String, NodeList, IEN, ne::Int64, ndim::Int64, fields; ID=nothing, FunctionClass::String="Q1")
 
+    set_file(string(fileName,"/vtkFiles")) # create the directory to store the VTK files
     if FunctionClass == "Q1"
         if ndim == 1
             cellType = VTKCellTypes.VTK_LINE
@@ -83,6 +86,7 @@ function write_scene(fileName::String, NodeList, IEN, ne::Int64, ndim::Int64, fi
         IEN = rearrange(ndim, IEN)  # rearrange the solution
     end
 
+    # Create a VTK collection
     cells = [MeshCell(cellType,IEN[:,e]) for e in 1:ne^ndim]
 
     fieldIter = 1:length(fields)
@@ -98,7 +102,7 @@ function write_scene(fileName::String, NodeList, IEN, ne::Int64, ndim::Int64, fi
 end 
 
 """
-    add_noise(csv_path)
+    read_csv(csv_path)
 
 Function to read the CSV files in the directory and fit a curve to the border observations in the CSV files.
 
@@ -110,7 +114,11 @@ Function to read the CSV files in the directory and fit a curve to the border ob
 - `splinep::Vector{Vector{Float64}}`: x coordinates samples of the spline parameters of the border nodes.
 - `splineq::Vector{Vector{Float64}}`: y coordinates samples of the spline parameters of the border nodes.
 """
-function read_csv(csv_path::String; nFactor=0)   
+function read_csv(csv_path::String)   
+
+    if !isdir(csv_path)
+        throw(ArgumentError("The directory does not exist."))
+    end
 
     csv_files = readdir(csv_path, join=true)        # get the list of the csv files in the directory
     ObsDataList = AbstractArray[]                                  # store the observation data
@@ -152,8 +160,10 @@ Function to write the contour data to a CSV file
 - `borders::Vector{Matrix{Float64}}`: vector of border data.
 """
 function write_contour_data(fileName::String, borders)
+
     println("Writing contour files...")
     counter = 1
+    set_file(string(fileName,"/contour_data"))
     for border in borders
         cStr = string(counter,pad=3)
         write_csv(string(fileName,"/contour_data/",cStr),[border[1,:] border[2,:]])
@@ -169,15 +179,11 @@ Create the directories to store the data
 # Arguments:
 - `filepath::String` : path to the file
 """
-function set_file(filepath)
-    if !isdir(filepath)
-        mkpath(filepath)
-        mkdir(string(filepath,"/Results"))
-        mkdir(string(filepath,"/Results/contour_data"))
-        mkdir(string(filepath,"/Results/vtkFiles"))
-        mkdir(string(filepath,"/Results/images"))
-        mkdir(string(filepath,"/Results/cost"))
-        mkdir(string(filepath,"/Results/Blender_obj"))
+function set_file(filepath::String)
+    if filepath == "None"
+        throw(ArgumentError("File path not defined."))
+    elseif !isdir(filepath)
+        mkpath(string(filepath))
     end
 end
 
@@ -193,6 +199,10 @@ Function to read the sparse matrix from a JSON file
 - `sparse_mat::SparseArrays`: sparse matrix.
 """
 function read_sparse_mat(filename)
+    if !isfile(filename)
+        throw(ArgumentError("The directory does not exist."))
+    end
+    # Read the JSON file
     sparse_mat = JSON3.read(filename)
     row_ptr = [i + 1 for i in sparse_mat[:row]] # -1 for Python numbering
     col_ptr = [i + 1 for i in sparse_mat[:col]]
@@ -209,7 +219,9 @@ Function to write data to a JSON file
 - `filename::String`: name of the JSON file.
 - `data::Dict`: dictionary to write to the JSON file.
 """
-function write_json(filename, data)
+function write_json(filename::String, data)
+
+    set_file(filename)
     open(string(filename,".json"), "w") do io
         JSON3.pretty(io, data)
     end

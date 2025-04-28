@@ -1094,7 +1094,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
     len_t = length(time)
-    println("Number of time steps: ", len_t)
 
     μu_btm = 0  
     μu_side = 0

@@ -11,7 +11,7 @@ function match_points(pSim::AbstractMatrix{Float64},pObs::AbstractMatrix{Float64
     pObs, qObs = pObs[1,:], pObs[2,:]
 
     for simCounter in 1:simSize
-        cost = 1000000
+        cost = 1e18
         closestPointIdx = 0
         for obsCounter in 1:obsSize
             error = (pSim[simCounter] - pObs[obsCounter])^2 + (qSim[simCounter] - qObs[obsCounter])^2
@@ -30,13 +30,13 @@ function closest_point(simScene::AbstractArray, obsScene::AbstractArray)
     costList = Float64[]
     pairsList = []
     @argcheck length(simScene) == length(obsScene) "Size of the simulation and observation scenes should be the same"
-    for (obs_t, sim_t) in zip(obsScene[1:end], simScene[1:end]) # iterate over the scenes
+    for (obs_t, sim_t) in zip(obsScene, simScene) # iterate over the scenes
         tcost = 0
         pairs = match_points(sim_t, obs_t) # match the points using the first border
-
+        
         pSim, qSim = sim_t[1,:], sim_t[2,:]
         pObs, qObs = obs_t[1,:], obs_t[2,:]
-
+        
         u = [(pSim[pairs[:,1]] - pObs[pairs[:,2]]); (qSim[pairs[:,1]] - qObs[pairs[:,2]])]
         tcost = u'*u
 
@@ -122,32 +122,28 @@ end
 
 function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64})
 
-    model.η = [θ[1]]
-    scene.β = [θ[2]]
-
     ηpList = Vector{Float64}(undef,0)
     βpList = Vector{Float64}(undef,0)
     costList = Vector{Float64}(undef,0)
     iterList = Vector{Float64}(undef,0)
+    iter::Int = 1
     
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-    d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
-    totdinit::Float64 = sum(d)
-    
+    totdinit::Float64, ∂d::AbstractArray, ∂2d::AbstractArray = get_cost(model, scene, conditions, obsBorderPts, θ)
+
     push!(ηpList,θ[1])
     push!(βpList,θ[2])
     push!(costList,totdinit)
-    push!(iterList,1)
+    push!(iterList,iter)
 
-    iter::Int = 1
     c_grad::Float64 = 1.0
     while c_grad > 0.005
 
-        reset_model(model)
-        t∂2d = zeros(size(∂2d[1]))
-        t∂d = zeros(size(∂d[1]))
+        t∂2d = zeros(Float64, size(∂2d[1]))
+        t∂d = zeros(Float64, size(∂d[1]))
         
-        szd = 1:length(d)
+        println("η: ", θ[1], " β: ", θ[2])
+
+        szd = 1:length(∂d[1])
 
         for i in szd
             t∂2d = t∂2d + ∂2d[i]
@@ -160,16 +156,8 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         println("step: ", p)
         θ = θ - α*p
 
-        println("new η: ", θ[1], " new beta: ", θ[2])
+        totd::Float64, ∂d, ∂2d = get_cost(model, scene, conditions, obsBorderPts, θ)
 
-        model.η = [θ[1]]
-        scene.β = [θ[2]]
-        μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-
-        # test the closest point function
-        d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
-
-        totd = sum(d)
         c_grad = abs(totdinit - totd)
         totdinit = totd
 
@@ -191,4 +179,21 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
                  "η" => θ[1],
                  "β" => θ[2])
     return stats
+end
+
+function get_cost(model, scene, conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64})
+    # reset the model parameters
+    reset_model(model)
+    # update the model parameters
+    model.η = [θ[1]]
+    scene.β = [θ[2]]
+    # simulate the model
+    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+
+    # get the cost, gradient and hessian values
+    d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
+
+    totd = sum(d)
+
+    return totd, ∂d, ∂2d
 end

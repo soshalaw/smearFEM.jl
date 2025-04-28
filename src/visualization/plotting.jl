@@ -102,8 +102,8 @@ Function to animate the fields as a gif
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function animate_fields(; filepath=nothing, fields=nothing , IEN=nothing, BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing)
-
+function animate_fields(; filepath::String="None", fields=nothing , IEN=nothing, BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing)
+    set_file(filepath) # create the directory to store the VTK files
     if isnothing(fields) && isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(IEN) && isnothing(p) && isnothing(q)
         AssertionError("No fields provided")
         return
@@ -207,7 +207,8 @@ function animate3D(fields; filepath="images/3D_grid.gif")
     gif(animation, string(filepath,"/3D_grid.gif"), fps=10)
 end
 
-function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath="images")
+function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath::String="None")
+    set_file(filepath)
     sz = length(simborderfields)
     @argcheck length(simborderfields) == length(pairsList)
     pr = Progress(sz; desc="Plotting matches ...",showspeed=true)
@@ -233,7 +234,9 @@ function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath="im
     gif(animation, string(filepath,"/matches.gif"), fps=10)
 end
 
-function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath="images")
+function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String="None")
+    set_file(filepath)
+    @argcheck length(Exptx) == length(Obsptx)
     sz = length(p)
     sz == length(Obsptx) || AssertionError("The number of simulated and observed data should be the same")
     pr = Progress(sz; desc="Plotting matches...",showspeed=true)

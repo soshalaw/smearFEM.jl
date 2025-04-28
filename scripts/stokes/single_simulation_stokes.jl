@@ -14,14 +14,14 @@ function main()
 
   CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
 
-  sim_time = 15.0
-  steps = 15.0
+  sim_time = 10.0
+  steps = 10.0
   t_steps = sim_time/steps
   viscosity_type = "constant" # "constant" or "linear"
 
   β = 100.0
   η = 40.0
-  F = 1.0
+  F = 3.0
   control = "force" # "force" or "displacement"
   dateTime = Dates.now()
 
