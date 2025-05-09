@@ -468,8 +468,8 @@ function plot_heights()
 end
 ηLst = [40.0]
 βLst = [100 1000 1e4]
-# noiseLevelLst = [0.0 0.5 1.0 1.5 2.0]
-noiseLevelLst = [0.0]
+noiseLevelLst = [0.0 0.5 1.0 1.5 2.0]
+# noiseLevelLst = [0.0]
 
 main(βLst, noiseLevelLst, ηLst)
 # plot_height_vs_slip(ηLst, βLst)
