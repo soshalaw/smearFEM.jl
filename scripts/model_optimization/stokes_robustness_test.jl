@@ -53,11 +53,11 @@ function main()
     exp_η_iter::Int = 1
     for η_gt::Float64 in ηLst
         dev_η::Float64 = dev*η_gt
-        ηStart::Float64 = η_gt + dev_η
+        ηStart::Float64 = η_gt - dev_η
         exp_β_iter::Int = 1
         for β_gt::Float64 in βLst[1:end]
             dev_β::Float64 = dev*β_gt
-            βStart::Float64 = β_gt + dev_β
+            βStart::Float64 = β_gt - dev_β
 
             println("Ground truth: η :", η_gt, " β :", β_gt)
             model_gt, scene_gt = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
