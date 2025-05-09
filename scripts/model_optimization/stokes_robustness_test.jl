@@ -39,7 +39,7 @@ function main()
     t_steps = sim_time/steps
 
     ηLst = [40 50 60]
-    βLst = [1e-4 100 1000 1e4]
+    βLst = [100 1000 1e4]
 
     sideList = [false]
 
