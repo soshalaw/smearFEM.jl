@@ -23,6 +23,8 @@ export set_boundary_conditions_dense, assemble_system_dense, set_slip_conditions
 export assemble_system_A, assemble_system_B, apply_boundary_conditions_stokes, set_boundary_cond_stokes, compare_stokes, def_problem, reset_mesh
 export set_boundary_cond_flow_cube, set_boundary_cond_flow_cyl
 
+export mat_nan_inf_check
+
 include("fem/models.jl")
 include("fem/fem.jl")
 include("fem/Meshes.jl")
@@ -39,5 +41,7 @@ include("examples/squeeze_stokes.jl")
 include("examples/fluid_flow_stokes.jl")
 include("examples/squeeze_linear_elasticity.jl")
 include("examples/run_example.jl")
+
+include("utils.jl")
 
 end # module smearFem

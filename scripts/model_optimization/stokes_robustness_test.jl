@@ -52,16 +52,16 @@ function main(βLst, noiseLevelLst, ηLst)
             βStart::Float64 = β_gt - dev_β
 
             println("Ground truth: η :", η_gt, " β :", β_gt)
-            model_gt, scene_gt = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
+            model, scene = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
             filepath_gt = string(filepath,"/experiment_$(η_gt)_$(β_gt)/ground_truth")
-            write_sim_data(model_gt, scene_gt, CameraMatrix, filepath_gt)
+            write_sim_data(model, scene, CameraMatrix, filepath_gt)
             
             gt_h = readdlm(string(filepath_gt,"/Results/data/h.csv"), ',', Float64, '\n', header=false)
             # Write the ground truth
             params = Dict("gt_η" => η_gt, "gt_β" => β_gt)
             write_json(string(filepath_gt,"/params"), params)
-            ne_exp = 4
-            model, scene = def_problem(r, h, ne_exp, 0.7*η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, 0.7*β_gt, F, control, viscosity_type, sim_time, t_steps)
+            # ne_exp = 4
+            # model, scene = def_problem(r, h, ne_exp, 0.7*η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, 0.7*β_gt, F, control, viscosity_type, sim_time, t_steps)
             for noiseLevel::Float64 in noiseLevelLst
                 ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/Results/contour_data"))  
                 if noiseLevel == 0.0
@@ -70,7 +70,7 @@ function main(βLst, noiseLevelLst, ηLst)
                     
                     for sides::Bool in sideList
                         filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)/sides_$(sides)")
-                        conditions = Conditions(CameraMatrix=CameraMatrix,SIDES=sides,filepath=filepathi)
+                        conditions = Conditions(CameraMatrix=CameraMatrix,SIDES=sides,filepath=filepathi,ANIMATE=false)
 
                         θ = [ηStart, βStart]
                         stats = fit_model(model, scene, conditions, obsBorderPts, θ)

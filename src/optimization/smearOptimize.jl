@@ -59,6 +59,10 @@ function closest_point(simScene::AbstractArray, obsScene::AbstractArray, dudθ::
 
     for (obs_t, sim_t, du_tdθ) in zip(obsScene, simScene, dudθ) # iterate over the scenes
         @argcheck size(sim_t,2) == size(du_tdθ,2) "Number of the border points and the gradient points should be the same"
+
+        mat_nan_inf_check(du_tdθ[:,:,1])
+        mat_nan_inf_check(du_tdθ[:,:,2])
+
         nθ = size(du_tdθ,3)
         tcost = 0.0
         dtcost = zeros(Float64,1,nθ)
@@ -209,3 +213,4 @@ function val_check(v::Vector{Float64})
     end
     return v
 end
+

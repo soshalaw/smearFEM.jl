@@ -20,8 +20,8 @@ nDof_p = 1  # number of degree of freedom per node
 
 CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
 
-sim_time = 2.0
-steps = 2.0
+sim_time = 15.0
+steps = 15.0
 t_steps = sim_time/steps
 time = collect(range(start=t_steps,stop=sim_time,step=t_steps)) # time vector
 
@@ -30,7 +30,7 @@ println("tStep ", t_steps)
 β = 100.0
 control = "velocity" 
 viscosity_type = "constant" # "constant" or "bulk_viscosity"
-F = 1.0
+F = 3.0
 Δη = 1e-8
 Δβ = 1e-8
 
@@ -208,9 +208,9 @@ for t in titer
     # println("dudη approx: ")
     # display(grad_approx_η)
 
-    # grad_approx_β = (ΔsimBorderPts_pβ[t]- ΔsimBorderPts_mβ[t])/(2*Δβ)
-    # println("dudβ : ")
-    # display(grad[:,:,2])
+    grad_approx_β = (ΔsimBorderPts_pβ[t]- ΔsimBorderPts_mβ[t])/(2*Δβ)
+    println("dudβ : ")
+    display(grad[:,:,2])
 
     # println("dudβ approx: ")
     # display(grad_approx_β)
@@ -219,7 +219,7 @@ for t in titer
     for i in 1:pIter  
         for j in 1:qIter
             @test grad[i,j,1] ≈ grad_approx_η[i,j] atol=10^(-3)
-            # @test grad[i,j,2] ≈ grad_approx_β[i,j] atol=10^(-3)
+            @test grad[i,j,2] ≈ grad_approx_β[i,j] atol=10^(-3)
         end
     end
 end

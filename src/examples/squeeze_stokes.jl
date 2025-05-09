@@ -1158,7 +1158,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     pi, qi = fit_curve(border=BorderPts2D)
     
     dqdη = zeros(Float64, size(q_d_cached_top))
-    dqdβ = similar(dqdη)
+    dqdβ = zeros(Float64, size(q_d_cached_top))
 
     fields = AbstractArray[]  
     surface_fields = AbstractArray[]
@@ -1183,8 +1183,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         A_free = C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
         B_free = C_Tu*B             # extract the free part of the stiffness matrix
 
-        dA_freedη = similar(A_free)        # extract the free part of the stiffness matrix
-        dA_freedβ = similar(A_free)             # extract the free part of the stiffness matrix
+        dA_freedη = zeros(Float64, size(A_free,1), size(A_free,2))       # extract the free part of the stiffness matrix
+        dA_freedβ = zeros(Float64, size(A_free,1), size(A_free,2))            # extract the free part of the stiffness matrix
         dB_free = zeros(Float64, size(B_free))
         zero = zeros(Float64, size(B_free,2),size(B_free,2))
 
@@ -1270,6 +1270,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         
             BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, CameraMatrix_cached, side_nodes_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
+
+            mat_nan_inf_check(dudθ[:,:,1])
+            mat_nan_inf_check(dudθ[:,:,2])
 
             # store the solutions in a list
             push!(output, μ_tp)
