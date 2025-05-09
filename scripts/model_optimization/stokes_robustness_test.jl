@@ -370,7 +370,7 @@ function plot_field_at_height(ηLst, βLst)
             β = data["gt_β"]
             h = readdlm(filepath, ',', Float64, '\n', header=false)
             contours, tmp = read_csv(string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/contour_data"))
-            fields, tmp = read_csv(string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/fields/contour_data"))
+            fields, tmp = read_csv(string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/2D_surface_points/contour_data"))
             h_Vector[i] = h
             cont_vector[i] = contours
             β_Vector[i] = β
