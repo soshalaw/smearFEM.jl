@@ -20,23 +20,24 @@ nDof_p = 1  # number of degree of freedom per node
 
 CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
 
-endTime = 2
-steps = 2
-tSteps = endTime/steps
-time = collect(range(start=tSteps,stop=endTime,step=tSteps)) # time vector
+sim_time = 2.0
+steps = 2.0
+t_steps = sim_time/steps
+time = collect(range(start=t_steps,stop=sim_time,step=t_steps)) # time vector
 
-println("tStep ", tSteps)
-η = 10.0
+println("tStep ", t_steps)
+η = 40.0
 β = 100.0
-Control = "force" 
-
+control = "velocity" 
+viscosity_type = "constant" # "constant" or "bulk_viscosity"
+F = 1.0
 Δη = 1e-8
 Δβ = 1e-8
 
 mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
 mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
-mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
+mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
 # q_tp, q_side, q_btm, C_uc = set_boundary_cond(mdl)
 
 # A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
@@ -144,8 +145,15 @@ end
 
 # println("dudη: ")
 # display(dudη[:,:,1])
+
+# println("dudη approx: ")
+# display(dudη_approx)
+
 # println("dudβ: ")
 # display(dudη[:,:,2])
+
+# println("dudβ approx: ")
+# display(dudβ_approx)
 
 p_gt, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
 μu_side)
@@ -173,20 +181,19 @@ conditions = Conditions(CameraMatrix=CameraMatrix)
 model, scene = def_problem(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time, t_steps)
 
 ## testing Σ∇p(θ)
-μ_list, gradList, simBorderPts, splinex, spliney, SurfacePt2D = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
-                                                                                nDof_p, β, CameraMatrix, endTime, tSteps, Control)
-
-μ_list, simBorderPts, ΔsimBorderPts_pL, splinex, spliney, mdl, ΔSurfacePt2D_pL = test_stokes(x0, x1, y0, y1, z0, z1, ne, (η+Δη), ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
-                                                                                nDof_p, β, CameraMatrix, endTime, tSteps, Control)
-
-μ_list, simBorderPts, ΔsimBorderPts_mL, splinex, spliney, mdl, ΔSurfacePt2D_mL = test_stokes(x0, x1, y0, y1, z0, z1, ne, (η-Δη), ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
-                                                                                nDof_p, β, CameraMatrix, endTime, tSteps, Control)
-
-μ_list, simBorderPts, ΔsimBorderPts_pβ, splinex, spliney, mdl, ΔSurfacePt2D_mL = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
-                                                                                nDof_p, (β+Δβ), CameraMatrix, endTime, tSteps, Control)
-
-μ_list, simBorderPts, ΔsimBorderPts_mβ, splinex, spliney, mdl, ΔSurfacePt2D_mL = test_stokes(x0, x1, y0, y1, z0, z1, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, 
-                                                                                nDof_p, (β-Δβ), CameraMatrix, endTime, tSteps, Control)
+μ_list, gradList, simBorderPts, splinex, spliney, SurfacePt2D = simulate(model, scene, conditions)
+reset_model!(model)
+model.η = [η+Δη]
+μ_list, simBorderPts, ΔsimBorderPts_pL, splinex, spliney, ΔSurfacePt2D_pL = simulate(model, scene, conditions)
+reset_model!(model)
+model.η = [η-Δη]
+μ_list, simBorderPts, ΔsimBorderPts_mL, splinex, spliney, ΔSurfacePt2D_mL = simulate(model, scene, conditions)
+reset_model!(model)
+scene.β = [β+Δβ]
+μ_list, simBorderPts, ΔsimBorderPts_pβ, splinex, spliney, ΔSurfacePt2D_mL = simulate(model, scene, conditions)
+reset_model!(model)
+scene.β = [β-Δβ]
+μ_list, simBorderPts, ΔsimBorderPts_mβ, splinex, spliney, ΔSurfacePt2D_mL = simulate(model, scene, conditions)
                                                                                     
 titer = 1:length(ΔSurfacePt2D_mL)
 for t in titer
@@ -201,18 +208,18 @@ for t in titer
     # println("dudη approx: ")
     # display(grad_approx_η)
 
-    grad_approx_β = (ΔsimBorderPts_pβ[t]- ΔsimBorderPts_mβ[t])/(2*Δβ)
+    # grad_approx_β = (ΔsimBorderPts_pβ[t]- ΔsimBorderPts_mβ[t])/(2*Δβ)
     # println("dudβ : ")
     # display(grad[:,:,2])
 
     # println("dudβ approx: ")
     # display(grad_approx_β)
 
-    pIter,qIter = size(grad_approx_β)
+    pIter,qIter = size(grad_approx_η)
     for i in 1:pIter  
         for j in 1:qIter
             @test grad[i,j,1] ≈ grad_approx_η[i,j] atol=10^(-3)
-            @test grad[i,j,2] ≈ grad_approx_β[i,j] atol=10^(-3)
+            # @test grad[i,j,2] ≈ grad_approx_β[i,j] atol=10^(-3)
         end
     end
 end

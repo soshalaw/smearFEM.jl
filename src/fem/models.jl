@@ -81,6 +81,7 @@ mutable struct Stokes <: AbstractModel
 
     # Viscosity
     η::Vector{Float64}
+    tick::Int
 
     """
         Stokes(; ndim::Int=1, mesh_u::Mesh=Meshgrid1D(), mesh_p::Mesh=Meshgrid1D(),
@@ -94,11 +95,12 @@ mutable struct Stokes <: AbstractModel
         mesh_p::AbstractMeshgrid=Meshgrid1D(),
         nDof_u::Int=0,
         nDof_p::Int=0,
-        η::Vector{Float64}=Vector{Float64}(undef, 1)
+        η::Vector{Float64}=Vector{Float64}(undef, 1),
+        tick::Int=0
     )   
         ne = mesh_u.ne
         # Initialize the Stokes model with the provided parameters
-        new(ne, ndim, mesh_u, nDof_u, mesh_p, nDof_p, η)
+        new(ne, ndim, mesh_u, nDof_u, mesh_p, nDof_p, η, tick)
     end
 end
 
@@ -113,7 +115,7 @@ Updates the initial states of the nodal meshes of the model and updates the curr
 # Notes
 This function modifies the meshes in place.
 """
-function update_model(model::Stokes)
+function update_model!(model::Stokes)
     mesh_u = model.mesh_u
     mesh_p = model.mesh_p
     # Update the nodal coordinates of the meshes
@@ -121,8 +123,8 @@ function update_model(model::Stokes)
     update_initial_state!(mesh_p,mesh_p.NodeList)
 end
 
-function update_model(model::LinearElasticity)
-    mesh = model.mess
+function update_model!(model::LinearElasticity)
+    mesh = model.mesh
     # Update the nodal coordinates of the meshes
     update_initial_state!(mesh,mesh.NodeList)
 
@@ -139,7 +141,7 @@ Resets the nodal coordinates of the meshes of the model.
 # Notes
 This function modifies the meshes in place.
 """
-function reset_model(model::Stokes)
+function reset_model!(model::Stokes)
     mesh_u = model.mesh_u
     mesh_p = model.mesh_p
     # Reset the nodal coordinates of the meshes
@@ -147,7 +149,7 @@ function reset_model(model::Stokes)
     reset_mesh!(mesh_p)
 end
 
-function reset_model(model::LinearElasticity)
+function reset_model!(model::LinearElasticity)
     mesh = model.mesh
     # Reset the nodal coordinates of the meshes
     reset_mesh!(mesh)

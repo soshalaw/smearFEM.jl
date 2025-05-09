@@ -5,8 +5,8 @@ using DelimitedFiles
 
     # test case 
     r = 0.5
-    h = 1
-    ne = 4
+    h = 1.0
+    ne = 8
     ndim = 3
     FunctionClass_u = "Q2"
     nDof_u = ndim  # number of degree of freedom per node
@@ -92,4 +92,4 @@ using DelimitedFiles
     #     writedlm(io, bsparseCGT, ',')
     # end
     
-    rm(filepathi,recursive=true)
+    rm(filepath,recursive=true)

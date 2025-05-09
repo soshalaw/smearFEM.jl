@@ -101,10 +101,13 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
             end
         end
     end
+    # initialize the Jacobian matrix and its inverse
+    Jac = zeros(Float64, ndim_cached, ndim_cached)  # Jacobian matrix
+    invJ = similar(Jac) # Inverse of the Jacobian matrix
 
-    e_iter = 1:ne_cached^ndim_cached
+    e_iter = 1:ne_cached^ndim_cached # iterator for elements loop 
+    gpiter = 1:length(wpoints) # iterator for integration loop
     # integration loop
-    gpiter = 1:length(wpoints)
     for gp::Int in gpiter
         if ndim_cached == 1
             N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_cached) # add function type
@@ -113,18 +116,25 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
         elseif ndim_cached == 3
             N, ΔN = basis_function(x[gp], y[gp], z[gp], FunctionClass_cached) 
         end
-        
-        Jac = zeros(Float64, ndim_cached, ndim_cached)  # Jacobian matrix
+
         dNdX = zeros(Float64, size(ΔN, 1), ndim_cached) # Gradient of basis functions
+        if nDof_u == 2
+            B = zeros(Float64, ndim*length(N), 3)
+        elseif nDof_u == 3
+            B = zeros(Float64, ndim*length(N), 6)
+        end
+        szB::Int = size(B, 1)  # Number of basis functions
+        Ke = zeros(Float64, szB, szB)  # Element stiffness matrix
+        Ke_row::Int, Ke_col::Int = szB, szB
+        Ke_len::Int = length(Ke)  
 
         # element loop
         for e::Int in e_iter
-            # Basis function inside the elements
             coords::Matrix{Float64} = NodeList_cached[:, IEN_cached[:, e]]  # Get the coordinates of the nodes of the element
 
             mul!(Jac, coords, ΔN)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
             w::Float64 = wpoints[gp] * abs(det(Jac))
-            invJ::Matrix{Float64} = inv(Jac)
+            invJ .= inv(Jac)  # Inverse of the Jacobian matrix
             mul!(dNdX, ΔN, invJ)
 
             if nDof_u_cached == 1
@@ -140,13 +150,13 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
                 end
             else
                 if nDof_u_cached == 2
-                    B = zeros(Float64, ndim_cached * length(N), 3)
+                    B .= 0.0
                     B[1:nDof_u_cached:end, 1] = dNdX[:, 1]
                     B[2:nDof_u_cached:end, 2] = dNdX[:, 2]
                     B[1:nDof_u_cached:end, 3] = dNdX[:, 2]
                     B[2:nDof_u_cached:end, 3] = dNdX[:, 1]
                 elseif nDof_u_cached == 3
-                    B = zeros(Float64, ndim_cached * length(N), 6)
+                    B .= 0.0
                     B[1:nDof_u_cached:end, 1] = dNdX[:, 1]
                     B[2:nDof_u_cached:end, 2] = dNdX[:, 2]
                     B[3:nDof_u_cached:end, 3] = dNdX[:, 3]
@@ -157,10 +167,7 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
                     B[1:nDof_u_cached:end, 6] = dNdX[:, 2]
                     B[2:nDof_u_cached:end, 6] = dNdX[:, 1]
                 end
-                Ke = 2*w*B*C*B'  # Element stiffness matrix
-
-                Ke_row::Int, Ke_col::Int = size(Ke)
-                Ke_len::Int = length(Ke)
+                mul!(Ke, 2*w*B, C*B')  # Element stiffness matrix
 
                 # Loop between basis functions of the element
                 iNodes = 1:div(Ke_row, nDof_u_cached)
@@ -202,7 +209,6 @@ function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
         K = zeros(Float64, sz,sz)  
     end
 
-    # element loop
     if ndim == 1
         # gaussian quadrature points for the element [-1,1] 
         ξ, w_ξ = gaussian_quadrature(-1,1)
@@ -254,10 +260,13 @@ function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
             end
         end
     end
+    # initialize the Jacobian matrix and its inverse
+    Jac = zeros(Float64, ndim_cached, ndim_cached)  # Jacobian matrix
+    invJ = similar(Jac) # Inverse of the Jacobian matrix
 
-    e_iter = 1:ne^ndim
+    e_iter = 1:ne^ndim # iterator for elements loop
+    gpiter = 1:length(wpoints) # iterator for integration loop
     # integration loop
-    gpiter = 1:length(wpoints)
     for gp::Int in gpiter
         if ndim == 1
             N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass)
@@ -266,14 +275,24 @@ function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
         elseif ndim == 3
             N, ΔN = basis_function(x[gp], y[gp], z[gp], FunctionClass) 
         end
+
+        dNdX = zeros(Float64, size(ΔN, 1), ndim_cached) # Gradient of basis functions
+        if nDof_u == 2
+            B = zeros(Float64, ndim*length(N), 3)
+        elseif nDof_u == 3
+            B = zeros(Float64, ndim*length(N), 6)
+        end
+        szB::Int = size(B, 1)  # Number of basis functions
+        Ke = zeros(Float64, szB, szB)  # Element stiffness matrix
+        Ke_row::Int, Ke_col::Int = szB, szB
+        # element loop
         for e::Int in e_iter
-            coords = NodeList[:,IEN[:,e]] # get the coordinates of the nodes of the element
+            coords::Matrix{Float64} = NodeList_cached[:, IEN_cached[:, e]]  # Get the coordinates of the nodes of the element
 
-            Jac  = coords*ΔN # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
-
-            w = wpoints[gp]*abs(det(Jac))
-            invJ = inv(Jac)
-            dNdX = ΔN*invJ
+            mul!(Jac, coords, ΔN)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
+            w::Float64 = wpoints[gp] * abs(det(Jac))
+            invJ .= inv(Jac)  # Inverse of the Jacobian matrix
+            mul!(dNdX, ΔN, invJ)
 
             if nDof_u == 1
                 szN = size(N,1) # number of basis functions
@@ -288,13 +307,13 @@ function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
                 end
             else   
                 if nDof_u == 2
-                    B = zeros(Float64, ndim*length(N), 3)
+                    B .= 0.0
                     B[1:nDof_u:end,1] = dNdX[:,1]
                     B[2:nDof_u:end,2] = dNdX[:,2]
                     B[1:nDof_u:end,3] = dNdX[:,2]
                     B[2:nDof_u:end,3] = dNdX[:,1]
                 elseif nDof_u == 3
-                    B = zeros(Float64, ndim*length(N), 6)
+                    B .= 0.0
                     B[1:nDof_u:end,1] = dNdX[:,1]
                     B[2:nDof_u:end,2] = dNdX[:,2]
                     B[3:nDof_u:end,3] = dNdX[:,3]
@@ -305,9 +324,9 @@ function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
                     B[1:nDof_u:end,6] = dNdX[:,2]
                     B[2:nDof_u:end,6] = dNdX[:,1]
                 end
-                Ke = 2*w*B*C*B' # element stiffness matrix
-                
-                Ke_row::Int, Ke_col::Int = size(Ke)
+                # Ke = 2*w*B*C*B' # element stiffness matrix
+                mul!(Ke, 2*w*B, C*B') # element stiffness matrix
+
                 # loop between basis functions of the element
                 iNodes = 1:div(Ke_row,nDof_u)  # column node index
                 jNodes = 1:div(Ke_col,nDof_u)  # row index
@@ -364,7 +383,6 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
         V = zeros(Float64, ne_cached^ndim_cached*(ID_u_rows*IEN_u_rows)*IEN_p_rows)  
     end
 
-    # element loop
     if ndim_cached == 1
         # gaussian quadrature points for the element [-1,1] 
         ξ, w_ξ = gaussian_quadrature(-1,1)
@@ -416,10 +434,13 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
             end
         end
     end
+    # initialize the Jacobian matrix and its inverse
+    Jac = zeros(Float64, ndim_cached, ndim_cached)  # Jacobian matrix
+    invJ = similar(Jac) # Inverse of the Jacobian matrix
 
-    e_iter = 1:ne_cached^ndim_cached
+    e_iter = 1:ne_cached^ndim_cached    # iterator for elements loop
+    gpiter = 1:length(wpoints)  # iterator for integration loop
     # integration loop
-    gpiter = 1:length(wpoints)
     for gp::Int in gpiter
         if ndim_cached == 1
             N_u, ΔN_u = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
@@ -431,14 +452,20 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
             N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached)
             N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
         end
+        dNdX = zeros(Float64, size(ΔN_u, 1), ndim_cached) # Gradient of basis functions
+        Be = zeros(Float64, 1, 3*size(dNdX, 1)) # Gradient of basis functions
+        colB::Int = size(Be, 2)  # Number of basis functions
+        rowNp::Int = size(N_p, 1)  # Number of basis functions
+        Ke = zeros(Float64, rowNp, colB)  # Element stiffness matrix
+        Ke_row::Int, Ke_col::Int = rowNp, colB
+        # element loop
         for e::Int in e_iter
-            coords_u = NodeList_cached[:,IEN_u_cached[:,e]] # get the coordinates of the nodes of the element
+            coords_u::Matrix{Float64} = NodeList_cached[:, IEN_u_cached[:, e]]  # Get the coordinates of the nodes of the element
 
-            Jac  = coords_u*ΔN_u # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
-
-            w = wpoints[gp]*abs(det(Jac))
-            invJ = inv(Jac)
-            dNdX = ΔN_u*invJ
+            mul!(Jac, coords_u, ΔN_u)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
+            w::Float64 = wpoints[gp] * abs(det(Jac))
+            invJ .= inv(Jac)  # Inverse of the Jacobian matrix
+            mul!(dNdX, ΔN_u, invJ)
 
             if nDof_u_cached == 1
                 szN = size(N_u,1) # number of basis functions
@@ -453,13 +480,13 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
                 end
             else  
 
-                Be = zeros(Float64,1,3*size(dNdX,1))
+                Be .= 0.0
                 Be[1:nDof_u_cached:end] = dNdX[:,1]
                 Be[2:nDof_u_cached:end] = dNdX[:,2]
                 Be[3:nDof_u_cached:end] = dNdX[:,3]
-                Ke = -w*N_p*Be # element stiffness matrix
-                
-                Ke_row::Int, Ke_col::Int = size(Ke)
+                # Ke = -w*N_p*Be # element stiffness matrix
+                mul!(Ke, -w*N_p, Be) # element stiffness matrix
+
                 # loop between basis functions of the element
                 iNodes = 1:div(Ke_col,nDof_u_cached)  # column node index
                 iDofs = 1:ID_u_rows # column dof index
@@ -565,10 +592,13 @@ function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
             end
         end
     end
+    # initialize the Jacobian matrix and its inverse
+    Jac = zeros(Float64, ndim_cached, ndim_cached)  # Jacobian matrix
+    invJ = similar(Jac) # Inverse of the Jacobian matrix
 
-    e_iter = 1:ne_cached^ndim_cached
+    e_iter = 1:ne_cached^ndim_cached    # iterator for elements loop
+    gpiter = 1:length(wpoints) # iterator for integration loop
     # integration loop
-    gpiter = 1:length(wpoints)
     for gp::Int in gpiter
         if ndim_cached == 1
             N_u, ΔN_u = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
@@ -581,14 +611,21 @@ function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
             N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
         end
 
+        dNdX = zeros(Float64, size(ΔN_u, 1), ndim_cached) # Gradient of basis functions
+        Be = zeros(Float64, 1, 3*size(dNdX, 1)) # Gradient of basis functions
+        colB::Int = size(Be, 2)  # Number of basis functions
+        rowNp::Int = size(N_p, 1)  # Number of basis functions
+        Ke = zeros(Float64, rowNp, colB)  # Element stiffness matrix
+        Ke_row::Int, Ke_col::Int = rowNp, colB
+
+        # element loop
         for e::Int in e_iter
-            coords_u = NodeList_cached[:,IEN_u_cached[:,e]] # get the coordinates of the nodes of the element
+            coords_u::Matrix{Float64} = NodeList_cached[:, IEN_u_cached[:, e]]  # Get the coordinates of the nodes of the element
 
-            Jac  = coords_u*ΔN_u # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
-
-            w = wpoints[gp]*abs(det(Jac))
-            invJ = inv(Jac)
-            dNdX = ΔN_u*invJ
+            mul!(Jac, coords_u, ΔN_u)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
+            w::Float64 = wpoints[gp] * abs(det(Jac))
+            invJ .= inv(Jac)  # Inverse of the Jacobian matrix
+            mul!(dNdX, ΔN_u, invJ)
 
             if nDof_u_cached == 1
                 szN = size(N_u,1) # number of basis functions
@@ -602,14 +639,13 @@ function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
                     end
                 end
             else  
-
-                Be = zeros(Float64,1,3*size(dNdX,1))
+                Be .= 0.0
                 Be[1:nDof_u_cached:end] = dNdX[:,1]
                 Be[2:nDof_u_cached:end] = dNdX[:,2]
                 Be[3:nDof_u_cached:end] = dNdX[:,3]
-                Ke = -w*N_p*Be # element stiffness matrix
-                
-                Ke_row, Ke_col = size(Ke)
+                # Ke = -w*N_p*Be # element stiffness matrix
+                mul!(Ke, -w*N_p, Be) # element stiffness matrix
+
                 # loop between basis functions of the element
                 iNodes = 1:Ke_col÷nDof_u_cached  # column node index
                 iDofs = 1:ID_u_rows # column dof index
@@ -681,9 +717,9 @@ function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
         y = [η[1], η[1], η[2], η[2]]
     end
 
-    e_iter = 1:ne_cached^(ndim_cached-1)
+    e_iter = 1:ne_cached^(ndim_cached-1)   # iterator for elements loop
+    gpiter = 1:length(wpoints) # iterator for integration loop
     # integration loop
-    gpiter = 1:length(wpoints)
     for gp::Int in gpiter
 
         if ndim_cached == 2
@@ -692,27 +728,32 @@ function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
             N, ΔN = basis_function(x[gp], y[gp], nothing, FunctionClass_cached) 
         end
 
+        M = zeros(Float64, 3, ndim_cached*length(N))
+        rowM::Int = size(M,2)
+        be_row::Int, be_col::Int = rowM, rowM
+        be = zeros(Float64, be_col, be_row)
+        len_be::Int = length(be)
+
         # element loop
         for e::Int in e_iter
         
-            coords_u_top = NodeList_cached[:,IEN_top_cached[:,e]] # get the coordinates of the nodes of the element
-            coords_u_btm = NodeList_cached[:,IEN_btm_cached[:,e]] # get the coordinates of the nodes of the element
+            coords_u_top::Matrix{Float64} = NodeList_cached[:,IEN_top_cached[:,e]] # get the coordinates of the nodes of the element
+            coords_u_btm::Matrix{Float64} = NodeList_cached[:,IEN_btm_cached[:,e]] # get the coordinates of the nodes of the element
 
             dxdξ_top = coords_u_top*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
             dxdξ_btm = coords_u_btm*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
 
-            w_top = wpoints[gp]*norm(cross(dxdξ_top[:,1],dxdξ_top[:,2]))     # weight of the quadrature point top surface
-            w_btm = wpoints[gp]*norm(cross(dxdξ_btm[:,1],dxdξ_btm[:,2]))     # weight of the quadrature point bottom surface
+            w_top::Float64 = wpoints[gp]*norm(cross(dxdξ_top[:,1],dxdξ_top[:,2]))     # weight of the quadrature point top surface
+            w_btm::Float64 = wpoints[gp]*norm(cross(dxdξ_btm[:,1],dxdξ_btm[:,2]))     # weight of the quadrature point bottom surface
             
-            M = zeros(Float64, 3, ndim_cached*length(N))
+            M .= 0.0
             M[1,1:nDof_u_cached:end] = N
             M[2,2:nDof_u_cached:end] = N
             M[3,3:nDof_u_cached:end] = N
 
-            be = M'*M
+            # be = M'*M
+            mul!(be,M',M) # multiply the matrix by itself to get the stiffness matrix
 
-            be_row::Int, be_col::Int = size(be)
-            len_be::Int = length(be)
             # loop between basis functions of the element
             iNodes = 1:be_row÷nDof_u_cached
             jNodes = 1:be_col÷nDof_u_cached
@@ -747,8 +788,6 @@ function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
 end
 
 function apply_boundary_conditions_dense(mdl::Stokes)::Matrix{Float64}
-
-
     @unpack ne, ndim, nDof_u = mdl
     @unpack NodeList, IEN_top, IEN_bottom, ID, FunctionClass = mdl.mesh_u
 
@@ -784,9 +823,9 @@ function apply_boundary_conditions_dense(mdl::Stokes)::Matrix{Float64}
         x = [ξ[1], ξ[2], ξ[2], ξ[1]]
         y = [η[1], η[1], η[2], η[2]]
     end 
-    e_iter = 1:ne_cached^(ndim_cached-1)
+    e_iter = 1:ne_cached^(ndim_cached-1)  # iterator for elements loop
+    gpiter = 1:length(wpoints)  # iterator for integration loop
     # integration loop
-    gpiter = 1:length(wpoints)
     for gp in gpiter
 
         if ndim_cached == 2
@@ -794,27 +833,32 @@ function apply_boundary_conditions_dense(mdl::Stokes)::Matrix{Float64}
         elseif ndim_cached == 3
             N, ΔN = basis_function(x[gp], y[gp], nothing, FunctionClass_cached) 
         end
+
+        M = zeros(Float64, 3, ndim_cached*length(N))
+        rowM::Int = size(M,1)
+        be_row::Int, be_col::Int = rowM, rowM
+        be = zeros(Float64, be_col, be_row)
+        len_be::Int = length(be)
+
         # element loop
         for e in e_iter
         
-            coords_u_top = NodeList_cached[:,IEN_top_cached[:,e]] # get the coordinates of the nodes of the element
-            coords_u_btm = NodeList_cached[:,IEN_btm_cached[:,e]] # get the coordinates of the nodes of the element
+            coords_u_top::Matrix{Float64} = NodeList_cached[:,IEN_top_cached[:,e]] # get the coordinates of the nodes of the element
+            coords_u_btm::Matrix{Float64} = NodeList_cached[:,IEN_btm_cached[:,e]] # get the coordinates of the nodes of the element
 
             dxdξ_top = coords_u_top*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
             dxdξ_btm = coords_u_btm*ΔN         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
 
-            w_top = wpoints[gp]*norm(cross(dxdξ_top[:,1],dxdξ_top[:,2]))     # weight of the quadrature point top surface
-            w_btm = wpoints[gp]*norm(cross(dxdξ_btm[:,1],dxdξ_btm[:,2]))     # weight of the quadrature point bottom surface
+            w_top::Float64 = wpoints[gp]*norm(cross(dxdξ_top[:,1],dxdξ_top[:,2]))     # weight of the quadrature point top surface
+            w_btm::Float64 = wpoints[gp]*norm(cross(dxdξ_btm[:,1],dxdξ_btm[:,2]))     # weight of the quadrature point bottom surface
             
-            M = zeros(Float64, 3, ndim_cached*length(N))
+            M .= 0.0
             M[1,1:nDof_u_cached:end] = N
             M[2,2:nDof_u_cached:end] = N
             M[3,3:nDof_u_cached:end] = N
 
-            be = M'*M
-
-            be_row, be_col = size(be)
-            len_be = length(be)
+            # be = M'*M
+            mul!(be, M', M)
 
             # loop between basis functions of the element
             iNodes = 1:be_row÷nDof_u_cached
@@ -981,6 +1025,7 @@ function def_problem(r::Number, h::Number, ne::Int64, η_0::Float64, ndim::Int64
         end 
     elseif control == "velocity"
         cParam = -0.02*ones(Float64, len_t)
+        η = [η_0]
     else
         throw(ArgumentError("Control type not recognized"))
     end
@@ -1065,28 +1110,39 @@ Simulate the Stokes problem for a given mesh over a given time period.
 """
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     @unpack ID, NodeList, side_nodes, nNodes = mdl.mesh_u
-    @unpack η = mdl
+    @unpack η, nDof_u, nDof_p, ndim = mdl
     @unpack β, viscosity_type, q_d, C_uc, t_steps, sim_time, control = scene
     @unpack CameraMatrix, SIDES = conditions
 
     β_cached::Float64 = β[1]
     viscosity_type_cached::String = viscosity_type
     q_d_cached::Dict{Symbol, Matrix{Float64}} = q_d
+    q_d_cached_top::Matrix{Float64} = q_d_cached[:top]
+    q_d_cached_btm::Matrix{Float64} = q_d_cached[:bottom]
+    q_d_cached_brdr::Matrix{Float64} = q_d_cached[:border]
     C_uc_cached::AbstractMatrix = C_uc
     t_steps_cached::Float64 = t_steps
     sim_time_cached::Float64 = sim_time
     control_cached::String = control
 
-    nNodes_cached::Int = nNodes
+    nNodes_u_cached::Int = nNodes
+    nDof_u_cached::Int = nDof_u
+    nDof_p_cached::Int = nDof_p
+    ndim_cached::Int = ndim
     NodeList_cached::Matrix{Float64} = NodeList
     side_nodes_cached::Vector{Int} = side_nodes
     ID_cached::Matrix{Int} = ID
+
+    @unpack nNodes = mdl.mesh_p
+    nNodes_p_cached::Int = nNodes
 
     η_cached::Any = η
 
     CameraMatrix_cached::Matrix{Float64} = CameraMatrix
     SIDES_cached::Bool = SIDES
     
+    C_Tu = transpose(C_uc_cached)           # transpose the constraint matrix
+
     if conditions.filepath != ""
         isnothing(conditions.filepath) || AssertionError("Please provide a filepath to write the data")
         set_file(conditions.filepath)
@@ -1098,13 +1154,14 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     μu_btm = 0  
     μu_side = 0
     
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, CameraMatrix_cached, side_nodes_cached, nNodes_cached, SIDES_cached)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, CameraMatrix_cached, side_nodes_cached, nNodes_u_cached, SIDES_cached)
     pi, qi = fit_curve(border=BorderPts2D)
     
-    dqdη = zeros(Float64, size(q_d_cached[:top]))
-    dqdβ = zeros(Float64, size(q_d_cached[:top]))
+    dqdη = zeros(Float64, size(q_d_cached_top))
+    dqdβ = similar(dqdη)
 
     fields = AbstractArray[]  
+    surface_fields = AbstractArray[]
     gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)]                                                 # store the solution fields of the border nodes in 2D 
     pos3D = AbstractArray[NodeList_cached]                                                             # store the solution fields of the mesh in 3D
     pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
@@ -1117,71 +1174,96 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     iter::Int = 1
     pr = Progress(len_t; desc= "Simulating with prescribed $(control_cached) ...", showspeed=true)
     if control_cached == "force"
+        A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached) # initialize the stiffness matrix
+        B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_p_cached*(nNodes_p_cached)^ndim_cached) # initialize the stiffness matrix
+        b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached) # initialize the stiffness matrix
+        q_d = zeros(Float64, nDof_u_cached*(nNodes_u_cached)^ndim_cached,1) # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        A = similar(A_bar)
+
+        A_free = C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
+        B_free = C_Tu*B             # extract the free part of the stiffness matrix
+
+        dA_freedη = similar(A_free)        # extract the free part of the stiffness matrix
+        dA_freedβ = similar(A_free)             # extract the free part of the stiffness matrix
+        dB_free = zeros(Float64, size(B_free))
+        zero = zeros(Float64, size(B_free,2),size(B_free,2))
+
+        dAdη = similar(A_bar)
+        dAdβ = similar(A_bar)
+        dB = zeros(Float64, size(B))
+        q = similar(q_d)
+        dqfdη = similar(q)
+        dqfdβ = similar(q)
         for t in time
-            A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
-            B = assemble_system_B(mdl)                   # assemble the stiffness matrix
-            b = apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
+            A_bar .= assemble_system_A(mdl)                   # assemble the stiffness matrix
+            B .= assemble_system_B(mdl)                   # assemble the stiffness matrix
+            b .= apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
         
-            q_d = (μu_btm*q_d_cached[:bottom] + μu_side*q_d_cached[:border])      # apply the Dirichlet boundary conditions
+            q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
             
             if viscosity_type_cached == "bulk_viscosity"
-                A = η_cached[iter]*A_bar + β_cached*b
+                A .= η_cached[iter]*A_bar + β_cached*b
             else
-                A = η_cached[1]*A_bar + β_cached*b
+                A .= η_cached[1]*A_bar + β_cached*b
             end
         
-            dAdη = A_bar
-            dAdβ = b
-            dB = zeros(Float64, size(B))
-
-            C_Tu = transpose(C_uc_cached)           # transpose the constraint matrix
+            dAdη .= A_bar
+            dAdβ .= b
         
-            A_free = C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
-            B_free = C_Tu*B             # extract the free part of the stiffness matrix
+            A_free .= C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
+            # mul!(A_free, C_Tu*A, C_uc_cached) # extract the free part of the stiffness matrix
+            B_free .= C_Tu*B             # extract the free part of the stiffness matrix
+            # mul!(B_free, C_Tu, B) # extract the free part of the stiffness matrix
 
-            dA_freedη = C_Tu*dAdη*C_uc_cached        # extract the free part of the stiffness matrix
-            dA_freedβ = C_Tu*dAdβ*C_uc_cached             # extract the free part of the stiffness matrix
-            dB_free = zeros(Float64, size(B_free))
+            dA_freedη .= C_Tu*dAdη*C_uc_cached        # extract the free part of the stiffness matrix
+            # mul!(dA_freedη, C_Tu*dAdη, C_uc_cached) # extract the free part of the stiffness matrix
+            dA_freedβ .= C_Tu*dAdβ*C_uc_cached             # extract the free part of the stiffness matrix
+            # mul!(dA_freedβ, C_Tu*dAdβ, C_uc_cached) # extract the free part of the stiffness matrix
 
-            M = [A_free B_free C_Tu*A*q_d_cached[:top]; B_free' zeros(Float64, size(B_free,2),size(B_free,2)) B'*q_d_cached[:top]; q_d_cached[:top]'*A*C_uc_cached q_d_cached[:top]'B q_d_cached[:top]'A*q_d_cached[:top]] # assemble the system of equations
-            dMdη = [dA_freedη dB_free C_Tu*dAdη*q_d_cached[:top]; dB_free' zeros(Float64, size(B_free,2),size(B_free,2)) dB'*q_d_cached[:top]; q_d_cached[:top]'*dAdη*C_uc_cached q_d_cached[:top]'dB q_d_cached[:top]'dAdη*q_d_cached[:top]]
-            dMdβ = [dA_freedβ dB_free C_Tu*dAdβ*q_d_cached[:top]; dB_free' zeros(Float64, size(B_free,2),size(B_free,2)) dB'*q_d_cached[:top]; q_d_cached[:top]'*dAdβ*C_uc_cached q_d_cached[:top]'dB q_d_cached[:top]'dAdβ*q_d_cached[:top]]
+            M = [A_free B_free C_Tu*A*q_d_cached_top; B_free' zero B'*q_d_cached_top; q_d_cached_top'*A*C_uc_cached q_d_cached_top'B q_d_cached_top'A*q_d_cached_top] # assemble the system of equations
+            dMdη = [dA_freedη dB_free C_Tu*dAdη*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdη*C_uc_cached q_d_cached_top'dB q_d_cached_top'dAdη*q_d_cached_top]
+            dMdβ = [dA_freedβ dB_free C_Tu*dAdβ*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdβ*C_uc_cached q_d_cached_top'dB q_d_cached_top'dAdβ*q_d_cached_top]
             
-            r = [-C_Tu*A*q_d; -B'*q_d; scene.cParam[iter].-q_d_cached[:top]'A*q_d]    # assemble the system of equations
-            drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached[:top]'dAdη*q_d] # solve the system of equations
-            drdβ = -[C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached[:top]'dAdβ*q_d] # solve the system of equations
+            r = [-C_Tu*A*q_d; -B'*q_d; scene.cParam[iter].-q_d_cached_top'A*q_d]    # assemble the system of equations
+            drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdη*q_d] # solve the system of equations
+            drdβ = -[C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdβ*q_d] # solve the system of equations
 
-            invM = inv(Matrix(M)) # inverse of the system of equations
+            # invM::Matrix = inv(Matrix(M)) # inverse of the system of equations
+            lum = lu(M) # LU decomposition of the system of equations
 
-            sol = invM*r                 # solve the system of equations
-            dsoldη = invM*(drdη - dMdη*sol) # solve the system of equations
-            dsoldβ = invM*(drdβ - dMdβ*sol) # solve the system of equations
+            # sol = invM*r                 # solve the system of equations
+            # dsoldη = invM*(drdη - dMdη*sol) # solve the system of equations
+            # dsoldβ = invM*(drdβ - dMdβ*sol) # solve the system of equations
+
+            sol = lum\r # solve the system of equations
+            dsoldη = lum\(drdη - dMdη*sol) # solve the system of equations
+            dsoldβ = lum\(drdβ - dMdβ*sol) # solve the system of equations
         
-            q_f = sol[1:size(A_free,1)]     # extract the free part of the solution
-            dqfdη = dsoldη[1:size(A_free,1)] # extract the free part of the solution
-            dqfdβ = dsoldβ[1:size(A_free,1)] # extract the free part of the solution
+            q_f = view(sol, 1:size(A_free, 1))
+            dqfdη = view(dsoldη, 1:size(A_free, 1))
+            dqfdβ = view(dsoldβ, 1:size(A_free, 1))
 
-            p_f = sol[size(A_free,1)+1:end] # extract the free part of the solution
-            dpfdη = dsoldη[size(A_free,1)+1:end] # extract the free part of the solution 
-            dpfdβ = dsoldβ[size(A_free,1)+1:end] # extract the free part of the solution
+            p_f = view(sol, (size(A_free, 1) + 1):(size(A_free, 1) + size(B_free, 2)))
+            dpfdη = view(dsoldη, (size(A_free, 1) + 1):(size(A_free, 1) + size(B_free, 2)))
+            dpfdβ = view(dsoldβ, (size(A_free, 1) + 1):(size(A_free, 1) + size(B_free, 2)))
 
             μ_tp = sol[end]
             dμdη = dsoldη[end]
             dμdβ = dsoldβ[end]
         
-            q = q_d + C_uc_cached*q_f + μ_tp*q_d_cached[:top];              # assemble the solution 
-            dqdη = dqdη + C_uc_cached*dqfdη + dμdη*q_d_cached[:top];               # assemble the solution
-            dqdβ = dqdβ + C_uc_cached*dqfdβ + dμdβ*q_d_cached[:top];               # assemble the solution
+            q .= q_d + C_uc_cached*q_f + μ_tp*q_d_cached_top;              # assemble the solution 
+            dqdη .= dqdη + C_uc_cached*dqfdη + dμdη*q_d_cached_top;               # assemble the solution
+            dqdβ .= dqdβ + C_uc_cached*dqfdβ + dμdβ*q_d_cached_top;               # assemble the solution
 
             p = p_f;
             dpdη = dpfdη;                  # assemble the solution
             dpdβ = dpfdβ;                  # assemble the solution
 
-            motion = hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'
-            dmdη_out = hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
-            dmdβ_out = hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
+            motion = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'
+            dmdη_out = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
+            dmdβ_out = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
 
-            dmdθ_out = cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
+            dmdθ_out = @views cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
             
             NodeList_cached = NodeList_cached + motion # update the mesh grid
             mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
@@ -1192,6 +1274,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             # store the solutions in a list
             push!(output, μ_tp)
             push!(fields, motion)
+            push!(surface_fields, motion[:,side_nodes_cached])
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_cached)
@@ -1209,7 +1292,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             B = assemble_system_B(mdl)                   # assemble the stiffness matrix
             b = apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
         
-            q_d = (μu_btm*q_d_cached[:bottom] + scene.cParam[iter]*q_d_cached[:top] + μu_side*q_d_cached[:border])      # apply the Dirichlet boundary conditions
+            q_d = (μu_btm*q_d_cached_btm + scene.cParam[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
         
             if viscosity_type_cached == "bulk_viscosity"
                 A = η_cached[iter]*A_bar + β_cached*b
@@ -1269,12 +1352,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             NodeList_cached = NodeList_cached + motion # update the mesh grid
             mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
         
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, CameraMatrix_cached, BorderNodesList_u, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, CameraMatrix_cached, side_nodes_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
 
             # store the solutions in a list
             # push!(output, F_est[1])
             push!(fields, motion)
+            push!(surface_fields, motion[:,side_nodes_cached])
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_cached)
@@ -1300,6 +1384,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     if conditions.WRITEVTK
         write_scene(string(conditions.filepath,"/Results"), pos3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, fields, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
     end
-    return output, gradList, borderPts2DList, splinep, splineq, pos2D
+    return output, gradList, borderPts2DList, splinep, pos3D, pos2D
 end
 

@@ -10,12 +10,12 @@ export EnvConditions, Conditions # types.jl
 
 export meshgrid_line, meshgrid_square, meshgrid_cube, inflate_cylinder, meshgrid_ring, meshgrid_cylinder # Meshes.jl
 export gaussian_quadrature, basis_function # fem.jl
-export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π # PostProcess.jl
-export read_csv, write_vtk, write_scene, write_csv, write_json, write_contour_data, read_h5 # io.jl
+export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, plot_covariance # PostProcess.jl
+export read_csv, write_vtk, write_scene, write_csv, write_json, write_contour_data, read_h5, read_json # io.jl
 export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h # plotting.jl
 export closest_point, height_sample, match_points, fit_model # smearOptimize.jl
-export reset_model, update_model # models.jl
-export reset_mesh, update_mesh # Meshes.jl
+export reset_model!, update_model! # models.jl
+export reset_model!, reset_model! # Meshes.jl
 export simulate, write_sim_data, test, simulate_single_tstep, compare, readData
 export simulate_single_tstep_stokes, simulate_stokes, test_stokes, write_sim_data_stokes
 export set_boundary_conditions, simulate, set_file, initialize_mesh_test, assemble_system, set_slip_conditions, get_cMat, get_volume

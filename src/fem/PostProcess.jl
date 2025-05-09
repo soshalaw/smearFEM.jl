@@ -5,6 +5,8 @@ using ConvexHulls2d
 import ConvexHulls2d as ch
 using Distributions
 
+using Statistics
+using StatsPlots
 """ 
     Extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, nNodes::Int64, GRAD::Bool=false, dqdθ::AbstractMatrix{Float64}=zeros(2,2), SIDES::Bool=false)
 
@@ -476,4 +478,40 @@ function add_noise(obsScene; nFactor=0)
         push!(nSpliney, Data[2,:])
     end
     return nScene, nSplinex, nSpliney, pd
+end
+
+function get_height(μ_tp::Vector{Float64}, H_0::Float64)
+    # Get the height of the mesh
+    h = H_0*ones(Float64, (size(μ_tp,1)+1))
+    iter = 1:length(h)
+    for i::Int in iter
+        if i == 1
+            h[i] = h[i]
+        else
+            h[i] = h[i-1] + μ_tp[i-1]
+        end
+    end
+    return h
+end
+
+function plot_covariance(η_list::Vector{Float64}, β_list::Vector{Float64}, filepath::String)
+    set_file(filepath)
+
+    mean_η = mean(η_list)
+    mean_β = mean(β_list)
+
+    cov_η = cov(η_list)
+    cov_β = cov(β_list)
+    cov_ηβ = cov(η_list, β_list)
+
+    cov_mat = [cov_η cov_ηβ; cov_ηβ cov_β]
+    mean_vec = [mean_η; mean_β]
+
+    # Plot the covariance matrix
+    StatsPlots.covellipse(mean_vec, cov_mat, label="Covariance", color=:red, alpha=0.5, linewidth=2)
+    # scatter!(η_list, β_list, label="Data", color=:blue, alpha=0.5)
+    xlabel!("η")
+    ylabel!("β")    
+    title!("Covariance")
+    Plots.savefig(string(filepath,"covariance.svg"))
 end

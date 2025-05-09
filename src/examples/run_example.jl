@@ -124,7 +124,7 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
-    mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
+    mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
     
     ID_u = mdl.mesh_u.ID
     
@@ -227,12 +227,19 @@ Initializes the simulation and writes the data to a file.
 # Returns
 None.
 """
-function write_sim_data(model::AbstractModel, scene::AbstractScenario, CameraMatrix::AbstractMatrix{Float64}, filepath::String="nothing", SIDES::Bool=false)
-
+function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, CameraMatrix::AbstractMatrix{Float64}, filepath::String="nothing", SIDES::Bool=false)
+    model::AbstractModel = deepcopy(_model)
+    scene::AbstractScenario = deepcopy(_scene)
     conditions = Conditions(ANIMATE=true, WRITECONTOUR=true, CameraMatrix=CameraMatrix, filepath=filepath)
 
     # run the simulation
-    simulate(model, scene, conditions)
+    h, gradList, borderPts2DList, splinep, pos3D, pos2D = simulate(model, scene, conditions)
+
+    h = get_height(h, model.mesh_u.h)
+    write_csv(string(filepath,"/Results/data/h"), h)
+    write_contour_data(string(conditions.filepath,"/Results/data/2D_surface_points"), pos2D)
+    write_contour_data(string(filepath,"/Results/data/3D_points"), pos3D)
+
 end
 
 """

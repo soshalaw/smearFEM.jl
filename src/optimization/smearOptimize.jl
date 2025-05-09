@@ -121,29 +121,35 @@ function height_sample(simScene::Vector{AbstractArray}, obsScene::Vector{Abstrac
 end
 
 function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64})
+    reset_model!(model)
+    model.η = [θ[1]]
+    scene.β = [θ[2]]
 
     ηpList = Vector{Float64}(undef,0)
     βpList = Vector{Float64}(undef,0)
     costList = Vector{Float64}(undef,0)
     iterList = Vector{Float64}(undef,0)
-    iter::Int = 1
     
-    totdinit::Float64, ∂d::AbstractArray, ∂2d::AbstractArray = get_cost(model, scene, conditions, obsBorderPts, θ)
-
+    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+    d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
+    totdinit::Float64 = sum(d)
+    
     push!(ηpList,θ[1])
     push!(βpList,θ[2])
     push!(costList,totdinit)
-    push!(iterList,iter)
+    push!(iterList,1)
 
+    iter::Int = 1
     c_grad::Float64 = 1.0
     while c_grad > 0.005
-
-        t∂2d = zeros(Float64, size(∂2d[1]))
-        t∂d = zeros(Float64, size(∂d[1]))
+        println("totd: ", totdinit)
+        reset_model!(model)
+        t∂2d = zeros(size(∂2d[1]))
+        t∂d = zeros(size(∂d[1]))
         
         println("η: ", θ[1], " β: ", θ[2])
 
-        szd = 1:length(∂d[1])
+        szd = 1:length(d)
 
         for i in szd
             t∂2d = t∂2d + ∂2d[i]
@@ -156,8 +162,17 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         println("step: ", p)
         θ = θ - α*p
 
-        totd::Float64, ∂d, ∂2d = get_cost(model, scene, conditions, obsBorderPts, θ)
+        val_check(θ)
+        # update the model parameters
+        model.η = [θ[1]]
+        scene.β = [θ[2]]
+        # simulate the model
+        μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
 
+        # get the cost, gradient and hessian values
+        d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
+
+        totd = sum(d)
         c_grad = abs(totdinit - totd)
         totdinit = totd
 
@@ -181,19 +196,16 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
     return stats
 end
 
-function get_cost(model, scene, conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64})
-    # reset the model parameters
-    reset_model(model)
-    # update the model parameters
-    model.η = [θ[1]]
-    scene.β = [θ[2]]
-    # simulate the model
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-
-    # get the cost, gradient and hessian values
-    d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
-
-    totd = sum(d)
-
-    return totd, ∂d, ∂2d
+function val_check(v::Vector{Float64})
+    sz = size(v,1)
+    for i in 1:sz
+        if v[i] < 0 && abs(v[i]) < 1
+            println("Negative value: ", v[i])
+            v[i] = abs(v[i])
+        elseif v[i] < 0
+            println("Negative value: ", v[i])
+            v[i] = 0.5
+        end
+    end
+    return v
 end

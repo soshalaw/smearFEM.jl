@@ -224,7 +224,7 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
         ne::Int=0,
         top_nodes::Vector{Int}=Vector{Int}(),
         bottom_nodes::Vector{Int}=Vector{Int}(),
-        side_nodes::Vector{Int}=Vector{Int}()
+        side_nodes::Vector{Int}=Vector{Int}(),
     )
         # Constructor for MeshgridCylinder
         new(r, h, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides,
