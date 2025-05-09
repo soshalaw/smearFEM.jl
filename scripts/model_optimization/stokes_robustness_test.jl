@@ -472,7 +472,7 @@ end
 noiseLevelLst = [0.0]
 
 main(βLst, noiseLevelLst, ηLst)
-plot_height_vs_slip(ηLst, βLst)
-plot_field_at_height(ηLst, βLst)
+# plot_height_vs_slip(ηLst, βLst)
+# plot_field_at_height(ηLst, βLst)
 plot_noise_covariance(βLst, noiseLevelLst)
 
