@@ -202,18 +202,18 @@ for t in titer
 
     grad_approx_η = (ΔsimBorderPts_pL[t]- ΔsimBorderPts_mL[t])/(2*Δη)
 
-    # println("dudη: ")
-    # display(grad[:,:,1])
+    println("dudη: ")
+    display(grad[:,:,1])
 
-    # println("dudη approx: ")
-    # display(grad_approx_η)
+    println("dudη approx: ")
+    display(grad_approx_η)
 
     grad_approx_β = (ΔsimBorderPts_pβ[t]- ΔsimBorderPts_mβ[t])/(2*Δβ)
-    println("dudβ : ")
-    display(grad[:,:,2])
+    # println("dudβ : ")
+    # display(grad[:,:,2])
 
-    println("dudβ approx: ")
-    display(grad_approx_β)
+    # println("dudβ approx: ")
+    # display(grad_approx_β)
 
     pIter,qIter = size(grad_approx_η)
     for i in 1:pIter  

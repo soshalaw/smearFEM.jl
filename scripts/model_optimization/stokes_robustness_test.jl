@@ -362,7 +362,10 @@ function plot_field_at_height(ηLst, βLst)
 
     Plots.plot([],[],label="")
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
+
+    ηiter::Int = 1
     for j::Float64 in ηLst
+        βiter::Int = 1
         for i::Float64 in βLst
             filepath = string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/h.csv")
             filepathJSON = string(file_path,"/experiment_$(j)_$(i)/ground_truth/params.json")
@@ -371,11 +374,14 @@ function plot_field_at_height(ηLst, βLst)
             h = readdlm(filepath, ',', Float64, '\n', header=false)
             contours, tmp = read_csv(string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/contour_data"))
             fields, tmp = read_csv(string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/2D_surface_points/contour_data"))
-            h_Vector[i] = h
-            cont_vector[i] = contours
-            β_Vector[i] = β
-            field_Vector[i] = fields
+            h_Vector[βiter] = h
+            cont_vector[βiter] = contours
+            β_Vector[βiter] = β
+            field_Vector[βiter] = fields
+
+            βiter += 1
         end
+        ηiter += 1
     end
     # define a reference height
     h_ref = h_Vector[end][end]
@@ -401,7 +407,7 @@ function plot_field_at_height(ηLst, βLst)
     Plots.savefig(string(file_path,"field_at_height.pdf"))
     p = Vector{Plots.Plot}(undef, 8)
 
-    for i::Int in 1:4
+    for i::Int in 1:length(βLst)
         cont_t = cont_vector[i][t_indexes[i]]
         cont_tm1 = cont_vector[i][t_indexes[i]-1]
         field = cont_t - cont_tm1
