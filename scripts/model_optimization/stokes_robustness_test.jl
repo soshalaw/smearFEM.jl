@@ -226,7 +226,7 @@ function main(βLst, noiseLevelLst, ηLst)
                         est_h_list[:,n] = get_height(est_μ_list, h)
 
                         η_accuracy = abs(1 - abs(η-η_gt)/η_gt)*100
-                        β_accuracy = asb(1 - abs(β-β_gt)/β_gt)*100
+                        β_accuracy = abs(1 - abs(β-β_gt)/β_gt)*100
                         printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
                         printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
 
