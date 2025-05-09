@@ -8,7 +8,8 @@ using Distributions
 using Measures
 using Dates
 using DelimitedFiles
-function main()
+
+function main(βLst, noiseLevelLst, ηLst)
 
     # test case 
     r = 0.5
@@ -38,30 +39,21 @@ function main()
     steps = 15.0
     t_steps = sim_time/steps
 
-    ηLst = [40 50 60]
-    βLst = [100 1000 1e4]
-
     sideList = [false]
 
-    # βLst = [100.0]
-    ηLst = [40.0]
-    # βLst = [100.0]
-    # noiseLevelLst = [0.0 0.5 1.0 1.5 2.0]
-    noiseLevelLst = [0.0]
     F = 3.0
 
-    exp_η_iter::Int = 1
     for η_gt::Float64 in ηLst
         dev_η::Float64 = dev*η_gt
         ηStart::Float64 = η_gt - dev_η
-        exp_β_iter::Int = 1
+        β_gt::Int = 1
         for β_gt::Float64 in βLst[1:end]
             dev_β::Float64 = dev*β_gt
             βStart::Float64 = β_gt - dev_β
 
             println("Ground truth: η :", η_gt, " β :", β_gt)
             model_gt, scene_gt = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
-            filepath_gt = string(filepath,"/experiment_$(exp_η_iter)$(exp_β_iter)/ground_truth")
+            filepath_gt = string(filepath,"/experiment_$(η_gt)_$(β_gt)/ground_truth")
             write_sim_data(model_gt, scene_gt, CameraMatrix, filepath_gt)
             
             gt_h = readdlm(string(filepath_gt,"/Results/data/h.csv"), ',', Float64, '\n', header=false)
@@ -77,7 +69,7 @@ function main()
                     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
                     
                     for sides::Bool in sideList
-                        filepathi = string(filepath,"/experiment_$(exp_η_iter)$(exp_β_iter)/trials/noise_$(noiseLevel)/sides_$(sides)")
+                        filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)/sides_$(sides)")
                         conditions = Conditions(CameraMatrix=CameraMatrix,SIDES=sides,filepath=filepathi)
 
                         θ = [ηStart, βStart]
@@ -90,8 +82,8 @@ function main()
                         η = stats["η"]
                         β = stats["β"]
 
-                        η_accuracy = (1 - abs(η-η_gt)/η_gt)*100
-                        β_accuracy = (1 - abs(β-β_gt)/β_gt)*100
+                        η_accuracy = abs(1 - abs(η-η_gt)/η_gt)*100
+                        β_accuracy = abs(1 - abs(β-β_gt)/β_gt)*100
                         printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
                         printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
 
@@ -206,11 +198,11 @@ function main()
                     β_pred = zeros(Float64, n_samples)
                     costnList = Vector{AbstractVector}(undef, n_samples)
                     iternList = Vector{AbstractVector}(undef, n_samples)
-                    filepathi = string(filepath,"/experiment_$(exp_η_iter)$(exp_β_iter)/trials/noise_$(noiseLevel)")
+                    filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
                     est_h_list = zeros(Float64, round(Int,(steps+1)), n_samples)
 
                     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
-                    filepathi = string(filepath,"/experiment_$(exp_η_iter)$(exp_β_iter)/trials/noise_$(noiseLevel)")
+                    filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
                     for n::Int in 1:n_samples
                         obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
 
@@ -233,8 +225,8 @@ function main()
 
                         est_h_list[:,n] = get_height(est_μ_list, h)
 
-                        η_accuracy = (1 - abs(η-η_gt)/η_gt)*100
-                        β_accuracy = (1 - abs(β-β_gt)/β_gt)*100
+                        η_accuracy = abs(1 - abs(η-η_gt)/η_gt)*100
+                        β_accuracy = asb(1 - abs(β-β_gt)/β_gt)*100
                         printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
                         printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
 
@@ -242,6 +234,15 @@ function main()
                         β_pred[n] = β
                         push!(costnList, costList)
                         push!(iternList, iterList)
+
+                        params = Dict("gt_η" => η_gt,
+                        "gt_β" => β_gt,
+                        "η" => η,
+                        "β" => β,
+                        "η_accuracy" => η_accuracy,
+                        "β_accuracy" => β_accuracy)
+
+                        write_json(string(filepathi,"/Results/data/stats"), params)
 
                         write_csv(string(filepathi,"/Results/data/cost_steps/run_$n"), costList)
                         write_csv(string(filepathi,"/Results/data/cost_steps_iter/run_$n"), iterList)
@@ -268,23 +269,19 @@ function main()
                     Plots.xlims!(1100,1350)
                     Plots.ylims!(420,1100)
                     Plots.savefig(string(filepathi,"/Results/plots/noise_contour_$(noiseLevel).pdf"))
-                    
                 end
             end
-            exp_β_iter += 1
         end
-        exp_η_iter += 1
     end
 end
 
 # save the data to a file and post process
 
-function plot_noise_covariance()
+function plot_noise_covariance(β, noiseLevel)
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/experiment_11/trials/")
 
     Plots.plot([],[],label="")
-    iiter = [2.0 1.0 1.5 0.5]
-    for i::Float64 in iiter
+    for i::Float64 in noiseLevel
         filepath = string(file_path,"noise_$(i)/Results/data/")
 
         η_list = readdlm(string(filepath,"η_est.csv"), ',', Float64, '\n', header=false)
@@ -309,8 +306,7 @@ function plot_noise_covariance()
     ylabel!("β")    
     title!("Covariance")
     Plots.savefig(string(file_path,"covariance.pdf"))
-    β = [1e-6 100 1000 1e4]
-    βsz = 4
+    βsz = length(β)
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
     Plots.plot([],[],label="")
     for i in 1:βsz
@@ -337,9 +333,8 @@ function plot_noise_covariance()
     Plots.savefig(string(file_path,"height_vs_slip.pdf"))
 end
 
-function plot_height_vs_slip()
-    βLst = [0.0001 1 100 1000 10000]
-    βsz = 4
+function plot_height_vs_slip(βLst)
+    βsz = length(βLst)
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
     Plots.plot([],[],label="")
     for i in 1:βsz
@@ -458,7 +453,13 @@ function get_norm(x::AbstractMatrix)
     return norm_x.*800
 end
 
-main()
-# plot_height_vs_slip()
-# plot_field_at_height()
+ηLst = [40.0]
+βLst = [100 1000 1e4]
+# noiseLevelLst = [0.0 0.5 1.0 1.5 2.0]
+noiseLevelLst = [0.0]
+
+main(βLst, noiseLevelLst, ηLst)
+plot_height_vs_slip(βLst)
+plot_field_at_height()
+plot_noise_covariance(βLst, noiseLevelLst)
 
