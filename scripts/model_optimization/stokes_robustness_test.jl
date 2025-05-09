@@ -333,24 +333,27 @@ function plot_noise_covariance(β, noiseLevel)
     Plots.savefig(string(file_path,"height_vs_slip.pdf"))
 end
 
-function plot_height_vs_slip(βLst)
+function plot_height_vs_slip(ηLst, βLst)
     βsz = length(βLst)
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
     Plots.plot([],[],label="")
-    for i in 1:βsz
-        filepath = string(file_path,"/experiment_1$(i)/trials/")
-        filepathJSON = string(file_path,"/experiment_1$(i)/ground_truth/params.json")
-        data = read_json(filepathJSON)
-        β = data["gt_β"]
-        h = readdlm(filepath, ',', Float64, '\n', header=false)
-        Plots.plot!(h, label=string("β = ", β), dpi=400)
+
+    for j::Float64 in ηLst
+        for i::Float64 in βLst
+            filepath = string(file_path,"/experiment_1$(j)_$(i)/ground_truth/Results/data/h.csv")
+            filepathJSON = string(file_path,"/experiment_1$(i)/ground_truth/params.json")
+            data = read_json(filepathJSON)
+            β = data["gt_β"]
+            h = readdlm(filepath, ',', Float64, '\n', header=false)
+            Plots.plot!(h, label=string("β = ", β), dpi=400)
+        end
     end
     xlabel!("Time (s)")
     ylabel!("Height")
     Plots.savefig(string(file_path,"height_vs_slip.pdf"))
 end
 
-function plot_field_at_height()
+function plot_field_at_height(ηLst, βLst)
     h_Vector = Vector{AbstractArray}(undef, 4)
     β_Vector = Vector{Float64}(undef, 4)
     field_Vector = Vector{AbstractArray}(undef, 4)
@@ -359,18 +362,20 @@ function plot_field_at_height()
 
     Plots.plot([],[],label="")
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
-    for i::Int in 1:4
-        filepath = string(file_path,"/experiment_1$(i)/ground_truth/Results/data/h.csv")
-        filepathJSON = string(file_path,"/experiment_1$(i)/ground_truth/params.json")
-        data = read_json(filepathJSON)
-        β = data["gt_β"]
-        h = readdlm(filepath, ',', Float64, '\n', header=false)
-        contours, tmp = read_csv(string(file_path,"/experiment_1$(i)/ground_truth/Results/contour_data"))
-        fields, tmp = read_csv(string(file_path,"/experiment_1$(i)/ground_truth/Results/data/fields/contour_data"))
-        h_Vector[i] = h
-        cont_vector[i] = contours
-        β_Vector[i] = β
-        field_Vector[i] = fields
+    for j::Float64 in ηLst
+        for i::Float64 in βLst
+            filepath = string(file_path,"/experiment_1$(j)_$(i)/ground_truth/Results/data/h.csv")
+            filepathJSON = string(file_path,"/experiment_1$(i)/ground_truth/params.json")
+            data = read_json(filepathJSON)
+            β = data["gt_β"]
+            h = readdlm(filepath, ',', Float64, '\n', header=false)
+            contours, tmp = read_csv(string(file_path,"/experiment_1$(i)/ground_truth/Results/contour_data"))
+            fields, tmp = read_csv(string(file_path,"/experiment_1$(i)/ground_truth/Results/data/fields/contour_data"))
+            h_Vector[i] = h
+            cont_vector[i] = contours
+            β_Vector[i] = β
+            field_Vector[i] = fields
+        end
     end
     # define a reference height
     h_ref = h_Vector[end][end]
@@ -388,12 +393,14 @@ function plot_field_at_height()
         cont_t = cont_vector[i][t_indexes[i]]
         Plots.plot!(cont_t[1,:], cont_t[2,:], label=string("β = ",β_Vector[i]), dpi=400)
     end
+
     Plots.xlabel!("x")
     Plots.ylabel!("y")
     Plots.xlims!(720,740)
     Plots.ylims!(400,1100) 
     Plots.savefig(string(file_path,"field_at_height.pdf"))
     p = Vector{Plots.Plot}(undef, 8)
+
     for i::Int in 1:4
         cont_t = cont_vector[i][t_indexes[i]]
         cont_tm1 = cont_vector[i][t_indexes[i]-1]
@@ -413,13 +420,10 @@ function plot_field_at_height()
 
         p[2*i-1] = Plots.plot(cont_t[1,:], cont_t[2,:], label=string("β = ",β_Vector[i]), dpi=800, aspect_ratio=0.35, xaxis=false, yaxis=false)
         arrow0!.(cont_t[1,elements], cont_t[2,elements], norm_field[1,elements], .0, field[1,elements], .0, as=0.1, lw=1, la=2)
-        # p[2*i-1] = Plots.xlabel!("x")
-        # p[2*i-1] = Plots.ylabel!("z")
 
         p[2*i] = Plots.plot(cont_t[1,:], cont_t[2,:], label=string("β = ",β_Vector[i]), dpi=800, aspect_ratio=0.35, xaxis=false, yaxis=false)
         arrow0!.(cont_t[1,elements], cont_t[2,elements], .0, norm_field[2,elements], .0, field[2,elements]; as=0.1, lw=1, la=2)
-        # p[2*i] = Plots.xlabel!("x")
-        # p[2*i] = Plots.ylabel!("z")
+
         Plots.plot(p[2*i-1], p[2*i], layout=grid(1,2, widths=(4/8,4/8)), size=(1600,560))
         Plots.ylims!(350,1300)
         Plots.xlims!(1000,1500)
@@ -453,13 +457,16 @@ function get_norm(x::AbstractMatrix)
     return norm_x.*800
 end
 
+function plot_heights()
+    
+end
 ηLst = [40.0]
 βLst = [100 1000 1e4]
 # noiseLevelLst = [0.0 0.5 1.0 1.5 2.0]
 noiseLevelLst = [0.0]
 
 main(βLst, noiseLevelLst, ηLst)
-plot_height_vs_slip(βLst)
-plot_field_at_height()
+plot_height_vs_slip(ηLst, βLst)
+plot_field_at_height(ηLst, βLst)
 plot_noise_covariance(βLst, noiseLevelLst)
 

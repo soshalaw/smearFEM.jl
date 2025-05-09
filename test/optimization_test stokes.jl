@@ -212,8 +212,8 @@ for t in titer
     println("dudβ : ")
     display(grad[:,:,2])
 
-    # println("dudβ approx: ")
-    # display(grad_approx_β)
+    println("dudβ approx: ")
+    display(grad_approx_β)
 
     pIter,qIter = size(grad_approx_η)
     for i in 1:pIter  
