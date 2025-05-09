@@ -340,8 +340,8 @@ function plot_height_vs_slip(ηLst, βLst)
 
     for j::Float64 in ηLst
         for i::Float64 in βLst
-            filepath = string(file_path,"/experiment_1$(j)_$(i)/ground_truth/Results/data/h.csv")
-            filepathJSON = string(file_path,"/experiment_1$(i)/ground_truth/params.json")
+            filepath = string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/h.csv")
+            filepathJSON = string(file_path,"/experiment_$(j)_$(i)/ground_truth/params.json")
             data = read_json(filepathJSON)
             β = data["gt_β"]
             h = readdlm(filepath, ',', Float64, '\n', header=false)
@@ -364,13 +364,13 @@ function plot_field_at_height(ηLst, βLst)
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
     for j::Float64 in ηLst
         for i::Float64 in βLst
-            filepath = string(file_path,"/experiment_1$(j)_$(i)/ground_truth/Results/data/h.csv")
-            filepathJSON = string(file_path,"/experiment_1$(i)/ground_truth/params.json")
+            filepath = string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/h.csv")
+            filepathJSON = string(file_path,"/experiment_$(j)_$(i)/ground_truth/params.json")
             data = read_json(filepathJSON)
             β = data["gt_β"]
             h = readdlm(filepath, ',', Float64, '\n', header=false)
-            contours, tmp = read_csv(string(file_path,"/experiment_1$(i)/ground_truth/Results/contour_data"))
-            fields, tmp = read_csv(string(file_path,"/experiment_1$(i)/ground_truth/Results/data/fields/contour_data"))
+            contours, tmp = read_csv(string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/contour_data"))
+            fields, tmp = read_csv(string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/fields/contour_data"))
             h_Vector[i] = h
             cont_vector[i] = contours
             β_Vector[i] = β

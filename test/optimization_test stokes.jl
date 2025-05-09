@@ -20,8 +20,8 @@ nDof_p = 1  # number of degree of freedom per node
 
 CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
 
-sim_time = 15.0
-steps = 15.0
+sim_time = 30.0
+steps = 30.0
 t_steps = sim_time/steps
 time = collect(range(start=t_steps,stop=sim_time,step=t_steps)) # time vector
 
