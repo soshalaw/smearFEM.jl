@@ -193,7 +193,7 @@ function main(βLst, noiseLevelLst, ηLst)
                         Plots.savefig(string(filepathi,"/Results/plots/cost_surface_iter.pdf"))
                     end
                 else
-                    n_samples = 41
+                    n_samples = 10
                     η_pred = zeros(Float64, n_samples)
                     β_pred = zeros(Float64, n_samples)
                     costnList = Vector{AbstractVector}(undef, n_samples)
