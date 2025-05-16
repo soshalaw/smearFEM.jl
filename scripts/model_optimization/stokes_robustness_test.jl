@@ -33,10 +33,12 @@ function main(βLst, noiseLevelLst, ηLst)
     filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test3")
 
     # simulation parameters for the ground truth
-    # sim_time = 120.0
-    # steps = 120.0
-    sim_time = 15.0
-    steps = 15.0
+    sim_time_gt = 120.0
+    steps_gt = 120.0
+    t_steps_gt = sim_time_gt/steps_gt
+
+    sim_time = 10.0
+    steps = 10.0
     t_steps = sim_time/steps
 
     sideList = [false]
@@ -52,7 +54,7 @@ function main(βLst, noiseLevelLst, ηLst)
             βStart::Float64 = β_gt - dev_β
 
             println("Ground truth: η :", η_gt, " β :", β_gt)
-            model_gt, scene_gt = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
+            model_gt, scene_gt = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
             filepath_gt = string(filepath,"/experiment_$(η_gt)_$(β_gt)/ground_truth")
             write_sim_data(model_gt, scene_gt, CameraMatrix, filepath_gt)
             
@@ -65,6 +67,7 @@ function main(βLst, noiseLevelLst, ηLst)
             model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
             for noiseLevel::Float64 in noiseLevelLst
                 ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/Results/contour_data"))  
+                ObsDataList = ObsDataList[1:(round(Int,sim_time)+1)]
                 if noiseLevel == 0.0
                     # Read the gt data 
                     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
@@ -87,10 +90,8 @@ function main(βLst, noiseLevelLst, ηLst)
                         β_accuracy = abs(1 - abs(β-β_gt)/β_gt)*100
                         printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
                         printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
-
-                        reset_model!(model)
-                        model.η = [η]
-                        scene.β = [β]
+                        
+                        model, scene = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
                         # simulate the model with the estimated parameters
                         est_μ_list, others = simulate(model, scene, conditions)
 
@@ -219,8 +220,8 @@ function main(βLst, noiseLevelLst, ηLst)
                         η = stats["η"]
                         β = stats["β"]
 
-                        model.η = [η]
-                        scene.β = [β]
+                        model, scene = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
+                        
                         # simulate the model with the estimated parameters
                         est_μ_list, others = simulate(model, scene, conditions)
 
@@ -578,7 +579,7 @@ function plot_data(ηLst, βLst, noiseLevelLst; n=0)
 end
 
 ηLst = [40.0]
-βLst = [1 100.0 1000.0 1e4]
+βLst = [100.0 1000.0 1e4]
 noiseLevelLst = [0.0 0.5 1.0]
 # noiseLevelLst = [0.0]
 
