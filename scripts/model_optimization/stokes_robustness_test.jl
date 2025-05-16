@@ -14,7 +14,7 @@ function main(βLst, noiseLevelLst, ηLst)
     # test case 
     r = 0.5
     h = 1.0
-    ne = 4
+    ne = 10
     ndim = 3
     FunctionClass_u = "Q2"
     nDof_u = ndim  # number of degree of freedom per node
@@ -52,16 +52,17 @@ function main(βLst, noiseLevelLst, ηLst)
             βStart::Float64 = β_gt - dev_β
 
             println("Ground truth: η :", η_gt, " β :", β_gt)
-            model, scene = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
+            model_gt, scene_gt = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
             filepath_gt = string(filepath,"/experiment_$(η_gt)_$(β_gt)/ground_truth")
-            write_sim_data(model, scene, CameraMatrix, filepath_gt)
+            write_sim_data(model_gt, scene_gt, CameraMatrix, filepath_gt)
             
             gt_h = readdlm(string(filepath_gt,"/Results/data/h.csv"), ',', Float64, '\n', header=false)
             # Write the ground truth
             params = Dict("gt_η" => η_gt, "gt_β" => β_gt)
             write_json(string(filepath_gt,"/params"), params)
-            # ne_exp = 4
-            # model, scene = def_problem(r, h, ne_exp, 0.7*η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, 0.7*β_gt, F, control, viscosity_type, sim_time, t_steps)
+
+            ne_exp = 4
+            model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
             for noiseLevel::Float64 in noiseLevelLst
                 ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/Results/contour_data"))  
                 if noiseLevel == 0.0
@@ -69,7 +70,7 @@ function main(βLst, noiseLevelLst, ηLst)
                     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
                     
                     for sides::Bool in sideList
-                        filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)/sides_$(sides)")
+                        filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
                         conditions = Conditions(CameraMatrix=CameraMatrix,SIDES=sides,filepath=filepathi,ANIMATE=false)
 
                         θ = [ηStart, βStart]
@@ -127,21 +128,21 @@ function main(βLst, noiseLevelLst, ηLst)
                         η_iter = 1:size(ηList,1)
                         β_iter = 1:size(βList,1)
 
-                        # for i::Int in η_iter
-                        #     η = ηList[i]
-                        #     for j::Int in β_iter
-                        #         β = βList[j]
-                        #         reset_model!(model)
-                        #         model.η = [η]
-                        #         scene.β = [β]
-                        #         μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+                        for i::Int in η_iter
+                            η = ηList[i]
+                            for j::Int in β_iter
+                                β = βList[j]
+                                reset_model!(model)
+                                model.η = [η]
+                                scene.β = [β]
+                                μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
 
-                        #         # test the closest point function
-                        #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+                                # test the closest point function
+                                d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
 
-                        #         CostMat[i,j] = sum(d_cp)
-                        #     end
-                        # end
+                                CostMat[i,j] = sum(d_cp)
+                            end
+                        end
 
                         write_csv(string(filepathi,"/Results/data/cost_surface"), CostMat)
                         write_csv(string(filepathi,"/Results/data/cost_surface_η"), ηList)
@@ -277,60 +278,68 @@ end
 
 # save the data to a file and post process
 
-function plot_noise_covariance(β, noiseLevel)
-    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/experiment_11/trials/")
-
-    Plots.plot([],[],label="")
-    for i::Float64 in noiseLevel
-        filepath = string(file_path,"noise_$(i)/Results/data/")
-
-        η_list = readdlm(string(filepath,"η_est.csv"), ',', Float64, '\n', header=false)
-        β_list = readdlm(string(filepath,"β_est.csv"), ',', Float64, '\n', header=false)
-
-        mean_η = mean(η_list)
-        mean_β = mean(β_list)
+function plot_noise_covariance(ηLst, βLst, noiseLevel)
     
-        cov_η = cov(η_list)
-        cov_β = cov(β_list)
-        cov_ηβ = cov(η_list, β_list)
+    for η in ηLst
+        for β in βLst
+            file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/experiment_$(η)_$(β)/trials/")
+            Plots.plot([],[],label="")
+            for i::Float64 in noiseLevel
+                if i != 0.0
+                    filepath = string(file_path,"noise_$(i)/Results/data/")
+                    η_list = readdlm(string(filepath,"η_est.csv"), ',', Float64, '\n', header=false)
+                    β_list = readdlm(string(filepath,"β_est.csv"), ',', Float64, '\n', header=false)
     
-        cov_mat = [cov_η cov_ηβ; cov_ηβ cov_β]
-        mean_vec = [mean_η; mean_β]
-    
-        # Plot the covariance matrix
-        StatsPlots.covellipse!(mean_vec, cov_mat, label="Noise variance $(i) pixels", aspect_ratio=0.25, xtickfont=font(10), ytickfont=font(10), legendfont=font(10), dpi=400)
-        # scatter!(η_list, β_list, label="Data", color=:blue, alpha=0.5)
+                    mean_η = mean(η_list)
+                    mean_β = mean(β_list)
+                
+                    cov_η = cov(η_list)
+                    cov_β = cov(β_list)
+                    cov_ηβ = cov(η_list, β_list)
+                
+                    cov_mat = [cov_η cov_ηβ; cov_ηβ cov_β]
+                    mean_vec = [mean_η; mean_β]
+                
+                    # Plot the covariance matrix
+                    StatsPlots.covellipse!(mean_vec, cov_mat, label="Noise variance $(i) pixels", aspect_ratio=0.25, xtickfont=font(10), ytickfont=font(10), legendfont=font(10), dpi=400)
+                end
+            end
+            xlabel!("η")
+            ylabel!("β")    
+            Plots.savefig(string(file_path,"covariance.pdf"))
+        end
     end
-    
-    xlabel!("η")
-    ylabel!("β")    
-    title!("Covariance")
-    Plots.savefig(string(file_path,"covariance.pdf"))
-    βsz = length(β)
-    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
-    Plots.plot([],[],label="")
-    for i in 1:βsz
-        filepath = string(file_path,"/experiment_1$(i)/noise_2.0/Results/data/")
+    filePath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3")
 
-        η_list = readdlm(string(filepath,"η_est.csv"), ',', Float64, '\n', header=false)
-        β_list = readdlm(string(filepath,"β_est.csv"), ',', Float64, '\n', header=false)
+    for η in ηLst
+        Plots.plot([],[],label="")
+        for β in βLst
+            for i::Float64 in noiseLevel
+                file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/experiment_$(η)_$(β)")
+                filepath = string(file_path,"/trials/noise_1.5/Results/data/")
 
-        mean_η = mean(η_list)
-        mean_β = mean(β_list)
-    
-        cov_η = cov(η_list)
-        cov_β = cov(β_list)
-        cov_ηβ = cov(η_list, β_list)
-    
-        cov_mat = [cov_η cov_ηβ; cov_ηβ cov_β]
-        mean_vec = [mean_η; mean_β]
-    
-        # Plot the covariance matrix
-        StatsPlots.covellipse!(mean_vec, cov_mat, label="β = $(β[i])", aspect_ratio=0.25, xtickfont=font(10), ytickfont=font(10), legendfont=font(10), dpi=400)
+                η_list = readdlm(string(filepath,"η_est.csv"), ',', Float64, '\n', header=false)
+                β_list = readdlm(string(filepath,"β_est.csv"), ',', Float64, '\n', header=false)
+
+                mean_η = mean(η_list)
+                mean_β = mean(β_list)
+            
+                cov_η = cov(η_list)
+                cov_β = cov(β_list)
+                cov_ηβ = cov(η_list, β_list)
+            
+                cov_mat = [cov_η cov_ηβ; cov_ηβ cov_β]
+                mean_vec = [mean_η; mean_β]
+            
+                # Plot the covariance matrix
+                StatsPlots.covellipse(mean_vec, cov_mat, label="β = $(β)", aspect_ratio=0.25, xtickfont=font(10), ytickfont=font(10), legendfont=font(10), dpi=400)
+                xlabel!("η")
+                ylabel!("β")   
+                Plots.savefig(string(file_path,"/covariance_vs_slip.pdf"))
+            end
+        end
     end
-    xlabel!("Time (s)")
-    ylabel!("Height")
-    Plots.savefig(string(file_path,"height_vs_slip.pdf"))
+
 end
 
 function plot_height_vs_slip(ηLst, βLst)
@@ -341,11 +350,8 @@ function plot_height_vs_slip(ηLst, βLst)
     for j::Float64 in ηLst
         for i::Float64 in βLst
             filepath = string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/h.csv")
-            filepathJSON = string(file_path,"/experiment_$(j)_$(i)/ground_truth/params.json")
-            data = read_json(filepathJSON)
-            β = data["gt_β"]
             h = readdlm(filepath, ',', Float64, '\n', header=false)
-            Plots.plot!(h, label=string("β = ", β), dpi=400)
+            Plots.plot!(h, label=string("β = ", i), dpi=400)
         end
     end
     xlabel!("Time (s)")
@@ -463,16 +469,122 @@ function get_norm(x::AbstractMatrix)
     return norm_x.*800
 end
 
-function plot_heights()
-    
+function plot_data(ηLst, βLst, noiseLevelLst; n=0)
+    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
+    plot_colors = [:steelblue :indianred :seagreen :darkorange :mediumpurple :cadetblue :lightcoral :dimgray]
+    for k::Float64 in noiseLevelLst
+        if k == 0.0
+            Plots.plot([],[],label="")
+            for j::Float64 in ηLst
+                for i::Float64 in βLst
+                    filepath = string(file_path,"/experiment_$(j)_$(i)/trials/noise_$(k)/Results/data")
+                    conv = readdlm(string(filepath,"/cost_steps.csv"), ',', Float64, '\n', header=false)
+                    Plots.plot!(conv, label=string("β = ", i), dpi=400, yscale=:log10)
+                end
+            end
+            xlabel!("Iterations")
+            ylabel!("Cost")
+            Plots.savefig(string(file_path,"cost_vs_slip.pdf"))
+        else
+            Plots.plot([],[],label="")
+            n = 10  
+            convMat = Vector{AbstractMatrix}(undef, n)
+            color_iter = 1
+            for j::Float64 in ηLst
+                for i::Float64 in βLst
+                    filepath = string(file_path,"/experiment_$(j)_$(i)/trials/noise_$(k)/Results/data")
+                    for n::Int in 1:n
+                        conv = readdlm(string(filepath,"/cost_steps/run_$(n).csv"), ',', Float64, '\n', header=false)
+                        Plots.plot!(conv, label="", dpi=400, yscale=:log10, color=plot_colors[color_iter], lw=0.5)
+                    end
+                    Plots.plot!([],[],label=string("β = ", i),color=plot_colors[color_iter])
+                    color_iter += 1
+                end
+            end
+            xlabel!("Iterations")
+            ylabel!("Cost")
+            Plots.savefig(string(file_path,"cost_vs_slip_noise_$(k).pdf"))
+        end
+    end
+
+    for k::Float64 in noiseLevelLst
+        if k == 0.0
+            Plots.plot([],[],label="")
+            for j::Float64 in ηLst
+                for i::Float64 in βLst
+                    filepath_gt = string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/h.csv")
+                    filepath = string(file_path,"/experiment_$(j)_$(i)/trials/noise_0.0/Results/data")
+
+                    h_gt = readdlm(filepath_gt, ',', Float64, '\n', header=false)
+                    h_est = readdlm(string(filepath,"/est_h.csv"), ',', Float64, '\n', header=false)
+                    h_error = abs.(h_est - h_gt)
+
+                    Plots.plot!(h_error, label=string("β = ", i), dpi=400)
+                end
+            end
+            xlabel!("Time (s)")
+            ylabel!("Height error")
+            
+            Plots.savefig(string(file_path,"height_error_vs_slip.pdf"))
+
+            Plots.plot([],[],label="")
+            for j::Float64 in ηLst
+                for i::Float64 in βLst
+                    filepath_gt = string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/h.csv")
+                    filepath = string(file_path,"/experiment_$(j)_$(i)/trials/noise_0.0/Results/data")
+
+                    h_est = readdlm(string(filepath,"/est_h.csv"), ',', Float64, '\n', header=false)
+
+                    Plots.plot!(h_est, label=string("β = ", i), dpi=400)
+                end
+            end
+            xlabel!("Time (s)")
+            ylabel!("Height error")
+            Plots.savefig(string(file_path,"height_est_vs_slip.pdf"))
+        else
+            Plots.plot([],[],label="")
+            for j::Float64 in ηLst
+                for i::Float64 in βLst
+                    filepath_gt = string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/h.csv")
+                    filepath = string(file_path,"/experiment_$(j)_$(i)/trials/noise_$(k)/Results/data")
+
+                    h_gt = readdlm(filepath_gt, ',', Float64, '\n', header=false)
+                    h_est = readdlm(string(filepath,"/h_est.csv"), ',', Float64, '\n', header=false)
+                    h_error = abs.(h_est .- h_gt)
+
+                    StatsPlots.errorline!(h_error, label=string("β = ", i), dpi=400, errorstyle=:stick)
+                end
+            end
+            xlabel!("Time (s)")
+            ylabel!("Height error")
+            Plots.savefig(string(file_path,"height_error_vs_slip_noise.pdf"))
+
+            Plots.plot([],[],label="")
+            for j::Float64 in ηLst
+                for i::Float64 in βLst
+                    filepath_gt = string(file_path,"/experiment_$(j)_$(i)/ground_truth/Results/data/h.csv")
+                    filepath = string(file_path,"/experiment_$(j)_$(i)/trials/noise_$(k)/Results/data")
+
+                    h_est = readdlm(string(filepath,"/h_est.csv"), ',', Float64, '\n', header=false)
+
+                    StatsPlots.errorline!(h_est, label=string("β = ", i), dpi=400, errorstyle=:stick)
+                end
+            end
+            xlabel!("Time (s)")
+            ylabel!("Height error")
+            Plots.savefig(string(file_path,"height_est_vs_slip_noise_$(k).pdf"))
+        end
+    end
 end
+
 ηLst = [40.0]
-βLst = [100 1000 1e4]
-noiseLevelLst = [0.0 0.5 1.0 1.5 2.0]
+βLst = [1 100.0 1000.0 1e4]
+noiseLevelLst = [0.0 0.5 1.0]
 # noiseLevelLst = [0.0]
 
 main(βLst, noiseLevelLst, ηLst)
-# plot_height_vs_slip(ηLst, βLst)
-# plot_field_at_height(ηLst, βLst)
-plot_noise_covariance(βLst, noiseLevelLst)
+plot_height_vs_slip(ηLst, βLst)
+plot_field_at_height(ηLst, βLst)
+plot_noise_covariance(ηLst, βLst, noiseLevelLst)
+plot_data(ηLst, βLst, noiseLevelLst, n=10)
 

@@ -203,12 +203,12 @@ end
 function val_check(v::Vector{Float64})
     sz = size(v,1)
     for i in 1:sz
-        if v[i] < 0 && abs(v[i]) < 1
+        if v[i] < 0 
             println("Negative value: ", v[i])
             v[i] = abs(v[i])
-        elseif v[i] < 0
-            println("Negative value: ", v[i])
-            v[i] = 0.5
+        # elseif v[i] < 0
+        #     println("Negative value: ", v[i])
+        #     v[i] = 0.5
         end
     end
     return v
