@@ -579,7 +579,7 @@ function plot_data(ηLst, βLst, noiseLevelLst; n=0)
 end
 
 ηLst = [40.0]
-βLst = [100.0 1000.0 1e4]
+βLst = [1 100.0 1000.0 1e4]
 noiseLevelLst = [0.0 0.5 1.0]
 # noiseLevelLst = [0.0]
 
