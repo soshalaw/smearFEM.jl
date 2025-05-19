@@ -67,17 +67,17 @@ function main(βLst, noiseLevelLst, ηLst)
             model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
             for noiseLevel::Float64 in noiseLevelLst
                 ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/Results/contour_data"))  
+                ObsDataList = obsBorderPts[1:(round(Int,sim_time)+1)]
                 if noiseLevel == 0.0
                     # Read the gt data 
                     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
-                    obsBorderPts_fit = obsBorderPts[1:(round(Int,sim_time)+1)]
                     
                     for sides::Bool in sideList
                         filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
-                        conditions = Conditions(CameraMatrix=CameraMatrix,SIDES=sides,filepath=filepathi,ANIMATE=false)
+                        conditions = Conditions(CameraMatrix=CameraMatrix, SIDES=sides, filepath=filepathi, ANIMATE=false)
 
                         θ = [ηStart, βStart]
-                        stats = fit_model(model, scene, conditions, obsBorderPts_fit, θ)
+                        stats = fit_model(model, scene, conditions, obsBorderPts, θ)
                                             
                         iterList = stats["iterList"]
                         costList = stats["costList"]
@@ -91,12 +91,6 @@ function main(βLst, noiseLevelLst, ηLst)
                         printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
                         printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
                         
-                        model, scene = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
-                        # simulate the model with the estimated parameters
-                        est_μ_list, others = simulate(model, scene, conditions)
-
-                        est_h = get_height(est_μ_list, h)
-
                         if maximum(ηpList) > η_gt+dev_η
                             ηStop = maximum(ηpList)*1.1
                         else
@@ -144,6 +138,12 @@ function main(βLst, noiseLevelLst, ηLst)
                                 CostMat[i,j] = sum(d_cp)
                             end
                         end
+
+                        model, scene = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
+                        # simulate the model with the estimated parameters
+                        est_μ_list, others = simulate(model, scene, conditions)
+
+                        est_h = get_height(est_μ_list, h)
 
                         write_csv(string(filepathi,"/Results/data/cost_surface"), CostMat)
                         write_csv(string(filepathi,"/Results/data/cost_surface_η"), ηList)
@@ -203,16 +203,14 @@ function main(βLst, noiseLevelLst, ηLst)
                     filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
                     est_h_list = zeros(Float64, round(Int,(steps+1)), n_samples)
 
-                    obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
                     filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
                     for n::Int in 1:n_samples
                         obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
-                        obsBorderPts_fit = obsBorderPts[1:(round(Int,sim_time)+1)]
 
                         conditions = Conditions(CameraMatrix=CameraMatrix,filepath=filepathi)
 
                         θ = [ηStart, βStart]
-                        stats = fit_model(model, scene, conditions, obsBorderPts_fit, θ)
+                        stats = fit_model(model, scene, conditions, obsBorderPts, θ)
                                             
                         iterList = stats["iterList"]
                         costList = stats["costList"]
