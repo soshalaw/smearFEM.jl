@@ -201,7 +201,7 @@ function main(βLst, noiseLevelLst, ηLst)
                     costnList = Vector{AbstractVector}(undef, n_samples)
                     iternList = Vector{AbstractVector}(undef, n_samples)
                     filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
-                    est_h_list = zeros(Float64, round(Int,(steps+1)), n_samples)
+                    est_h_list = zeros(Float64, round(Int,(steps_gt+1)), n_samples)
 
                     filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
                     for n::Int in 1:n_samples
