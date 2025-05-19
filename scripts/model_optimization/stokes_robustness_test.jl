@@ -56,7 +56,7 @@ function main(βLst, noiseLevelLst, ηLst)
             println("Ground truth: η :", η_gt, " β :", β_gt)
             model_gt, scene_gt = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
             filepath_gt = string(filepath,"/experiment_$(η_gt)_$(β_gt)/ground_truth")
-            # write_sim_data(model_gt, scene_gt, CameraMatrix, filepath_gt)
+            write_sim_data(model_gt, scene_gt, CameraMatrix, filepath_gt)
             
             gt_h = readdlm(string(filepath_gt,"/Results/data/h.csv"), ',', Float64, '\n', header=false)
             # Write the ground truth
@@ -139,9 +139,9 @@ function main(βLst, noiseLevelLst, ηLst)
                             end
                         end
 
-                        model, scene = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
+                        model_tst, scene_tst = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
                         # simulate the model with the estimated parameters
-                        est_μ_list, others = simulate(model, scene, conditions)
+                        est_μ_list, others = simulate(model_tst, scene_tst, conditions)
 
                         est_h = get_height(est_μ_list, h)
 
@@ -219,10 +219,10 @@ function main(βLst, noiseLevelLst, ηLst)
                         η = stats["η"]
                         β = stats["β"]
 
-                        model, scene = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
+                        model_tst, scene_tst = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
                         
                         # simulate the model with the estimated parameters
-                        est_μ_list, others = simulate(model, scene, conditions)
+                        est_μ_list, others = simulate(model_tst, scene_tst, conditions)
 
                         est_h_list[:,n] = get_height(est_μ_list, h)
 
