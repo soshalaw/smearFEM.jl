@@ -145,7 +145,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
 
     iter::Int = 1
     c_grad::Float64 = 1.0
-    while c_grad ≥ 0.005
+    while true
         println("totd: ", totdinit)
         reset_model!(model)
         t∂2d = zeros(size(∂2d[1]))
@@ -188,7 +188,9 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         push!(iterList,iter)
         println("iteration: ", iter, " ratio: ", c_grad)
 
-        if iter ≥ 100
+        if c_grad < 0.005
+            break
+        elseif iter ≥ 100
             break
         end
     end
