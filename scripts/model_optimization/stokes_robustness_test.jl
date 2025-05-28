@@ -479,7 +479,7 @@ function plot_data(ηLst, βLst, noiseLevelLst; n=0)
                 for i::Float64 in βLst
                     filepath = string(file_path,"/experiment_$(j)_$(i)/trials/noise_$(k)/Results/data")
                     conv = readdlm(string(filepath,"/cost_steps.csv"), ',', Float64, '\n', header=false)
-                    Plots.plot!(conv, label=string("β = ", i), dpi=400, yscale=:log10)
+                    Plots.plot!(conv, label=string("β = ", i), dpi=400, yscale=:log10, xscale=:log10)
                 end
             end
             xlabel!("Iterations")
@@ -578,11 +578,12 @@ function plot_data(ηLst, βLst, noiseLevelLst; n=0)
 end
 
 ηLst = [40.0]
-βLst = [100.0 1000.0 1e4 1]
+βLst = [1.0 100.0 1000.0 1e4]
+# noiseLevelLst = [0.0 0.25 0.5 0.75 1.0]
+# noiseLevelLst = [1 100 1000 10000]
 noiseLevelLst = [0.0 0.25 0.5 0.75 1.0]
-# noiseLevelLst = [0.0]
 
-main(βLst, noiseLevelLst, ηLst)
+# main(βLst, noiseLevelLst, ηLst)
 plot_height_vs_slip(ηLst, βLst)
 plot_field_at_height(ηLst, βLst)
 plot_noise_covariance(ηLst, βLst, noiseLevelLst)
