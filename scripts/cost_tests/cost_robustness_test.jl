@@ -37,13 +37,6 @@ function main()
     ControlList = ["force", "displacement"]
     sideList = [true, false]
 
-    # noiseLevelLst = [0]
-    # YoungtstLst = [30]
-    # νtstLst = [0.3]
-    # ControlList = ["displacement"]
-    # βLst = [100]
-    # sideList = [false]
-
     # Derived Lame constants from Young's modulus and Poisson ratio
     lambdatstLst_ = YoungtstLst.*νtstLst./((νtstLst.+1).*(-2*νtstLst.+1))
     mutstLst_ = YoungtstLst./(2*(νtstLst.+1))
@@ -54,8 +47,8 @@ function main()
 
     Standard = false # Test for Poisson ratio and Young's modulus
     Lame = true # Test for Lame constants
-
-    folder = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
+    homeDir = homedir()
+    filepathi = string(homeDir,"/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
 
     for βtst in βLst
         dev_β = βtst*dev_β_

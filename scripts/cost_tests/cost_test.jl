@@ -26,12 +26,6 @@ function main()
     tSteps = 45
     dateTime = Dates.now()
     sampleNo = 13
-
-    # YoungtstLst = [30 35 40]
-    # νtstLst = [0.25 0.3 0.35]
-    # βLst = [100 1000 10000]
-    # ControlList = ["force", "displacement"]
-
     
     YoungtstLst = [30]
     νtstLst = [0.3]
@@ -49,6 +43,8 @@ function main()
     Standard = false # Test for Poisson ratio and Young's modulus
     Lame = true # Test for Lame constants
 
+    homeDir = homedir()
+    filepath = string(homeDir,"/SMEAR-PhD/SMEAR/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
     for βtst in βLst
         dev_β = βtst*0.3
         βList = collect(range(β-dev_β, stop=β+dev_β, length=sampleNo))
@@ -58,7 +54,6 @@ function main()
                 ############################################################################################################################################
                 ## Testing with youngs modulus and poisson ratio
                 ############################################################################################################################################
-                filepath = string("/home/soshala/SMEAR-PhD/SMEAR/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
                 for Youngtst in YoungtstLst
                     for νtst in νtstLst
                         println("For testing with Young's modulus and Poisson ratio...")

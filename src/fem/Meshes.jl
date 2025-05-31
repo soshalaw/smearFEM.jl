@@ -1,260 +1,26 @@
-# abstract type Mesh end
-
-struct Meshgrid{T <: AbstractMeshgrid} 
-    msh::T
-end
-
-mutable struct Meshgrid1D <: AbstractMeshgrid
-    # Define the properties of the Meshgrid1D struct
-    NodeList::Matrix{Float64}
-    IEN::Matrix{Int}
-    ID::Matrix{Int}
-    FunctionClass::String
-    nNodes::Int
-    ne::Int
-    boundary_nodes::Vector{Int}
-
-    function Meshgrid1D(;
-        NodeList::Matrix{Float64}=Matrix{Float64}(undef, 1, 1),
-        IEN::Matrix{Int}=Matrix{Int}(undef, 2, 1),
-        ID::Matrix{Int}=Matrix{Int}(undef, 1, 1),
-        FunctionClass::String="Q1",
-        nNodes::Int=0,
-        ne::Int=0,
-        boundary_nodes::Vector{Int}=Vector{Int}()
-    )
-        # Constructor for Meshgrid1D
-        new(NodeList, IEN, ID, FunctionClass, nNodes, ne)
-        
-    end
-end
-Int
-mutable struct Meshgrid2D <: AbstractMeshgrid
-    # Define the properties of the Meshgrid2D struct
-    NodeList::Matrix{Float64}
-    IEN::Matrix{Int}
-    IEN_boundaries::Vector{Matrix{Int}}
-    ID::Matrix{Int}
-    FunctionClass::String
-    nNodes::Int
-    ne::Int
-    boundary_nodes::Vector{Vector{Int}}
-
-    function Meshgrid2D(;
-        NodeList::Matrix{Float64}=Matrix{Float64}(undef, 2, 1),
-        IEN::Matrix{Int}=Matrix{Int}(undef, 4, 1),
-        IEN_boundaries::Vector{Matrix{Int}}=[Matrix{Int}(undef, 4, 1)],
-        ID::Matrix{Int}=Matrix{Int}(undef, 2, 1),
-        FunctionClass::String="Q1",
-        nNodes::Int=0,
-        ne::Int=0,
-        boundary_nodes::Vector{Vector{Int}}=[Vector{Int}()]
-    )
-        # Constructor for Meshgrid2D
-        new(NodeList, IEN, IEN_boundaries, ID, FunctionClass, nNodes, ne, boundary_nodes)
-        
-    end
-end
-
-mutable struct Meshgrid3D <: AbstractMeshgrid
-    # Define the properties of the Meshgrid3D struct
-    NodeList::Matrix{Float64}
-    IEN::Matrix{Int}
-    IEN_boundaries::Vector{Matrix{Int}}
-    ID::Matrix{Int}
-    FunctionClass::String
-    nNodes::Int
-    ne::Int
-    boundary_nodes::Vector{Vector{Int}}
-
-    function Meshgrid3D(;
-        NodeList::Matrix{Float64}=Matrix{Float64}(undef, 3, 1),
-        IEN::Matrix{Int}=Matrix{Int}(undef, 8, 1),
-        IEN_boundaries::Vector{Matrix{Int}}=[Matrix{Int}(undef, 4, 1)],
-        ID::Matrix{Int}=Matrix{Int}(undef, 3, 1),
-        FunctionClass::String="Q1",
-        nNodes::Int=0,
-        ne::Int=0,
-        boundary_nodes::Vector{Vector{Int}}=[Vector{Int}()]
-    )
-        # Constructor for Meshgrid3D
-        new(NodeList, IEN, IEN_boundaries, ID, FunctionClass, nNodes, ne, boundary_nodes)
-        
-    end
-end
-mutable struct MeshgridLine <: AbstractMeshgrid
-    # Define the properties of the MeshgridLine struct
-    lx::Number
-    NodeList::Matrix{Float64}
-    IEN::Matrix{Int}
-    ID::Matrix{Int}
-    FunctionClass::String
-    nNodes::Int
-    ne::Int
-
-    function MeshgridLine(;
-        NodeList::Matrix{Float64}=Matrix{Float64}(undef, 1, 1),
-        IEN::Matrix{Int}=Matrix{Int}(undef, 2, 1),
-        ID::Matrix{Int}=Matrix{Int}(undef, 1, 1),
-        FunctionClass::String="Q1",
-        nNodes::Int=0,
-        ne::Int=0,
-        lx::Number=0.0
-    )
-        # Constructor for MeshgridLine
-        new(NodeList, IEN, ID, FunctionClass, nNodes, ne, lx)
-        
-    end
-end
-
-mutable struct MeshgridSquare <: AbstractMeshgrid
-    # Define the properties of the MeshgridSquare struct
-    lx::Number
-    ly::Number
-    NodeList::Matrix{Float64}
-    IEN::Matrix{Int}
-    IEN_top::Matrix{Int}
-    IEN_bottom::Matrix{Int}
-    IEN_side::Matrix{Int}
-    ID::Matrix{Int}
-    FunctionClass::String
-    nNodes::Int
-    ne::Int
-    top_nodes::Vector{Int}
-    bottom_nodes::Vector{Int}
-    side_nodes::Vector{Int}
-
-    function MeshgridSquare(;
-        lx::Number=0.0,
-        ly::Number=0.0,
-        NodeList::Matrix{Float64}=Matrix{Float64}(undef, 2, 1),
-        IEN::Matrix{Int}=Matrix{Int}(undef, 4, 1),
-        IEN_top::Matrix{Int}=Matrix{Int}(undef, 2, 1),
-        IEN_bottom::Matrix{Int}=Matrix{Int}(undef, 2, 1),
-        IEN_side::Matrix{Int}=Matrix{Int}(undef, 2, 1),
-        ID::Matrix{Int}=Matrix{Int}(undef, 2, 1),
-        FunctionClass::String="Q1",
-        nNodes::Int=0,
-        ne::Int=0,
-        top_nodes::Vector{Int}=Vector{Int}(),
-        bottom_nodes::Vector{Int}=Vector{Int}(),
-        side_nodes::Vector{Int}=Vector{Int}()
-    )
-        # Constructor for MeshgridSquare
-        new(lx, ly, NodeList, IEN, IEN_top, IEN_bottom, IEN_side, ID,
-            FunctionClass, nNodes, ne, top_nodes, bottom_nodes, side_nodes)
-        
-    end
-end
-
-mutable struct MeshgridCube <: AbstractMeshgrid
-    # Define the properties of the MeshgridCube struct
-    lx::Number
-    ly::Number
-    lz::Number
-    NodeList::Matrix{Float64}
-    IEN::Matrix{Int}
-    IEN_top::Matrix{Int}
-    IEN_bottom::Matrix{Int}
-    IEN_sides::Dict{Symbol, Matrix{Int}}
-    ID::Matrix{Int}
-    FunctionClass::String
-    nNodes::Int
-    ne::Int
-    top_nodes::Vector{Int}
-    bottom_nodes::Vector{Int}
-    side_nodes::Vector{Int}
-    initial_state::Matrix{Float64}
-
-    function MeshgridCube(;
-        lx::Number=0.0,
-        ly::Number=0.0,
-        lz::Number=0.0,
-        NodeList::Matrix{Float64}=Matrix{Float64}(undef, 3, 1),
-        IEN::Matrix{Int}=Matrix{Int}(undef, 8, 1),
-        IEN_top::Matrix{Int}=Matrix{Int}(undef, 4, 1),
-        IEN_bottom::Matrix{Int}=Matrix{Int}(undef, 4, 1),
-        IEN_sides_::Vector{Matrix{Int}}=[Matrix{Int}(undef, 4, 1), Matrix{Int}(undef, 4, 1), Matrix{Int}(undef, 4, 1), Matrix{Int}(undef, 4, 1)],
-        ID::Matrix{Int}=Matrix{Int}(undef, 3, 1),
-        FunctionClass::String="Q1",
-        nNodes::Int=0,
-        ne::Int=0,
-        top_nodes::Vector{Int}=Vector{Int}(),
-        bottom_nodes::Vector{Int}=Vector{Int}(),
-        side_nodes::Vector{Int}=Vector{Int}()
-    )
-        # Constructor for MeshgridCube
-        IEN_sides = Dict(:front => IEN_sides_[1], :back => IEN_sides_[2], :left => IEN_sides_[3], :right => IEN_sides_[4])
-
-        new(lx, ly, lz, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides,
-            ID, FunctionClass, nNodes, ne, top_nodes, bottom_nodes, side_nodes, NodeList)
-        
-    end
-end
-
-mutable struct MeshgridCylinder <: AbstractMeshgrid
-    # Define the properties of the MeshgridCylinder struct
-    r::Number
-    h::Number
-    NodeList::Matrix{Float64}
-    IEN::Matrix{Int}
-    IEN_top::Matrix{Int}
-    IEN_bottom::Matrix{Int}
-    IEN_sides::Matrix{Int}
-    ID::Matrix{Int}
-    FunctionClass::String
-    nNodes::Int
-    ne::Int
-    top_nodes::Vector{Int}
-    bottom_nodes::Vector{Int}
-    side_nodes::Vector{Int}
-    initial_state::Matrix{Float64}
-
-    function MeshgridCylinder(;
-        r::Number=0.0,
-        h::Number=0.0,
-        NodeList::Matrix{Float64}=Matrix{Float64}(undef, 3, 1),
-        IEN::Matrix{Int}=Matrix{Int}(undef, 8, 1),
-        IEN_top::Matrix{Int}=Matrix{Int}(undef, 4, 1),
-        IEN_bottom::Matrix{Int}=Matrix{Int}(undef, 4, 1),
-        IEN_sides::Matrix{Int}=Matrix{Int}(undef, 4, 1),
-        ID::Matrix{Int}=Matrix{Int}(undef, 3, 1),
-        FunctionClass::String="Q1",
-        nNodes::Int=0,
-        ne::Int=0,
-        top_nodes::Vector{Int}=Vector{Int}(),
-        bottom_nodes::Vector{Int}=Vector{Int}(),
-        side_nodes::Vector{Int}=Vector{Int}(),
-    )
-        # Constructor for MeshgridCylinder
-        new(r, h, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides,
-            ID, FunctionClass, nNodes, ne, top_nodes, bottom_nodes, side_nodes, NodeList)
-        
-    end
-end
-
 """
-    meshgrid_line(l,ne;FunctionClass="Q1")
+    meshgrid_line(x0,x1,ne,FunctionClass="Q1")
 
 Set up the mesh grid for a 1D line
 
 # Arguments:
-- `l::Number` : length of the line
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
 - `ne::Int` : number of elements
 - `FunctionClass::String` : type of basis function (Q1 or Q2)
 
 # Returns:
-- `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
 - `IEN::Matrix{Int64}{2^ndim,ne^ndim}` : array of elements
 """
-function meshgrid_line(l::Number, ne::Int64; FunctionClass::String="Q1")
+function meshgrid_line(x0,x1,ne;FunctionClass="Q1")
     BorderNodes = Int64[]
     if FunctionClass == "Q1"
         nNodes = ne+1 # number of nodes in each direction
         NodeList = zeros(Float64, 1,nNodes)
         IEN = zeros(Int64,2,ne) # IEN for the 1D mesh
 
-        x = collect(Float64, range(-l/2, l/2, length=nNodes))
+        x = collect(range(x0, x1, length=nNodes))
 
         m = 1
         for i in 1:nNodes # x direction
@@ -276,7 +42,7 @@ function meshgrid_line(l::Number, ne::Int64; FunctionClass::String="Q1")
         NodeList = zeros(Float64,1,nNodes)
         IEN = zeros(Int64,3,ne) # IEN for the 1D mesh
 
-        x = collect(Float64, range(-l/2, l/2, length=nNodes))
+        x = collect(range(x0, x1, length=nNodes))
 
         m = 1
         for i in 1:nNodes # x direction
@@ -301,46 +67,46 @@ function meshgrid_line(l::Number, ne::Int64; FunctionClass::String="Q1")
 end
 
 """
-    meshgrid_square(lx,ly,ne,ndim;FunctionClass="Q1")
+    meshgrid_square(x0,x1,y0,y1,ne,ndim;FunctionClass="Q1")
 
 Set up the mesh grid for a 2D square
 
 # Arguments:
-- `x0::Number` : x-coordinate of the lower left corner of the domain
-- `x1::Number` : x-coordinate of the upper right corner of the domain
-- `y0::Number` : y-coordinate of the lower left corner of the domain
-- `y1::Number` : y-coordinate of the upper right corner of the domain
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
+- `y0::Float64` : y-coordinate of the lower left corner of the domain
+- `y1::Float64` : y-coordinate of the upper right corner of the domain
 - `ne::Int` : number of elements
 - `ndim::Int` : number of dimensions
 - `FunctionClass::String` : type of basis function
 
 # Returns:
-- `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
 - `IEN::Matrix{Int64}{2^ndim,ne^ndim}` : array of elements
 - `ID::Matrix{Int64}{nNodes,ndim}` : array of node IDs
 - `IEN_top::Matrix{Int64}{2^(ndim-1),ne^(ndim-1)}` : array of elements on the top surface
-- `IEN_bottom::Matrix{Int64}{2^(ndim-1),ne^(ndim-1)}` : array of elements on the bottom surface
+- `IEN_btm::Matrix{Int64}{2^(ndim-1),ne^(ndim-1)}` : array of elements on the bottom surface
 - `BorderNodes::Vector{Int64}` : array of nodes on the boundaries
 - `BottomBorderNodes::Vector{Int64}` : array of nodes on the bottom boundary
 - `TopBorderNodes::Vector{Int64}` : array of nodes on the top boundary
 """
-function meshgrid_square(lx::Number, ly::Number, ne::Int64; FunctionClass::String="Q1")
+function meshgrid_square(x0,x1,y0,y1,ne,ndim;FunctionClass="Q1")
             
     BorderNodes = Int64[]
     BottomBorderNodes = Int64[]
     TopBorderNodes = Int64[]
-    ndim = 2
+
     if FunctionClass == "Q1"
         nNodes = ne+1 # number of nodes in each direction
         NodeList = zeros(Float64,ndim,(nNodes)^ndim)
         IEN = zeros(Int64,2^ndim,ne^ndim)              # IEN for the 3D mesh
         IEN_top = zeros(Int64,2^(ndim-1),ne^(ndim-1))  # IEN for the top surface
-        IEN_bottom = zeros(Int64,2^(ndim-1),ne^(ndim-1))  # IEN for the bottom surface
+        IEN_btm = zeros(Int64,2^(ndim-1),ne^(ndim-1))  # IEN for the bottom surface
         IEN_side = zeros(Int64,2^(ndim-1),ne^(ndim-1)) # IEN for the side surfaces
         ID = zeros(Int64,ndim,(nNodes)^ndim)
 
-        x = collect(Float64, range(-lx/2, lx/2, length=nNodes))
-        y = collect(Float64, range(-ly/2, ly/2, length=nNodes))
+        x = collect(range(x0, x1, length=nNodes))
+        y = collect(range(y0, y1, length=nNodes))
     
         m = 1
         for j in 1:nNodes      # y direction
@@ -365,8 +131,8 @@ function meshgrid_square(lx::Number, ly::Number, ne::Int64; FunctionClass::Strin
                 IEN[3,n] = j*(nNodes) + i + 1
                 IEN[4,n] = j*(nNodes) + i
                 if j == 1 # populate the IEN for the bottom surface
-                    IEN_bottom[1,i] = IEN[1,n]
-                    IEN_bottom[2,i] = IEN[2,n]
+                    IEN_btm[1,i] = IEN[1,n]
+                    IEN_btm[2,i] = IEN[2,n]
                 elseif j == ne # populate the IEN for the top surface
                     IEN_top[1,i] = IEN[4,n]
                     IEN_top[2,i] = IEN[3,n]
@@ -379,11 +145,11 @@ function meshgrid_square(lx::Number, ly::Number, ne::Int64; FunctionClass::Strin
         NodeList = zeros(Float64,ndim,(nNodes)^ndim)
         IEN = zeros(Int64,3^ndim,ne^ndim) # IEN for the 3D mesh
         IEN_top = zeros(Int64,3^(ndim-1),ne^(ndim-1)) # IEN for the top surface
-        IEN_bottom = zeros(Int64,3^(ndim-1),ne^(ndim-1)) # IEN for the bottom surface
+        IEN_btm = zeros(Int64,3^(ndim-1),ne^(ndim-1)) # IEN for the bottom surface
         ID = zeros(Int64,ndim,(nNodes)^ndim)
 
-        x = collect(Float64, range(-lx/2, lx/2, length=nNodes))
-        y = collect(Float64, range(-ly/2, ly/2, length=nNodes))
+        x = collect(range(x0, x1, length=nNodes))
+        y = collect(range(y0, y1, length=nNodes))
         
         m = 1
         for j in 1:nNodes # y direction
@@ -412,53 +178,52 @@ function meshgrid_square(lx::Number, ly::Number, ne::Int64; FunctionClass::Strin
     else
         throw(ArgumentError("Basis function type $FunctionClass is unknown"))
     end
-    return NodeList, IEN, ID, IEN_top, IEN_bottom, [BorderNodes, BottomBorderNodes, TopBorderNodes]
+    return NodeList, IEN, ID, IEN_top, IEN_btm, [BorderNodes, BottomBorderNodes, TopBorderNodes]
 end
 
 """
-    meshgrid_cube(lx,ly,lz,ne,ndim;FunctionClass="Q1")
+    meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim;FunctionClass="Q1")
 
 Set up the mesh grid for a 3D cube
 
 # Arguments:
-- `x0::Number` : x-coordinate of the lower left corner of the domain
-- `x1::Number` : x-coordinate of the upper right corner of the domain
-- `y0::Number` : y-coordinate of the lower left corner of the domain
-- `y1::Number` : y-coordinate of the upper right corner of the domain
-- `z0::Number` : z-coordinate of the lower left corner of the domain
-- `z1::Number` : z-coordinate of the upper right corner of the domain
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
+- `y0::Float64` : y-coordinate of the lower left corner of the domain
+- `y1::Float64` : y-coordinate of the upper right corner of the domain
+- `z0::Float64` : z-coordinate of the lower left corner of the domain
+- `z1::Float64` : z-coordinate of the upper right corner of the domain
 - `ne::Int` : number of elements
 - `ndim::Int` : number of dimensions
 - `FunctionClass::String` : type of basis function
 
 # Returns:
-- `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
 - `IEN::Matrix{Int64}{ne^ndim,2^ndim}` : array of elements
 - `ID::Matrix{Int64}{nNodes,ndim}` : array of node IDs
 - `IEN_top::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the top surface
-- `IEN_bottom::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the bottom surface
+- `IEN_btm::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the bottom surface
 - `BorderNodes::Vector{Int64}` : array of nodes on the boundaries
 - `BottomBorderNodes::Vector{Int64}` : array of nodes on the bottom boundary
 - `TopBorderNodes::Vector{Int64}` : array of nodes on the top boundary
 """
-function meshgrid_cube(lx::Number, ly::Number, lz::Number, ne::Int64; FunctionClass::String="Q1")
+function meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim;FunctionClass=FunctionClass)
     BorderNodes = Int64[]
     BottomBorderNodes = Int64[]
     TopBorderNodes = Int64[]
-    ndim = 3
 
     if FunctionClass == "Q1"
         nNodes = ne+1 # number of nodes in each direction
         NodeList = zeros(Float64,ndim,(nNodes)^ndim)
         IEN = zeros(Int64,2^ndim,ne^ndim) # IEN for the 3D mesh
         IEN_top = zeros(Int64,2^(ndim-1),ne^(ndim-1)) # IEN for the top surface
-        IEN_bottom = zeros(Int64,2^(ndim-1),ne^(ndim-1)) # IEN for the bottom surface
+        IEN_btm = zeros(Int64,2^(ndim-1),ne^(ndim-1)) # IEN for the bottom surface
         IEN_side = zeros(Int64,2^(ndim-1),ne^(ndim-1)) # IEN for the side surfaces
         ID = zeros(Int64,ndim,(nNodes)^ndim)
 
-        x = collect(Float64, range(-lx/2, lx/2, length=nNodes))
-        y = collect(Float64, range(-ly/2, ly/2, length=nNodes))
-        z = collect(Float64, range(0, lz, length=nNodes))
+        x = collect(range(x0, x1, length=nNodes))
+        y = collect(range(y0, y1, length=nNodes))
+        z = collect(range(z0, z1, length=nNodes))
         
         m = 1
         for k in 1:nNodes # z direction
@@ -497,10 +262,10 @@ function meshgrid_cube(lx::Number, ly::Number, lz::Number, ne::Int64; FunctionCl
                     IEN[7,n] = k*(nNodes)^2 + j*(nNodes) + i + 1
                     IEN[8,n] = k*(nNodes)^2 + j*(nNodes) + i
                     if k == 1 # populate the IEN for the bottom surface
-                        IEN_bottom[1,nb] = IEN[1,n]
-                        IEN_bottom[2,nb] = IEN[2,n]
-                        IEN_bottom[3,nb] = IEN[3,n]
-                        IEN_bottom[4,nb] = IEN[4,n]
+                        IEN_btm[1,nb] = IEN[1,n]
+                        IEN_btm[2,nb] = IEN[2,n]
+                        IEN_btm[3,nb] = IEN[3,n]
+                        IEN_btm[4,nb] = IEN[4,n]
                         nb = nb + 1
                     elseif k == ne # populate the IEN for the top surface
                         IEN_top[1,nt] = IEN[5,n]
@@ -508,7 +273,7 @@ function meshgrid_cube(lx::Number, ly::Number, lz::Number, ne::Int64; FunctionCl
                         IEN_top[3,nt] = IEN[7,n]
                         IEN_top[4,nt] = IEN[8,n]
                         nt = nt + 1
-                    # elseif j == 1 || j == ne || i == 1 || i == ne # populate the IEN for the side surfaces
+                    # elseif j == 1 || j == ne || i == 1 || i == ne
                     #     IEN_side[1,n] = IEN[1,n]
                     #     IEN_side[2,n] = IEN[2,n]
                     #     IEN_side[3,n] = IEN[3,n]
@@ -517,25 +282,6 @@ function meshgrid_cube(lx::Number, ly::Number, lz::Number, ne::Int64; FunctionCl
                     #     IEN_side[6,n] = IEN[6,n]
                     #     IEN_side[7,n] = IEN[7,n]
                     #     IEN_side[8,n] = IEN[8,n]
-                    #     IEN_side[9,n] = IEN[9,n]
-                    #     IEN_side[10,n] = IEN[10,n]
-                    #     IEN_side[11,n] = IEN[11,n]
-                    #     IEN_side[12,n] = IEN[12,n]
-                    #     IEN_side[13,n] = IEN[13,n]
-                    #     IEN_side[14,n] = IEN[14,n]
-                    #     IEN_side[15,n] = IEN[15,n]
-                    #     IEN_side[16,n] = IEN[16,n]
-                    #     IEN_side[17,n] = IEN[17,n]
-                    #     IEN_side[18,n] = IEN[18,n]
-                    #     IEN_side[19,n] = IEN[19,n]
-                    #     IEN_side[20,n] = IEN[20,n]
-                    #     IEN_side[21,n] = IEN[21,n]
-                    #     IEN_side[22,n] = IEN[22,n]
-                    #     IEN_side[23,n] = IEN[23,n]
-                    #     IEN_side[24,n] = IEN[24,n]
-                    #     IEN_side[25,n] = IEN[25,n]
-                    #     IEN_side[26,n] = IEN[26,n]
-                    #     IEN_side[27,n] = IEN[27,n]
                     end
                     n = n + 1
                 end
@@ -546,14 +292,12 @@ function meshgrid_cube(lx::Number, ly::Number, lz::Number, ne::Int64; FunctionCl
         NodeList = zeros(Float64,ndim,(nNodes)^ndim)
         IEN = zeros(Int64,3^ndim,ne^ndim) # IEN for the 3D mesh
         IEN_top = zeros(Int64,3^(ndim-1),ne^(ndim-1)) # IEN for the top surface
-        IEN_bottom = zeros(Int64,3^(ndim-1),ne^(ndim-1)) # IEN for the bottom surface
-        IEN_side = zeros(Int64,3^(ndim-1),ne^(ndim-1)) # IEN for the side surfaces
+        IEN_btm = zeros(Int64,3^(ndim-1),ne^(ndim-1)) # IEN for the bottom surface
         ID = zeros(Int64,ndim,(nNodes)^ndim)
 
-        x = collect(Float64, range(-lx/2, lx/2, length=nNodes))
-        y = collect(Float64, range(-ly/2, ly/2, length=nNodes))
-        # z = collect(Float64, range(-lz/2, lz/2, length=nNodes))
-        z = collect(Float64, range(0, lz, length=nNodes))
+        x = collect(range(x0, x1, length=nNodes))
+        y = collect(range(y0, y1, length=nNodes))
+        z = collect(range(z0, z1, length=nNodes))
 
         m = 1
         for k in 1:nNodes
@@ -611,15 +355,15 @@ function meshgrid_cube(lx::Number, ly::Number, lz::Number, ne::Int64; FunctionCl
                     IEN[26,n] = 2*k*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i
                     IEN[27,n] = (2*k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i
                     if k == 1
-                        IEN_bottom[1,nb] = IEN[1,n]
-                        IEN_bottom[2,nb] = IEN[2,n]
-                        IEN_bottom[3,nb] = IEN[3,n]
-                        IEN_bottom[4,nb] = IEN[4,n]
-                        IEN_bottom[5,nb] = IEN[9,n]
-                        IEN_bottom[6,nb] = IEN[10,n]
-                        IEN_bottom[7,nb] = IEN[11,n]
-                        IEN_bottom[8,nb] = IEN[12,n]
-                        IEN_bottom[9,nb] = IEN[25,n]
+                        IEN_btm[1,nb] = IEN[1,n]
+                        IEN_btm[2,nb] = IEN[2,n]
+                        IEN_btm[3,nb] = IEN[3,n]
+                        IEN_btm[4,nb] = IEN[4,n]
+                        IEN_btm[5,nb] = IEN[9,n]
+                        IEN_btm[6,nb] = IEN[10,n]
+                        IEN_btm[7,nb] = IEN[11,n]
+                        IEN_btm[8,nb] = IEN[12,n]
+                        IEN_btm[9,nb] = IEN[25,n]
                         nb = nb + 1
                     elseif k == ne
                         IEN_top[1,nt] = IEN[5,n]
@@ -632,34 +376,6 @@ function meshgrid_cube(lx::Number, ly::Number, lz::Number, ne::Int64; FunctionCl
                         IEN_top[8,nt] = IEN[16,n]
                         IEN_top[9,nt] = IEN[26,n]
                         nt = nt + 1
-                    # elseif j == 1 || j == ne || i == 1 || i == ne # populate the IEN for the side surfaces
-                    #     IEN_side[1,n] = IEN[1,n]
-                    #     IEN_side[2,n] = IEN[2,n]
-                    #     IEN_side[3,n] = IEN[3,n]
-                    #     IEN_side[4,n] = IEN[4,n]
-                    #     IEN_side[5,n] = IEN[5,n]
-                    #     IEN_side[6,n] = IEN[6,n]
-                    #     IEN_side[7,n] = IEN[7,n]
-                    #     IEN_side[8,n] = IEN[8,n]
-                    #     IEN_side[9,n] = IEN[9,n]
-                    #     IEN_side[10,n] = IEN[10,n]
-                    #     IEN_side[11,n] = IEN[11,n]
-                    #     IEN_side[12,n] = IEN[12,n]
-                    #     IEN_side[13,n] = IEN[13,n]
-                    #     IEN_side[14,n] = IEN[14,n]
-                    #     IEN_side[15,n] = IEN[15,n]
-                    #     IEN_side[16,n] = IEN[16,n]
-                    #     IEN_side[17,n] = IEN[17,n]
-                    #     IEN_side[18,n] = IEN[18,n]
-                    #     IEN_side[19,n] = IEN[19,n]
-                    #     IEN_side[20,n] = IEN[20,n]
-                    #     IEN_side[21,n] = IEN[21,n]
-                    #     IEN_side[22,n] = IEN[22,n]
-                    #     IEN_side[23,n] = IEN[23,n]
-                    #     IEN_side[24,n] = IEN[24,n]
-                    #     IEN_side[25,n] = IEN[25,n]
-                    #     IEN_side[26,n] = IEN[26,n]
-                    #     IEN_side[27,n] = IEN[27,n]
                     end
                     n = n + 1
                 end
@@ -669,7 +385,7 @@ function meshgrid_cube(lx::Number, ly::Number, lz::Number, ne::Int64; FunctionCl
         throw(ArgumentError("Basis function type $FunctionClass is unknown"))
     end
 
-    return NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, [BorderNodes, BottomBorderNodes, TopBorderNodes] 
+    return NodeList, IEN, ID, IEN_top, IEN_btm, [BorderNodes, BottomBorderNodes, TopBorderNodes]
 end
 
 """
@@ -678,20 +394,20 @@ end
 Set up the mesh grid for a 2D annulus ring
 
 # Arguments:
-- `r1::Number` : inner radius
-- `r2::Number` : outer radius
-- `theta1::Number` : start angle
-- `theta2::Number` : end angle
+- `r1::Float64` : inner radius
+- `r2::Float64` : outer radius
+- `theta1::Float64` : start angle
+- `theta2::Float64` : end angle
 - `ne::Int` : number of elements
 
 # Returns:
-- `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
 - `IEN::Matrix{Int64}{ne^ndim,2^ndim}` : connectivity matrix
 """
-function meshgrid_ring(r1::Number, r2::Number, theta1::Number, theta2::Number, ne::Int64, ndim::Int64)
+function meshgrid_ring(r1,r2, theta1, theta2, ne, ndim)
     
-    r = collect(Float64, range(r1, r2, length=ne+1))
-    theta = collect(Float64, range(theta1, theta2, length=ne+1))
+    r = collect(range(r1, r2, length=ne+1))
+    theta = collect(range(theta1, theta2, length=ne+1))
 
     NodeList = zeros(Float64,2,(ne+1)*(ne+1))
 
@@ -721,90 +437,33 @@ function meshgrid_ring(r1::Number, r2::Number, theta1::Number, theta2::Number, n
 end
 
 """
-    meshgrid_cylinder(r,h,ne,ndim;FunctionClass="Q1")
-Set up the mesh grid for a 3D cylinder
-# Arguments:
-- `r::Number` : radius of the cylinder
-- `h::Number` : height of the cylinder
-- `ne::Int` : number of elements
-- `FunctionClass::String` : type of basis function
-# Returns:
-- `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
-- `IEN::Matrix{Int64}{ne^ndim,2^ndim}` : array of elements
-- `ID::Matrix{Int64}{nNodes,ndim}` : array of node IDs
-- `IEN_top::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the top surface
-- `IEN_bottom::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the bottom surface
-- `BorderNodes::Vector{Int64}` : array of nodes on the boundaries
-"""
-function meshgrid_cylinder(r::Number, h::Number, ne::Int64; FunctionClass::String="Q1")
-
-    NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, h, ne, FunctionClass=FunctionClass)
-    NodeList = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r)
-
-    mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID, FunctionClass=FunctionClass,
-            nNodes=nNodes, ne=ne, side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2])
-
-    return mesh
-end
-
-# Functions to manipulate the meshgrid
-
-"""
     inflate_cylinder(NodeList, x0, x1, y0, y1)
 
-Inflate the cube into a cylinder.
+Inflate the sphere to a cylinder of unit radius and height
 
 # Arguments:
-- `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
-- `x0::Number` : x-coordinate of the lower left corner of the domain
-- `x1::Number` : x-coordinate of the upper right corner of the domain
-- `y0::Number` : y-coordinate of the lower left corner of the domain
-- `y1::Number` : y-coordinate of the upper right corner of the domain
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
+- `x0::Float64` : x-coordinate of the lower left corner of the domain
+- `x1::Float64` : x-coordinate of the upper right corner of the domain
+- `y0::Float64` : y-coordinate of the lower left corner of the domain
+- `y1::Float64` : y-coordinate of the upper right corner of the domain
 
 # Returns:
-- `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
+- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
 """
-function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::Number, x1::Number, y0::Number, y1::Number, rad::Number=1.0)
-    NodeListCyl = copy(NodeListCube)
-    center = [0.5*(x0 + x1), 0.5*(y0 + y1)]
+function inflate_cylinder(NodeList_, x0, x1, y0, y1)
+    NodeList = copy(NodeList_)
+    x_center = [0.5*(x0 + x1), 0.5*(y0 + y1)]
 
-    iter = 1:size(NodeListCyl,2)
+    iter = 1:size(NodeList,2)
     for i in iter
-        scale = maximum(abs.(NodeListCyl[1:2,i] - center))
+        scale = maximum(abs.(NodeList[1:2,i] - x_center))
         if scale ≈ 0.
-            NodeListCyl[1:2,i] = [0 , 0]
+            NodeList[1:2,i] = [0 , 0]
         else
-            r = sqrt((NodeListCyl[1,i] - center[1])^2 + (NodeListCyl[2,i] - center[2])^2)
-            NodeListCyl[1:2,i] = 2*rad*scale*(NodeListCyl[1:2,i] - center)/r
+            r = sqrt((NodeList[1,i] - x_center[1])^2 + (NodeList[2,i] - x_center[2])^2)
+            NodeList[1:2,i] = scale*(NodeList[1:2,i] - x_center)/r
         end
     end
-    return NodeListCyl
+    return NodeList
 end
-
-"""
-    reset_mesh!(mesh::AbstractMeshgrid)
-
-Reset the mesh to its initial state by updating the `NodeList` to the initial state of the mesh.
-
-# Arguments:
-- `mesh::AbstractMeshgrid`: The mesh object to be reset.
-"""
-function reset_mesh!(mesh::AbstractMeshgrid)
-    mesh.NodeList = mesh.initial_state
-end
-
-"""
-    update_initial_state!(mesh::AbstractMeshgrid, new_state::Matrix{Float64})
-
-Update the initial state of the mesh and reset the current state of the mesh to the initial state.
-
-# Arguments:
-- `mesh::AbstractMeshgrid`: The mesh object whose state is to be updated.
-- `new_state::Matrix{Float64}`: The new state to be assigned to the mesh.
-
-"""
-function update_initial_state!(mesh::AbstractMeshgrid, new_state::Matrix{Float64})
-    mesh.initial_state = copy(new_state)  # Use `copy` to avoid unintended mutations
-    reset_mesh!(mesh)  # Reset the mesh to the initial state
-end
-

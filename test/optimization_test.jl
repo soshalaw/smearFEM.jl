@@ -56,8 +56,8 @@ ne = 4
 ndim = 3
 FunctionClass = "Q2"
 nDof = ndim  # number of degree of freedom per node
-endTime = 10
-steps = 10
+endTime = 3
+steps = 3
 tSteps = endTime/steps
 Control = "force"
 
@@ -70,6 +70,7 @@ Youngtst = 30
 μ = Youngtst/(2*(1+νtst))
 β = 100
 Δλ = 1e-8
+Δμ = 1e-8
 Δβ = 1e-8
 
 NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass)  # generate the mesh grid
@@ -78,50 +79,76 @@ NodeListCylinder = inflate_cylinder(NodeList, x0, x1, y0, y1)
 mode = "lame"    
 cMat = get_cMat(mode, λ, μ) # E, ν or λ, μ
 dcdλ = get_cMat(mode, 1.0 , 0.0)
+dcdμ = get_cMat(mode, 0.0 , 1.0)
 
 model = def_model("linear_elasticity", ne=ne, NodeList=NodeListCylinder, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
-                 FunctionClass=FunctionClass, Young=λ, ν=μ, cMat=cMat,dcMatdλ=dcdλ)
+                 FunctionClass=FunctionClass, Young=λ, ν=μ, cMat=cMat, dcMatdλ=dcdλ, dcMatdμ=dcdμ)
 
-K, dKdλ = assemble_system(model, GRAD=true)  
+K, dKdλ, dKdμ = assemble_system(model, GRAD=true)  
 
-# get ∂K/∂θ with finite (central) difference
-ΔcMatp = get_cMat(mode, (λ+Δλ), μ)
-model.cMat = ΔcMatp
+# get ∂K/∂λ with finite (central) difference
 
-ΔKp = assemble_system(model)
+ΔcMatpdλ = get_cMat(mode, (λ+Δλ), μ)
+model.cMat = ΔcMatpdλ
+ΔKpdλ = assemble_system(model)
 
 ΔcMatm = get_cMat(mode, (λ-Δλ), μ)
 model.cMat = ΔcMatm
+ΔKmdλ = assemble_system(model)
 
-ΔKm = assemble_system(model)
+dKdλ_approx = (ΔKpdλ-ΔKmdλ)/(2*Δλ)
 
-dKdλ_approx = (ΔKp-ΔKm)/(2*Δλ)
-
-iIter,jIter = size(ΔKp)
+iIter,jIter = size(ΔKpdλ)
 for i in 1:iIter  
     for j in 1:jIter
         @test dKdλ_approx[i,j] ≈ dKdλ[i,j] atol=10^(-5)
     end
 end
 
+# get ∂K/∂μ with finite (central) difference
+ΔcMatpdμ = get_cMat(mode, λ, (μ+Δμ))
+model.cMat = ΔcMatpdμ
+ΔKpdμ = assemble_system(model)
+
+ΔcMatm = get_cMat(mode, λ, (μ-Δμ))
+model.cMat = ΔcMatm
+ΔKmdμ = assemble_system(model)
+
+dKdμ_approx = (ΔKpdμ-ΔKmdμ)/(2*Δμ)
+iIter,jIter = size(ΔKpdμ)
+for i in 1:iIter  
+    for j in 1:jIter
+        @test dKdμ_approx[i,j] ≈ dKdμ[i,j] atol=10^(-5)
+    end
+end
+
 p, dp, model = simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, λ, μ, ndim, FunctionClass, nDof, β, μ_tp, μ_btm, mode="lame", GRAD=true)
 Nodes = model.NodeList + p
 
-# estimate dp with finite (central) difference
+# estimate dpdλ with finite (central) difference
 Δp_Lp, model = simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, (λ+Δλ), μ, ndim, FunctionClass, nDof, β, μ_tp, μ_btm, mode="lame")
 ΔNodesLp = model.NodeList + Δp_Lp
 
 Δp_Lm, model = simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, (λ-Δλ), μ, ndim, FunctionClass, nDof, β, μ_tp, μ_btm, mode="lame")
 ΔNodesLm = model.NodeList + Δp_Lm
 
-# estimate dp with finite (central) difference
+# estimate dpdμ with finite (central) difference
+Δp_μp, model = simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, λ, (μ+Δμ), ndim, FunctionClass, nDof, β, μ_tp, μ_btm, mode="lame")
+ΔNodesμp = model.NodeList + Δp_μp
+
+Δp_μm, model = simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, λ, (μ-Δμ), ndim, FunctionClass, nDof, β, μ_tp, μ_btm, mode="lame")
+ΔNodesμm = model.NodeList + Δp_μm
+
+# estimate dpdβ with finite (central) difference
 Δp_βp, model = simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, λ, μ, ndim, FunctionClass, nDof, (β+Δβ), μ_tp, μ_btm, mode="lame")
 ΔNodesβp = model.NodeList + Δp_βp
 
 Δp_βm, model = simulate_single_tstep(x0, x1, y0, y1, z0, z1, ne, λ, μ, ndim, FunctionClass, nDof, (β-Δβ), μ_tp, μ_btm, mode="lame")
 ΔNodesβm = model.NodeList + Δp_βm
 
+
 dLp_approx = (ΔNodesLp-ΔNodesLm)/(2*Δλ)
+dμp_approx = (ΔNodesμp-ΔNodesμm)/(2*Δμ)
 dβp_approx = (ΔNodesβp-ΔNodesβm)/(2*Δβ)
 
 # display(dp[:,:,1])
@@ -136,7 +163,13 @@ end
 
 for i in 1:iIter  
     for j in 1:jIter
-        @test dp[i,j,2] ≈ dβp_approx[i,j] atol=10^(-5)
+        @test dp[i,j,2] ≈ dμp_approx[i,j] atol=10^(-5)
+    end
+end
+
+for i in 1:iIter  
+    for j in 1:jIter
+        @test dp[i,j,3] ≈ dβp_approx[i,j] atol=10^(-5)
     end
 end
 
@@ -147,10 +180,16 @@ BorderPts2D, dudλ, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, Camer
 ΔBorderPts2DLp, ΔSurfacePts2DLp = extract_borders(ΔNodesLp, CameraMatrix, BorderNodesList, GRAD=false)
 ΔBorderPts2DLm, ΔSurfacePts2DLm = extract_borders(ΔNodesLm, CameraMatrix, BorderNodesList, GRAD=false)
 
+# estimate dudμ with finite (central) difference
+ΔBorderPts2Dμp, ΔSurfacePts2Dμp = extract_borders(ΔNodesμp, CameraMatrix, BorderNodesList, GRAD=false)
+ΔBorderPts2Dμm, ΔSurfacePts2Dμm = extract_borders(ΔNodesμm, CameraMatrix, BorderNodesList, GRAD=false)
+
+# estimate dudβ with finite (central) difference
 ΔBorderPts2Dβp, ΔSurfacePts2Dβp = extract_borders(ΔNodesβp, CameraMatrix, BorderNodesList, GRAD=false)
 ΔBorderPts2Dβm, ΔSurfacePts2Dβm = extract_borders(ΔNodesβm, CameraMatrix, BorderNodesList, GRAD=false)
 
 ∇SurfacePts2DL_approx = (ΔSurfacePts2DLp - ΔSurfacePts2DLm)/(2*Δλ)
+∇SurfacePts2Dμ_approx = (ΔSurfacePts2Dμp - ΔSurfacePts2Dμm)/(2*Δμ)
 ∇SurfacePts2Dβ_approx = (ΔSurfacePts2Dβp - ΔSurfacePts2Dβm)/(2*Δβ)
 
 iIter,jIter = size(∇SurfacePts2DL_approx)
@@ -162,16 +201,29 @@ end
 
 for i in 1:iIter  
     for j in 1:jIter
-        @test ∇SurfacePts2D[i,j,2] ≈ ∇SurfacePts2Dβ_approx[i,j] atol=10^(-4)
+        @test ∇SurfacePts2D[i,j,2] ≈ ∇SurfacePts2Dμ_approx[i,j] atol=10^(-4)
+    end
+end
+
+for i in 1:iIter  
+    for j in 1:jIter
+        @test ∇SurfacePts2D[i,j,3] ≈ ∇SurfacePts2Dβ_approx[i,j] atol=10^(-4)
     end
 end
 
 dudλ_approx = (ΔBorderPts2DLp - ΔBorderPts2DLm)/(2*Δλ)
+dudμ_approx = (ΔBorderPts2Dμp - ΔBorderPts2Dμm)/(2*Δμ)
 
 iIter,jIter = size(dudλ_approx)
 for i in 1:iIter  
     for j in 1:jIter
         @test dudλ[i,j,1] ≈ dudλ_approx[i,j] atol=10^(-4)
+    end
+end
+
+for i in 1:iIter  
+    for j in 1:jIter
+        @test dudλ[i,j,2] ≈ dudμ_approx[i,j] atol=10^(-4)
     end
 end
 
@@ -184,17 +236,22 @@ costList, ∇d, ∇2d, pairsList = closest_point([BorderPts2D],[BorderPts2D_gt],
 ΔcostList_Lp, pairsList_Lp = closest_point([ΔBorderPts2DLp],[BorderPts2D_gt])
 ΔcostList_Lm, pairsList_Lm = closest_point([ΔBorderPts2DLm],[BorderPts2D_gt])
 
+ΔcostList_μp, pairsList_μp = closest_point([ΔBorderPts2Dμp],[BorderPts2D_gt])
+ΔcostList_μm, pairsList_μm = closest_point([ΔBorderPts2Dμm],[BorderPts2D_gt])
+
 ΔcostList_βp, pairsList_βp = closest_point([ΔBorderPts2Dβp],[BorderPts2D_gt])
 ΔcostList_βm, pairsList_βm = closest_point([ΔBorderPts2Dβm],[BorderPts2D_gt])
 
 ∇dL_approx = (ΔcostList_Lp - ΔcostList_Lm)/(2*Δλ)
+∇dμ_approx = (ΔcostList_μp - ΔcostList_μm)/(2*Δμ)
 ∇dβ_approx = (ΔcostList_βp - ΔcostList_βm)/(2*Δβ)
 
 println(size(∇d[1]))
 iIter = size(∇d[1],1)
 
 @test ∇d[1][1] ≈ ∇dL_approx[1] atol=10^(-4)
-@test ∇d[1][2] ≈ ∇dβ_approx[1] atol=10^(-4)
+@test ∇d[1][2] ≈ ∇dμ_approx[1] atol=10^(-4)
+@test ∇d[1][3] ≈ ∇dβ_approx[1] atol=10^(-4)
 
 ## testing Σ∇p(θ)
 μ_list, gradList, simBorderPts, splinex, spliney, mdl, SurfacePt2D = test(x0, x1, y0, y1, z0, z1, ne, λ, μ, ndim, FunctionClass, nDof, writeData=true, filepath = file,
@@ -204,6 +261,12 @@ iIter = size(∇d[1],1)
                                                                                     β, CameraMatrix, endTime, tSteps, Control)
 
 μ_list, simBorderPts, ΔsimBorderPts_mL, splinex, spliney, mdl, ΔSurfacePt2D_mL = test(x0, x1, y0, y1, z0, z1, ne, (λ-Δλ), μ, ndim, FunctionClass, nDof, 
+                                                                                    β, CameraMatrix, endTime, tSteps, Control)
+
+μ_list, simBorderPts, ΔsimBorderPts_pμ, splinex, spliney, mdl, ΔSurfacePt2D_pL = test(x0, x1, y0, y1, z0, z1, ne, λ, (μ+Δμ), ndim, FunctionClass, nDof, 
+                                                                                    β, CameraMatrix, endTime, tSteps, Control)
+
+μ_list, simBorderPts, ΔsimBorderPts_mμ, splinex, spliney, mdl, ΔSurfacePt2D_mL = test(x0, x1, y0, y1, z0, z1, ne, λ, (μ-Δμ), ndim, FunctionClass, nDof,
                                                                                     β, CameraMatrix, endTime, tSteps, Control)
 
 μ_list, simBorderPts, ΔsimBorderPts_pβ, splinex, spliney, mdl, ΔSurfacePt2D_mL = test(x0, x1, y0, y1, z0, z1, ne, λ, μ, ndim, FunctionClass, nDof, 
@@ -217,14 +280,17 @@ global tdq_approx = zeros(size(SurfacePt2D[1]))
 
 titer = 1:length(ΔSurfacePt2D_mL)
 for t in titer
+    println("t = ", t)
     grad = gradList[t]
     grad_approx_L = (ΔsimBorderPts_pL[t]- ΔsimBorderPts_mL[t])/(2*Δλ)
+    grad_approx_μ = (ΔsimBorderPts_pμ[t]- ΔsimBorderPts_mμ[t])/(2*Δμ)
     grad_approx_β = (ΔsimBorderPts_pβ[t]- ΔsimBorderPts_mβ[t])/(2*Δβ)
     pIter,qIter = size(grad_approx_L)
     for i in 1:pIter  
         for j in 1:qIter
             @test grad[i,j,1] ≈ grad_approx_L[i,j] atol=10^(-1)
-            @test grad[i,j,2] ≈ grad_approx_β[i,j] atol=10^(-1)
+            @test grad[i,j,2] ≈ grad_approx_μ[i,j] atol=10^(-1)
+            @test grad[i,j,3] ≈ grad_approx_β[i,j] atol=10^(-1)
         end
     end
 end

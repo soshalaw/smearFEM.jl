@@ -3,18 +3,22 @@ using smearFEM
 function main()
 
     # test case 
-    r = 0.5
-    h = 1
-    ne = 4
+    x0 = 0
+    x1 = 1
+    y0 = 0
+    y1 = 1
+    z0 = 0
+    z1 = 1
+    ne = 2
     ndim = 3
     FunctionClass = "Q2"
     CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-
-    filepath = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Lame/test_experiment/"
+    homeDir = homedir()
+    filepath = string(homeDir,"/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Lame/test_experiment/")
     set_file(filepath)
-    SIDES = false
+    SIDES = true
 
-    initialize_mesh_test(r, h, ne, FunctionClass, CameraMatrix, filepath, SIDES)
+    initialize_mesh_test(x0, x1, y0, y1, z0, z1, ne, ndim, FunctionClass, CameraMatrix, filepath, SIDES)
 end    
 
 main()

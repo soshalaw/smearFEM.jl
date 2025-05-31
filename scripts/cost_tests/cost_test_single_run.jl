@@ -34,8 +34,8 @@ function main()
     dev = 0.4
     mode = "lame" # "standard" or "lame"
     dateTime = Dates.now()
-    # filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
-    filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/test2")
+    homeDir = homedir()
+    filepathi = string(homeDir,"/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
 
     β = 100
     Youngtst = 30

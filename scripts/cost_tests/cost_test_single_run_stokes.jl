@@ -36,8 +36,8 @@ function main()
     Control = "velocity" # "force" or "displacement"
     dev = 0.4
     dateTime = Dates.now()
-    # filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
-    filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/test5")
+    homeDir = homedir()
+    filepathi = string(homeDir,"/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/robusteness/",Date(dateTime),"/",Time(dateTime),"/")
 
     βtst = 100
     ηtst = 20
