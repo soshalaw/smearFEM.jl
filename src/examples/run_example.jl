@@ -227,18 +227,20 @@ Initializes the simulation and writes the data to a file.
 # Returns
 None.
 """
-function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, CameraMatrix::AbstractMatrix{Float64}, filepath::String="nothing", SIDES::Bool=false)
+function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, 
+                        filepath::String="nothing", SIDES::Bool=false)
     model::AbstractModel = deepcopy(_model)
     scene::AbstractScenario = deepcopy(_scene)
-    conditions = Conditions(ANIMATE=true, WRITECONTOUR=true, CameraMatrix=CameraMatrix, filepath=filepath)
+    conditions = Conditions(ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true, camera_matrix=camera_matrix, camera_pose=camera_pose, filepath=filepath)
 
     # run the simulation
-    h, gradList, borderPts2DList, splinep, pos3D, pos2D = simulate(model, scene, conditions)
+    h, gradList, borderPts2DList, fields, pos3D, pos2D = simulate(model, scene, conditions)
 
     h = get_height(h, model.mesh_u.h)
     write_csv(string(filepath,"/Results/data/h"), h)
-    write_contour_data(string(conditions.filepath,"/Results/data/2D_surface_points"), pos2D)
+    write_contour_data(string(conditions.filepath,"/Results/data/projected_surface_points"), pos2D)
     write_contour_data(string(filepath,"/Results/data/3D_points"), pos3D)
+    write_contour_data(string(filepath,"/Results/data/motion_fields"), fields)
 
 end
 
@@ -383,33 +385,29 @@ Initializes the mesh and writes the data to a file.
 - `splinep::Vector{Vector{Float64}}`: x coordinates of the border observation at each timestep interpolated.
 - `splineq::Vector{Vector{Float64}}`: y coordinates of the border observation at each timestep interpolated.
 """
-function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String, CameraMatrix::AbstractMatrix{Float64}, filepath::String="nothing", 
+function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64},filepath::String="nothing", 
                             SIDES::Bool=false)
 
     isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
     set_file(filepath)
     
-    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)  # generate the mesh grid
+    mesh = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)
 
-    BorderPts2D, Nodes2D = extract_borders(NodeList, CameraMatrix, BorderNodesList, 2*ne+1, SIDES)
+    BorderPts2D, SurfacePts2D = extract_borders(mesh.NodeList, camera_matrix, camera_pose, mesh.side_nodes, mesh.nNodes, SIDES)
     pi, qi = fit_curve(border=BorderPts2D)
-
-    SideBorders = BorderNodesList[1]
-    BottomBorders = BorderNodesList[2]
-    TopBorders = BorderNodesList[3]
         
-    pos3D = AbstractArray[NodeList]                                                             # store the solution fields of the mesh in 3D
-    pos2D = AbstractArray[Nodes2D]                                                                   # store the solution fields of the mesh in 2D
-    surfaceNodesList = Float64[NodeList[:,SideBorders] NodeList[:,BottomBorders] NodeList[:,TopBorders]]  # store the solution fields of the surfaces in 3D
+                                               # store the solution fields of the border nodes in 2D 
+    pos3D = AbstractArray[mesh.NodeList]                                                             # store the solution fields of the mesh in 3D
+    pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
     borderPts2DList = AbstractArray[BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
     splinep = AbstractArray[pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
     splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes 
     writeborderList = [vcat(pi', qi')]
 
-    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
     write_contour_data(string(filepath,"/Results"), writeborderList)
 
-    return borderPts2DList, surfaceNodesList, splinep, splineq
+    return borderPts2DList, pos2D, splinep, splineq
 end
 
 """

@@ -958,7 +958,7 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
 
     else
         z0Bound = 0
-        z1Bound = 1
+        z1Bound = 50
 
         rCol = Array{Int}(undef,0)
         iter = 1:size(NodeList_cached,2)
@@ -1069,7 +1069,7 @@ function set_model(r::Number, h::Number, ne::Int64, η::Vector{Float64}, ndim::I
 end
 
 """
-simulate(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, CameraMatrix, endTime, t_steps, Control, cParam; WRITEDATA=false, filepath=nothing, SIDES::Bool=false)
+simulate(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, camera_matrix, endTime, t_steps, Control, cParam; WRITEDATA=false, filepath=nothing, SIDES::Bool=false)
 
 Simulate the Stokes problem for a given mesh over a given time period. 
 
@@ -1088,7 +1088,7 @@ Simulate the Stokes problem for a given mesh over a given time period.
 - `FunctionClass_p::String` : type of basis function for the pressure field
 - `nDof_p::Int` : number of degrees of freedom for the pressure field
 - `β::Float64` : parameter for the pressure field
-- `CameraMatrix::Matrix{Float64}` : camera matrix
+- `camera_matrix::Matrix{Float64}` : camera matrix
 - `endTime::Float64` : end time of the simulation
 - `t_steps::Float64` : time step of the simulation
 - `Control::String` : type of control for the simulation
@@ -1109,10 +1109,10 @@ Simulate the Stokes problem for a given mesh over a given time period.
 - `pos2D::Vector{Float64}` : position of the mesh in 2D
 """
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
-    @unpack ID, NodeList, side_nodes, nNodes = mdl.mesh_u
+    @unpack ID, NodeList, top_nodes, bottom_nodes, side_nodes, nNodes = mdl.mesh_u
     @unpack η, nDof_u, nDof_p, ndim = mdl
     @unpack β, viscosity_type, q_d, C_uc, t_steps, sim_time, control = scene
-    @unpack CameraMatrix, SIDES = conditions
+    @unpack camera_matrix, camera_pose, SIDES = conditions
 
     β_cached::Float64 = β[1]
     viscosity_type_cached::String = viscosity_type
@@ -1130,7 +1130,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     nDof_p_cached::Int = nDof_p
     ndim_cached::Int = ndim
     NodeList_cached::Matrix{Float64} = NodeList
-    side_nodes_cached::Vector{Int} = side_nodes
+    top_node_list_cached::Vector{Int} = top_nodes # top nodes
+    bottom_node_list_cached::Vector{Int} = bottom_nodes # bottom nodes
+    side_node_list_cached::Vector{Int} = side_nodes
     ID_cached::Matrix{Int} = ID
 
     @unpack nNodes = mdl.mesh_p
@@ -1138,7 +1140,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     η_cached::Any = η
 
-    CameraMatrix_cached::Matrix{Float64} = CameraMatrix
+    camera_matrix_cached::Matrix{Float64} = camera_matrix
+    camera_pose_cached::Matrix{Float64} = camera_pose
     SIDES_cached::Bool = SIDES
     
     C_Tu = transpose(C_uc_cached)           # transpose the constraint matrix
@@ -1154,7 +1157,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     μu_btm = 0  
     μu_side = 0
     
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, CameraMatrix_cached, side_nodes_cached, nNodes_u_cached, SIDES_cached)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, nNodes_u_cached, SIDES_cached)
     pi, qi = fit_curve(border=BorderPts2D)
     
     dqdη = zeros(Float64, size(q_d_cached_top))
@@ -1162,6 +1165,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     fields = AbstractArray[]  
     surface_fields = AbstractArray[]
+    surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')] # store the solution fields of the mesh in 3D
     gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)]                                                 # store the solution fields of the border nodes in 2D 
     pos3D = AbstractArray[NodeList_cached]                                                             # store the solution fields of the mesh in 3D
     pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
@@ -1220,9 +1224,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dA_freedβ .= C_Tu*dAdβ*C_uc_cached             # extract the free part of the stiffness matrix
             # mul!(dA_freedβ, C_Tu*dAdβ, C_uc_cached) # extract the free part of the stiffness matrix
 
-            M = [A_free B_free C_Tu*A*q_d_cached_top; B_free' zero B'*q_d_cached_top; q_d_cached_top'*A*C_uc_cached q_d_cached_top'B q_d_cached_top'A*q_d_cached_top] # assemble the system of equations
-            dMdη = [dA_freedη dB_free C_Tu*dAdη*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdη*C_uc_cached q_d_cached_top'dB q_d_cached_top'dAdη*q_d_cached_top]
-            dMdβ = [dA_freedβ dB_free C_Tu*dAdβ*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdβ*C_uc_cached q_d_cached_top'dB q_d_cached_top'dAdβ*q_d_cached_top]
+            M = [A_free B_free C_Tu*A*q_d_cached_top; B_free' zero B'*q_d_cached_top; q_d_cached_top'*A*C_uc_cached q_d_cached_top'*B q_d_cached_top'A*q_d_cached_top] # assemble the system of equations
+            dMdη = [dA_freedη dB_free C_Tu*dAdη*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdη*C_uc_cached q_d_cached_top'*dB q_d_cached_top'dAdη*q_d_cached_top]
+            dMdβ = [dA_freedβ dB_free C_Tu*dAdβ*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdβ*C_uc_cached q_d_cached_top'*dB q_d_cached_top'dAdβ*q_d_cached_top]
             
             r = [-C_Tu*A*q_d; -B'*q_d; scene.cParam[iter].-q_d_cached_top'A*q_d]    # assemble the system of equations
             drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdη*q_d] # solve the system of equations
@@ -1265,10 +1269,10 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
             dmdθ_out = @views cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
             
-            NodeList_cached = NodeList_cached + motion # update the mesh grid
+            NodeList_cached = NodeList_cached + motion*t_steps_cached # update the mesh grid
             mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
         
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, CameraMatrix_cached, side_nodes_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
 
             mat_nan_inf_check(dudθ[:,:,1])
@@ -1277,7 +1281,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             # store the solutions in a list
             push!(output, μ_tp)
             push!(fields, motion)
-            push!(surface_fields, motion[:,side_nodes_cached])
+            push!(surface_fields, motion[:,side_node_list_cached])
+            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]'))
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_cached)
@@ -1352,16 +1357,17 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
             dmdθ_out = cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
             
-            NodeList_cached = NodeList_cached + motion # update the mesh grid
+            NodeList_cached = NodeList_cached + motion*t_steps_cached # update the mesh grid
             mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
         
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, CameraMatrix_cached, side_nodes_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
 
             # store the solutions in a list
             # push!(output, F_est[1])
             push!(fields, motion)
-            push!(surface_fields, motion[:,side_nodes_cached])
+            push!(surface_fields, motion[:,side_node_list_cached])
+            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]'))
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_cached)
@@ -1387,6 +1393,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     if conditions.WRITEVTK
         write_scene(string(conditions.filepath,"/Results"), pos3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, fields, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
     end
-    return output, gradList, borderPts2DList, splinep, pos3D, pos2D
+    return output, gradList, borderPts2DList, fields, surface_pts_3D, pos2D
 end
 

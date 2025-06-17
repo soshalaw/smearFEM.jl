@@ -194,9 +194,9 @@ function animate3D(fields; filepath="images/3D_grid.gif")
     iter = 1:sz
     animation = @animate for i in iter
         Plots.scatter3d(fields[i][1,:], fields[i][2,:], fields[i][3,:], markersize=2, label=:"", dpi=:400)
-        Plots.xlims!(-1,1)
-        Plots.ylims!(-1,1)
-        Plots.zlims!(0,1)
+        # Plots.xlims!(-1,1)
+        # Plots.ylims!(-1,1)
+        # Plots.zlims!(0,1)
         Plots.xlabel!("x")
         Plots.ylabel!("y")
         Plots.zlabel!("z")
