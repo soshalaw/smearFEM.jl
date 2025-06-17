@@ -1163,7 +1163,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     dqdη = zeros(Float64, size(q_d_cached_top))
     dqdβ = zeros(Float64, size(q_d_cached_top))
 
-    fields = AbstractArray[]  
+    displacement = AbstractArray[]  
     surface_fields = AbstractArray[]
     surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')] # store the solution fields of the mesh in 3D
     gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)]                                                 # store the solution fields of the border nodes in 2D 
@@ -1263,13 +1263,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dpdη = dpfdη;                  # assemble the solution
             dpdβ = dpfdβ;                  # assemble the solution
 
-            motion = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'
+            motion = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'* t_steps_cached # extract the motion of the mesh grid
             dmdη_out = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
             dmdβ_out = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
 
             dmdθ_out = @views cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
             
-            NodeList_cached = NodeList_cached + motion*t_steps_cached # update the mesh grid
+            NodeList_cached = NodeList_cached + motion # update the mesh grid
             mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
         
             BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
@@ -1280,7 +1280,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
             # store the solutions in a list
             push!(output, μ_tp)
-            push!(fields, motion)
+            push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
             push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]'))
             push!(gradList,dudθ)
@@ -1351,13 +1351,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dpdη = dpfdη;                  # assemble the solution
             dpdβ = dpfdβ;                  # assemble the solution
 
-            motion = hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'
+            motion = hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # get the motion of the mesh
             dmdη_out = hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
             dmdβ_out = hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
 
             dmdθ_out = cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
             
-            NodeList_cached = NodeList_cached + motion*t_steps_cached # update the mesh grid
+            NodeList_cached = NodeList_cached + motion # update the mesh grid
             mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
         
             BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
@@ -1365,7 +1365,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
             # store the solutions in a list
             # push!(output, F_est[1])
-            push!(fields, motion)
+            push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
             push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]'))
             push!(gradList,dudθ)
@@ -1391,8 +1391,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         write_contour_data(string(conditions.filepath,"/Results"), writeborderList)
     end
     if conditions.WRITEVTK
-        write_scene(string(conditions.filepath,"/Results"), pos3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, fields, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
+        write_scene(string(conditions.filepath,"/Results"), pos3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, displacement, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
     end
-    return output, gradList, borderPts2DList, fields, surface_pts_3D, pos2D
+    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D
 end
 
