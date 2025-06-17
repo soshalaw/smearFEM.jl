@@ -1279,7 +1279,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             mat_nan_inf_check(dudθ[:,:,2])
 
             # store the solutions in a list
-            push!(output, μ_tp)
+            push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
             push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]'))
