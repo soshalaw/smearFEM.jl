@@ -398,13 +398,14 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String,
         
                                                # store the solution fields of the border nodes in 2D 
     pos3D = AbstractArray[mesh.NodeList]                                                             # store the solution fields of the mesh in 3D
+    surface_pts_3D = AbstractArray[vcat(mesh.NodeList[:,mesh.top_nodes]', mesh.NodeList[:,mesh.bottom_nodes]', mesh.NodeList[:,mesh.side_nodes]')] # store the solution fields of the mesh in 3D
     pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
     borderPts2DList = AbstractArray[BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
     splinep = AbstractArray[pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
     splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes 
     writeborderList = [vcat(pi', qi')]
 
-    animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+    animate_fields(filepath = string(filepath,"/Results/images"), fields=surface_pts_3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
     write_contour_data(string(filepath,"/Results"), writeborderList)
 
     return borderPts2DList, pos2D, splinep, splineq

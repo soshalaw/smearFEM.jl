@@ -1385,7 +1385,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     # write the data to a file
     if conditions.ANIMATE
-        animate_fields(filepath = string(conditions.filepath,"/Results/images"), fields=pos3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+        animate_fields(filepath = string(conditions.filepath,"/Results/images"), fields=surface_pts_3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
     end
     if conditions.WRITECONTOUR
         write_contour_data(string(conditions.filepath,"/Results"), writeborderList)

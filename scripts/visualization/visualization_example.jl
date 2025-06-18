@@ -3,7 +3,7 @@ using smearFEM
 function main()
 
     # test case 
-    r = 5.0
+    r = 3.0
     h = 10.0
     ne = 4
     ndim = 3
