@@ -1165,7 +1165,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     displacement = AbstractArray[]  
     surface_fields = AbstractArray[]
-    surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')] # store the solution fields of the mesh in 3D
+    surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
     gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)]                                                 # store the solution fields of the border nodes in 2D 
     pos3D = AbstractArray[NodeList_cached]                                                             # store the solution fields of the mesh in 3D
     pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
@@ -1282,7 +1282,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]'))
+            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_cached)
@@ -1367,7 +1367,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             # push!(output, F_est[1])
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]'))
+            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_cached)
@@ -1391,7 +1391,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         write_contour_data(string(conditions.filepath,"/Results"), writeborderList)
     end
     if conditions.WRITEVTK
-        write_scene(string(conditions.filepath,"/Results"), pos3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, displacement, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
+        write_scene(string(conditions.filepath,"/Results"), surface_pts_3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, displacement, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
     end
     return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D
 end

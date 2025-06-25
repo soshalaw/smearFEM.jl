@@ -125,6 +125,9 @@ function read_csv(filepath::String)
     spliney = AbstractArray[]
 
     for file in csv_files
+        if !endswith(file, ".csv")  # check if the file is a CSV file
+            continue
+        end
         obsData = readdlm(file, ',', Float64, '\n', header=false)  # read the observation data
         push!(ObsDataList, obsData') # store the transpose of the observation data to fit the comparison function
         push!(splinex, obsData[:,1])

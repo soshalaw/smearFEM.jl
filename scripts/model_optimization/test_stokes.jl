@@ -134,9 +134,9 @@ function test_opt_bulk()
 end
 
 function test_opt_const()
-    # test case 
-    r::Float64 = 0.5
-    h::Float64 = 1.0
+    scale = 100
+    r::Float64 = 0.2*scale  # radius of the cylinder in mm
+    h::Float64 = 0.5*scale  # height of the cylinder in mm
     ne::Int = 4
     ndim::Int = 3
     FunctionClass_u::String = "Q2"
@@ -153,20 +153,21 @@ function test_opt_const()
     viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
     noiseLevel::Float64 = 0
     SIDES::Bool = false
-    filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
-
+    # filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
+    filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthtic_data/exp_1")
+    
     # simulation parameters for the ground truth
-    sim_time::Float64 = 20.0
-    steps::Float64 = 20.0
+    sim_time::Float64 = 60.0 # simulation time in seconds
+    steps::Float64 = 120.0 # number of time steps
     t_steps::Float64 = sim_time/steps
   
-    gt_β::Float64 = 1e-3
+    gt_β::Float64 = 100.0
     gt_η::Float64 = 40.0
-    F::Float64 = 1.0
+    F::Float64 = 30000.0
 
     # Write the ground truth
-    gt_model, gt_scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
-    write_sim_data(gt_model, gt_scene, CameraMatrix, filepathi)
+    # gt_model, gt_scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
+    # write_sim_data(gt_model, gt_scene, CameraMatrix, filepathi)
     
     # Read the gt data
     ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data"))  
@@ -174,15 +175,15 @@ function test_opt_const()
     ObsData = [nScene, nSplinex, nSpliney]
     obsBorderPts = ObsData[1]
 
-    viscosity_type = "constant"
-    conditions = Conditions(CameraMatrix=CameraMatrix)
-    model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
-
     dev_η::Float64 = gt_η*dev
     dev_β::Float64 = gt_β*dev
 
     ηStart::Float64 = gt_η - dev_η
     βStart::Float64 = gt_β - dev_β
+
+    viscosity_type = "constant"
+    conditions = Conditions(camera_matrix=CameraMatrix)
+    model, scene = def_problem(r, h, ne, ηStart, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, βStart, F, control, viscosity_type, sim_time, t_steps)
 
     θ::Vector{Float64} = [ηStart, βStart]
 
@@ -297,7 +298,7 @@ end
 
 
 # test_opt_bulk()
-# test_opt_const()
+test_opt_const()
 
 function plot_()
 
@@ -331,4 +332,4 @@ function plot_()
 
 end
 
-plot_()
+# plot_()

@@ -398,7 +398,7 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String,
         
                                                # store the solution fields of the border nodes in 2D 
     pos3D = AbstractArray[mesh.NodeList]                                                             # store the solution fields of the mesh in 3D
-    surface_pts_3D = AbstractArray[vcat(mesh.NodeList[:,mesh.top_nodes]', mesh.NodeList[:,mesh.bottom_nodes]', mesh.NodeList[:,mesh.side_nodes]')] # store the solution fields of the mesh in 3D
+    surface_pts_3D = [vcat(mesh.NodeList[:,mesh.top_nodes]', mesh.NodeList[:,mesh.bottom_nodes]', mesh.NodeList[:,mesh.side_nodes]')'] # store the solution fields of the mesh in 3D
     pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
     borderPts2DList = AbstractArray[BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
     splinep = AbstractArray[pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
