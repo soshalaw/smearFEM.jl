@@ -21,6 +21,9 @@ function main()
   t_steps = sim_time/steps
   viscosity_type = "constant" # "constant" or "linear"
 
+  β = 100.0
+  η = 40.0
+  F = 30000.0
   control = "force" # "force" or "displacement"
   dateTime = Dates.now()
 
