@@ -6,7 +6,7 @@ function main()
   scale = 100
   r = 0.2*scale  # radius of the cylinder in mm
   h = 0.5*scale  # height of the cylinder in mm
-  ne = 15  # number of elements in each direction
+  ne = 4  # number of elements in each direction
   ndim = 3
   FunctionClass_u = "Q2"
   nDof_u = ndim  # number of degree of freedom per node

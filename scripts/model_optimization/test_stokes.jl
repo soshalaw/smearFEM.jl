@@ -137,24 +137,24 @@ function test_opt_const()
     scale = 100
     r::Float64 = 0.2*scale  # radius of the cylinder in mm
     h::Float64 = 0.5*scale  # height of the cylinder in mm
-    ne::Int = 4
     ndim::Int = 3
     FunctionClass_u::String = "Q2"
     nDof_u::Int = ndim  # number of degree of freedom per node
     FunctionClass_p::String = "Q1"
     nDof_p::Int = 1  # number of degree of freedom per node
 
-    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+    camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+    camera_pose = scale*[0 -0.25 2]'   # camera position in mm
 
     dateTime = Dates.now()
-    dev::Float64 = 0.3
+    dev::Float64 = 0.01
 
     control::String = "force" # "force" or "velocity"
     viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
     noiseLevel::Float64 = 0
     SIDES::Bool = false
-    # filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
-    filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthtic_data/exp_1")
+    filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
+    # filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthtic_data/exp_1")
     
     # simulation parameters for the ground truth
     sim_time::Float64 = 60.0 # simulation time in seconds
@@ -163,12 +163,15 @@ function test_opt_const()
   
     gt_β::Float64 = 100.0
     gt_η::Float64 = 40.0
+    gt_ne::Int = 8
     F::Float64 = 30000.0
 
     # Write the ground truth
-    # gt_model, gt_scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
-    # write_sim_data(gt_model, gt_scene, CameraMatrix, filepathi)
+    gt_model, gt_scene = def_problem(r, h, gt_ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
+    write_sim_data(gt_model, gt_scene, camera_matrix, camera_pose, filepathi)
     
+    ne::Int = 4
+
     # Read the gt data
     ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data"))  
     nScene, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
@@ -182,7 +185,7 @@ function test_opt_const()
     βStart::Float64 = gt_β - dev_β
 
     viscosity_type = "constant"
-    conditions = Conditions(camera_matrix=CameraMatrix)
+    conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose)
     model, scene = def_problem(r, h, ne, ηStart, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, βStart, F, control, viscosity_type, sim_time, t_steps)
 
     θ::Vector{Float64} = [ηStart, βStart]
