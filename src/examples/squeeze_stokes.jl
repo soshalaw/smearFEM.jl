@@ -1163,7 +1163,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     dqdη = zeros(Float64, size(q_d_cached_top))
     dqdβ = zeros(Float64, size(q_d_cached_top))
 
-    displacement = AbstractArray[]  
+    displacement = AbstractArray[zeros(Float64,size(NodeList_cached,1),size(NodeList_cached,2))] # store the displacement of the mesh in 3D
     surface_fields = AbstractArray[]
     surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
     gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)]                                                 # store the solution fields of the border nodes in 2D 
@@ -1391,8 +1391,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         write_contour_data(string(conditions.filepath,"/Results"), writeborderList)
     end
     if conditions.WRITEVTK
-        write_scene(string(conditions.filepath,"/Results"), surface_pts_3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, displacement, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
+        write_scene(string(conditions.filepath,"/Results"), pos3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, displacement, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
     end
     return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D
 end
+
 

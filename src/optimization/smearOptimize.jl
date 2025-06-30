@@ -49,8 +49,8 @@ end
 
 function closest_point(simScene::AbstractArray, obsScene::AbstractArray, dudθ::AbstractArray)
 
-    # simScene = simScene[1:end-1] # remove the last element, which is the last time step TODO solve the issue with the last time step
-    # dudθ = dudθ[1:end-1] # remove the last element, which is the last time step TODO solve the issue with the last time step
+    simScene = simScene[1:end-1] # remove the last element, which is the last time step TODO solve the issue with the last time step
+    dudθ = dudθ[1:end-1] # remove the last element, which is the last time step TODO solve the issue with the last time step
     # Define the cost function 
     costList = Float64[]
     dcostList = []
@@ -222,3 +222,5 @@ function val_check(v::Vector{Float64})
     return v
 end
 
+
+# animate_fields(filepath = string(conditions.filepath,"/Results/images"),fields2D=borderPts2DList, pObs=splinexObs, qObs=splineyObs)
