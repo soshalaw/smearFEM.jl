@@ -134,8 +134,8 @@ function test_opt_bulk()
 end
 
 function test_opt_const()
-    scale = 100
-    r::Float64 = 0.2*scale  # radius of the cylinder in mm
+    scale = 2
+    r::Float64 = 0.25*scale  # radius of the cylinder in mm
     h::Float64 = 0.5*scale  # height of the cylinder in mm
     ndim::Int = 3
     FunctionClass_u::String = "Q2"
@@ -146,29 +146,28 @@ function test_opt_const()
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
     camera_pose = scale*[0 -0.25 2]'   # camera position in mm
 
-    dateTime = Dates.now()
     dev::Float64 = 0.3
 
     control::String = "force" # "force" or "velocity"
     viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
     noiseLevel::Float64 = 0
     SIDES::Bool = false
-    # filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
-    filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthtic_data/exp_1")
+    filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
+    # filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthtic_data/exp_1")
     
     # simulation parameters for the ground truth
-    sim_time::Float64 = 60.0 # simulation time in seconds
-    steps::Float64 = 120.0 # number of time steps
+    sim_time::Float64 = 30.0# simulation time in seconds
+    steps::Float64 = 30.0 # number of time steps
     t_steps::Float64 = sim_time/steps
-  
+
     gt_β::Float64 = 100.0
     gt_η::Float64 = 40.0
-    gt_ne::Int = 8
-    F::Float64 = 30000.0
+    F::Float64 = 1.0*scale
+    gt_ne = 6
 
     # Write the ground truth
-    # gt_model, gt_scene = def_problem(r, h, gt_ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
-    # write_sim_data(gt_model, gt_scene, camera_matrix, camera_pose, filepathi)
+    gt_model, gt_scene = def_problem(r, h, gt_ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
+    write_sim_data(gt_model, gt_scene, camera_matrix, camera_pose, filepathi)
     
     ne::Int = 4
 
@@ -206,6 +205,7 @@ function test_opt_const()
     reset_model!(model)
     model.η = [η]
     scene.β = [β]
+
     # simulate the model with the estimated parameters
     gt_μ_list, others = simulate(gt_model, gt_scene, conditions)
     est_μ_list, others = simulate(model, scene, conditions)
@@ -230,55 +230,55 @@ function test_opt_const()
     ηpList::Vector{Float64} = stats["ηList"]
     βpList::Vector{Float64} = stats["βList"]
 
-    # if maximum(ηpList) > η+dev_η
-    #     ηStop = maximum(ηpList)*1.1
-    # else
-    #     ηStop = η+dev_η
-    # end
+    if maximum(ηpList) > η+dev_η
+        ηStop = maximum(ηpList)*1.1
+    else
+        ηStop = η+dev_η
+    end
 
-    # if minimum(ηpList) < η-dev_η
-    #     ηStart = minimum(ηpList)*0.9
-    # else
-    #     ηStart = η-dev_η
-    # end
+    if minimum(ηpList) < η-dev_η
+        ηStart = minimum(ηpList)*0.9
+    else
+        ηStart = η-dev_η
+    end
 
-    # if maximum(βpList) > β+dev_β
-    #     βStop = maximum(βpList)*1.1
-    # else
-    #     βStop = β+dev_β
-    # end
+    if maximum(βpList) > β+dev_β
+        βStop = maximum(βpList)*1.1
+    else
+        βStop = β+dev_β
+    end
 
-    # if minimum(βpList) < β-dev_β
-    #     βStart = minimum(βpList)*0.9
-    # else
-    #     βStart = β-dev_β
-    # end
+    if minimum(βpList) < β-dev_β
+        βStart = minimum(βpList)*0.9
+    else
+        βStart = β-dev_β
+    end
 
-    # sampleNo = 11
-    # ηList = collect(range(ηStart, stop=ηStop, length=sampleNo))
-    # βList = collect(range(βStart, stop=βStop, length=sampleNo))
-    # CostMat = zeros(size(ηList,1),size(βList,1))
-    # costη = zeros(size(ηList,1))
-    # costβ = zeros(size(βList,1))
+    sampleNo = 11
+    ηList = collect(range(ηStart, stop=ηStop, length=sampleNo))
+    βList = collect(range(βStart, stop=βStop, length=sampleNo))
+    CostMat = zeros(size(ηList,1),size(βList,1))
+    costη = zeros(size(ηList,1))
+    costβ = zeros(size(βList,1))
 
-    # η_iter = 1:size(ηList,1)
-    # β_iter = 1:size(βList,1)
+    η_iter = 1:size(ηList,1)
+    β_iter = 1:size(βList,1)
 
-    # for i::Int in η_iter
-    #     η = ηList[i]
-    #     for j::Int in β_iter
-    #         β = βList[j]
-    #         reset_model!(model)
-    #         model.η = [η]
-    #         scene.β = [β]
-    #         μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+    for i::Int in η_iter
+        η = ηList[i]
+        for j::Int in β_iter
+            β = βList[j]
+            reset_model!(model)
+            model.η = [η]
+            scene.β = [β]
+            μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
 
-    #         # test the closest point function
-    #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+            # test the closest point function
+            d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
             
-    #         CostMat[i,j] = sum(d_cp)
-    #     end
-    # end
+            CostMat[i,j] = sum(d_cp)
+        end
+    end
 
     # Plot the cost function with iterations
     Plots.plot(iterList, costList, label="Cost", marker=1, dpi=400, yscale=:log10)
@@ -286,17 +286,17 @@ function test_opt_const()
     Plots.ylabel!("Error")
     Plots.savefig(string(filepathi,"/Results/plots/cost_steps.pdf"))
     
-    # # Plot the cost function surface
-    # Plots.contour(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
-    # Plots.plot!(ηpList, βpList, label="Estimations", marker=1)
-    # Plots.xlabel!("η")
-    # Plots.ylabel!("β")
-    # Plots.savefig(string(filepathi,"/Results/plots/cost_surface_iter.pdf"))
+    # Plot the cost function surface
+    Plots.contour(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
+    Plots.plot!(ηpList, βpList, label="Estimations", marker=1)
+    Plots.xlabel!("η")
+    Plots.ylabel!("β")
+    Plots.savefig(string(filepathi,"/Results/plots/cost_surface_iter.pdf"))
 
-    # Plots.contourf(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
-    # Plots.xlabel!("η")
-    # Plots.ylabel!("β")
-    # Plots.savefig(string(filepathi,"/Results/plots/cost_surface.pdf"))
+    Plots.contourf(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
+    Plots.xlabel!("η")
+    Plots.ylabel!("β")
+    Plots.savefig(string(filepathi,"/Results/plots/cost_surface.pdf"))
 end
 
 

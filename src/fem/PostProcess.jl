@@ -8,13 +8,13 @@ using Distributions
 using Statistics
 using StatsPlots
 """ 
-    Extract_borders(NodeList::Matrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, nNodes::Int64, GRAD::Bool=false, dqdθ::AbstractMatrix{Float64}=zeros(2,2), SIDES::Bool=false)
+    Extract_borders(NodeList::Matrix{Float64}, camera_matrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, nNodes::Int64, GRAD::Bool=false, dqdθ::AbstractMatrix{Float64}=zeros(2,2), SIDES::Bool=false)
 
 Project the 3D mesh to 2D image plane and extract the border nodes (left and right)
     
 # Arguments:
 - `NodeList::Matrix{Float64}{ndim,nNodes}` : coordinates of the nodes
-- `CameraMatrix::AbstractMatrix{Float64}{3,3}` : Camera matrix
+- `camera_matrix::AbstractMatrix{Float64}{3,3}` : Camera matrix
 - `BorderNodesList::Vector{Vector{Any}{4,N}`: List of border nodes
 - `nNodes::Int64`: number of nodes
 - `GRAD::Bool=false`: gradient flag
@@ -175,19 +175,19 @@ function sort_points(Data::Matrix{Float64})
 end
 
 """ 
-    back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, dxdλ::AbstractMatrix{Float64}=nothing)
+    back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, dxdλ::AbstractMatrix{Float64}=nothing)
 
 Project the 3D mesh to 2D image plane
     
 # Arguments:
 - `x::Matrix{Float64}{3,nNodes}`: 3D mesh grid
-- `CameraMatrix::AbstractMatrix{Float64}{3,3}`: Camera matrix
+- `camera_matrix::AbstractMatrix{Float64}{3,3}`: Camera matrix
 
 # Returns:
 - `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
 - `dπdx::Array{Float64, nNodes}`{nNodes×2×nParams}: ∇π(x)
 """
-function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, dxdθ::AbstractArray{Float64})
+function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, dxdθ::AbstractArray{Float64})
     
     nx = size(x,2)
     nθ = size(dxdθ,3)
@@ -207,9 +207,9 @@ function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{F
         xNorm[2,j] = xTrans[2,j]/xTrans[3,j]
         xNorm[3,j] = xTrans[3,j]/xTrans[3,j]
 
-        xProj[:,j] = CameraMatrix*xNorm[:,j]
+        xProj[:,j] = camera_matrix*xNorm[:,j]
 
-        dπdx = ∇π(xTrans[:,j],CameraMatrix)
+        dπdx = ∇π(xTrans[:,j],camera_matrix)
 
         # iterate over the model parameters
         for i in iterθ
@@ -225,21 +225,21 @@ function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{F
     return x2D, dudθ2D
 end 
 
-function back_project(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64})
+function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64})
                 
     # transform point cloud wrt to camera frame 
     R = [1 0 0; 0 0 1; 0 -1 0]     # rotation matrix
 
     xTrans = R*x .+ camera_pose
     
-    xProj = project_to(xTrans, CameraMatrix)
+    xProj = project_to(xTrans, camera_matrix)
 
     x2D = xProj[1:2,:]            # extract x and y coordinates
 
     return x2D
 end 
 
-function project_to(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Float64})
+function project_to(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64})
 
     nx = size(x,2)
     xNorm = zeros(3,nx)
@@ -251,15 +251,15 @@ function project_to(x::AbstractMatrix{Float64}, CameraMatrix::AbstractMatrix{Flo
         xNorm[2,i] = x[2,i]/x[3,i]
         xNorm[3,i] = x[3,i]/x[3,i]
 
-        xProj[:,i] = CameraMatrix*xNorm[:,i]
+        xProj[:,i] = camera_matrix*xNorm[:,i]
     end
 
     return xProj
 end
 
-function ∇π(x::Array{Float64},CameraMatrix::AbstractMatrix{Float64})
+function ∇π(x::Array{Float64},camera_matrix::AbstractMatrix{Float64})
 
-    dπdx = CameraMatrix*[1/x[3] 0 -x[1]/x[3]^2; 0 1/x[3] -x[2]/x[3]^2; 0 0 0]
+    dπdx = camera_matrix*[1/x[3] 0 -x[1]/x[3]^2; 0 1/x[3] -x[2]/x[3]^2; 0 0 0]
 
     return dπdx
 end

@@ -3,7 +3,7 @@ using Dates
 
 function main()
   scale = 100
-  r::Float64 = 0.2*scale  # radius of the cylinder in mm
+  r::Float64 = 0.25*scale  # radius of the cylinder in mm
   h::Float64 = 0.5*scale  # height of the cylinder in mm
   ndim::Int = 3
   FunctionClass_u::String = "Q2"
@@ -26,7 +26,7 @@ function main()
 
   gt_β::Float64 = 100.0
   gt_η::Float64 = 40.0
-  F::Float64 = 30000.0
+  F::Float64 = 250000.0
   ne::Int = 10
 
   dev_η::Float64 = gt_η*dev

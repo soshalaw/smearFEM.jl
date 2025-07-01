@@ -127,7 +127,6 @@ function update_model!(model::LinearElasticity)
     mesh = model.mesh
     # Update the nodal coordinates of the meshes
     update_initial_state!(mesh,mesh.NodeList)
-
 end
 
 """

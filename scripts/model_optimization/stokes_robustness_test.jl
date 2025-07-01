@@ -12,8 +12,9 @@ using DelimitedFiles
 function main(βLst, noiseLevelLst, ηLst)
 
     # test case 
-    r = 0.5
-    h = 1.0
+    scale = 100
+    r = 0.25*scale  # radius of the cylinder in mm
+    h = 0.5*scale  # height of the cylinder in mm
     ne = 6
     ndim = 3
     FunctionClass_u = "Q2"
@@ -21,11 +22,13 @@ function main(βLst, noiseLevelLst, ηLst)
     FunctionClass_p = "Q1"
     nDof_p = 1  # number of degree of freedom per node
 
-    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+    camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+    camera_pose = scale*[0 -0.25 2]'   # camera position in mm
+
 
     dateTime = Dates.now()
     sampleNo = 21
-    dev = 0.1
+    dev = 0.3
 
     control = "force" # "force" or "velocity"
     viscosity_type = "constant" # "constant" or "bulk_viscosity"
@@ -33,8 +36,8 @@ function main(βLst, noiseLevelLst, ηLst)
     filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test3")
 
     # simulation parameters for the ground truth
-    sim_time_gt = 5.0
-    steps_gt = 5.0
+    sim_time_gt = 10.0
+    steps_gt = 10.0
     t_steps_gt = sim_time_gt/steps_gt
 
     sim_time = 10.0
@@ -43,7 +46,7 @@ function main(βLst, noiseLevelLst, ηLst)
 
     sideList = [false]
 
-    F = 3.0
+    F = 250000.0  # force in N
 
     for η_gt::Float64 in ηLst
         dev_η::Float64 = dev*η_gt
@@ -56,222 +59,222 @@ function main(βLst, noiseLevelLst, ηLst)
             println("Ground truth: η :", η_gt, " β :", β_gt)
             model_gt, scene_gt = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
             filepath_gt = string(filepath,"/experiment_$(η_gt)_$(β_gt)/ground_truth")
-            write_sim_data(model_gt, scene_gt, CameraMatrix, filepath_gt)
+            write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepath_gt)
             
             gt_h = readdlm(string(filepath_gt,"/Results/data/h.csv"), ',', Float64, '\n', header=false)
             # Write the ground truth
             params = Dict("gt_η" => η_gt, "gt_β" => β_gt)
             write_json(string(filepath_gt,"/params"), params)
 
-        #     ne_exp = 4
-        #     model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
-        #     for noiseLevel::Float64 in noiseLevelLst
-        #         ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/Results/contour_data"))  
-        #         ObsDataList = ObsDataList[1:(round(Int,sim_time)+1)]
-        #         if noiseLevel == 0.0
-        #             # Read the gt data 
-        #             obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
+            ne_exp = 4
+            model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
+            for noiseLevel::Float64 in noiseLevelLst
+                ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/Results/contour_data"))  
+                ObsDataList = ObsDataList[1:(round(Int,sim_time)+1)]
+                if noiseLevel == 0.0
+                    # Read the gt data 
+                    obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
                     
-        #             for sides::Bool in sideList
-        #                 filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
-        #                 conditions = Conditions(CameraMatrix=CameraMatrix, SIDES=sides, filepath=filepathi, ANIMATE=false)
+                    for sides::Bool in sideList
+                        filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
+                        conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose, SIDES=sides, filepath=filepathi, ANIMATE=false)
 
-        #                 θ = [ηStart, βStart]
-        #                 stats = fit_model(model, scene, conditions, obsBorderPts, θ)
+                        θ = [ηStart, βStart]
+                        stats = fit_model(model, scene, conditions, obsBorderPts, θ)
                                             
-        #                 iterList = stats["iterList"]
-        #                 costList = stats["costList"]
-        #                 ηpList = stats["ηList"]
-        #                 βpList = stats["βList"]
-        #                 η = stats["η"]
-        #                 β = stats["β"]
+                        iterList = stats["iterList"]
+                        costList = stats["costList"]
+                        ηpList = stats["ηList"]
+                        βpList = stats["βList"]
+                        η = stats["η"]
+                        β = stats["β"]
 
-        #                 η_accuracy = abs(1 - abs(η-η_gt)/η_gt)*100
-        #                 β_accuracy = abs(1 - abs(β-β_gt)/β_gt)*100
-        #                 printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
-        #                 printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
+                        η_accuracy = abs(1 - abs(η-η_gt)/η_gt)*100
+                        β_accuracy = abs(1 - abs(β-β_gt)/β_gt)*100
+                        printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
+                        printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
                         
-        #                 if maximum(ηpList) > η_gt+dev_η
-        #                     ηStop = maximum(ηpList)*1.1
-        #                 else
-        #                     ηStop = η_gt+dev_η
-        #                 end
+                        # if maximum(ηpList) > η_gt+dev_η
+                        #     ηStop = maximum(ηpList)*1.1
+                        # else
+                        #     ηStop = η_gt+dev_η
+                        # end
 
-        #                 if minimum(ηpList) < η_gt-dev_η
-        #                     ηStart = minimum(ηpList)*0.9
-        #                 else
-        #                     ηStart = η_gt-dev_η
-        #                 end
+                        # if minimum(ηpList) < η_gt-dev_η
+                        #     ηStart = minimum(ηpList)*0.9
+                        # else
+                        #     ηStart = η_gt-dev_η
+                        # end
 
-        #                 if maximum(βpList) > β_gt+dev_β
-        #                     βStop = maximum(βpList)*1.1
-        #                 else
-        #                     βStop = β_gt+dev_β
-        #                 end
+                        # if maximum(βpList) > β_gt+dev_β
+                        #     βStop = maximum(βpList)*1.1
+                        # else
+                        #     βStop = β_gt+dev_β
+                        # end
 
-        #                 if minimum(βpList) < β_gt-dev_β
-        #                     βStart = minimum(βpList)*0.9
-        #                 else
-        #                     βStart = β_gt-dev_β
-        #                 end
+                        # if minimum(βpList) < β_gt-dev_β
+                        #     βStart = minimum(βpList)*0.9
+                        # else
+                        #     βStart = β_gt-dev_β
+                        # end
 
-        #                 sample_space = 41
-        #                 ηList = collect(range(ηStart, stop=ηStop, length=sample_space))
-        #                 βList = collect(range(βStart, stop=βStop, length=sample_space))
-        #                 CostMat = zeros(size(ηList,1),size(βList,1))
+                        # sample_space = 41
+                        # ηList = collect(range(ηStart, stop=ηStop, length=sample_space))
+                        # βList = collect(range(βStart, stop=βStop, length=sample_space))
+                        # CostMat = zeros(size(ηList,1),size(βList,1))
 
-        #                 η_iter = 1:size(ηList,1)
-        #                 β_iter = 1:size(βList,1)
+                        # η_iter = 1:size(ηList,1)
+                        # β_iter = 1:size(βList,1)
 
-        #                 for i::Int in η_iter
-        #                     η = ηList[i]
-        #                     for j::Int in β_iter
-        #                         β = βList[j]
-        #                         reset_model!(model)
-        #                         model.η = [η]
-        #                         scene.β = [β]
-        #                         μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+                        # for i::Int in η_iter
+                        #     η = ηList[i]
+                        #     for j::Int in β_iter
+                        #         β = βList[j]
+                        #         reset_model!(model)
+                        #         model.η = [η]
+                        #         scene.β = [β]
+                        #         μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
 
-        #                         # test the closest point function
-        #                         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+                        #         # test the closest point function
+                        #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
 
-        #                         CostMat[i,j] = sum(d_cp)
-        #                     end
-        #                 end
+                        #         CostMat[i,j] = sum(d_cp)
+                        #     end
+                        # end
 
-        #                 model_tst, scene_tst = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
-        #                 # simulate the model with the estimated parameters
-        #                 est_μ_list, others = simulate(model_tst, scene_tst, conditions)
+                        # model_tst, scene_tst = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
+                        # # simulate the model with the estimated parameters
+                        # est_μ_list, others = simulate(model_tst, scene_tst, conditions)
 
-        #                 est_h = get_height(est_μ_list, h)
+                        # est_h = get_height(est_μ_list, h)
 
-        #                 write_csv(string(filepathi,"/Results/data/cost_surface"), CostMat)
-        #                 write_csv(string(filepathi,"/Results/data/cost_surface_η"), ηList)
-        #                 write_csv(string(filepathi,"/Results/data/cost_surface_β"), βList)
+                        # write_csv(string(filepathi,"/Results/data/cost_surface"), CostMat)
+                        # write_csv(string(filepathi,"/Results/data/cost_surface_η"), ηList)
+                        # write_csv(string(filepathi,"/Results/data/cost_surface_β"), βList)
 
-        #                 write_csv(string(filepathi,"/Results/data/cost_surface_ηp"), ηpList)
-        #                 write_csv(string(filepathi,"/Results/data/cost_surface_βp"), βpList)
+                        # write_csv(string(filepathi,"/Results/data/cost_surface_ηp"), ηpList)
+                        # write_csv(string(filepathi,"/Results/data/cost_surface_βp"), βpList)
 
-        #                 write_csv(string(filepathi,"/Results/data/cost_steps"), costList)
-        #                 write_csv(string(filepathi,"/Results/data/cost_steps_iter"), iterList)
+                        # write_csv(string(filepathi,"/Results/data/cost_steps"), costList)
+                        # write_csv(string(filepathi,"/Results/data/cost_steps_iter"), iterList)
 
-        #                 write_csv(string(filepathi,"/Results/data/est_h"), est_h)
+                        # write_csv(string(filepathi,"/Results/data/est_h"), est_h)
 
-        #                 write_csv(string(filepathi,"/Results/data/border"), obsBorderPts[round(Int,sim_time/2)])
+                        # write_csv(string(filepathi,"/Results/data/border"), obsBorderPts[round(Int,sim_time/2)])
 
-        #                 params = Dict("gt_η" => η_gt,
-        #                 "gt_β" => β_gt,
-        #                 "η" => η,
-        #                 "β" => β,
-        #                 "η_accuracy" => η_accuracy,
-        #                 "β_accuracy" => β_accuracy)
+                        # params = Dict("gt_η" => η_gt,
+                        # "gt_β" => β_gt,
+                        # "η" => η,
+                        # "β" => β,
+                        # "η_accuracy" => η_accuracy,
+                        # "β_accuracy" => β_accuracy)
 
-        #                 write_json(string(filepathi,"/Results/data/stats"), params)
+                        # write_json(string(filepathi,"/Results/data/stats"), params)
 
-        #                 set_file(string(filepathi,"/Results/plots"))
-        #                 Plots.plot(est_h, label="Estimated height", dpi=400)
-        #                 Plots.plot!(gt_h, label="Ground truth height", dpi=400)
-        #                 Plots.xlabel!("Time (s)")
-        #                 Plots.ylabel!("Height")
-        #                 Plots.savefig(string(filepathi,"/Results/plots/h_est.pdf"))
+                        # set_file(string(filepathi,"/Results/plots"))
+                        # Plots.plot(est_h, label="Estimated height", dpi=400)
+                        # Plots.plot!(gt_h, label="Ground truth height", dpi=400)
+                        # Plots.xlabel!("Time (s)")
+                        # Plots.ylabel!("Height")
+                        # Plots.savefig(string(filepathi,"/Results/plots/h_est.pdf"))
 
-        #                 Plots.plot(abs.(est_h-gt_h), label="Height estimation error", dpi=400)
-        #                 Plots.xlabel!("Time (s)")
-        #                 Plots.ylabel!("Error")
-        #                 Plots.savefig(string(filepathi,"/Results/plots/h_est_error.pdf"))
+                        # Plots.plot(abs.(est_h-gt_h), label="Height estimation error", dpi=400)
+                        # Plots.xlabel!("Time (s)")
+                        # Plots.ylabel!("Error")
+                        # Plots.savefig(string(filepathi,"/Results/plots/h_est_error.pdf"))
 
-        #                 # Plot the cost function with iterations
-        #                 Plots.plot(iterList, costList, label="Cost", marker=1, dpi=400, yscale=:log10)
-        #                 Plots.xlabel!("Iterations")
-        #                 Plots.ylabel!("Error")
-        #                 Plots.savefig(string(filepathi,"/Results/plots/cost_steps.pdf"))
+                        # # Plot the cost function with iterations
+                        # Plots.plot(iterList, costList, label="Cost", marker=1, dpi=400, yscale=:log10)
+                        # Plots.xlabel!("Iterations")
+                        # Plots.ylabel!("Error")
+                        # Plots.savefig(string(filepathi,"/Results/plots/cost_steps.pdf"))
                         
-        #                 # Plot the cost function surface
-        #                 Plots.contour(ηList, βList, CostMat, color=:turbo, fill=false, levels=200, xlabel="η", ylabel="β", dpi=400)
-        #                 Plots.plot!(ηpList, βpList, label="Estimations", marker=1)
-        #                 Plots.plot!([η_gt], [β_gt], label="Ground truth", marker=:star5, markersize=5, markercolor=:green)
-        #                 Plots.xlabel!("η")
-        #                 Plots.ylabel!("β")
-        #                 Plots.savefig(string(filepathi,"/Results/plots/cost_surface_iter.pdf"))
-        #             end
-        #         else
-        #             n_samples = 10
-        #             η_pred = zeros(Float64, n_samples)
-        #             β_pred = zeros(Float64, n_samples)
-        #             costnList = Vector{AbstractVector}(undef, n_samples)
-        #             iternList = Vector{AbstractVector}(undef, n_samples)
-        #             filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
-        #             est_h_list = zeros(Float64, round(Int,(steps_gt+1)), n_samples)
+                        # # Plot the cost function surface
+                        # Plots.contour(ηList, βList, CostMat, color=:turbo, fill=false, levels=200, xlabel="η", ylabel="β", dpi=400)
+                        # Plots.plot!(ηpList, βpList, label="Estimations", marker=1)
+                        # Plots.plot!([η_gt], [β_gt], label="Ground truth", marker=:star5, markersize=5, markercolor=:green)
+                        # Plots.xlabel!("η")
+                        # Plots.ylabel!("β")
+                        # Plots.savefig(string(filepathi,"/Results/plots/cost_surface_iter.pdf"))
+                    end
+                else
+                    n_samples = 10
+                    η_pred = zeros(Float64, n_samples)
+                    β_pred = zeros(Float64, n_samples)
+                    costnList = Vector{AbstractVector}(undef, n_samples)
+                    iternList = Vector{AbstractVector}(undef, n_samples)
+                    filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
+                    est_h_list = zeros(Float64, round(Int,(steps_gt+1)), n_samples)
 
-        #             filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
-        #             for n::Int in 1:n_samples
-        #                 obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
+                    filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
+                    for n::Int in 1:n_samples
+                        obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
 
-        #                 conditions = Conditions(CameraMatrix=CameraMatrix,filepath=filepathi)
+                        conditions = Conditions(camera_matrix=camera_matrix,filepath=filepathi)
 
-        #                 θ = [ηStart, βStart]
-        #                 stats = fit_model(model, scene, conditions, obsBorderPts, θ)
+                        θ = [ηStart, βStart]
+                        stats = fit_model(model, scene, conditions, obsBorderPts, θ)
                                             
-        #                 iterList = stats["iterList"]
-        #                 costList = stats["costList"]
-        #                 ηpList = stats["ηList"]
-        #                 βpList = stats["βList"]
-        #                 η = stats["η"]
-        #                 β = stats["β"]
+                        iterList = stats["iterList"]
+                        costList = stats["costList"]
+                        ηpList = stats["ηList"]
+                        βpList = stats["βList"]
+                        η = stats["η"]
+                        β = stats["β"]
 
-        #                 model_tst, scene_tst = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
+                        model_tst, scene_tst = def_problem(r, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time_gt, t_steps_gt)
                         
-        #                 # simulate the model with the estimated parameters
-        #                 est_μ_list, others = simulate(model_tst, scene_tst, conditions)
+                        # simulate the model with the estimated parameters
+                        est_μ_list, others = simulate(model_tst, scene_tst, conditions)
 
-        #                 est_h_list[:,n] = get_height(est_μ_list, h)
+                        est_h_list[:,n] = get_height(est_μ_list, h)
 
-        #                 η_accuracy = abs(1 - abs(η-η_gt)/η_gt)*100
-        #                 β_accuracy = abs(1 - abs(β-β_gt)/β_gt)*100
-        #                 printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
-        #                 printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
+                        η_accuracy = abs(1 - abs(η-η_gt)/η_gt)*100
+                        β_accuracy = abs(1 - abs(β-β_gt)/β_gt)*100
+                        printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
+                        printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
 
-        #                 η_pred[n] = η
-        #                 β_pred[n] = β
-        #                 push!(costnList, costList)
-        #                 push!(iternList, iterList)
+                        η_pred[n] = η
+                        β_pred[n] = β
+                        push!(costnList, costList)
+                        push!(iternList, iterList)
 
-        #                 params = Dict("gt_η" => η_gt,
-        #                 "gt_β" => β_gt,
-        #                 "η" => η,
-        #                 "β" => β,
-        #                 "η_accuracy" => η_accuracy,
-        #                 "β_accuracy" => β_accuracy)
+                        params = Dict("gt_η" => η_gt,
+                        "gt_β" => β_gt,
+                        "η" => η,
+                        "β" => β,
+                        "η_accuracy" => η_accuracy,
+                        "β_accuracy" => β_accuracy)
 
-        #                 write_json(string(filepathi,"/Results/data/stats"), params)
+                        write_json(string(filepathi,"/Results/data/stats"), params)
 
-        #                 write_csv(string(filepathi,"/Results/data/cost_steps/run_$n"), costList)
-        #                 write_csv(string(filepathi,"/Results/data/cost_steps_iter/run_$n"), iterList)
-        #                 write_csv(string(filepathi,"/Results/data/border"), obsBorderPts[round(Int,sim_time/2)])
-        #             end
+                        write_csv(string(filepathi,"/Results/data/cost_steps/run_$n"), costList)
+                        write_csv(string(filepathi,"/Results/data/cost_steps_iter/run_$n"), iterList)
+                        write_csv(string(filepathi,"/Results/data/border"), obsBorderPts[round(Int,sim_time/2)])
+                    end
 
-        #             write_csv(string(filepathi,"/Results/data/η_est"), η_pred)
-        #             write_csv(string(filepathi,"/Results/data/β_est"), β_pred)
-        #             write_csv(string(filepathi,"/Results/data/h_est"), est_h_list)
+                    write_csv(string(filepathi,"/Results/data/η_est"), η_pred)
+                    write_csv(string(filepathi,"/Results/data/β_est"), β_pred)
+                    write_csv(string(filepathi,"/Results/data/h_est"), est_h_list)
 
-        #             plot_covariance(η_pred, β_pred, string(filepathi,"/Results/plots/"))
+                    plot_covariance(η_pred, β_pred, string(filepathi,"/Results/plots/"))
                     
-        #             StatsPlots.errorline(est_h_list, label="Estimated height", dpi=400)
-        #             Plots.plot!(gt_h, label="Ground truth height", dpi=400)
-        #             Plots.xlabel!("Time (s)")
-        #             Plots.ylabel!("Height")
-        #             Plots.savefig(string(filepathi,"/Results/plots/h_est.pdf"))
+                    StatsPlots.errorline(est_h_list, label="Estimated height", dpi=400)
+                    Plots.plot!(gt_h, label="Ground truth height", dpi=400)
+                    Plots.xlabel!("Time (s)")
+                    Plots.ylabel!("Height")
+                    Plots.savefig(string(filepathi,"/Results/plots/h_est.pdf"))
 
-        #             set_file(string(filepathi,"/Results/plots"))
-        #             plot(x->pdf(pd, x),  size=(200,150), label="")
-        #             savefig(string(filepathi,"/Results/plots/obs_pdf_$(noiseLevel).pdf"))
+                    set_file(string(filepathi,"/Results/plots"))
+                    plot(x->pdf(pd, x),  size=(200,150), label="")
+                    savefig(string(filepathi,"/Results/plots/obs_pdf_$(noiseLevel).pdf"))
 
-        #             Plots.plot(nSplinex[10], nSpliney[10], label="", size=(250,300), xaxis=false, yaxis=false) 
-        #             Plots.xlims!(1100,1350)
-        #             Plots.ylims!(420,1100)
-        #             Plots.savefig(string(filepathi,"/Results/plots/noise_contour_$(noiseLevel).pdf"))
-        #         end
-        #     end
+                    Plots.plot(nSplinex[10], nSpliney[10], label="", size=(250,300), xaxis=false, yaxis=false) 
+                    Plots.xlims!(1100,1350)
+                    Plots.ylims!(420,1100)
+                    Plots.savefig(string(filepathi,"/Results/plots/noise_contour_$(noiseLevel).pdf"))
+                end
+            end
         end
     end
 end
@@ -576,13 +579,13 @@ function plot_data(ηLst, βLst, noiseLevelLst; n=0)
 end
 
 ηLst = [40.0]
-βLst = [1000.0 1e4 1e-4]
+βLst = [100.0]
 # noiseLevelLst = [0.0 0.25 0.5 0.75 1.0]
 noiseLevelLst = [0.0]
 
-# main(βLst, noiseLevelLst, ηLst)
+main(βLst, noiseLevelLst, ηLst)
 # plot_height_vs_slip(ηLst, βLst)
-plot_field_at_height(ηLst, βLst)
+# plot_field_at_height(ηLst, βLst)
 # plot_noise_covariance(ηLst, βLst, noiseLevelLst)
 # plot_data(ηLst, βLst, noiseLevelLst, n=10)
 

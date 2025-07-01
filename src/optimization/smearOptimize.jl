@@ -48,9 +48,6 @@ function closest_point(simScene::AbstractArray, obsScene::AbstractArray)
 end
 
 function closest_point(simScene::AbstractArray, obsScene::AbstractArray, dudθ::AbstractArray)
-
-    simScene = simScene[1:end-1] # remove the last element, which is the last time step TODO solve the issue with the last time step
-    dudθ = dudθ[1:end-1] # remove the last element, which is the last time step TODO solve the issue with the last time step
     # Define the cost function 
     costList = Float64[]
     dcostList = []

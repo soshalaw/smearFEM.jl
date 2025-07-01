@@ -958,7 +958,7 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
 
     else
         z0Bound = 0
-        z1Bound = 50
+        z1Bound = mdl.mesh_u.h # height of the cylinder
 
         rCol = Array{Int}(undef,0)
         iter = 1:size(NodeList_cached,2)
