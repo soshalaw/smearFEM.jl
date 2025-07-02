@@ -232,6 +232,7 @@ function write_json(filepath::String, data::Dict)
     open(string(filepath,".json"), "w") do io
         JSON3.pretty(io, data)
     end
+    @info "Data written to $(filepath)"
 end
 
 function read_json(filepath::String)

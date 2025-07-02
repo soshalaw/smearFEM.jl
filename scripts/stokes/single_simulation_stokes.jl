@@ -25,19 +25,19 @@ function main()
   gt_β::Float64 = 100.0
   gt_η::Float64 = 40.0
   F::Float64 = 250000.0
-  ne::Int = 4
+  ne::Int = 12
 
-  β_list = [100 1000 1e5]
-  η_list = [30 40 50]
+  β_list = [100.0 1000.0 1e5]
+  η_list = [30.0 40.0 50.0]
   i::Int = 1
-  for gt_β in β_list
-    for gt_η in η_list
+  for gt_β::Float64 in β_list
+    for gt_η::Float64 in η_list
 
       model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
       filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Stokes/",control,"_gt/exp_$i")
       write_sim_data(model, scene, camera_matrix, camera_pose, filepath)
 
-      
+
       i += 1
     end
   end

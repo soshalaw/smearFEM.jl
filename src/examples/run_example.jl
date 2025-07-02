@@ -245,7 +245,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     
     params = Dict("η" => model.η[1], "β" => scene.β[1], "CameraMatrix" => conditions.camera_matrix,
                         "CameraPose" => conditions.camera_pose, "control_type"=>scene.control,
-                        "simulation_time" => scene.endTime, "time_steps" => scene.tSteps, "viscosity_type"=>scene.viscosity_type)
+                        "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps, "viscosity_type"=>scene.viscosity_type)
 
     write_json(string(filepath,"/Results/data/params"), params)
 
