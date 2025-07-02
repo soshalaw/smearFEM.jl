@@ -25,7 +25,7 @@ function main()
   gt_β::Float64 = 100.0
   gt_η::Float64 = 40.0
   F::Float64 = 250000.0
-  ne::Int = 10
+  ne::Int = 4
 
   model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
 
