@@ -232,7 +232,8 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     model::AbstractModel = deepcopy(_model)
     scene::AbstractScenario = deepcopy(_scene)
     conditions = Conditions(ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true, camera_matrix=camera_matrix, camera_pose=camera_pose, filepath=filepath)
-
+    rm(string(filepath,"/Results"), recursive=true, force=true) # remove the previous results folder if it exists
+    
     # run the simulation
     h, gradList, borderPts2DList, fields, pos3D, pos2D = simulate(model, scene, conditions)
 

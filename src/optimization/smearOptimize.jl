@@ -29,6 +29,7 @@ function closest_point(simScene::AbstractArray, obsScene::AbstractArray)
     # Define the cost function
     costList = Float64[]
     pairsList = []
+    
     @argcheck length(simScene) == length(obsScene) "Size of the simulation and observation scenes should be the same"
     for (obs_t, sim_t) in zip(obsScene, simScene) # iterate over the scenes
         tcost = 0
@@ -135,7 +136,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
     
     μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
     d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
-    totdinit::Float64 = sum(d)
+    totdinit::Float64 = sum(d)/length(d)
     
     push!(ηpList,θ[1])
     push!(βpList,θ[2])
@@ -152,7 +153,8 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         
         println("η: ", θ[1], " β: ", θ[2])
 
-        szd = 1:length(d)
+        len_d = length(d)
+        szd = 1:len_d
 
         for i in szd
             t∂2d = t∂2d + ∂2d[i]
@@ -175,7 +177,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         # get the cost, gradient and hessian values
         d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
 
-        totd = sum(d)
+        totd = sum(d)/len_d
         c_grad = abs(totdinit - totd)
         totdinit = totd
 

@@ -14,14 +14,12 @@ function main()
   camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
   camera_pose = scale*[0 -0.25 2]'   # camera position in mm
 
-  dev::Float64 = 0.0
-
   control::String = "force" # "force" or "velocity"
   viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
 
   # simulation parameters for the ground truth
-  sim_time::Float64 = 10.0# simulation time in seconds
-  steps::Float64 = 10.0 # number of time steps
+  sim_time::Float64 = 30.0# simulation time in seconds
+  steps::Float64 = 20.0 # number of time steps
   t_steps::Float64 = sim_time/steps
 
   gt_β::Float64 = 100.0
@@ -29,14 +27,7 @@ function main()
   F::Float64 = 250000.0
   ne::Int = 10
 
-  dev_η::Float64 = gt_η*dev
-  dev_β::Float64 = gt_β*dev
-
-  ηStart::Float64 = gt_η - dev_η
-  βStart::Float64 = gt_β - dev_β
-
-  viscosity_type = "constant"
-  model, scene = def_problem(r, h, ne, ηStart, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, βStart, F, control, viscosity_type, sim_time, t_steps)
+  model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
 
   filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Stokes/",control,"_gt")
   write_sim_data(model, scene, camera_matrix, camera_pose, filepath)

@@ -134,7 +134,7 @@ function test_opt_bulk()
 end
 
 function test_opt_const()
-    scale = 2
+    scale = 100
     r::Float64 = 0.25*scale  # radius of the cylinder in mm
     h::Float64 = 0.5*scale  # height of the cylinder in mm
     ndim::Int = 3
@@ -154,51 +154,51 @@ function test_opt_const()
     SIDES::Bool = false
     filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
     # filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthtic_data/exp_1")
-    
-    # simulation parameters for the ground truth
-    sim_time::Float64 = 30.0# simulation time in seconds
-    steps::Float64 = 30.0 # number of time steps
-    t_steps::Float64 = sim_time/steps
 
-    gt_β::Float64 = 100.0
-    gt_η::Float64 = 40.0
-    F::Float64 = 1.0*scale
-    gt_ne = 6
+    # simulation parameters for the ground truth
+    sim_time_gt::Float64 = 10.0# simulation time in seconds
+    steps_gt::Float64 = 10.0 # number of time steps
+    t_steps_gt::Float64 = sim_time_gt/steps_gt
+    β_gt::Float64 = 100.0
+    η_gt::Float64 = 40.0;
+    ne_gt = 6
+
+    F::Float64 = 250000.0
+    # F::Float64 = 3.0 # force applied to the cylinder in N
+
+    # simulation parameters for the experiments
+    sim_time::Float64 = 10.0# simulation time in seconds
+    steps::Float64 = 10.0 # number of time steps
+    t_steps::Float64 = sim_time/steps
+    ne_exp::Int = 4
+
+    dev_η::Float64 = dev*η_gt
+    ηStart::Float64 = η_gt - dev_η
+
+    dev_β::Float64 = dev*β_gt
+    βStart::Float64 = β_gt - dev_β
 
     # Write the ground truth
-    gt_model, gt_scene = def_problem(r, h, gt_ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
-    write_sim_data(gt_model, gt_scene, camera_matrix, camera_pose, filepathi)
+    printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
+    model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
+    write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepathi)
     
-    ne::Int = 4
-
     # Read the gt data
     ObsDataList, splinexObs, splineyObs = read_csv(string(filepathi,"/Results/contour_data"))  
-    nScene, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
-    ObsData = [nScene, nSplinex, nSpliney]
-    obsBorderPts = ObsData[1]
+    obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
 
-    dev_η::Float64 = gt_η*dev
-    dev_β::Float64 = gt_β*dev
-
-    ηStart::Float64 = gt_η - dev_η
-    βStart::Float64 = gt_β - dev_β
-
-    viscosity_type = "constant"
-    conditions = Conditions(filepath=filepathi, camera_matrix=camera_matrix, camera_pose=camera_pose)
-    model, scene = def_problem(r, h, ne, ηStart, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, βStart, F, control, viscosity_type, sim_time, t_steps)
+    model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
+    conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose, SIDES=SIDES, filepath=filepathi, ANIMATE=false)
 
     θ::Vector{Float64} = [ηStart, βStart]
-
-    printstyled("Ground truth η : $(gt_η), ground truth β: $(gt_β)\n"; color = :green)
-
     stats = fit_model(model, scene, conditions, obsBorderPts, θ)
 
     η = stats["η"]
     β = stats["β"]
     printstyled("Estimated η : $(η), estimated β: $(β)\n"; color = :green)
 
-    η_accuracy = (1 - abs(gt_η-η)/gt_η)*100
-    β_accuracy = (1 - abs(gt_β-β)/gt_β)*100
+    η_accuracy = (1 - abs(η_gt-η)/η_gt)*100
+    β_accuracy = (1 - abs(β_gt-β)/β_gt)*100
     printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
     printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
 
@@ -207,7 +207,7 @@ function test_opt_const()
     scene.β = [β]
 
     # simulate the model with the estimated parameters
-    gt_μ_list, others = simulate(gt_model, gt_scene, conditions)
+    gt_μ_list, others = simulate(model_gt, scene_gt, conditions)
     est_μ_list, others = simulate(model, scene, conditions)
 
     est_h = get_height(est_μ_list, h)

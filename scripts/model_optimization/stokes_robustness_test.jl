@@ -12,41 +12,41 @@ using DelimitedFiles
 function main(βLst, noiseLevelLst, ηLst)
 
     # test case 
-    scale = 100
-    r = 0.25*scale  # radius of the cylinder in mm
-    h = 0.5*scale  # height of the cylinder in mm
-    ne = 6
-    ndim = 3
-    FunctionClass_u = "Q2"
-    nDof_u = ndim  # number of degree of freedom per node
-    FunctionClass_p = "Q1"
-    nDof_p = 1  # number of degree of freedom per node
+    scale = 2
+    r::Float64 = 0.25*scale  # radius of the cylinder in mm
+    h::Float64 = 0.5*scale  # height of the cylinder in mm
+    ndim::Int = 3
+    FunctionClass_u::String = "Q2"
+    nDof_u::Int = ndim  # number of degree of freedom per node
+    FunctionClass_p::String = "Q1"
+    nDof_p::Int = 1  # number of degree of freedom per node
 
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
     camera_pose = scale*[0 -0.25 2]'   # camera position in mm
 
+    dev::Float64 = 0.3
 
-    dateTime = Dates.now()
-    sampleNo = 21
-    dev = 0.3
-
-    control = "force" # "force" or "velocity"
-    viscosity_type = "constant" # "constant" or "bulk_viscosity"
-
-    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test3")
+    control::String = "force" # "force" or "velocity"
+    viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
+    # filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthtic_data/exp_1")
 
     # simulation parameters for the ground truth
-    sim_time_gt = 10.0
-    steps_gt = 10.0
-    t_steps_gt = sim_time_gt/steps_gt
+    sim_time_gt::Float64 = 20.0# simulation time in seconds
+    steps_gt::Float64 = 20.0 # number of time steps
+    t_steps_gt::Float64 = sim_time_gt/steps_gt
+    gt_ne = 6
 
-    sim_time = 10.0
-    steps = 10.0
-    t_steps = sim_time/steps
+    # F::Float64 = 250000.0
+    F::Float64 = 3.0 # force applied to the cylinder in N
 
+    # simulation parameters for the experiments
+    sim_time::Float64 = 20.0# simulation time in seconds
+    steps::Float64 = 20.0 # number of time steps
+    t_steps::Float64 = sim_time/steps
+
+    sampleNo = 21
+    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test3")
     sideList = [false]
-
-    F = 250000.0  # force in N
 
     for η_gt::Float64 in ηLst
         dev_η::Float64 = dev*η_gt
@@ -56,8 +56,8 @@ function main(βLst, noiseLevelLst, ηLst)
             dev_β::Float64 = dev*β_gt
             βStart::Float64 = β_gt - dev_β
 
-            println("Ground truth: η :", η_gt, " β :", β_gt)
-            model_gt, scene_gt = def_problem(r, h, ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
+            printstyled("Ground truth η : $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
+            model_gt, scene_gt = def_problem(r, h, gt_ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
             filepath_gt = string(filepath,"/experiment_$(η_gt)_$(β_gt)/ground_truth")
             write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepath_gt)
             
@@ -70,7 +70,7 @@ function main(βLst, noiseLevelLst, ηLst)
             model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
             for noiseLevel::Float64 in noiseLevelLst
                 ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/Results/contour_data"))  
-                ObsDataList = ObsDataList[1:(round(Int,sim_time)+1)]
+                ObsDataList = ObsDataList[1:(round(Int,sim_time/t_steps)+1)]
                 if noiseLevel == 0.0
                     # Read the gt data 
                     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
@@ -79,7 +79,7 @@ function main(βLst, noiseLevelLst, ηLst)
                         filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
                         conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose, SIDES=sides, filepath=filepathi, ANIMATE=false)
 
-                        θ = [ηStart, βStart]
+                        θ::Vector{Float64} = [ηStart, βStart]
                         stats = fit_model(model, scene, conditions, obsBorderPts, θ)
                                             
                         iterList = stats["iterList"]
