@@ -19,7 +19,7 @@ function main()
 
   # simulation parameters for the ground truth
   sim_time::Float64 = 30.0# simulation time in seconds
-  steps::Float64 = 20.0 # number of time steps
+  steps::Float64 = 30.0 # number of time steps
   t_steps::Float64 = sim_time/steps
 
   gt_β::Float64 = 100.0
