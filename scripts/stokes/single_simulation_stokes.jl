@@ -37,6 +37,7 @@ function main()
       filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/single_simulation/fem_runs/Stokes/",control,"_gt/exp_$i")
       write_sim_data(model, scene, camera_matrix, camera_pose, filepath)
 
+      
       i += 1
     end
   end

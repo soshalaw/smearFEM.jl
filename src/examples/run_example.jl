@@ -233,7 +233,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     scene::AbstractScenario = deepcopy(_scene)
     conditions = Conditions(ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true, camera_matrix=camera_matrix, camera_pose=camera_pose, filepath=filepath)
     rm(string(filepath,"/Results"), recursive=true, force=true) # remove the previous results folder if it exists
-    
+
     # run the simulation
     h, gradList, borderPts2DList, fields, pos3D, pos2D = simulate(model, scene, conditions)
 
@@ -242,6 +242,12 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_contour_data(string(conditions.filepath,"/Results/data/projected_surface_points"), pos2D)
     write_contour_data(string(filepath,"/Results/data/3D_points"), pos3D)
     write_contour_data(string(filepath,"/Results/data/motion_fields"), fields)
+    
+    params = Dict("η" => model.η[1], "β" => scene.β[1], "CameraMatrix" => conditions.camera_matrix,
+                        "CameraPose" => conditions.camera_pose, "control_type"=>scene.control,
+                        "simulation_time" => scene.endTime, "time_steps" => scene.tSteps, "viscosity_type"=>scene.viscosity_type)
+
+    write_json(string(filepath,"/Results/data/params"), params)
 
 end
 
