@@ -27,7 +27,7 @@ function main()
   # F::Float64 = 150000000.0 # force applied to the cylinder for \beta = 1e5
   # F::Float64 = 150000.0 # force applied to the cylinder in for β = 1e2
   # F::Float64 = 1500000.0 # force applied to the cylinder in N
-  F::Float64 = 1500.0 
+  F_::Float64 = 1500.0 
   ne::Int = 10 # number of elements in the mesh
 
   β_list = [100.0 1000.0 1e5]
@@ -35,7 +35,7 @@ function main()
   i::Int = 1
 
   for gt_β::Float64 in β_list
-    F = F*gt_β
+    F = F_*gt_β
     for gt_η::Float64 in η_list
 
       model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
