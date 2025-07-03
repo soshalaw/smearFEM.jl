@@ -9,7 +9,7 @@ using Measures
 using Dates
 using DelimitedFiles
 
-function main(βLst, noiseLevelLst, ηLst)
+function run(noiseLevelLst, file_path)
 
     # test case 
     scale = 2
@@ -45,7 +45,6 @@ function main(βLst, noiseLevelLst, ηLst)
     t_steps::Float64 = sim_time/steps
 
     sampleNo = 21
-    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test3")
     sideList = [false]
 
     for η_gt::Float64 in ηLst
@@ -281,11 +280,11 @@ end
 
 # save the data to a file and post process
 
-function plot_noise_covariance(ηLst, βLst, noiseLevel)
+function plot_noise_covariance(ηLst, βLst, noiseLevel, file_path)
     
     for η in ηLst
         for β in βLst
-            file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/experiment_$(η)_$(β)/trials/")
+            file_path = string(file_path,"/experiment_$(η)_$(β)/trials/")
             Plots.plot([],[],label="")
             for i::Float64 in noiseLevel
                 if i != 0.0
@@ -345,9 +344,8 @@ function plot_noise_covariance(ηLst, βLst, noiseLevel)
 
 end
 
-function plot_height_vs_slip(ηLst, βLst)
+function plot_height_vs_slip(ηLst, βLst, file_path)
     βsz = length(βLst)
-    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
     Plots.plot([],[],label="")
 
     for j::Float64 in ηLst
@@ -362,7 +360,7 @@ function plot_height_vs_slip(ηLst, βLst)
     Plots.savefig(string(file_path,"height_vs_slip.pdf"))
 end
 
-function plot_field_at_height(ηLst, βLst)
+function plot_field_at_height(ηLst, βLst, file_path)
     scene_size = length(ηLst)* length(βLst)
     h_Vector = Vector{AbstractArray}(undef, scene_size)
     β_Vector = Vector{Float64}(undef, scene_size)
@@ -371,7 +369,6 @@ function plot_field_at_height(ηLst, βLst)
     t_indexes = Vector{Int}(undef, scene_size)
 
     Plots.plot([],[],label="")
-    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
 
     ηiter::Int = 1
     for j::Float64 in ηLst
@@ -470,8 +467,8 @@ function get_norm(x::AbstractMatrix)
     return norm_x.*800
 end
 
-function plot_data(ηLst, βLst, noiseLevelLst; n=0)
-    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/")
+function plot_data(ηLst, βLst, noiseLevelLst, file_path; n=0)
+
     plot_colors = [:steelblue :indianred :seagreen :darkorange :mediumpurple :cadetblue :lightcoral :dimgray]
     for k::Float64 in noiseLevelLst
         if k == 0.0
@@ -578,14 +575,12 @@ function plot_data(ηLst, βLst, noiseLevelLst; n=0)
     end
 end
 
-ηLst = [40.0]
-βLst = [100.0]
-# noiseLevelLst = [0.0 0.25 0.5 0.75 1.0]
-noiseLevelLst = [0.0]
 
-main(βLst, noiseLevelLst, ηLst)
-# plot_height_vs_slip(ηLst, βLst)
-# plot_field_at_height(ηLst, βLst)
-# plot_noise_covariance(ηLst, βLst, noiseLevelLst)
-# plot_data(ηLst, βLst, noiseLevelLst, n=10)
+noiseLevelLst = [0.0 0.125 0.25 0.5 1.0]
+
+run(noiseLevelLst, file_path)
+plot_height_vs_slip(ηLst, βLst, file_path)
+plot_field_at_height(ηLst, βLst, file_path)
+plot_noise_covariance(ηLst, βLst, noiseLevelLst, file_path)
+plot_data(ηLst, βLst, noiseLevelLst, file_path, n=10)
 
