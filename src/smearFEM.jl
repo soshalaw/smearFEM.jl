@@ -12,7 +12,7 @@ export meshgrid_line, meshgrid_square, meshgrid_cube, inflate_cylinder, meshgrid
 export gaussian_quadrature, basis_function # fem.jl
 export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, plot_covariance # PostProcess.jl
 export read_csv, write_vtk, write_scene, write_csv, write_json, write_contour_data, read_h5, read_json # io.jl
-export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h # plotting.jl
+export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h, set_plot # plotting.jl
 export closest_point, height_sample, match_points, fit_model # smearOptimize.jl
 export reset_model!, update_model! # models.jl
 export reset_model!, reset_model! # Meshes.jl

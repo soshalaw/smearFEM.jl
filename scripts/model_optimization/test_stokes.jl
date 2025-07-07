@@ -102,6 +102,7 @@ function test_opt_bulk()
     # end
     set_file(string(filepath,"/Results/plots"))
 
+    plt_η = set_plot(22, xlabel="Time (s)", ylabel="η")
     t_windows = collect(range(start=gt_t_steps, stop=gt_sim_time, step=gt_t_steps))
     Plots.plot(gt_model.η, label="Ground truth η(t)", dpi=400)
     # Plots.plot!(t_windows, est_ηpList, label="Estimated η(t)")
@@ -120,15 +121,13 @@ function test_opt_bulk()
     # est_h_list = get_height(est_μ_list, h)
     gt_h_list = get_height(gt_μ_list, h)
 
+    # plt_h = set_plot(22, xlabel="Time (s)", ylabel="Height")
     # Plots.plot(gt_h_list, label="Ground truth height", dpi=400)
     # Plots.plot!(est_h_list, label="Estimated height")
-    # Plots.xlabel!("time (s)")
-    # Plots.ylabel!("h(t)")
     # Plots.savefig(string(filepath,"/Results/plots/h.pdf"))
 
+    plt_error = set_plot(22, xlabel="Time (s)", ylabel="Error")
     # Plots.plot(abs.(est_h-gt_h), label="Height estimation error", dpi=400)
-    # Plots.xlabel!("Time (s)")
-    # Plots.ylabel!("Error")
     # Plots.savefig(string(filepathi,"/Results/plots/h_est_error.pdf"))
 
     # write_csv(string(filepath,"/Results/data/est_η"), est_ηpList)

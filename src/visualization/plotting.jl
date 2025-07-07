@@ -1,4 +1,5 @@
-using Plots
+using Plots, Plots.PlotMeasures
+using StatsPlots
 using ProgressMeter
 using ArgCheck
 
@@ -151,14 +152,12 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
         else
             sz = length(fields2D)
         end
-
         pr = Progress(sz; desc="Animating 2D fields...",showspeed=true)
         iter = 1:sz
         animation2 = @animate for i in iter
-            plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y", guidefontsize=14, 
-                            tickfontsize=12, legendfontsize=12, label="", dpi=400)
-            # plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y",title="Prospective Projection of the 3D Grid", guidefontsize=14, 
-            #                 tickfontsize=12, legendfontsize=12, label="", dpi=400)
+            
+            plt = set_plot(22, "x", "y", (0,2048), (0,1536))
+
             if !isnothing(p)   
                 Plots.plot!(p[i],q[i], legend=true, labels="Simulation",  dpi=:400)
             end
@@ -166,14 +165,13 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
                 Plots.plot!(pObs[i],qObs[i], labels="Observation",  dpi=:400)
             end
             if !isnothing(fields2D)
-                Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:2, mc=:cyan, ma=:0.5, legend=true, labels="Surface Nodes",dpi=:400)
+                Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes",dpi=:400)
             end
             if !isnothing(BorderNodes2D)
-                Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:2, mc=:"BB5566", legend=true, labels="Border Nodes", dpi=:400)
+                Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:6, mc=:indianred2, legend=true, labels="Border Nodes", dpi=:400)
             end
             next!(pr)
         end
-
         gif(animation2, string(filepath,"/2D_grid.gif"), fps=10)
     end
 end
@@ -188,17 +186,43 @@ Function to animate the 3D fields as a gif
 """
 function animate3D(fields; filepath="images/3D_grid.gif")
     sz = length(fields)
+    fz = 22
     pr = Progress(sz; desc="Animating 3D fields...",showspeed=true)
     iter = 1:sz
+
+    xmax = maximum(fields[1][1,:])
+    xmin = minimum(fields[1][1,:])
+    ymax = maximum(fields[1][2,:])
+    ymin = minimum(fields[1][2,:])
+    zmax = maximum(fields[1][3,:])
+    zmin = minimum(fields[1][3,:])
+    fac = 0.3 # factor to extend the limits of the plot
     animation = @animate for i in iter
-        Plots.scatter3d(fields[i][1,:], fields[i][2,:], fields[i][3,:], markersize=2, label=:"", dpi=:400)
-        # Plots.xlims!(-7.5,7.5)
-        # Plots.ylims!(-7.5,7.5)
-        # Plots.zlims!(0,15)
-        Plots.xlabel!("x")
-        Plots.ylabel!("y")
-        Plots.zlabel!("z")
-        # Plots.title!("3D Grid")
+        plt = Plots.plot(1, 
+                            xlims=(xmin-fac*(xmax-xmin), xmax+fac*(xmax-xmin)),
+                            ylims=(ymin-fac*(ymax-ymin), ymax+fac*(ymax-ymin)),
+                            zlims=(zmin, zmax+fac*(zmax-zmin)),
+
+                            xlabel="x",ylabel="y",zlabel="z",
+
+                            tickfontsize = fz,
+                            guidefontsize = fz,
+                            legendfontsize = fz-2, 
+
+                            aspect_ratio = :equal, 
+
+                            size = (1000,1000), 
+
+                            fontfamily = "computer modern",
+                            framestyle = :semi, 
+                            margin = 2.5mm, 
+
+                            grid = :true, 
+                            minorgrid = :false, 
+                            camera = (40, 30),
+                            label="")
+
+        Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:royalblue, markersize=6, label=:"", dpi=:400)
         next!(pr)
     end
 
@@ -255,4 +279,51 @@ function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String
         next!(pr)
     end
     gif(animation, string(filepath,"/matches_h.gif"), fps=10)
+end
+
+function set_plot(fs::Int, xlabel::String, ylabel::String, xlims::Tuple, ylims::Tuple)
+
+    plt = Plots.plot(1,xlims=xlims, ylims=ylims, 
+                            xlabel=xlabel,ylabel=ylabel,
+
+                            xtickfontsize = fs, ytickfontsize = fs,
+                            titlefontsize = fs,
+                            xguidefontsize = fs,
+                            yguidefontsize = fs,
+                            legendfontsize = fs-2, 
+
+                            aspect_ratio = :equal, 
+
+                            size = (1000,750), 
+                            fontfamily = "computer modern",
+                            framestyle = :box, 
+                            margin = 2.5mm, 
+
+                            grid = :true, 
+                            minorgrid = :true, 
+                            label="")
+    return plt
+end
+
+function set_plot(fs::Int, xlabel::String, ylabel::String)
+
+    plt = Plots.plot(1, xlabel=xlabel, ylabel=ylabel,
+
+                            xtickfontsize = fs, ytickfontsize = fs,
+                            titlefontsize = fs,
+                            xguidefontsize = fs,
+                            yguidefontsize = fs,
+                            legendfontsize = fs-2, 
+
+                            aspect_ratio = :equal, 
+
+                            size = (1000,750), 
+                            fontfamily = "computer modern",
+                            framestyle = :box, 
+                            margin = 2.5mm, 
+
+                            grid = :true, 
+                            minorgrid = :true, 
+                            label="")
+    return plt
 end

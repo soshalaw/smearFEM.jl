@@ -258,6 +258,7 @@ function run(noiseLevelLst, file_path)
 
                     plot_covariance(η_pred, β_pred, string(filepathi,"/Results/plots/"))
                     
+                    plt_error = set_plot(22, xlabel="Time (s)", ylabel="Height")
                     StatsPlots.errorline(est_h_list, label="Estimated height", dpi=400)
                     Plots.plot!(gt_h, label="Ground truth height", dpi=400)
                     Plots.xlabel!("Time (s)")
