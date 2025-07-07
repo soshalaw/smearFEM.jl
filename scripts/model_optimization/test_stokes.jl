@@ -102,7 +102,7 @@ function test_opt_bulk()
     # end
     set_file(string(filepath,"/Results/plots"))
 
-    plt_η = set_plot(22, xlabel="Time (s)", ylabel="η")
+    plt_η = set_plot(22, "Time (s)", "η")
     t_windows = collect(range(start=gt_t_steps, stop=gt_sim_time, step=gt_t_steps))
     Plots.plot(gt_model.η, label="Ground truth η(t)", dpi=400)
     # Plots.plot!(t_windows, est_ηpList, label="Estimated η(t)")
