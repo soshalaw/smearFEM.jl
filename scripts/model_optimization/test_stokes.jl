@@ -17,7 +17,7 @@ function test_opt_bulk()
     nDof_u::Int = ndim  # number of degree of freedom per node
     FunctionClass_p::String = "Q1"
     nDof_p::Int = 1  # number of degree of freedom per node
-    ne_gt::Int = 10 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 12 # number of elements in the mesh for the ground truth
 
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
     camera_pose = scale*[0 -0.25 2]'   # camera position in mm
@@ -100,7 +100,7 @@ function test_opt_bulk()
 
     #     update_model!(model)
     # end
-    # set_file(string(filepath,"/Results/plots"))
+    set_file(string(filepath,"/Results/plots"))
 
     t_windows = collect(range(start=gt_t_steps, stop=gt_sim_time, step=gt_t_steps))
     Plots.plot(gt_model.η, label="Ground truth η(t)", dpi=400)
