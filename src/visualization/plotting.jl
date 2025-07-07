@@ -155,24 +155,22 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
         pr = Progress(sz; desc="Animating 2D fields...",showspeed=true)
         iter = 1:sz
         animation2 = @animate for i in iter
-            plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y",title="Prospective Projection of the 3D Grid", label="", dpi=400)
+            plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y", guidefontsize=14, 
+                            tickfontsize=12, legendfontsize=12, label="", dpi=400)
+            # plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y",title="Prospective Projection of the 3D Grid", guidefontsize=14, 
+            #                 tickfontsize=12, legendfontsize=12, label="", dpi=400)
             if !isnothing(p)   
                 Plots.plot!(p[i],q[i], legend=true, labels="Simulation",  dpi=:400)
             end
             if !isnothing(pObs)
                 Plots.plot!(pObs[i],qObs[i], labels="Observation",  dpi=:400)
             end
-            if !isnothing(BorderNodes2D)
-                Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:2, mc=:red, legend=true, labels="Border Nodes", dpi=:400)
-            end
             if !isnothing(fields2D)
-                Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:1, mc=:blue, ma=:0.5, legend=true, labels="Surface Nodes", dpi=:400)
+                Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:2, mc=:cyan, ma=:0.5, legend=true, labels="Surface Nodes",dpi=:400)
             end
-            Plots.xlims!(0,2048)
-            Plots.ylims!(0,1536) 
-            Plots.xlabel!("x")
-            Plots.ylabel!("y")
-            Plots.title!("Prospective Projection of the 3D Grid")
+            if !isnothing(BorderNodes2D)
+                Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:2, mc=:"BB5566", legend=true, labels="Border Nodes", dpi=:400)
+            end
             next!(pr)
         end
 
@@ -200,7 +198,7 @@ function animate3D(fields; filepath="images/3D_grid.gif")
         Plots.xlabel!("x")
         Plots.ylabel!("y")
         Plots.zlabel!("z")
-        Plots.title!("3D Grid")
+        # Plots.title!("3D Grid")
         next!(pr)
     end
 

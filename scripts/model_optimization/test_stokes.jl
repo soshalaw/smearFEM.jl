@@ -115,10 +115,10 @@ function test_opt_bulk()
     # est_model.η = est_ηpList
     # est_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(est_model, est_scene, conditions)
 
-    # gt_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(gt_model, gt_scene, conditions)
+    gt_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(gt_model, gt_scene, conditions)
 
     # est_h_list = get_height(est_μ_list, h)
-    # gt_h_list = get_height(gt_μ_list, h)
+    gt_h_list = get_height(gt_μ_list, h)
 
     # Plots.plot(gt_h_list, label="Ground truth height", dpi=400)
     # Plots.plot!(est_h_list, label="Estimated height")
