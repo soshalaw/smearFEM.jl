@@ -246,7 +246,8 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     # get the mesh height with time
     h = get_height(h_, model.mesh_u.h)
 
-    params = Dict("η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "camera_pose" => conditions.camera_pose, 
+    
+    params = Dict("r"=>model.mesh_u.r, h=>model.mesh_u.h, "η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "camera_pose" => conditions.camera_pose, 
                     "control_type"=>scene.control, "cParam"=>scene.cParam, "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps, 
                     "viscosity_type"=>scene.viscosity_type)
 
