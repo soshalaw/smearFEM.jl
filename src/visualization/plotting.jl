@@ -157,20 +157,27 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
         iter = 1:sz
         animation2 = @animate for i in iter
             
-            plt = set_plot(22, "x", "y", (0,2048), (0,1536))
+            plt = set_plot(22)
 
             if !isnothing(p)   
-                Plots.plot!(p[i],q[i], legend=true, labels="Simulation",  dpi=:400)
+                Plots.plot!(p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400)
             end
             if !isnothing(pObs)
-                Plots.plot!(pObs[i],qObs[i], labels="Observation",  dpi=:400)
+                Plots.plot!(pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400)
             end
             if !isnothing(fields2D)
-                Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes",dpi=:400)
+                Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
+                                dpi=:400)
             end
             if !isnothing(BorderNodes2D)
-                Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:6, mc=:indianred2, legend=true, labels="Border Nodes", dpi=:400)
+                Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:6, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
+                                dpi=:400)
             end
+
+            Plots.xlabel!(L"x")
+            Plots.ylabel!(L"y")
+            Plots.xlims!(0,2048)
+            Plots.ylims!(0,1536)
             next!(pr)
         end
         gif(animation2, string(filepath,"/2D_grid.gif"), fps=10)
@@ -282,49 +289,23 @@ function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String
     gif(animation, string(filepath,"/matches_h.gif"), fps=10)
 end
 
-function set_plot(fs::Int, xlabel::String, ylabel::String, xlims::Tuple, ylims::Tuple)
+function set_plot(fs::Int)
 
-    plt = Plots.plot(1,xlims=xlims, ylims=ylims, 
-                            xlabel=latexstring(xlabel), ylabel=latexstring(ylabel),
-
+    plt = Plots.plot(1, 
                             xtickfontsize = fs, ytickfontsize = fs,
                             titlefontsize = fs,
                             xguidefontsize = fs,
                             yguidefontsize = fs,
                             legendfontsize = fs-2, 
 
-                            aspect_ratio = :equal, 
-
                             size = (1000,750), 
                             fontfamily = "computer modern",
                             framestyle = :box, 
-                            margin = 2.5mm, 
+                            margin = 6mm, 
 
                             grid = :true, 
                             minorgrid = :true, 
-                            label="")
-    return plt
-end
-
-function set_plot(fs::Int, xlabel::String, ylabel::String)
-
-    plt = Plots.plot(1, xlabel=latexstring(xlabel), ylabel=latexstring(ylabel),
-
-                            xtickfontsize = fs, ytickfontsize = fs,
-                            titlefontsize = fs,
-                            xguidefontsize = fs,
-                            yguidefontsize = fs,
-                            legendfontsize = fs-2, 
-
-                            aspect_ratio = :equal, 
-
-                            size = (1000,750), 
-                            fontfamily = "computer modern",
-                            framestyle = :box, 
-                            margin = 2.5mm, 
-
-                            grid = :true, 
-                            minorgrid = :true, 
+                            
                             label="")
     return plt
 end

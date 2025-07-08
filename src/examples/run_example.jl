@@ -243,11 +243,11 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_contour_data(string(filepath,"/Results/data/3D_points"), pos3D)
     write_contour_data(string(filepath,"/Results/data/motion_fields"), fields)
     
-    params = Dict("η" => model.η[1], "β" => scene.β[1], "CameraMatrix" => conditions.camera_matrix,
-                        "CameraPose" => conditions.camera_pose, "control_type"=>scene.control,
-                        "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps, "viscosity_type"=>scene.viscosity_type)
+    params = Dict("η" => model.η, "β" => scene.β, "CameraMatrix" => conditions.camera_matrix, "CameraPose" => conditions.camera_pose, 
+                    "control_type"=>scene.control, "cParam"=>scene.cParam, "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps, 
+                    "viscosity_type"=>scene.viscosity_type)
 
-    write_json(string(filepath,"/Results/data/params"), params)
+    write_json(string(filepath,"/data/params"), params)
 
 end
 
