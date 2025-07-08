@@ -152,13 +152,8 @@ function test_opt_const()
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
     camera_pose = scale*[0 -0.25 2]'   # camera position in mm
 
-    F::Float64 = 250000.0
-    # F::Float64 = 3.0 # force applied to the cylinder in N
-
     dev::Float64 = 0.3
 
-    control::String = "force" # "force" or "velocity"
-    viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
     noiseLevel::Float64 = 0
     SIDES::Bool = false
 
@@ -174,6 +169,7 @@ function test_opt_const()
     sim_time_gt::Float64 = 1.0# simulation time in seconds
     steps_gt::Float64 = 1.0 # number of time steps
     t_steps_gt::Float64 = 1.0
+    F::Vector{Float64} = ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
     
     sim = false # true or false with simulated dummy data or real data
     if sim == true # with simulated dummy data
@@ -186,6 +182,8 @@ function test_opt_const()
         β_gt = 100.0
         η_gt = 40.0
         ne_gt::Int = 6
+        F_ext::Float64 = 1500.0 # force applied to the cylinder in N
+        F = -F_ext*ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
 
         # Write the ground truth
         printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
@@ -198,8 +196,11 @@ function test_opt_const()
 
         η_gt = params["η"]
         β_gt = params["β"]
-        camera_matrix = params["CameraMatrix"]
-        camera_pose = params["CameraPose"]
+        camera_matrix = params["camera_matrix"]
+        camera_pose = params["camera_pose"]
+        control = params["control_type"]
+        viscosity_type = params["viscosity_type"]
+        F = params["cParam"]
 
         sim_time_gt = 10.0# simulation time in seconds
         steps_gt = 10.0 # number of time steps

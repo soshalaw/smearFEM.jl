@@ -18,8 +18,8 @@ function main()
   viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
 
   # simulation parameters for the ground truth
-  sim_time::Float64 = 30.0# simulation time in seconds
-  steps::Float64 = 30.0 # number of time steps
+  sim_time::Float64 = 5.0# simulation time in seconds
+  steps::Float64 = 5.0 # number of time steps
   t_steps::Float64 = sim_time/steps
 
   gt_β::Float64 = 100.0
@@ -27,8 +27,9 @@ function main()
   # F::Float64 = 150000000.0 # force applied to the cylinder for \beta = 1e5
   # F::Float64 = 150000.0 # force applied to the cylinder in for β = 1e2
   # F::Float64 = 1500000.0 # force applied to the cylinder in N
-  F_::Float64 = 1500.0 
-  ne::Int = 12 # number of elements in the mesh
+  F_ext::Float64 = 1500.0 # force applied to the cylinder in N
+  F_::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
+  ne::Int = 2 # number of elements in the mesh
 
   β_list = [100.0 1000.0 1e5]
   η_list = [30.0 40.0 50.0]

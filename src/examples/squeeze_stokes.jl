@@ -1010,25 +1010,17 @@ function get_η(t::Number, F::Number, R_0::Number, H_0::Number, η_0::Number, n:
 end
 
 function def_problem(r::Number, h::Number, ne::Int64, η_0::Float64, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                    nDof_p::Int64, β::Float64, F::Float64, control::String, viscosity_type::String, sim_time::Float64, t_steps::Float64)
+                    nDof_p::Int64, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::Float64, t_steps::Float64)
     n::Float64 = 0.5
     K::Float64 = 2.0
     len_t::Int = round(Int,(sim_time/t_steps)) # number of time steps
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
 
-    if control == "force"
-        cParam = -F*ones(Float64, len_t)
-        if viscosity_type == "bulk_viscosity"
-            η = get_η.(time, F, r, h, η_0, n, K)
-        else
-            η = [η_0]
-        end 
-    elseif control == "velocity"
-        cParam = -0.02*ones(Float64, len_t)
-        η = [η_0]
+    if viscosity_type == "bulk_viscosity"
+        η = get_η.(time, F, r, h, η_0, n, K)
     else
-        throw(ArgumentError("Control type not recognized"))
-    end
+        η = [η_0]
+    end 
 
     # define the model
     stokes = set_model(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p) # define the model    
