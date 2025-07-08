@@ -1017,7 +1017,7 @@ function def_problem(r::Number, h::Number, ne::Int64, η_0::Float64, ndim::Int64
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
 
     if viscosity_type == "bulk_viscosity"
-        η = get_η.(time, F, r, h, η_0, n, K)
+        η = get_η.(time, -cParam, r, h, η_0, n, K)
     else
         η = [η_0]
     end 

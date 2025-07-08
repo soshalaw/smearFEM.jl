@@ -229,25 +229,33 @@ None.
 """
 function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, 
                         filepath::String="nothing", SIDES::Bool=false)
+
+    # copy the model and scene to avoid modifying the original objects
     model::AbstractModel = deepcopy(_model)
     scene::AbstractScenario = deepcopy(_scene)
+    # set the model parameters
     conditions = Conditions(ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true, camera_matrix=camera_matrix, camera_pose=camera_pose, filepath=filepath)
-    rm(string(filepath,"/Results"), recursive=true, force=true) # remove the previous results folder if it exists
+    # remove the previous results folder if it exists
+    if isdir(string(filepath))
+        @info "Removing previous results folder: $filepath"
+        rm(string(filepath), recursive=true, force=true) # remove the previous results folder if it exists
+    end
 
     # run the simulation
-    h, gradList, borderPts2DList, fields, pos3D, pos2D = simulate(model, scene, conditions)
+    h_, gradList, borderPts2DList, fields, pos3D, pos2D = simulate(model, scene, conditions)
+    # get the mesh height with time
+    h = get_height(h_, model.mesh_u.h)
 
-    h = get_height(h, model.mesh_u.h)
-    write_csv(string(filepath,"/Results/data/h"), h)
-    write_contour_data(string(conditions.filepath,"/Results/data/projected_surface_points"), pos2D)
-    write_contour_data(string(filepath,"/Results/data/3D_points"), pos3D)
-    write_contour_data(string(filepath,"/Results/data/motion_fields"), fields)
-    
     params = Dict("η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "camera_pose" => conditions.camera_pose, 
                     "control_type"=>scene.control, "cParam"=>scene.cParam, "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps, 
                     "viscosity_type"=>scene.viscosity_type)
 
+    # write results to files
     write_json(string(filepath,"/data/params"), params)
+    write_csv(string(filepath,"/data/h"), h)
+    write_contour_data(string(conditions.filepath,"/data/projected_surface_points"), pos2D)
+    write_contour_data(string(filepath,"/data/3D_points"), pos3D)
+    write_contour_data(string(filepath,"/data/motion_fields"), fields)
 
 end
 
