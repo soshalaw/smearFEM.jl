@@ -1,4 +1,5 @@
 using Plots, Plots.PlotMeasures
+using LaTeXStrings
 using StatsPlots
 using ProgressMeter
 using ArgCheck
@@ -83,9 +84,9 @@ function plot_mesh(NodeList, IEN)
             Plots.plot3d!(x, y, z,marker=1.5, lw=0.5, label="", dpi=:400)
         end
 
-        Plots.xlabel!("x")
-        Plots.ylabel!("y")
-        Plots.zlabel!("z")
+        Plots.xlabel!(L"x")
+        Plots.ylabel!(L"y")
+        Plots.zlabel!(L"z")
         Plots.title!("3D Grid")
     end
 end
@@ -203,7 +204,7 @@ function animate3D(fields; filepath="images/3D_grid.gif")
                             ylims=(ymin-fac*(ymax-ymin), ymax+fac*(ymax-ymin)),
                             zlims=(zmin, zmax+fac*(zmax-zmin)),
 
-                            xlabel="x",ylabel="y",zlabel="z",
+                            xlabel=L"x",ylabel=L"y",zlabel=L"z",
 
                             tickfontsize = fz,
                             guidefontsize = fz,
@@ -284,7 +285,7 @@ end
 function set_plot(fs::Int, xlabel::String, ylabel::String, xlims::Tuple, ylims::Tuple)
 
     plt = Plots.plot(1,xlims=xlims, ylims=ylims, 
-                            xlabel=xlabel,ylabel=ylabel,
+                            xlabel=LaTeXString(xlabel), ylabel=LaTeXString(ylabel),
 
                             xtickfontsize = fs, ytickfontsize = fs,
                             titlefontsize = fs,
@@ -307,7 +308,7 @@ end
 
 function set_plot(fs::Int, xlabel::String, ylabel::String)
 
-    plt = Plots.plot(1, xlabel=xlabel, ylabel=ylabel,
+    plt = Plots.plot(1, xlabel=LaTeXString(xlabel), ylabel=LaTeXString(ylabel),
 
                             xtickfontsize = fs, ytickfontsize = fs,
                             titlefontsize = fs,

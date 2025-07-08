@@ -67,7 +67,7 @@ function test_opt_bulk()
     # βStart::Float64 = gt_β - dev_β
 
     # viscosity_type = "constant"
-    # conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose)
+    conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose)
     # model, scene = def_problem(r, h, ne_exp, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
 
     # θ::Vector{Float64} = [ηStart, βStart]
@@ -104,7 +104,7 @@ function test_opt_bulk()
 
     plt_η = set_plot(22, "Time (s)", "η")
     t_windows = collect(range(start=gt_t_steps, stop=gt_sim_time, step=gt_t_steps))
-    Plots.plot(gt_model.η, label="Ground truth η(t)", dpi=400)
+    Plots.plot!(gt_model.η, label="Ground truth η(t)", dpi=400)
     # Plots.plot!(t_windows, est_ηpList, label="Estimated η(t)")
     Plots.xlabel!("time (s)")
     Plots.ylabel!("η")
@@ -116,18 +116,18 @@ function test_opt_bulk()
     # est_model.η = est_ηpList
     # est_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(est_model, est_scene, conditions)
 
-    gt_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(gt_model, gt_scene, conditions)
+    # gt_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(gt_model, gt_scene, conditions)
 
     # est_h_list = get_height(est_μ_list, h)
-    gt_h_list = get_height(gt_μ_list, h)
+    # gt_h_list = get_height(gt_μ_list, h)
 
-    # plt_h = set_plot(22, xlabel="Time (s)", ylabel="Height")
-    # Plots.plot(gt_h_list, label="Ground truth height", dpi=400)
+    # plt_h = set_plot(22, "Time (s)", "Height")
+    # Plots.plot!(gt_h_list, label="Ground truth height", dpi=400)
     # Plots.plot!(est_h_list, label="Estimated height")
     # Plots.savefig(string(filepath,"/Results/plots/h.pdf"))
 
-    plt_error = set_plot(22, xlabel="Time (s)", ylabel="Error")
-    # Plots.plot(abs.(est_h-gt_h), label="Height estimation error", dpi=400)
+    # plt_error = set_plot(22, "Time (s)", "Error")
+    # Plots.plot!(abs.(est_h-gt_h), label="Height estimation error", dpi=400)
     # Plots.savefig(string(filepathi,"/Results/plots/h_est_error.pdf"))
 
     # write_csv(string(filepath,"/Results/data/est_η"), est_ηpList)
@@ -135,7 +135,7 @@ function test_opt_bulk()
     write_csv(string(filepath,"/Results/data/gt_η"), gt_model.η)
     write_csv(string(filepath,"/Results/data/gt_β"), gt_β)
     # write_csv(string(filepath,"/Results/data/est_h"), est_h_list)
-    write_csv(string(filepath,"/Results/data/gt_h"), gt_h_list)
+    # write_csv(string(filepath,"/Results/data/gt_h"), gt_h_list)
 end
 
 function test_opt_const()
@@ -234,15 +234,13 @@ function test_opt_const()
     # gt_h = get_height(gt_μ_list, h)
 
     # set_file(string(filepathi,"/Results/plots"))
-    # Plots.plot(est_h, label="Estimated height", dpi=400)
+    # set_plot(22, "Time (s)", "Height")
+    # Plots.plot!(est_h, label="Estimated height", dpi=400)
     # Plots.plot!(gt_h, label="Ground truth height", dpi=400)
-    # Plots.xlabel!("Time (s)")
-    # Plots.ylabel!("Height")
     # Plots.savefig(string(filepathi,"/Results/plots/h_est.pdf"))
 
-    # Plots.plot(abs.(est_h-gt_h), label="Height estimation error", dpi=400)
-    # Plots.xlabel!("Time (s)")
-    # Plots.ylabel!("Error")
+    # set_plot(22, "Time (s)", "Error")
+    # Plots.plot!(abs.(est_h-gt_h), label="Height estimation error", dpi=400)
     # Plots.savefig(string(filepathi,"/Results/plots/h_est_error.pdf"))
 
     iterList::Vector{Float64} = stats["iterList"]
@@ -301,19 +299,20 @@ function test_opt_const()
     end
 
     # Plot the cost function with iterations
-    Plots.plot(iterList, costList, label="Cost", marker=1, dpi=400, yscale=:log10)
-    Plots.xlabel!("Iterations")
-    Plots.ylabel!("Error")
+    set_plot(22, "Iterations", "Cost")
+    Plots.plot!(iterList, costList, label="Cost", marker=1, dpi=400, yscale=:log10)
     Plots.savefig(string(filepathi,"/Results/plots/cost_steps.pdf"))
     
     # Plot the cost function surface
-    Plots.contour(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
+    set_plot(22, "η", "β")
+    Plots.contour!(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
     Plots.plot!(ηpList, βpList, label="Estimations", marker=1)
     Plots.xlabel!("η")
     Plots.ylabel!("β")
     Plots.savefig(string(filepathi,"/Results/plots/cost_surface_iter.pdf"))
 
-    Plots.contourf(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
+    set_plot(22, "η", "β")
+    Plots.contourf!(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, xlabel="η", ylabel="β", dpi=400)
     Plots.xlabel!("η")
     Plots.ylabel!("β")
     Plots.savefig(string(filepathi,"/Results/plots/cost_surface.pdf"))

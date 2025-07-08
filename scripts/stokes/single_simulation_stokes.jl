@@ -28,7 +28,7 @@ function main()
   # F::Float64 = 150000.0 # force applied to the cylinder in for β = 1e2
   # F::Float64 = 1500000.0 # force applied to the cylinder in N
   F_::Float64 = 1500.0 
-  ne::Int = 1 # number of elements in the mesh
+  ne::Int = 4 # number of elements in the mesh
 
   β_list = [100.0 1000.0 1e5]
   η_list = [30.0 40.0 50.0]
