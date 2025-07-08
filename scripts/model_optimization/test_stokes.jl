@@ -328,8 +328,8 @@ function test_opt_const()
 end
 
 
-# test_opt_bulk()
-test_opt_const()
+test_opt_bulk()
+# test_opt_const()
 
 function plot_()
 
