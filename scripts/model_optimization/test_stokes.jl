@@ -165,20 +165,23 @@ function test_opt_const()
     sim_time::Float64 = 10.0# simulation time in seconds
     steps::Float64 = 10.0 # number of time steps
     t_steps::Float64 = sim_time/steps
-    ne_exp::Int = 4
+    ne_exp::Int = 6
 
     filepathi::String = ""
     β_gt::Float64 = 1.0
     η_gt::Float64 = 1.0
+    sim_time_gt::Float64 = 1.0# simulation time in seconds
+    steps_gt::Float64 = 1.0 # number of time steps
+    t_steps_gt::Float64 = 1.0
     
     sim = false # true or false with simulated dummy data or real data
     if sim == true # with simulated dummy data
         filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
 
         # simulation parameters for the ground truth
-        sim_time_gt::Float64 = 10.0# simulation time in seconds
-        steps_gt::Float64 = 10.0 # number of time steps
-        t_steps_gt::Float64 = sim_time_gt/steps_gt
+        sim_time_gt = 10.0# simulation time in seconds
+        steps_gt = 10.0 # number of time steps
+        t_steps_gt = sim_time_gt/steps_gt
         β_gt = 100.0
         η_gt = 40.0
         ne_gt::Int = 6
@@ -191,8 +194,14 @@ function test_opt_const()
     else
         filepathi = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthtic_data/exp_1")
         # Read the ground truth data
+        sim_time_gt = 10.0# simulation time in seconds
+        steps_gt = 10.0 # number of time steps
+        t_steps_gt = sim_time_gt/steps_gt
         β_gt = 100.0
         η_gt = 40.0
+        ne_gt = 6
+
+        model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
         printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
     end
     
@@ -226,22 +235,22 @@ function test_opt_const()
     model.η = [η]
     scene.β = [β]
 
-    # # simulate the model with the estimated parameters
-    # gt_μ_list, others = simulate(model_gt, scene_gt, conditions)
-    # est_μ_list, others = simulate(model, scene, conditions)
+    # simulate the model with the estimated parameters
+    gt_μ_list, others = simulate(model_gt, scene_gt, conditions)
+    est_μ_list, others = simulate(model, scene, conditions)
 
-    # est_h = get_height(est_μ_list, h)
-    # gt_h = get_height(gt_μ_list, h)
+    est_h = get_height(est_μ_list, h)
+    gt_h = get_height(gt_μ_list, h)
 
-    # set_file(string(filepathi,"/Results/plots"))
-    # set_plot(22, "Time (s)", "Height")
-    # Plots.plot!(est_h, label="Estimated height", dpi=400)
-    # Plots.plot!(gt_h, label="Ground truth height", dpi=400)
-    # Plots.savefig(string(filepathi,"/Results/plots/h_est.pdf"))
+    set_file(string(filepathi,"/Results/plots"))
+    set_plot(22, "Time (s)", "Height")
+    Plots.plot!(est_h, label="Estimated height", dpi=400)
+    Plots.plot!(gt_h, label="Ground truth height", dpi=400)
+    Plots.savefig(string(filepathi,"/Results/plots/h_est.pdf"))
 
-    # set_plot(22, "Time (s)", "Error")
-    # Plots.plot!(abs.(est_h-gt_h), label="Height estimation error", dpi=400)
-    # Plots.savefig(string(filepathi,"/Results/plots/h_est_error.pdf"))
+    set_plot(22, "Time (s)", "Error")
+    Plots.plot!(abs.(est_h-gt_h), label="Height estimation error", dpi=400)
+    Plots.savefig(string(filepathi,"/Results/plots/h_est_error.pdf"))
 
     iterList::Vector{Float64} = stats["iterList"]
     costList::Vector{Float64} = stats["costList"]
@@ -319,8 +328,8 @@ function test_opt_const()
 end
 
 
-test_opt_bulk()
-# test_opt_const()
+# test_opt_bulk()
+test_opt_const()
 
 function plot_()
 

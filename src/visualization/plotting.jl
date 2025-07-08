@@ -197,7 +197,7 @@ function animate3D(fields; filepath="images/3D_grid.gif")
     ymin = minimum(fields[1][2,:])
     zmax = maximum(fields[1][3,:])
     zmin = minimum(fields[1][3,:])
-    fac = 0.3 # factor to extend the limits of the plot
+    fac = 0.4 # factor to extend the limits of the plot
     animation = @animate for i in iter
         plt = Plots.plot(1, 
                             xlims=(xmin-fac*(xmax-xmin), xmax+fac*(xmax-xmin)),
@@ -206,7 +206,7 @@ function animate3D(fields; filepath="images/3D_grid.gif")
 
                             xlabel=L"x",ylabel=L"y",zlabel=L"z",
 
-                            tickfontsize = fz,
+                            tickfontsize = fz-4,
                             guidefontsize = fz,
                             legendfontsize = fz-2, 
 
@@ -249,8 +249,8 @@ function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath::St
         end
         Plots.xlims!(0,2048)
         Plots.ylims!(0,1536) 
-        Plots.xlabel!("x")
-        Plots.ylabel!("y")
+        Plots.xlabel!(L"x")
+        Plots.ylabel!(L"y")
         Plots.title!("Point Correspondence")
         next!(pr)
     end
@@ -274,8 +274,8 @@ function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String
         end
         Plots.xlims!(0,2048)
         Plots.ylims!(0,1536) 
-        Plots.xlabel!("x")
-        Plots.ylabel!("y")
+        Plots.xlabel!(L"x")
+        Plots.ylabel!(L"y")
         Plots.title!("Point Correspondence")
         next!(pr)
     end
@@ -285,7 +285,7 @@ end
 function set_plot(fs::Int, xlabel::String, ylabel::String, xlims::Tuple, ylims::Tuple)
 
     plt = Plots.plot(1,xlims=xlims, ylims=ylims, 
-                            xlabel=LaTeXString(xlabel), ylabel=LaTeXString(ylabel),
+                            xlabel=latexstring(xlabel), ylabel=latexstring(ylabel),
 
                             xtickfontsize = fs, ytickfontsize = fs,
                             titlefontsize = fs,
@@ -308,7 +308,7 @@ end
 
 function set_plot(fs::Int, xlabel::String, ylabel::String)
 
-    plt = Plots.plot(1, xlabel=LaTeXString(xlabel), ylabel=LaTeXString(ylabel),
+    plt = Plots.plot(1, xlabel=latexstring(xlabel), ylabel=latexstring(ylabel),
 
                             xtickfontsize = fs, ytickfontsize = fs,
                             titlefontsize = fs,
