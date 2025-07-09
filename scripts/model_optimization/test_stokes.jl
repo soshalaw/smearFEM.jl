@@ -50,57 +50,57 @@ function test_opt_bulk()
 
     write_csv(string(filepath,"/Results/data/gt_η"), gt_model.η)
 
-    # # Read the gt data
-    # ObsDataList, splinexObs, splineyObs = read_csv(string(filepath,"/Results/contour_data"))  
-    # nScene, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
-    # ObsData = [nScene, nSplinex, nSpliney]
-    # obsBorderPts = ObsData[1]
+    # Read the gt data
+    ObsDataList, splinexObs, splineyObs = read_csv(string(filepath,"/Results/contour_data"))  
+    nScene, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
+    ObsData = [nScene, nSplinex, nSpliney]
+    obsBorderPts = ObsData[1]
 
-    # sim_time::Float64 = 15.0
-    # steps::Float64 = 15.0
-    # t_steps::Float64 = sim_time/steps
+    sim_time::Float64 = 15.0
+    steps::Float64 = 15.0
+    t_steps::Float64 = sim_time/steps
 
-    # ne_exp::Int = 4 # number of elements in the mesh for the experiment
-    # dev_η::Float64 = gt_η*dev
-    # dev_β::Float64 = gt_β*dev
+    ne_exp::Int = 4 # number of elements in the mesh for the experiment
+    dev_η::Float64 = gt_η*dev
+    dev_β::Float64 = gt_β*dev
 
-    # ηStart::Float64 = gt_η - dev_η
-    # βStart::Float64 = gt_β - dev_β
+    ηStart::Float64 = gt_η - dev_η
+    βStart::Float64 = gt_β - dev_β
 
-    # viscosity_type = "constant"
+    viscosity_type = "constant"
     conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose)
-    # model, scene = def_problem(r, h, ne_exp, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
+    model, scene = def_problem(r, h, ne_exp, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
 
-    # θ::Vector{Float64} = [ηStart, βStart]
+    θ::Vector{Float64} = [ηStart, βStart]
     
-    # gt_time_frame::Int = round(Int,gt_sim_time)
-    # sim_time_frame::Int = round(Int,sim_time)
-    # windows::Int = gt_time_frame/sim_time_frame
+    gt_time_frame::Int = round(Int,gt_sim_time)
+    sim_time_frame::Int = round(Int,sim_time)
+    windows::Int = gt_time_frame/sim_time_frame
 
-    # est_ηpList = Vector{Float64}(undef,gt_time_frame)
-    # est_βpList = Vector{Float64}(undef,gt_time_frame)
+    est_ηpList = Vector{Float64}(undef,gt_time_frame)
+    est_βpList = Vector{Float64}(undef,gt_time_frame)
 
-    # println("Number of time windows: ", windows)
-    # titer::Int = 1
-    # for ti::Int in 1:windows
+    println("Number of time windows: ", windows)
+    titer::Int = 1
+    for ti::Int in 1:windows
 
-    #     println((sim_time_frame*(titer-1)+1):(sim_time_frame*titer)+1)
-    #     printstyled("Time window: $(ti)\n"; color = :green)
-    #     gt_η_ = gt_model.η[round(Int,(sim_time*(titer-1))+1):round(Int,sim_time*(titer))]
-    #     av_η = mean(gt_η_)
-    #     printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(gt_β)\n"; color = :green)
+        println((sim_time_frame*(titer-1)+1):(sim_time_frame*titer)+1)
+        printstyled("Time window: $(ti)\n"; color = :green)
+        gt_η_ = gt_model.η[round(Int,(sim_time*(titer-1))+1):round(Int,sim_time*(titer))]
+        av_η = mean(gt_η_)
+        printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(gt_β)\n"; color = :green)
 
-    #     stats = fit_model(model, scene, conditions, obsBorderPts[(sim_time_frame*(titer-1)+1):(sim_time_frame*titer)+1], θ)
+        stats = fit_model(model, scene, conditions, obsBorderPts[(sim_time_frame*(titer-1)+1):(sim_time_frame*titer)+1], θ)
 
-    #     est_ηpList[(sim_time_frame*(titer-1)+1):(sim_time_frame*titer)] .= stats["η"]
-    #     est_βpList[(sim_time_frame*(titer-1)+1):(sim_time_frame*titer)] .= stats["β"]
-    #     titer = titer + 1
+        est_ηpList[(sim_time_frame*(titer-1)+1):(sim_time_frame*titer)] .= stats["η"]
+        est_βpList[(sim_time_frame*(titer-1)+1):(sim_time_frame*titer)] .= stats["β"]
+        titer = titer + 1
 
-    #     θ[1] = stats["η"]
-    #     θ[2] = stats["β"]
+        θ[1] = stats["η"]
+        θ[2] = stats["β"]
 
-    #     update_model!(model)
-    # end
+        update_model!(model)
+    end
     set_file(string(filepath,"/Results/plots"))
 
     plt_η = set_plot(22, "Time (s)", "η")
@@ -149,7 +149,7 @@ function test_opt_const()
     sim_time_gt::Float64 = 1.0# simulation time in seconds
     steps_gt::Float64 = 1.0 # number of time steps
     t_steps_gt::Float64 = 1.0
-    F::Vector{Float64} = ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
+    F::Vector{Float64} = ones(Float64, round(Int, (sim_time_gt/t_steps_gt))) # force applied to the cylinder in N
 
     ndim::Int = 3
     FunctionClass_u::String = "Q2"
@@ -166,7 +166,7 @@ function test_opt_const()
     t_steps::Float64 = sim_time/steps
     ne_exp::Int = 4
     
-    sim = false # true or false with simulated dummy data or real data
+    sim = true # true or false with simulated dummy data or real data
     if sim == true # with simulated dummy data
         # simulation parameters for the ground truth
         scale = 100
@@ -175,11 +175,11 @@ function test_opt_const()
         filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
 
         sim_time_gt = 10.0# simulation time in seconds
-        steps_gt = 10.0 # number of time steps
+        steps_gt = 20.0 # number of time steps
         t_steps_gt = sim_time_gt/steps_gt
         β_gt = 100.0
         η_gt = 40.0
-        ne_gt::Int = 12
+        ne_gt::Int = 6
         F_ext::Float64 = 1500.0 # force applied to the cylinder in N
         F = -F_ext*ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
 
@@ -193,9 +193,11 @@ function test_opt_const()
         printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
         model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
         write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepathi)
+
+        ObsDataList, splinexObs, splineyObs = read_csv(string(filepath,"/data/sim_data/contour_data"))  
     else
         filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthtic_data/exp_1")
-        params = read_json(string(filepath,"/data/params.json"))
+        params = read_json(string(filepath,"/data/sim_params.json"))
 
         r = params["r"]
         h = params["h"]
@@ -210,12 +212,14 @@ function test_opt_const()
         sim_time_gt = params["simulation_time"]
         t_steps_gt = params["time_steps"]
 
+        ObsDataList, splinexObs, splineyObs = read_csv(string(filepath,"/data/img_data/contour_data"))  
+
         model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt[1], ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt[1], F, control, viscosity_type, sim_time_gt, t_steps_gt)
         printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
     end
     
     # Read the gt data
-    ObsDataList, splinexObs, splineyObs = read_csv(string(filepath,"/Results/contour_data"))  
+    
     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
     obsBorderPts = obsBorderPts[1:(round(Int,sim_time)+1)]
 
@@ -366,7 +370,7 @@ function test_opt_const()
 end
 
 
-test_opt_bulk()
+# test_opt_bulk()
 test_opt_const()
 
 function plot_()
