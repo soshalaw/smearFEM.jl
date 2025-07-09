@@ -180,7 +180,7 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
             Plots.ylims!(0,1536)
             next!(pr)
         end
-        gif(animation2, string(filepath,"/2D_grid.gif"), fps=10)
+        gif(animation2, string(filepath,"/2D_grid.gif"), fps=1)
     end
 end
 

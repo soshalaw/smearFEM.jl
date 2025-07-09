@@ -165,7 +165,7 @@ Function to write the contour data to a CSV file
 function write_data(filepath::String, borders)
     @info "Writing contour files..."
     counter = 1
-    set_file(string(filepath,"/contour_data"))
+    set_file(string(filepath))
     for border in borders
         cStr = string(counter,pad=3)
         if size(border, 1) == 2
@@ -173,7 +173,7 @@ function write_data(filepath::String, borders)
         elseif size(border, 1) == 3
             border = hcat(border[1,:], border[2,:], border[3,:])
         end
-        write_csv(string(filepath,cStr),border)
+        write_csv(string(filepath,"/",cStr),border)
         counter += 1
     end
 end

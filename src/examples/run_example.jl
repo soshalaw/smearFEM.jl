@@ -256,7 +256,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_csv(string(filepath,"/data/h"), h)
     write_data(string(conditions.filepath,"/data/sim_data/2D_surface_points"), pos2D)
     write_data(string(filepath,"/data/sim_data/3D_points"), pos3D)
-    write_data(string(filepath,"/data/sim_data/motion_fields"), fields)
+    write_data(string(filepath,"/data/sim_data/motion_fields "), fields)
 
 end
 

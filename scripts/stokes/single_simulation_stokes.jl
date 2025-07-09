@@ -12,11 +12,8 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
 
   # simulation parameters for the ground truth
   sim_time::Float64 = 30.0# simulation time in seconds
-  steps::Float64 = 30.0 # number of time steps
+  steps::Float64 = 60.0 # number of time steps
   t_steps::Float64 = sim_time/steps
-
-  gt_β::Float64 = 100.0
-  gt_η::Float64 = 40.0
 
   # F::Float64 = 150000000.0 force applied to the cylinder for β = 1e5
   # F::Float64 = 1500000.0 force applied to the cylinder for β = 1e3
@@ -25,8 +22,8 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
   F_ext::Float64 = 1500.0
   F_::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
 
-  β_list = [100.0 1000.0 1e5]
-  η_list = [30.0 40.0 50.0]
+  β_list = [10.0 50.0 100.0 400.0 700.0 1e3 4e3 7e3 1e4 9e4 1e5 1.1e5]
+  η_list = [20.0 40.0 60.0 80.0]
   i::Int = 1
 
   for gt_β::Float64 in β_list
@@ -50,18 +47,18 @@ function bulk_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, nD
 
   # simulation parameters for the ground truth
   sim_time::Float64 = 90.0
-  steps::Float64 = 90.0
+  steps::Float64 = 180.0
   t_steps::Float64 = sim_time/steps
 
-  F_ext::Float64 = 50000.0 # force applied to the cylinder in N
-  F::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
+  F_ext::Float64 = 30000.0 # force applied to the cylinder in N
+  F_::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
 
-  β_list = [100.0]
-  η_list = [60.0]
+  β_list = [10.0 50.0 100.0 400.0 700.0 1e3 4e3 7e3 1e4 9e4 1e5 1.1e5]
+  η_list = [60.0 100.0 200.0 500.0]
   i::Int = 1
 
   for gt_β::Float64 in β_list
-    # F = F_*gt_β
+    F = F_*gt_β
     for gt_η::Float64 in η_list
 
       model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
