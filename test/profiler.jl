@@ -4,8 +4,9 @@ using BenchmarkTools
 using DelimitedFiles
 
     # test case 
-    r = 0.5
-    h = 1.0
+    scale = 100
+    r = 0.25*scale  # radius of the cylinder in mm
+    h = 0.5*scale  # height of the cylinder in mm
     ne = 8
     ndim = 3
     FunctionClass_u = "Q2"
@@ -13,7 +14,8 @@ using DelimitedFiles
     FunctionClass_p = "Q1"
     nDof_p = 1  # number of degree of freedom per node
   
-    CameraMatrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+    camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+    camera_pose = scale*[0 -0.25 2]'   # camera position in mm
   
     sim_time = 15.0
     steps = 15.0
@@ -21,7 +23,9 @@ using DelimitedFiles
   
     β = 100.0
     η = 40.0
-    F = 1.0
+    F_ext::Float64 = 2
+    F::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
+
     control = "force" # "force" or "displacement"
     viscosity_type = "constant" # "constant" or "linear"
     filepath = string("/home/soshala/tmp/")
@@ -33,7 +37,7 @@ using DelimitedFiles
     
     model, scene = def_problem(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time, t_steps)
 
-    @profview write_sim_data(model, scene, CameraMatrix, filepath)
+    @profview write_sim_data(model, scene, camera_matrix, camera_pose, filepath)
     # @benchmark write_sim_data(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepathi, mode=mode)
     
     # write_sim_data(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepathi, mode=mode)

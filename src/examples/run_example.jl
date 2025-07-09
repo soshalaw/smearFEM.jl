@@ -252,11 +252,11 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
                     "viscosity_type"=>scene.viscosity_type)
 
     # write results to files
-    write_json(string(filepath,"/data/params"), params)
+    write_json(string(filepath,"/data/sim_params"), params)
     write_csv(string(filepath,"/data/h"), h)
-    write_contour_data(string(conditions.filepath,"/data/projected_surface_points"), pos2D)
-    write_contour_data(string(filepath,"/data/3D_points"), pos3D)
-    write_contour_data(string(filepath,"/data/motion_fields"), fields)
+    write_data(string(conditions.filepath,"/data/sim_data/2D_surface_points"), pos2D)
+    write_data(string(filepath,"/data/sim_data/3D_points"), pos3D)
+    write_data(string(filepath,"/data/sim_data/motion_fields"), fields)
 
 end
 
@@ -422,7 +422,7 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String,
     writeborderList = [vcat(pi', qi')]
 
     animate_fields(filepath = string(filepath,"/Results/images"), fields=surface_pts_3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
-    write_contour_data(string(filepath,"/Results"), writeborderList)
+    write_data(string(filepath,"/Results"), writeborderList)
 
     return borderPts2DList, pos2D, splinep, splineq
 end

@@ -1380,10 +1380,10 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         animate_fields(filepath = string(conditions.filepath,"/Results/images"), fields=surface_pts_3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
     end
     if conditions.WRITECONTOUR
-        write_contour_data(string(conditions.filepath,"/Results"), writeborderList)
+        write_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)
     end
     if conditions.WRITEVTK
-        write_scene(string(conditions.filepath,"/Results"), pos3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, displacement, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
+        write_scene(string(conditions.filepath,"/data"), pos3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, displacement, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
     end
     return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D
 end

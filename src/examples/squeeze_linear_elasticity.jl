@@ -1036,7 +1036,7 @@ function simulate(r::Number, h::Number, ne::Int64, θ1::Number, θ2::Number, ndi
     if writeData
         write_scene(string(filepath,"/Results"), pos3D, IEN, ne, ndim, fields, ID=ID, FunctionClass=FunctionClass)
         animate_fields(filepath = string(filepath,"/Results/images"), fields=pos3D , IEN=IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
-        write_contour_data(string(filepath,"/Results"), writeborderList)
+        write_data(string(filepath,"/data/sim_data/contour_data"), writeborderList)
     end
 
     return output, gradList, borderPts2DList, splinep, splineq, mdl, pos2D
