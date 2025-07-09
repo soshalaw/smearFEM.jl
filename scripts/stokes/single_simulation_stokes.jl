@@ -92,7 +92,7 @@ function main()
   ne::Int = 15 # number of elements in the mesh for the ground truth
 
   camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-  camera_pose = scale*[0 -0.25 2]'   # camera position in mm
+  camera_pose = scale*[0 -0.25 25]'   # camera position in mm
 
   const_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, ne, camera_matrix, camera_pose)
   bulk_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, ne, camera_matrix, camera_pose)
