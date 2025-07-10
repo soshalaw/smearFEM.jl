@@ -11,8 +11,8 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
   viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
 
   # simulation parameters for the ground truth
-  sim_time::Float64 = 30.0# simulation time in seconds
-  steps::Float64 = 60.0 # number of time steps
+  sim_time::Float64 = 20.0# simulation time in seconds
+  steps::Float64 = 200.0 # number of time steps
   t_steps::Float64 = sim_time/steps
 
   # F::Float64 = 150000000.0 force applied to the cylinder for β = 1e5
@@ -46,8 +46,8 @@ function bulk_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, nD
   viscosity_type::String = "bulk_viscosity" # "constant" or "bulk_viscosity"
 
   # simulation parameters for the ground truth
-  sim_time::Float64 = 90.0
-  steps::Float64 = 180.0
+  sim_time::Float64 = 80.0
+  steps::Float64 = 800.0
   t_steps::Float64 = sim_time/steps
 
   F_ext::Float64 = 30000.0 # force applied to the cylinder in N
