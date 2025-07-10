@@ -14,7 +14,7 @@ mutable struct SqueezeFlow <: AbstractScenario
     function SqueezeFlow(
         model::AbstractModel,
         β::Vector{Float64},
-        q::Vector{Matrix{Float64}},
+        q::Vector{SparseMatrixCSC{Float64, Int64}},
         C_uc::AbstractMatrix,
         control::String,
         sim_time::Float64,

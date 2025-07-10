@@ -915,16 +915,20 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
     NodeList_cached::Matrix{Float64} = NodeList
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
-    nNodes_cached::Int = nNodes
-
-    q_upper = zeros(Float64, nDof_u_cached*(nNodes_cached)^ndim_cached,1)                  # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-    q_lower = zeros(Float64, nDof_u_cached*(nNodes_cached)^ndim_cached,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-    q_side = zeros(Float64, nDof_u_cached*(nNodes_cached)^ndim_cached,1)   
+    nNodes_cached::Int = nNodes    
 
     if DENSE                # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
         C = Matrix{Float64}(I,nDof_u_cached*(nNodes_cached)^ndim_cached,nDof_u_cached*(nNodes_cached)^ndim_cached)      # definition of the constraint matrix
+        
+        q_upper = zeros(Float64, nDof_u_cached*(nNodes_cached)^ndim_cached,1)                  # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        q_lower = zeros(Float64, nDof_u_cached*(nNodes_cached)^ndim_cached,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        q_side = zeros(Float64, nDof_u_cached*(nNodes_cached)^ndim_cached,1) 
     else                 # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
         C = sparse(I,nDof_u_cached*(nNodes_cached)^ndim_cached,nDof_u_cached*(nNodes_cached)^ndim_cached)      # definition of the constraint matrix
+        
+        q_upper = spzeros(nDof_u_cached*(nNodes_cached)^ndim_cached,1)                  # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        q_lower = spzeros(nDof_u_cached*(nNodes_cached)^ndim_cached,1)                  # initialize the vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
+        q_side = spzeros(nDof_u_cached*(nNodes_cached)^ndim_cached,1) 
     end
 
     if nDof_u_cached == 1
@@ -1027,6 +1031,8 @@ function def_problem(r::Number, h::Number, ne::Int64, η_0::Float64, ndim::Int64
     # set the boundary conditions
     q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes) 
     # define with problem scenario
+    c = [q_tp, q_side, q_btm]
+
     squeeze = SqueezeFlow(stokes, [β], [q_tp, q_side, q_btm], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
 return stokes, squeeze
 end
@@ -1109,10 +1115,10 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     β_cached::Float64 = β[1]
     viscosity_type_cached::String = viscosity_type
     q_d_cached::Dict{Symbol, Matrix{Float64}} = q_d
-    q_d_cached_top::Matrix{Float64} = q_d_cached[:top]
-    q_d_cached_btm::Matrix{Float64} = q_d_cached[:bottom]
-    q_d_cached_brdr::Matrix{Float64} = q_d_cached[:border]
-    C_uc_cached::AbstractMatrix = C_uc
+    q_d_cached_top::SparseMatrixCSC{Bool, Int64} = q_d_cached[:top]
+    q_d_cached_btm::SparseMatrixCSC{Bool, Int64} = q_d_cached[:bottom]
+    q_d_cached_brdr::SparseMatrixCSC{Bool, Int64} = q_d_cached[:border]
+    C_uc_cached::SparseMatrixCSC{Bool, Int64} = C_uc
     t_steps_cached::Float64 = t_steps
     sim_time_cached::Float64 = sim_time
     control_cached::String = control
@@ -1173,23 +1179,37 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached) # initialize the stiffness matrix
         B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_p_cached*(nNodes_p_cached)^ndim_cached) # initialize the stiffness matrix
         b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached) # initialize the stiffness matrix
-        q_d = zeros(Float64, nDof_u_cached*(nNodes_u_cached)^ndim_cached,1) # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        q_d = spzeros(nDof_u_cached*(nNodes_u_cached)^ndim_cached,1) # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
         A = similar(A_bar)
 
-        A_free = C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
-        B_free = C_Tu*B             # extract the free part of the stiffness matrix
+        # A_free = C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
+        # B_free = C_Tu*B             # extract the free part of the stiffness matrix
+        
+        # dA_freedη = zeros(Float64, size(A_free,1), size(A_free,2))       # extract the free part of the stiffness matrix
+        # dA_freedβ = zeros(Float64, size(A_free,1), size(A_free,2))            # extract the free part of the stiffness matrix
+        # dB_free = zeros(Float64, size(B_free))
+        # zero = zeros(Float64, size(B_free,2),size(B_free,2))
 
-        dA_freedη = zeros(Float64, size(A_free,1), size(A_free,2))       # extract the free part of the stiffness matrix
-        dA_freedβ = zeros(Float64, size(A_free,1), size(A_free,2))            # extract the free part of the stiffness matrix
-        dB_free = zeros(Float64, size(B_free))
-        zero = zeros(Float64, size(B_free,2),size(B_free,2))
+        A_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(C_uc_cached,2)) # convert to sparse matrix
+        B_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(B,2)) # convert to sparse matrix
+
+        dA_freedη = similar(A_free)                         
+        dA_freedβ = similar(A_free)                         
+        dB_free = spzeros(size(B_free))                     
+        zero = spzeros(size(B_free,2),size(B_free,2))
 
         dAdη = similar(A_bar)
         dAdβ = similar(A_bar)
-        dB = zeros(Float64, size(B))
+        dB = spzeros(size(B))
+
         q = similar(q_d)
         dqfdη = similar(q)
         dqfdβ = similar(q)
+
+        M = spzeros((size(A_free,1)+size(B_free,2)+1),(size(A_free,2)+size(B_free,2)+1))
+        dMdη = spzeros(size(M))
+        dMdβ = spzeros(size(M))
+
         for t in time
             A_bar .= assemble_system_A(mdl)                   # assemble the stiffness matrix
             B .= assemble_system_B(mdl)                   # assemble the stiffness matrix
@@ -1205,7 +1225,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         
             dAdη .= A_bar
             dAdβ .= b
-        
+
             A_free .= C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
             # mul!(A_free, C_Tu*A, C_uc_cached) # extract the free part of the stiffness matrix
             B_free .= C_Tu*B             # extract the free part of the stiffness matrix
@@ -1215,10 +1235,47 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             # mul!(dA_freedη, C_Tu*dAdη, C_uc_cached) # extract the free part of the stiffness matrix
             dA_freedβ .= C_Tu*dAdβ*C_uc_cached             # extract the free part of the stiffness matrix
             # mul!(dA_freedβ, C_Tu*dAdβ, C_uc_cached) # extract the free part of the stiffness matrix
+            
+            M[1:size(A_free,1),1:size(A_free,2)] = A_free
+            M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = B_free'
+            M[end,1:size(A_free,1)] = q_d_cached_top'*A*C_uc_cached
 
-            M = [A_free B_free C_Tu*A*q_d_cached_top; B_free' zero B'*q_d_cached_top; q_d_cached_top'*A*C_uc_cached q_d_cached_top'*B q_d_cached_top'A*q_d_cached_top] # assemble the system of equations
-            dMdη = [dA_freedη dB_free C_Tu*dAdη*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdη*C_uc_cached q_d_cached_top'*dB q_d_cached_top'dAdη*q_d_cached_top]
-            dMdβ = [dA_freedβ dB_free C_Tu*dAdβ*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdβ*C_uc_cached q_d_cached_top'*dB q_d_cached_top'dAdβ*q_d_cached_top]
+            M[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = B_free
+            M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = zero
+            M[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = B'*q_d_cached_top
+
+            M[1:size(A_free,1),end] = C_Tu*A*q_d_cached_top
+            M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = q_d_cached_top'*B
+            M[end,end] = (q_d_cached_top'A*q_d_cached_top)[end]
+
+            # M .= [A_free B_free C_Tu*A*q_d_cached_top; B_free' zero B'*q_d_cached_top; q_d_cached_top'*A*C_uc_cached q_d_cached_top'*B q_d_cached_top'A*q_d_cached_top] # assemble the system of equations
+            dMdη[1:size(A_free,1),1:size(A_free,2)] = dA_freedη
+            dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = dB_free'
+            dMdη[end,1:size(A_free,1)] = q_d_cached_top'*dAdη*C_uc_cached
+
+            dMdη[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = dB_free
+            dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = zero
+            dMdη[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = q_d_cached_top'*dB
+
+            dMdη[1:size(A_free,1),end] = C_Tu*A*q_d_cached_top
+            dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
+            dMdη[end,end] = (q_d_cached_top'dAdη*q_d_cached_top)[end]
+            
+            # dMdη .= [dA_freedη dB_free C_Tu*dAdη*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdη*C_uc_cached q_d_cached_top'*dB q_d_cached_top'dAdη*q_d_cached_top]
+            
+            dMdβ[1:size(A_free,1),1:size(A_free,2)] = dA_freedβ
+            dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = dB_free'
+            dMdβ[end,1:size(A_free,1)] = q_d_cached_top'*dAdβ*C_uc_cached
+
+            dMdβ[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = dB_free
+            dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = zero
+            dMdβ[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = q_d_cached_top'*dB
+
+            dMdβ[1:size(A_free,1),end] = C_Tu*dAdβ*q_d_cached_top
+            dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
+            dMdβ[end,end] = (q_d_cached_top'dAdβ*q_d_cached_top)[end]
+
+            # dMdβ .= [dA_freedβ dB_free C_Tu*dAdβ*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdβ*C_uc_cached q_d_cached_top'*dB q_d_cached_top'dAdβ*q_d_cached_top]
             
             r = [-C_Tu*A*q_d; -B'*q_d; scene.cParam[iter].-q_d_cached_top'A*q_d]    # assemble the system of equations
             drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdη*q_d] # solve the system of equations
@@ -1231,10 +1288,10 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             # dsoldη = invM*(drdη - dMdη*sol) # solve the system of equations
             # dsoldβ = invM*(drdβ - dMdβ*sol) # solve the system of equations
 
-            sol = lum\r # solve the system of equations
+            sol = lum\Matrix(r) # solve the system of equations
             dsoldη = lum\(drdη - dMdη*sol) # solve the system of equations
             dsoldβ = lum\(drdβ - dMdβ*sol) # solve the system of equations
-        
+
             q_f = view(sol, 1:size(A_free, 1))
             dqfdη = view(dsoldη, 1:size(A_free, 1))
             dqfdβ = view(dsoldβ, 1:size(A_free, 1))
@@ -1250,6 +1307,12 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             q .= q_d + C_uc_cached*q_f + μ_tp*q_d_cached_top;              # assemble the solution 
             dqdη .= dqdη + C_uc_cached*dqfdη + dμdη*q_d_cached_top;               # assemble the solution
             dqdβ .= dqdβ + C_uc_cached*dqfdβ + dμdβ*q_d_cached_top;               # assemble the solution
+
+            # println(typeof(lum))
+            # println(typeof(r))
+            # println(typeof(sol))
+            # println(typeof(q_f))
+            # println(typeof(q))
 
             p = p_f;
             dpdη = dpfdη;                  # assemble the solution

@@ -228,13 +228,13 @@ Initializes the simulation and writes the data to a file.
 None.
 """
 function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, 
-                        filepath::String="nothing", SIDES::Bool=false)
+                        filepath::String="nothing"; ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true)
 
     # copy the model and scene to avoid modifying the original objects
     model::AbstractModel = deepcopy(_model)
     scene::AbstractScenario = deepcopy(_scene)
     # set the model parameters
-    conditions = Conditions(ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true, camera_matrix=camera_matrix, camera_pose=camera_pose, filepath=filepath)
+    conditions = Conditions(ANIMATE=ANIMATE, WRITECONTOUR=WRITECONTOUR, RENDER=RENDER, WRITEVTK=WRITEVTK, camera_matrix=camera_matrix, camera_pose=camera_pose, filepath=filepath)
     # remove the previous results folder if it exists
     if isdir(string(filepath))
         @info "Removing previous results folder: $filepath"

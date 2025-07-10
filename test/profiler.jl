@@ -7,7 +7,7 @@ using DelimitedFiles
     scale = 100
     r = 0.25*scale  # radius of the cylinder in mm
     h = 0.5*scale  # height of the cylinder in mm
-    ne = 8
+    ne = 4
     ndim = 3
     FunctionClass_u = "Q2"
     nDof_u = ndim  # number of degree of freedom per node
@@ -17,8 +17,8 @@ using DelimitedFiles
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
     camera_pose = scale*[0 -0.25 2]'   # camera position in mm
   
-    sim_time = 15.0
-    steps = 15.0
+    sim_time = 10.0
+    steps = 100.0
     t_steps = sim_time/steps
   
     β = 100.0
@@ -37,7 +37,7 @@ using DelimitedFiles
     
     model, scene = def_problem(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time, t_steps)
 
-    @profview write_sim_data(model, scene, camera_matrix, camera_pose, filepath)
+    @profview write_sim_data(model, scene, camera_matrix, camera_pose, filepath, ANIMATE=false, WRITECONTOUR=false, RENDER=false, WRITEVTK=false)
     # @benchmark write_sim_data(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepathi, mode=mode)
     
     # write_sim_data(x0, x1, y0, y1, z0, z1, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control,filepathi, mode=mode)

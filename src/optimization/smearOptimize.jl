@@ -93,37 +93,6 @@ function closest_point(simScene::AbstractArray, obsScene::AbstractArray, dudθ::
     return costList, dcostList, dcost2List, pairsList
 end
 
-function height_sample(simScene::Vector{AbstractArray}, obsScene::Vector{AbstractArray})
-
-    xSimintlst = AbstractArray[]
-    ySimintlst = AbstractArray[]
-    xObsintlst = AbstractArray[]
-    costList = Float64[]
-    for (obsData, simData) in zip(obsScene, simScene) # iterate over the scenes
-
-        xSim, ySim = filter_points(simData, 2048/2)
-        xObs, yObs = filter_points(obsData, 2048/2)
-
-        xObsint = fit_curve(borderx=xObs, bordery=yObs, samples=ySim)
-
-        cost = 0
-        iter = 1:length(ySim)
-        for i in iter
-            error = (xSim[i] - xObsint[i])^2
-            cost += error
-        end
-
-        totPts = length(ySim)
-        mCost = cost/totPts
-
-        push!(costList, mCost)
-        push!(xSimintlst, xSim)
-        push!(ySimintlst, ySim)
-        push!(xObsintlst, xObsint)
-    end
-    return costList, xObsintlst, xSimintlst, ySimintlst
-end
-
 function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64})
     reset_model!(model)
     model.η = [θ[1]]
@@ -222,4 +191,34 @@ function val_check(v::Vector{Float64})
 end
 
 
+function height_sample(simScene::Vector{AbstractArray}, obsScene::Vector{AbstractArray})
+
+    xSimintlst = AbstractArray[]
+    ySimintlst = AbstractArray[]
+    xObsintlst = AbstractArray[]
+    costList = Float64[]
+    for (obsData, simData) in zip(obsScene, simScene) # iterate over the scenes
+
+        xSim, ySim = filter_points(simData, 2048/2)
+        xObs, yObs = filter_points(obsData, 2048/2)
+
+        xObsint = fit_curve(borderx=xObs, bordery=yObs, samples=ySim)
+
+        cost = 0
+        iter = 1:length(ySim)
+        for i in iter
+            error = (xSim[i] - xObsint[i])^2
+            cost += error
+        end
+
+        totPts = length(ySim)
+        mCost = cost/totPts
+
+        push!(costList, mCost)
+        push!(xSimintlst, xSim)
+        push!(ySimintlst, ySim)
+        push!(xObsintlst, xObsint)
+    end
+    return costList, xObsintlst, xSimintlst, ySimintlst
+end
 # animate_fields(filepath = string(conditions.filepath,"/Results/images"),fields2D=borderPts2DList, pObs=splinexObs, qObs=splineyObs)
