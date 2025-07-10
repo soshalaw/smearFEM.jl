@@ -1236,28 +1236,29 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dA_freedβ .= C_Tu*dAdβ*C_uc_cached             # extract the free part of the stiffness matrix
             # mul!(dA_freedβ, C_Tu*dAdβ, C_uc_cached) # extract the free part of the stiffness matrix
             
+            # M .= [A_free B_free C_Tu*A*q_d_cached_top; B_free' zero B'*q_d_cached_top; q_d_cached_top'*A*C_uc_cached q_d_cached_top'*B q_d_cached_top'A*q_d_cached_top] # assemble the system of equations
+
             M[1:size(A_free,1),1:size(A_free,2)] = A_free
             M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = B_free'
-            M[end,1:size(A_free,1)] = q_d_cached_top'*A*C_uc_cached
+            M[end,1:size(A_free,2)] = q_d_cached_top'*A*C_uc_cached
 
             M[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = B_free
             M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = zero
-            M[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = B'*q_d_cached_top
+            M[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = q_d_cached_top'*B
 
             M[1:size(A_free,1),end] = C_Tu*A*q_d_cached_top
-            M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = q_d_cached_top'*B
+            M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = B'*q_d_cached_top
             M[end,end] = (q_d_cached_top'A*q_d_cached_top)[end]
-
-            # M .= [A_free B_free C_Tu*A*q_d_cached_top; B_free' zero B'*q_d_cached_top; q_d_cached_top'*A*C_uc_cached q_d_cached_top'*B q_d_cached_top'A*q_d_cached_top] # assemble the system of equations
+          
             dMdη[1:size(A_free,1),1:size(A_free,2)] = dA_freedη
             dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = dB_free'
-            dMdη[end,1:size(A_free,1)] = q_d_cached_top'*dAdη*C_uc_cached
+            dMdη[end,1:size(A_free,2)] = q_d_cached_top'*dAdη*C_uc_cached
 
             dMdη[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = dB_free
             dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = zero
             dMdη[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = q_d_cached_top'*dB
 
-            dMdη[1:size(A_free,1),end] = C_Tu*A*q_d_cached_top
+            dMdη[1:size(A_free,1),end] = C_Tu*dAdη*q_d_cached_top
             dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
             dMdη[end,end] = (q_d_cached_top'dAdη*q_d_cached_top)[end]
             
@@ -1265,7 +1266,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             
             dMdβ[1:size(A_free,1),1:size(A_free,2)] = dA_freedβ
             dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = dB_free'
-            dMdβ[end,1:size(A_free,1)] = q_d_cached_top'*dAdβ*C_uc_cached
+            dMdβ[end,1:size(A_free,2)] = q_d_cached_top'*dAdβ*C_uc_cached
 
             dMdβ[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = dB_free
             dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = zero

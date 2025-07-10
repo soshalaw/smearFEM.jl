@@ -157,7 +157,7 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     K_free = [A_free B_free; B_free' zeros(size(B_free,2),size(B_free,2))]     # assemble the system of equations
 
     r = [C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
-    sol = -K_free\r                 # solve the system of equations
+    sol = -K_free\Matrix(r)                 # solve the system of equations
 
     q_f = sol[1:size(A_free,1)]     # extract the free part of the solution
     p_f = sol[size(A_free,1)+1:end] # extract the free part of the solution 
