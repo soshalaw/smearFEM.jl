@@ -104,19 +104,23 @@ Function to animate the fields as a gif
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function animate_fields(; filepath::String="None", fields=nothing , IEN=nothing, BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing)
+function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing)
     set_file(filepath) # create the directory to store the VTK files
-    if isnothing(fields) && isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(IEN) && isnothing(p) && isnothing(q)
+    if isnothing(Nodes) && isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(IEN) && isnothing(p) && isnothing(q)
         AssertionError("No fields provided")
         return
-    elseif isnothing(fields)
+    elseif isnothing(Nodes) && isnothing(SurfaceNodes3D)
         animate2D(BorderNodes2D=BorderNodes2D, fields2D=fields2D, p=p, q=q, pObs=pObs, qObs=qObs, filepath=filepath)
         return
     elseif isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(p) && isnothing(q)
-        animate3D(fields, filepath=filepath)
+        animate3D(fields=Nodes, IEN=IEN, filepath=filepath)
         return
-    else
-        animate3D(fields, filepath=filepath)
+    else 
+        if !isnothing(SurfaceNodes3D)
+            animate3D(surface_pts=SurfaceNodes3D, filepath=filepath)
+        else
+            animate3D(fields=Nodes, IEN=IEN, filepath=filepath)
+        end
         animate2D(BorderNodes2D=BorderNodes2D, fields2D=fields2D, p=p, q=q, pObs=pObs, qObs=qObs, filepath=filepath)
     end
 end 
@@ -192,19 +196,29 @@ Function to animate the 3D fields as a gif
 # Arguments:
 - `fields::Vector{Vector{Float64}}`: solution vector
 """
-function animate3D(fields; filepath="images/3D_grid.gif")
-    sz = length(fields)
+function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="images/3D_grid.gif")
+    
+    if !isnothing(fields)
+        sz = length(fields)
+        xmax = maximum(fields[1][1,:])
+        xmin = minimum(fields[1][1,:])
+        ymax = maximum(fields[1][2,:])
+        ymin = minimum(fields[1][2,:])
+        zmax = maximum(fields[1][3,:])
+        zmin = minimum(fields[1][3,:])
+    elseif !isnothing(surface_pts)
+        sz = length(surface_pts)
+        xmax = maximum(surface_pts[1][1,:])
+        xmin = minimum(surface_pts[1][1,:])
+        ymax = maximum(surface_pts[1][2,:])
+        ymin = minimum(surface_pts[1][2,:])
+        zmax = maximum(surface_pts[1][3,:])
+        zmin = minimum(surface_pts[1][3,:])
+    end
     fz = 22
-    pr = Progress(sz; desc="Animating 3D fields...",showspeed=true)
     iter = 1:sz
-
-    xmax = maximum(fields[1][1,:])
-    xmin = minimum(fields[1][1,:])
-    ymax = maximum(fields[1][2,:])
-    ymin = minimum(fields[1][2,:])
-    zmax = maximum(fields[1][3,:])
-    zmin = minimum(fields[1][3,:])
-    fac = 0.4 # factor to extend the limits of the plot
+    fac = 0.2 # factor to extend the limits of the plot
+    pr = Progress(sz; desc="Animating 3D fields...",showspeed=true)
     animation = @animate for i in iter
         plt = Plots.plot(1, 
                             xlims=(xmin-fac*(xmax-xmin), xmax+fac*(xmax-xmin)),
@@ -219,18 +233,35 @@ function animate3D(fields; filepath="images/3D_grid.gif")
 
                             aspect_ratio = :equal, 
 
-                            size = (1000,1000), 
+                            size = (1000,750), 
 
                             fontfamily = "computer modern",
                             framestyle = :semi, 
-                            margin = 2.5mm, 
+                            margin = 0mm, 
 
                             grid = :true, 
                             minorgrid = :false, 
-                            camera = (40, 30),
+                            camera = (45, 20),
                             label="")
-
-        Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:royalblue, markersize=6, label=:"", dpi=:400)
+        if !isnothing(fields)
+            if isnothing(IEN)
+                throw(ArgumentError("IEN array not provided"))
+            else
+                ien_iter = 1:size(IEN,2)
+                Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:royalblue, markersize=4, label=:"", dpi=:400)
+                for e in ien_iter
+                    seq = [1,9,2,10,3,11,4,12,1,17,5,13,6,14,7,15,8,16,5,13,6,18,2,10,3,19,7,15,8,20,4]
+                    IEN_e = IEN[:,e]
+                    x = fields[i][1,IEN_e[seq]]
+                    y = fields[i][2,IEN_e[seq]]
+                    z = fields[i][3,IEN_e[seq]]
+                    Plots.plot!(x,y,z,color=:black,label="",lw=1.5)
+                end
+            end
+        end
+        if !isnothing(surface_pts)
+            Plots.scatter3d!(surface_pts[i][1,:], surface_pts[i][2,:], surface_pts[i][3,:], mc=:indianred2, markersize=4, label=:"", dpi=:400)
+        end
         next!(pr)
     end
 

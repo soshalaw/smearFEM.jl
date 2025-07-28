@@ -421,7 +421,7 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String,
     splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes 
     writeborderList = [vcat(pi', qi')]
 
-    animate_fields(filepath = string(filepath,"/Results/images"), fields=surface_pts_3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+    animate_fields(filepath = string(filepath,"/Results/images"), SurfaceNodes3D=surface_pts_3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
     write_data(string(filepath,"/Results"), writeborderList)
 
     return borderPts2DList, pos2D, splinep, splineq
