@@ -409,7 +409,7 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String,
     
     mesh = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)
 
-    BorderPts2D, SurfacePts2D = extract_borders(mesh.NodeList, camera_matrix, camera_pose, mesh.side_nodes, mesh.nNodes, SIDES)
+    BorderPts2D, SurfacePts2D = extract_borders(mesh.NodeList, camera_matrix, camera_pose, mesh.side_nodes, mesh.nNodes)
     pi, qi = fit_curve(border=BorderPts2D)
         
                                                # store the solution fields of the border nodes in 2D 

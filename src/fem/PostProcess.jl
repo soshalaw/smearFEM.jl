@@ -25,17 +25,25 @@ Project the 3D mesh to 2D image plane and extract the border nodes (left and rig
 - `NodeList::Matrix{Float64}{ndim,nbNodes}`: 2D coordinates of the border nodes
 - `BorderNodes::Vector{Int}`: Indexes of the border nodes
 """
-function extract_borders(NodeList::Matrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, BorderNodesList::Vector{Int64}, nNodes::Int64, SIDES::Bool=false)
+function extract_borders(NodeList::Matrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, BorderNodesList::Vector{Int64}, nNodes::Int64; GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
 
     surface_nodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
-    SurfacePts2D = back_project(surface_nodes, camera_matrix, camera_pose)     # project the nodes to the image plane
+    
+    if GRAD
+        ∇surface_nodes = dqdθ[:,BorderNodesList,:] 
+        SurfacePts2D, ∇SurfacePts2D = back_project(surface_nodes, camera_matrix, camera_pose, ∇surface_nodes) 
+    else
+        SurfacePts2D = back_project(surface_nodes, camera_matrix, camera_pose) 
+    end
 
-    LeftborderPts = zeros(2,(nNodes))                # vector to store indexes of the border nodes
-    RightborderPts = zeros(2,(nNodes))               # vector to store indexes of the border nodes
+    LeftborderPts = zeros(Float64,2,(nNodes))        # vector to store indexes of the border nodes
+    RightborderPts = zeros(Float64,2,(nNodes))       # vector to store indexes of the border nodes
+
     LeftborderNodes = Vector{Int64}(undef, 0)        # vector to store indexes of the border nodes
-    RightborderNodes = Vector{Int64}(undef, 0)   
-    TopLayerList = []                                # vector to store indexes of the border nodes
-    BottomLayerList = []                             # vector to store indexes of the border nodes
+    RightborderNodes = Vector{Int64}(undef, 0)       # vector to store indexes of the border nodes
+    TopBorderNodes = Vector{Int64}(undef, 0)         # vector to store indexes of the border nodes
+    BottomBorderNodes = Vector{Int64}(undef, 0)      # vector to store indexes of the border nodes
+
     szSide = size(SurfacePts2D,2)÷(nNodes)           # size of each layer
 
     for Layers in 1:nNodes                                        # loop through each layer
@@ -50,32 +58,48 @@ function extract_borders(NodeList::Matrix{Float64}, camera_matrix::AbstractMatri
             nodeIdi = 1:size(nodes,2)
             for nodeId in nodeIdi
                 if nodes[2,nodeId] > SurfacePts2D[2,minNode]    
-                    push!(TopLayerList, (Layers-1)*szSide+nodeId)
+                    push!(TopBorderNodes, (Layers-1)*szSide+nodeId)
                 end
             end 
         elseif Layers == 1
             nodeIdi = 1:size(nodes,2)
             for nodeId in nodeIdi
                 if nodes[2,nodeId] < SurfacePts2D[2,minNode] 
-                    push!(BottomLayerList, nodeId)
+                    push!(BottomBorderNodes, nodeId)
                 end
             end 
         end
     end  
 
-    TopBorderPts = sortslices(SurfacePts2D[:,TopLayerList],dims=2)                     # top layer nodes
-    BottomBorderPts = sortslices(SurfacePts2D[:,BottomLayerList],dims=2)               # bottom layer nodes
-
-    BorderPts = hcat(LeftborderPts, TopBorderPts, RightborderPts, BottomBorderPts)         # concatenate the left and right border nodes
+    BorderPtIds = vcat(LeftborderNodes, TopBorderNodes, RightborderNodes, BottomBorderNodes)
+    BorderPts = SurfacePts2D[:,BorderPtIds]
     BorderPtsSorted, BorderPtsSortedIds = sort_points(BorderPts)
 
-    if SIDES
-        sidePts, index = get_sides(BorderPtsSorted)
+    if GRAD
+        ∇BorderPts = ∇SurfacePts2D[:,BorderPtIds,:]
+        ∇BorderPtsSorted = ∇BorderPts[:,BorderPtsSortedIds,:]
+        if SIDES
+            sidePts, index = get_sides(BorderPtsSorted)
 
-        return sidePts, SurfacePts2D
+            sidePtsIds = BorderPtsSortedIds[index]
+            ∇sidePts = ∇BorderPtsSorted[:,sidePtsIds,:]
+
+            return sidePts, ∇sidePts, SurfacePts2D
+        else
+            return BorderPtsSorted, ∇BorderPtsSorted, SurfacePts2D, ∇SurfacePts2D
+        end
     else
-        return BorderPtsSorted, SurfacePts2D
-    end
+        if SIDES
+            sidePts, index = get_sides(BorderPtsSorted)
+    
+            sidePts = BorderPtsSorted[index]
+            sidePtsIds = BorderPtsSortedIds[index]
+    
+            return sidePts, SurfacePts2D
+        else
+            return BorderPtsSorted, SurfacePts2D
+        end
+    end 
 end
 
 function extract_borders(NodeList::Matrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, BorderNodesList::Vector{Int64}; GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
@@ -97,14 +121,6 @@ function extract_borders(NodeList::Matrix{Float64}, camera_matrix::AbstractMatri
     end
 
     hull = ch.ConvexHull(p)
-    # points = ch.vertices(hull)
-    # sz = length(points)
-    # BorderPoints = zeros(2,sz)
-
-    # iter = 1:sz
-    # for i in iter
-    #     BorderPoints[:,i] = points[i]
-    # end
 
     BorderPtIds = ch.indices(hull)
     BorderPts = SurfacePts2D[:,BorderPtIds]

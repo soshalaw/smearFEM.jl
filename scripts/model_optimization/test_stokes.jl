@@ -384,7 +384,6 @@ function plot_()
     est_h = readdlm(string(filepath,"data/est_h.csv"), ',', Float64)
     gt_h = readdlm(string(filepath,"data/gt_h.csv"), ',', Float64)
 
-
     set_file(string(filepath,"/plots"))
     Plots.plot(gt_h, label="Ground truth height", dpi=400)
     Plots.plot!(est_h, label="Estimated height")

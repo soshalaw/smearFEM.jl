@@ -9,5 +9,7 @@ using Aqua
     include("qa.jl")
     include("fem_test.jl")
     include("IGA_tests/extraction_test.jl")
+    include("optimization_test stokes.jl")
+    include("shape_opt_test.jl")
     
 end

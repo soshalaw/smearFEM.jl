@@ -247,7 +247,7 @@ Set up the mesh grid for a 1D line
 - `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
 - `IEN::Matrix{Int64}{2^ndim,ne^ndim}` : array of elements
 """
-function meshgrid_line(l::Number, ne::Int64; FunctionClass::String="Q1")
+function meshgrid_line(l::T, ne::Int64; FunctionClass::String="Q1") where {T<:Number}
     BorderNodes = Int64[]
     if FunctionClass == "Q1"
         nNodes = ne+1 # number of nodes in each direction
@@ -324,7 +324,7 @@ Set up the mesh grid for a 2D square
 - `BottomBorderNodes::Vector{Int64}` : array of nodes on the bottom boundary
 - `TopBorderNodes::Vector{Int64}` : array of nodes on the top boundary
 """
-function meshgrid_square(lx::Number, ly::Number, ne::Int64; FunctionClass::String="Q1")
+function meshgrid_square(lx::X, ly::Y, ne::Int64; FunctionClass::String="Q1") where {X<:Number,Y<:Number}
             
     BorderNodes = Int64[]
     BottomBorderNodes = Int64[]
@@ -441,7 +441,7 @@ Set up the mesh grid for a 3D cube
 - `BottomBorderNodes::Vector{Int64}` : array of nodes on the bottom boundary
 - `TopBorderNodes::Vector{Int64}` : array of nodes on the top boundary
 """
-function meshgrid_cube(lx::Number, ly::Number, lz::Number, ne::Int64; FunctionClass::String="Q1")
+function meshgrid_cube(lx::X, ly::Y, lz::Z, ne::Int64; FunctionClass::String="Q1") where {X<:Number,Z<:Number,Y<:Number}
     BorderNodes = Int64[]
     BottomBorderNodes = Int64[]
     TopBorderNodes = Int64[]
@@ -688,7 +688,7 @@ Set up the mesh grid for a 2D annulus ring
 - `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
 - `IEN::Matrix{Int64}{ne^ndim,2^ndim}` : connectivity matrix
 """
-function meshgrid_ring(r1::Number, r2::Number, theta1::Number, theta2::Number, ne::Int64, ndim::Int64)
+function meshgrid_ring(r1::T, r2::U, theta1::V, theta2::W, ne::Int64, ndim::Int64) where {T<:Number,U<:Number,V<:Number,W<:Number}
     
     r = collect(Float64, range(r1, r2, length=ne+1))
     theta = collect(Float64, range(theta1, theta2, length=ne+1))
@@ -736,10 +736,10 @@ Set up the mesh grid for a 3D cylinder
 - `IEN_bottom::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the bottom surface
 - `BorderNodes::Vector{Int64}` : array of nodes on the boundaries
 """
-function meshgrid_cylinder(r::Number, h::Number, ne::Int64; FunctionClass::String="Q1")
+function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1") where {T<:Number,U<:Number}
 
-    NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, h, ne, FunctionClass=FunctionClass)
-    NodeList = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r)
+    NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
+    NodeList = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h)
 
     mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID, FunctionClass=FunctionClass,
             nNodes=nNodes, ne=ne, side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2])
@@ -755,30 +755,92 @@ end
 Inflate the cube into a cylinder.
 
 # Arguments:
-- `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
+- `NodeListCube::Matrix{Float64}{nNodes,ndim}` : array of nodes
 - `x0::Number` : x-coordinate of the lower left corner of the domain
 - `x1::Number` : x-coordinate of the upper right corner of the domain
 - `y0::Number` : y-coordinate of the lower left corner of the domain
 - `y1::Number` : y-coordinate of the upper right corner of the domain
+- `r::Number`  : Radius of the output cylindrical mesh
 
 # Returns:
-- `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
+- `NodeListCyl::Matrix{Float64}{nNodes,ndim}` : array of nodes of the cylindrical mesh
 """
-function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::Number, x1::Number, y0::Number, y1::Number, rad::Number=1.0)
+function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1::W, r::Y, h::Z=1.0; GRAD::Bool=false) where {T<:Number,U<:Number,V<:Number,W<:Number,Y<:Number,Z<:Number}
     NodeListCyl = copy(NodeListCube)
     center = [0.5*(x0 + x1), 0.5*(y0 + y1)]
+    
+    ∇NodeListCyl = zeros(Float64,size(NodeListCube,1),size(NodeListCube,2),2)
 
-    iter = 1:size(NodeListCyl,2)
-    for i in iter
-        scale = maximum(abs.(NodeListCyl[1:2,i] - center))
-        if scale ≈ 0.
-            NodeListCyl[1:2,i] = [0 , 0]
-        else
-            r = sqrt((NodeListCyl[1,i] - center[1])^2 + (NodeListCyl[2,i] - center[2])^2)
-            NodeListCyl[1:2,i] = 2*rad*scale*(NodeListCyl[1:2,i] - center)/r
+    sz_layer = size(NodeListCyl,2)/nNodes
+    iter = 1:sz_layer
+    layer_iter = 1:nNodes
+
+    for layer in layer_iter
+    if GRAD == true
+        nodes = SurfacePts2D[:,(layer-1)*sz_layer+1:layer*sz_layer]
+        for i in iter
+            scale = maximum(abs.(NodeListCube[1:2,i] - center))
+            if scale ≈ 0.
+                NodeListCyl[1:2,i] = [0 , 0]
+            else
+                r_ = sqrt((NodeListCube[1,i] - center[1])^2 + (NodeListCube[2,i] - center[2])^2)
+                NodeListCyl[1:2,i] = 2*r*scale*(NodeListCube[1:2,i] - center)/r_
+                NodeListCyl[3,i] = NodeListCube[3,i]*h
+
+                ∇NodeListCyl[1:2,i,1] = 2*scale*(NodeListCube[1:2,i] - center)/r_ # ∂x/∂r = K_1 and ∂y/∂r = K_2
+                ∇NodeListCyl[3,i,2] = NodeListCube[3,i] # ∂z/∂h = λ_i 
+            end
         end
+        return NodeListCyl, ∇NodeListCyl
+    else
+        for i in iter
+            scale = maximum(abs.(NodeListCube[1:2,i] - center))
+            if scale ≈ 0.
+                NodeListCyl[1:2,i] = [0 , 0]
+            else
+                r_ = sqrt((NodeListCube[1,i] - center[1])^2 + (NodeListCube[2,i] - center[2])^2)
+                NodeListCyl[1:2,i] = 2*r*scale*(NodeListCube[1:2,i] - center)/r_
+                NodeListCyl[3,i] = NodeListCube[3,i]*h
+            end
+        end
+        return NodeListCyl
     end
-    return NodeListCyl
+end
+
+function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1::W, r::Array{Y}, h::Z=1.0; GRAD::Bool=false) where {T<:Number,U<:Number,V<:Number,W<:Number,Y<:Number,Z<:Number}
+    NodeListCyl = copy(NodeListCube)
+    center = [0.5*(x0 + x1), 0.5*(y0 + y1)]
+    iter = 1:size(NodeListCyl,2)
+
+    if GRAD == true
+        ∇NodeListCyl = zeros(Float64,size(NodeListCube,1),size(NodeListCube,2),(size(r,1)+1))
+        for i in iter
+            scale = maximum(abs.(NodeListCube[1:2,i] - center))
+            if scale ≈ 0.
+                NodeListCyl[1:2,i] = [0 , 0]
+            else
+                r_ = sqrt((NodeListCube[1,i] - center[1])^2 + (NodeListCube[2,i] - center[2])^2)
+                NodeListCyl[1:2,i] = 2*r*scale*(NodeListCube[1:2,i] - center)/r_
+                NodeListCyl[3,i] = NodeListCube[3,i]*h
+
+                ∇NodeListCyl[1:2,i,1] = 2*scale*(NodeListCube[1:2,i] - center)/r_ # ∂x/∂r = K_1 and ∂y/∂r = K_2
+                ∇NodeListCyl[3,i,2] = NodeListCube[3,i] # ∂z/∂h = λ_i 
+            end
+        end
+        return NodeListCyl, ∇NodeListCyl
+    else
+        for i in iter
+            scale = maximum(abs.(NodeListCube[1:2,i] - center))
+            if scale ≈ 0.
+                NodeListCyl[1:2,i] = [0 , 0]
+            else
+                r_ = sqrt((NodeListCube[1,i] - center[1])^2 + (NodeListCube[2,i] - center[2])^2)
+                NodeListCyl[1:2,i] = 2*r*scale*(NodeListCube[1:2,i] - center)/r_
+                NodeListCyl[3,i] = NodeListCube[3,i]*h
+            end
+        end
+        return NodeListCyl
+    end
 end
 
 """
@@ -789,7 +851,7 @@ Reset the mesh to its initial state by updating the `NodeList` to the initial st
 # Arguments:
 - `mesh::AbstractMeshgrid`: The mesh object to be reset.
 """
-function reset_mesh!(mesh::AbstractMeshgrid)
+function reset_mesh!(mesh::T) where {T<:AbstractMeshgrid}
     mesh.NodeList = mesh.initial_state
 end
 
@@ -803,8 +865,19 @@ Update the initial state of the mesh and reset the current state of the mesh to 
 - `new_state::Matrix{Float64}`: The new state to be assigned to the mesh.
 
 """
-function update_initial_state!(mesh::AbstractMeshgrid, new_state::Matrix{Float64})
+function update_initial_state!(mesh::T, new_state::Matrix{Float64}) where {T<:AbstractMeshgrid}
     mesh.initial_state = copy(new_state)  # Use `copy` to avoid unintended mutations
     reset_mesh!(mesh)  # Reset the mesh to the initial state
+end
+
+function init_cylinder(camera_matrix, camera_pose,side_node_list, nNodes_u)
+
+    NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, h, ne, FunctionClass=FunctionClass)
+    r_0 = 1
+    h_0 = 1
+    NodeList = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r_0, GRAD=true)
+
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList, camera_matrix, camera_pose, side_node_list, nNodes_u)
+
 end
 

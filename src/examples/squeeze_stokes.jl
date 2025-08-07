@@ -998,7 +998,7 @@ Calculate the shear viscosity of the fluid.
 # Returns:
 - `η::Float64` : shear viscosity
 """
-function get_η(t::Number, F::Number, R_0::Number, H_0::Number, η_0::Number, n::Number, K::Number)
+function get_η(t::T, F::U, R_0::V, H_0::W, η_0::X, n::Y, K::Z) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
 
     H(t) = H_0*(1+8*H_0^2*F*t/(3*π*η_0*R_0^4))^(-1/4) # height with time
     
@@ -1013,8 +1013,8 @@ function get_η(t::Number, F::Number, R_0::Number, H_0::Number, η_0::Number, n:
     return η(t)
 end
 
-function def_problem(r::Number, h::Number, ne::Int64, η_0::Float64, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                    nDof_p::Int64, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::Float64, t_steps::Float64)
+function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
+                    nDof_p::Int64, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
     n::Float64 = 0.5
     K::Float64 = 2.0
     len_t::Int = round(Int,(sim_time/t_steps)) # number of time steps
@@ -1055,8 +1055,8 @@ Defines the model for the finite element method.
 # Returns:
 - `mdl::Stokes`: model for the finite element method
 """ 
-function set_model(r::Number, h::Number, ne::Int64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                nDof_p::Int64)::Stokes
+function set_model(r::R, h::H, ne::Int64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
+                nDof_p::Int64)::Stokes where {R<:Number,H<:Number}
 
     mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
@@ -1155,7 +1155,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     μu_btm = 0  
     μu_side = 0
     
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, nNodes_u_cached, SIDES_cached)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, nNodes_u_cached)
     pi, qi = fit_curve(border=BorderPts2D)
     
     dqdη = zeros(Float64, size(q_d_cached_top))
@@ -1451,5 +1451,3 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     end
     return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D
 end
-
-
