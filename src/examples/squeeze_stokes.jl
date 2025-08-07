@@ -8,15 +8,7 @@ using Parameters
 Assembles the finite element system. # Returns the global stiffness matrix
 
 # Arguments:
-- `ne::Interger`: number of elements in each direction
-- `NodeList::Matrix{Float64}{ndim,nNodes}` : coordinates of the nodes
-- `IEN::Matrix{Int}{nElements,nLocalNodes}` : connectivity matrix
-- `ndim::Interger`: number of dimensions
-- `nDof::Interger`: number of degree of freedom per node
-- `FunctionClass::String`: type of basis functions to be considered (Q1:quadratic or Q2:Lagrange)
-- `ID::Matrix{Int}{nDof, nNodes}` : matrix that maps the global degrees of freedom to the local degrees of freedom
-- `Young::Float64`: Young's modulus
-- `ν::Float64`: Poisson's ratio
+- `mdl::Stokes` : Material model
 
 # Returns:
 - `K::SparseMatrixCSC{Float64,Int64}{ndof,ndof}` : sparse stiffness matrix 
@@ -669,14 +661,11 @@ end
 """ Apply the Neumann slip boundary conditions to the global stiffness matrix
 
 # Arguments:
-K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix 
-ID: {[nDof,nNodes] Matrix{Int}} : matrix that maps the global degrees of freedom to the local degrees of freedom
-q_d: {[ndof] Vector{Float64}} : Dirichlet boundary conditions
-q_n: {[ndof] Vector{Float64}} : Neumann boundary conditions
+- `mdl::Stokes` : Material model
 
 # Returns:
-K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}} : sparse stiffness matrix with the boundary conditions applied
-F: {[ndof] Vector{Float64}} : force vector
+- `K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}}` : sparse stiffness matrix with the boundary conditions applied
+- `F: {[ndof] Vector{Float64}}` : force vector
 """
 function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
 
@@ -894,13 +883,12 @@ function apply_boundary_conditions_dense(mdl::Stokes)::Matrix{Float64}
 end
 
 """
+set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
 Set the Dirichlet boundary conditions for the problem
 
 # Arguments:
-- `NodeList::Matrix{Float64}{nNodes,ndim}` : array of nodes
-- `ne::Int` : number of elements
-- `ndim::Int` : number of dimensions
-- `FunctionClass::String` : type of basis function
+- `mdl::Stokes` : Material model
+- `DENSE::Bool` : Flag to use dense matrices or sparse matrices
 
 # Returns:
 - `q_upper::Vector{Float64}` : vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
@@ -1013,6 +1001,12 @@ function get_η(t::T, F::U, R_0::V, H_0::W, η_0::X, n::Y, K::Z) where {T<:Numbe
     return η(t)
 end
 
+"""
+function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
+                    nDof_p::Int64, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
+
+Define the conditions and the parameters of the squueze flow problem considered.
+"""
 function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
                     nDof_p::Int64, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
     n::Float64 = 0.5
@@ -1040,7 +1034,7 @@ end
 """
 set_model(ne, NodeList, IEN, ndim, FunctionClass=FunctionClass_p_cached, nDof=1, ID=nothing, Young=1, ν=0.3)
 
-Defines the model for the finite element method.
+Sets the model for the finite element method.
 # Arguments:
 - `r::Number`: radius of the cylinder
 - `h::Number`: height of the cylinder
@@ -1067,44 +1061,23 @@ function set_model(r::R, h::H, ne::Int64, η::Vector{Float64}, ndim::Int64, Func
 end
 
 """
-simulate(x0, x1, y0, y1, z0, z1, ne, η ,ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, camera_matrix, endTime, t_steps, Control, cParam; WRITEDATA=false, filepath=nothing, SIDES::Bool=false)
+simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
 Simulate the Stokes problem for a given mesh over a given time period. 
 
 # Arguments:
-- `x0::Float64` : x coordinate of the lower left corner of the domain
-- `x1::Float64` : x coordinate of the upper right corner of the domain
-- `y0::Float64` : y coordinate of the lower left corner of the domain
-- `y1::Float64` : y coordinate of the upper right corner of the domain
-- `z0::Float64` : z coordinate of the lower left corner of the domain
-- `z1::Float64` : z coordinate of the upper right corner of the domain
-- `ne::Int` : number of elements
-- `η::Float64` : viscosity of the fluid
-- `ndim::Int` : number of dimensions
-- `FunctionClass_u::String` : type of basis function for the velocity field
-- `nDof_u::Int` : number of degrees of freedom for the velocity field
-- `FunctionClass_p::String` : type of basis function for the pressure field
-- `nDof_p::Int` : number of degrees of freedom for the pressure field
-- `β::Float64` : parameter for the pressure field
-- `camera_matrix::Matrix{Float64}` : camera matrix
-- `endTime::Float64` : end time of the simulation
-- `t_steps::Float64` : time step of the simulation
-- `Control::String` : type of control for the simulation
-- `cParam::Float64` : parameter for the control
-
-# Optional arguments:
-- `WRITEDATA::Bool` : write the data to a file
-- `filepath::String` : path to write the data
-- `SIDES::Bool` : if true, only the sides of the cylinder are extracted in the simulation. Simulates the partial observability of the borders.
+- `mdl::Stokes`: Material model
+- `scene::SqueezeFlow`: Parameters for the squeeze flow problem
+- `conditions::Conditions` : External environmental conditions
 
 # Returns:
 - `output::Vector{Float64}` : output of the simulation
 - `gradList`::Vector{Float64}` : gradient of the solution
-- `borderPts2DList::Vector{Float64}` : border points in 2D 
-- `splinep::Vector{Float64}` : x coordinates samples of the spline parameters of the border nodes
-- `splineq::Vector{Float64}` : y coordinates samples of the spline parameters of the border nodes
-- `mdl::Stokes` : model of the simulation
-- `pos2D::Vector{Float64}` : position of the mesh in 2D
+- `borderPts2DList::Vector{Matrix{Float64}}` : border points in 2D 
+- `displacement::Vector{Matrix{Float64}}` : displacement of the nodal points at each timestep
+- `surface_pts_3D::Vector{Matrix{Float64}}` : 3D ccordinates of the surface nodes at each timestep
+- `pos2D::Vector{Matrix{Float64}}` : 2D projection of the surface nodes at each timestep
+
 """
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     @unpack ID, NodeList, top_nodes, bottom_nodes, side_nodes, nNodes = mdl.mesh_u

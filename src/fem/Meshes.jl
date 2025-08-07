@@ -765,50 +765,50 @@ Inflate the cube into a cylinder.
 # Returns:
 - `NodeListCyl::Matrix{Float64}{nNodes,ndim}` : array of nodes of the cylindrical mesh
 """
-function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1::W, r::Y, h::Z=1.0; GRAD::Bool=false) where {T<:Number,U<:Number,V<:Number,W<:Number,Y<:Number,Z<:Number}
-    NodeListCyl = copy(NodeListCube)
-    ∇NodeListCyl = zeros(Float64,size(NodeListCube,1),size(NodeListCube,2),2)
+# function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1::W, r::Array{Y}, h::Z=1.0; GRAD::Bool=false) where {T<:Number,U<:Number,V<:Number,W<:Number,Y<:Number,Z<:Number}
+#     NodeListCyl = copy(NodeListCube)
+#     ∇NodeListCyl = zeros(Float64,size(NodeListCube,1),size(NodeListCube,2),2)
 
-    center = [0.5*(x0 + x1), 0.5*(y0 + y1)]
-    sz_layer = size(NodeListCyl,2)/nNodes
+#     nNodes = 1
+#     center = [0.5*(x0 + x1), 0.5*(y0 + y1)]
+#     sz_layer = size(NodeListCyl,2)/nNodes
     
-    iter = 1:sz_layer
-    layer_iter = 1:nNodes
+#     iter = 1:sz_layer
+#     layer_iter = 1:nNodes
 
-    for layer in layer_iter
-        if GRAD == true
-            nodes = SurfacePts2D[:,(layer-1)*sz_layer+1:layer*sz_layer]
-            for i in iter
-                scale = maximum(abs.(NodeListCube[1:2,((layer-1)+i)] - center))
-                if scale ≈ 0.
-                    NodeListCyl[1:2,((layer-1)+i)] = [0 , 0]
-                else
-                    r_ = sqrt((NodeListCube[1,((layer-1)+i)] - center[1])^2 + (NodeListCube[2,((layer-1)+i)] - center[2])^2)
-                    NodeListCyl[1:2,i] = 2*r[layer]*scale*(NodeListCube[1:2,((layer-1)+i)] - center)/r_
-                    NodeListCyl[3,i] = NodeListCube[3,((layer-1)+i)]*h
+#     for layer in layer_iter
+#         if GRAD == true
+#             for i in iter
+#                 scale = maximum(abs.(NodeListCube[1:2,((layer-1)+i)] - center))
+#                 if scale ≈ 0.
+#                     NodeListCyl[1:2,((layer-1)+i)] = [0 , 0]
+#                 else
+#                     r_ = sqrt((NodeListCube[1,((layer-1)+i)] - center[1])^2 + (NodeListCube[2,((layer-1)+i)] - center[2])^2)
+#                     NodeListCyl[1:2,i] = 2*r[layer]*scale*(NodeListCube[1:2,((layer-1)+i)] - center)/r_
+#                     NodeListCyl[3,i] = NodeListCube[3,((layer-1)+i)]*h
 
-                    ∇NodeListCyl[1:2,i,1] = 2*scale*(NodeListCube[1:2,((layer-1)+i)] - center)/r_ # ∂x/∂r = K_1 and ∂y/∂r = K_2
-                    ∇NodeListCyl[3,i,2] = NodeListCube[3,((layer-1)+i)] # ∂z/∂h = λ_i 
-                end
-            end
-            return NodeListCyl, ∇NodeListCyl
-        else
-            for i in iter
-                scale = maximum(abs.(NodeListCube[1:2,((layer-1)+i)] - center))
-                if scale ≈ 0.
-                    NodeListCyl[1:2,((layer-1)+i)] = [0 , 0]
-                else
-                    r_ = sqrt((NodeListCube[1,((layer-1)+i)] - center[1])^2 + (NodeListCube[2,((layer-1)+i)] - center[2])^2)
-                    NodeListCyl[1:2,i] = 2*r[layer]*scale*(NodeListCube[1:2,((layer-1)+i)] - center)/r_
-                    NodeListCyl[3,i] = NodeListCube[3,((layer-1)+i)]*h
-                end
-            end
-            return NodeListCyl
-        end
-    end
-end
+#                     ∇NodeListCyl[1:2,i,1] = 2*scale*(NodeListCube[1:2,((layer-1)+i)] - center)/r_ # ∂x/∂r = K_1 and ∂y/∂r = K_2
+#                     ∇NodeListCyl[3,i,2] = NodeListCube[3,((layer-1)+i)] # ∂z/∂h = λ_i 
+#                 end
+#             end
+#             return NodeListCyl, ∇NodeListCyl
+#         else
+#             for i in iter
+#                 scale = maximum(abs.(NodeListCube[1:2,((layer-1)+i)] - center))
+#                 if scale ≈ 0.
+#                     NodeListCyl[1:2,((layer-1)+i)] = [0 , 0]
+#                 else
+#                     r_ = sqrt((NodeListCube[1,((layer-1)+i)] - center[1])^2 + (NodeListCube[2,((layer-1)+i)] - center[2])^2)
+#                     NodeListCyl[1:2,i] = 2*r[layer]*scale*(NodeListCube[1:2,((layer-1)+i)] - center)/r_
+#                     NodeListCyl[3,i] = NodeListCube[3,((layer-1)+i)]*h
+#                 end
+#             end
+#             return NodeListCyl
+#         end
+#     end
+# end
 
-function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1::W, r::Array{Y}, h::Z=1.0; GRAD::Bool=false) where {T<:Number,U<:Number,V<:Number,W<:Number,Y<:Number,Z<:Number}
+function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1::W, r::Y, h::Z=1.0; GRAD::Bool=false) where {T<:Number,U<:Number,V<:Number,W<:Number,Y<:Number,Z<:Number}
     NodeListCyl = copy(NodeListCube)
     center = [0.5*(x0 + x1), 0.5*(y0 + y1)]
     iter = 1:size(NodeListCyl,2)
