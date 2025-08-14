@@ -2,7 +2,7 @@ using LinearAlgebra
 using Plots
 using ArgCheck
 
-function match_points(pSim::AbstractMatrix{Float64},pObs::AbstractMatrix{Float64})
+function match_points(pSim::T,pObs::T) where {T<:AbstractMatrix{Float64}}
 
     simSize = size(pSim,2)
     obsSize = size(pObs,2)
@@ -25,7 +25,7 @@ function match_points(pSim::AbstractMatrix{Float64},pObs::AbstractMatrix{Float64
     return pairs
 end
 
-function closest_point(simScene::AbstractArray, obsScene::AbstractArray)
+function closest_point(simScene::T, obsScene::T) where {T<:AbstractArray}
     # Define the cost function
     costList = Float64[]
     pairsList = []
@@ -48,7 +48,7 @@ function closest_point(simScene::AbstractArray, obsScene::AbstractArray)
     return costList, pairsList
 end
 
-function closest_point(simScene::AbstractArray, obsScene::AbstractArray, dudθ::AbstractArray)
+function closest_point(simScene::AbstractArray, obsScene::AbstractArray, dudθ::AbstractArray) #where {T<:AbstractArray}
     # Define the cost function 
     costList = Float64[]
     dcostList = []
@@ -93,94 +93,89 @@ function closest_point(simScene::AbstractArray, obsScene::AbstractArray, dudθ::
     return costList, dcostList, dcost2List, pairsList
 end
 
-# function init_cylinder()             
-#     scale = 100
-#     ne::Int = 4 # number of elements in the mesh for the ground truth
-#     FunctionClass::String = "Q2"
-#     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-#     camera_pose = scale*[0 -0.25 2]'   # camera position in mm
+function init_cylinder(ne::Int, FunctionClass::String, camera_matrix::T, camera_pose::U, obsBorderPts::Matrix{Float64}) where {T<:AbstractMatrix, U<:AbstractMatrix}             
+    
+    @info "Estimating the cylindrical mesh"
+    scale = 100.0
 
-#     rList = Vector{Float64}(undef,0)
-#     hList = Vector{Float64}(undef,0)
-#     costList = Vector{Float64}(undef,0)
-#     iterList = Vector{Float64}(undef,0)
+    rList = Vector{Float64}(undef,0)
+    hList = Vector{Float64}(undef,0)
+    costList = Vector{Float64}(undef,0)
+    iterList = Vector{Float64}(undef,0)
 
-#     NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
+    NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
+    side_nodes = BorderNodes[1]
 
-#     # g_truth
-#     r_gt::Float64 = 0.25*scale  # radius of the cylinder in mm
-#     h_gt::Float64 = 0.5*scale  # height of the cylinder in mm
-#     NodeListCyl_gt = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r_gt, h_gt)
-#     side_nodes = BorderNodes[1]
-#     obsBorderPts, g_SurfacePts2D = extract_borders(NodeListCyl_gt, camera_matrix, camera_pose, side_nodes, nNodes)
+    # optimizer
+    r = scale*ones(Float64,2*ne+1)  # radius of the cylinder in mm
+    h = scale
+    NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
+    simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, side_nodes, nNodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
 
-#     # optimizer
-#     r = 1*scale*ones(ne)
-#     h = 1*scale
-#     NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
-#     simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, side_nodes, nNodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
+    display(∇NodeListCyl)
+    d, ∂d, ∂2d, pairs = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
+    totdinit::Float64 = sum(d)/length(d)
 
-#     d, ∂d, ∂2d, pairs = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
-#     totdinit::Float64 = sum(d)/length(d)
+    # println("Ground truth : r = $r_gt, h = $h_gt")
+    θ = vcat(r,h)
+    iter::Int = 1
+    c_grad::Float64 = 1.0
+    println("Initial Error: ", totdinit)
 
-#     println("Ground truth : r = $r_gt, h = $h_gt")
-#     θ = vcat(r,h)
-#     iter::Int = 1
-#     c_grad::Float64 = 1.0
-#     println("Initial Error: ", totdinit)
-#     while true
-
-#         t∂2d = zeros(size(∂2d[1]))
-#         t∂d = zeros(size(∂d[1]))
+    while true
+        t∂2d = zeros(size(∂2d[1]))
+        t∂d = zeros(size(∂d[1]))
         
-#         println("r: ", θ[1], " h: ", θ[2])
+        println("r: ", θ[1:end-1], " h: ", θ[end])
 
-#         len_d = length(d)
-#         szd = 1:len_d
+        len_d = length(d)
+        szd = 1:len_d
 
-#         for i in szd
-#             t∂2d = t∂2d + ∂2d[i]
-#             t∂d = t∂d + ∂d[i]
-#         end
+        for i in szd
+            t∂2d = t∂2d + ∂2d[i]
+            t∂d = t∂d + ∂d[i]
+        end
 
-#         p = t∂2d\t∂d
-#         α = 1
+        p = t∂2d\t∂d
+        α = 1
         
-#         θ = θ - α*p
+        θ = θ - α*p
 
-#         val_check(θ)
-#         # update the model parameters
-#         r = θ[1]
-#         h = θ[2]
+        val_check(θ)
 
-#         NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
-#         simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, side_nodes, nNodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
+        # update the model parameters
+        r = θ[1:end-1]
+        h = θ[end]
 
-#         d, ∂d, ∂2d, pairs = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
+        NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
+        simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, side_nodes, nNodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
 
-#         totd = sum(d)/len_d
-#         c_grad = abs(totdinit - totd)
-#         totdinit = totd
+        d, ∂d, ∂2d, pairs = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
 
-#         iter = iter + 1
+        totd = sum(d)/len_d
+        c_grad = abs(totdinit - totd)
+        totdinit = totd
+
+        iter = iter + 1
         
-#         push!(rList,θ[1]) 
-#         push!(hList,θ[2])
-#         push!(costList,totd)
-#         push!(iterList,iter)
-#         println("iteration $iter: steps : $p, Error = $totd, Error gradient : $c_grad")
-#         println(" ... ")
+        push!(rList,θ[1]) 
+        push!(hList,θ[2])
+        push!(costList,totd)
+        push!(iterList,iter)
+        println("iteration $iter: steps : $p, Error = $totd, Error gradient : $c_grad")
+        println(" ... ")
 
-#         if c_grad < 0.005
-#             break
-#         elseif iter ≥ 100
-#             break
-#         end
+        if c_grad < 0.0005
+            break
+        elseif iter ≥ 100
+            break
+        end
+    end
 
-#     end
-# end
+    return θ[1:end-1], θ[end]
+end
 
-function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64})
+function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::T, θ::Vector{Float64}) where {T<:AbstractArray}
     reset_model!(model)
     model.η = [θ[1]]
     scene.β = [θ[2]]
@@ -311,5 +306,3 @@ function height_sample(simScene::Vector{AbstractArray}, obsScene::Vector{Abstrac
     return costList, xObsintlst, xSimintlst, ySimintlst
 end
 # animate_fields(filepath = string(conditions.filepath,"/Results/images"),fields2D=borderPts2DList, pObs=splinexObs, qObs=splineyObs)
-
-# init_cylinder()

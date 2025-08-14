@@ -401,8 +401,8 @@ Initializes the mesh and writes the data to a file.
 - `splinep::Vector{Vector{Float64}}`: x coordinates of the border observation at each timestep interpolated.
 - `splineq::Vector{Vector{Float64}}`: y coordinates of the border observation at each timestep interpolated.
 """
-function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64},filepath::String="nothing", 
-                            SIDES::Bool=false)
+function initialize_mesh(r::T, h::Number, ne::Int64, FunctionClass::String, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64},filepath::String="nothing", 
+                            SIDES::Bool=false) where {T<:Any}
 
     isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
     set_file(filepath)

@@ -1028,7 +1028,27 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
     c = [q_tp, q_side, q_btm]
 
     squeeze = SqueezeFlow(stokes, [β], [q_tp, q_side, q_btm], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
-return stokes, squeeze
+    return stokes, squeeze
+end
+
+function def_problem(obs_border::Matrix{Float64}, ne::Int64, η_0::Number, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
+                    nDof_p::Int64, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::Number, t_steps::Number, camera_matrix::AbstractMatrix, camera_pose::AbstractArray) #where {V<:Number,W<:Number,X<:Number,Y<:AbstractMatrix,Z<:AbstractArray}
+    n::Float64 = 0.5
+    K::Float64 = 2.0
+    len_t::Int = round(Int,(sim_time/t_steps)) # number of time steps
+    time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
+
+    r, h = init_cylinder(ne, FunctionClass_u, camera_matrix, camera_pose, obs_border)
+
+    # define the model
+    stokes = set_model(r, h, ne, [η_0], ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p) # define the model    
+    # set the boundary conditions
+    q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes) 
+    # define with problem scenario
+    c = [q_tp, q_side, q_btm]
+
+    squeeze = SqueezeFlow(stokes, [β], [q_tp, q_side, q_btm], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
+    return stokes, squeeze
 end
 
 """
@@ -1049,11 +1069,26 @@ Sets the model for the finite element method.
 # Returns:
 - `mdl::Stokes`: model for the finite element method
 """ 
-function set_model(r::R, h::H, ne::Int64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                nDof_p::Int64)::Stokes where {R<:Number,H<:Number}
+function set_model(r::Number, h::Number, ne::Int64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
+                nDof_p::Int64)::Stokes # where {R<:Number,H<:Number}
 
     mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
+
+    mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
+
+    return mdl
+end
+
+function set_model(r::Vector{Float64}, h::Number, ne::Int64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
+                nDof_p::Int64)::Stokes # where {R<:Number,H<:Number}
+
+    mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
+
+    # get the vector of radii for the p mesh which is a bilinear mesh with ne+1 elements
+    p_idx = [2*i+1 for i in 0:ne]
+    r_p = r[p_idx]
+    mesh_p = meshgrid_cylinder(r_p, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
     mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 

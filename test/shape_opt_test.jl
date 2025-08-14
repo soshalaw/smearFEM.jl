@@ -77,8 +77,8 @@ function test_cyl_dif()
     cost_list = zeros(Float64,len,len)
 
     #g_truth
-    r::Float64 = 0.25*scale  # radius of the cylinder in mm
-    h::Float64 = 0.5*scale  # height of the cylinder in mm
+    r::Float64 = 2.5*scale  # radius of the cylinder in mm
+    h::Float64 = 5.0*scale  # height of the cylinder in mm
     NodeList_gt, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, h, ne, FunctionClass=FunctionClass)
     NodeListCyl_gt = inflate_cylinder(NodeList_gt, -0.5, 0.5, -0.5, 0.5, r)
     side_nodes = BorderNodes[1]

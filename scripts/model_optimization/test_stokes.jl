@@ -172,8 +172,8 @@ function test_opt_const()
 
         filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
 
-        sim_time_gt = 10.0# simulation time in seconds
-        steps_gt = 20.0 # number of time steps
+        sim_time_gt = 20.0# simulation time in seconds
+        steps_gt = 40.0 # number of time steps
         t_steps_gt = sim_time_gt/steps_gt
         β_gt = 100.0
         η_gt = 40.0
@@ -216,8 +216,8 @@ function test_opt_const()
     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
 
     # simulation parameters for the experiments
-    sim_time::Float64 = 10.0# simulation time in seconds
-    steps::Float64 = 10.0 # number of time steps
+    sim_time::Float64 = 20.0# simulation time in seconds
+    steps::Float64 = 40.0 # number of time steps
     t_steps::Float64 = sim_time/steps
     ne_exp::Int = 4
 
@@ -231,7 +231,11 @@ function test_opt_const()
     dev_β::Float64 = dev*β_gt
     βStart::Float64 = β_gt - dev_β
 
-    model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
+    model, scene = def_problem(obsBorderPts[1], ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, 
+                            viscosity_type, sim_time, t_steps, camera_matrix, camera_pose)
+
+    # model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time,
+    #                          t_steps)
     conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose, SIDES=SIDES, filepath=filepath, ANIMATE=false)
 
     θ::Vector{Float64} = [ηStart, βStart]
