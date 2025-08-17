@@ -1,6 +1,6 @@
 using LinearAlgebra
 using SparseArrays
-using ArgCheck
+
 
 """ 
     smearFEM.gaussian_quadrature(a,b,nGaussPoints)

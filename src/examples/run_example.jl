@@ -121,7 +121,10 @@ Simulates the deformation of the mesh for a single time step using the Stokes mo
 function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Number, ndim::Int64, FunctionClass_u::String, FunctionClass_p::String, nDof_u::Int64,
                                     nDof_p::Int64, β::Number, μu_tp::Number, μu_btm::Number, μu_side::Number; GRAD::Bool=false, DENSE::Bool=false)
     
-    mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
+    
+    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
+
+    mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u, filePath=filePath)  # generate the mesh grid
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
     mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
@@ -131,11 +134,11 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     q_tp, q_side, q_btm, C_uc = set_boundary_cond(mdl)
 
     if DENSE == true
-        A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
+        A_bar = assemble_system_A(mdl)               # assemble the stiffness matrix
         B = assemble_system_B(mdl)                   # assemble the stiffness matrix
         b = apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
     else
-        A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
+        A_bar = assemble_system_A(mdl)               # assemble the stiffness matrix
         B = assemble_system_B(mdl)                   # assemble the stiffness matrix
         b = apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
     end
@@ -151,6 +154,8 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
 
     C_Tu = transpose(C_uc)           # transpose the constraint matrix
 
+    println("A :",size(A))
+    println("C_uc :",size(C_uc))
     A_free = C_Tu*A*C_uc        # extract the free part of the stiffness matrix
     B_free = C_Tu*B             # extract the free part of the stiffness matrix
 

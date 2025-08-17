@@ -7,9 +7,9 @@ using Test
     # test case 
     r = 1   
     h = 1
-    ne = 8
+    ne = 2
     ndim = 3
-    FunctionClass_u = "Q2"
+    FunctionClass_u = "S2"
     FunctionClass_p = "Q1"
     nDof_u = ndim  # number of degree of freedom per node
     nDof_p = 1

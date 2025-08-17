@@ -45,10 +45,6 @@ mutable struct LinearElasticity <: AbstractModel
         ID::Matrix{Int} = Matrix{Int}(undef, 1, 1),
         nDof::Int = 0,
         FunctionClass::String = "None",
-        C::Array{Float64, 3} = Array{Float64, 3}(undef, 1, 1, 1),
-        C_top::Array{Float64, 3} = Array{Float64, 3}(undef, 1, 1, 1),
-        C_btm::Array{Float64, 3} = Array{Float64, 3}(undef, 1, 1, 1),
-        W::Vector{Float64} = Vector{Float64}(undef, 1),  
         θ1::Float64 = 0.0, 
         θ2::Float64 = 0.0, 
         cMat::Matrix{Float64} = Matrix{Float64}(undef, 1, 1),
@@ -57,7 +53,7 @@ mutable struct LinearElasticity <: AbstractModel
     )
         # Initialize the linear elasticity model with the provided parameters
         new(ne, ndim, NodeList, IEN, IEN_top, IEN_btm, IEN_border, ID, nDof, FunctionClass,
-            C, C_top, C_btm, W, θ1, θ2, cMat, dcMatdθ1, dcMatdθ2)
+            θ1, θ2, cMat, dcMatdθ1, dcMatdθ2)
     end
 end
 

@@ -1,4 +1,5 @@
 # abstract type Mesh end
+using ArgCheck
 
 struct Meshgrid{T <: AbstractMeshgrid} 
     msh::T
@@ -209,7 +210,11 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
     bottom_nodes::Vector{Int}
     side_nodes::Vector{Int}
     initial_state::Matrix{Float64}
-
+    C_vol::Array{Float64}
+    C_top::Array{Float64}
+    C_btm::Array{Float64}
+    W::Vector{Float64}
+    
     function MeshgridCylinder(;
         r::Number=0.0,
         h::Number=0.0,
@@ -225,10 +230,14 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
         top_nodes::Vector{Int}=Vector{Int}(),
         bottom_nodes::Vector{Int}=Vector{Int}(),
         side_nodes::Vector{Int}=Vector{Int}(),
+        C_vol::Array{Float64, 3} = Array{Float64, 3}(undef, 1, 1, 1),
+        C_top::Array{Float64, 3} = Array{Float64, 3}(undef, 1, 1, 1),
+        C_btm::Array{Float64, 3} = Array{Float64, 3}(undef, 1, 1, 1),
+        W::Vector{Float64} = Vector{Float64}(undef, 1)
     )
         # Constructor for MeshgridCylinder
         new(r, h, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides,
-            ID, FunctionClass, nNodes, ne, top_nodes, bottom_nodes, side_nodes, NodeList)
+            ID, FunctionClass, nNodes, ne, top_nodes, bottom_nodes, side_nodes, NodeList, C_vol, C_top, C_btm, W)
         
     end
 end
@@ -731,18 +740,40 @@ Set up the mesh grid for a 3D cylinder
 # Returns:
 - `NodeList::Matrix{Number}{nNodes,ndim}` : array of nodes
 - `IEN::Matrix{Int64}{ne^ndim,2^ndim}` : array of elements
-- `ID::Matrix{Int64}{nNodes,ndim}` : array of node IDs
+- `ID::Matrix{Int64}{nNodes,ndim}` : array of node IDs 
 - `IEN_top::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the top surface
 - `IEN_bottom::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the bottom surface
 - `BorderNodes::Vector{Int64}` : array of nodes on the boundaries
 """
-function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1") where {T<:Number,U<:Number}
+function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", filePath::String=" ") where {T<:Number,U<:Number}
+    if string(FunctionClass[1]) == "S"
+        @info "Representing fields / geometry using Splines"
+        CPointList, W, C, IEN, IEN_top, C_top, IEN_bottom, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
+        ndim = size(CPointList,1)
+        @argcheck ne^ndim == size(IEN,2) "Loaded mesh does not have the correct number of elements" 
+        nNodes = ne + 2
+        @argcheck nNodes^ndim == size(CPointList,2) "Loaded mesh does not have the correct number of nodes"
 
-    NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
-    NodeList = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h)
+        ID = zeros(Int64, ndim, size(CPointList,2))
+        cpiter = 1:nNodes
+        for m in cpiter
+            for l in 1:ndim
+                ID[l,m] = ndim*(m-1) + l
+            end
+        end 
 
-    mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID, FunctionClass=FunctionClass,
+        mesh = MeshgridCylinder(r=r, h=h, NodeList=CPointList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID, FunctionClass=FunctionClass,
+            C_vol=C, C_top=C_top, C_btm=C_btm, W=W, nNodes=nNodes, ne=ne)
+    elseif string(FunctionClass[1]) == "Q"  
+        @info "Representing fields / geometry using basis functions"         
+        NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
+        NodeList = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h)
+
+        mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID, FunctionClass=FunctionClass,
             nNodes=nNodes, ne=ne, side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2])
+    else
+        ArgumentError("FunctionClass type unknown")
+    end
 
     return mesh
 end
