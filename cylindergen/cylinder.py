@@ -17,13 +17,17 @@ r = 1 # Radius
 h = 1 # Height
 
 # discretization parameters
-p = 2 # Basis order
+p = 1 # Basis order
 nref = 1 # Number of uniform refinements
 
 # creation of the Splipy NURBS object
 disk = splipy.surface_factory.disc(r, type='square')
 cylinder = splipy.volume_factory.extrude(disk, [0.,0.,h])
-cylinder.raise_order(p-2,p-2,p-1)
+
+if p == 2 :
+    cylinder.raise_order(p-2,p-2,p-1)
+elif p ==1:
+    cylinder = cylinder.lower_order(0,0,0)
 cylinder.refine(2**nref-1)
 
 # extaction of the control points and weights
@@ -51,10 +55,35 @@ vol_NURBS = domain.integrate(function.J(geom), degree=2*p)
 print(f'BSpline volume = {vol_BSpline}')
 print(f'NURBS volume = {vol_NURBS}')
 
+geom = function.matmat(bspline_basis, X)
+area_BSpline, Q_Bspline = domain.boundary['back'].integrate([function.J(geom),geom*function.J(geom)], degree=2*p)
+area_NURBS, Q_NURBS = domain.boundary['back'].integrate([function.J(geom),geom*function.J(geom)], degree=2*p)
+print(f'BSpline area = {area_BSpline}')
+print(f'NURBS area = {area_NURBS}')
+print(f'Centroid NURBS = {Q_NURBS/area_NURBS}')
+
+cp_domain, cp_geom = mesh.rectilinear([numpy.linspace(0,1,n) for n in cylinder.controlpoints.shape[:-1]])
+cp_basis = cp_domain.basis("std",1)
+cp_geom = function.matmat(cp_basis, X)
+
 # plot the CAD object
 bezier = domain.sample('bezier', 3)
 x = bezier.eval(geom)
 export.vtk('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/vtkFiles/cylinder', bezier.tri, x)
+
+# plot the CAD object
+cp_bezier = cp_domain.sample('bezier', 3)
+x_cp = cp_bezier.eval(cp_geom)
+export.vtk('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/vtkFiles/cylinder_cp', cp_bezier.tri, x_cp)
+
+map_cp = [0, 4, 6, 2, 1, 5, 7, 3]
+IEN_cp = numpy.empty(shape=(numpy.prod(cp_domain.shape),(2)**3),dtype=int)
+for e, ref  in enumerate(cp_domain.references):
+    if p == 2 :
+        IEN_e = cp_basis.get_dofs(e)
+        IEN_cp[e,:] = IEN_e[map_cp]
+    elif p ==1:
+        IEN_cp[e,:] = cp_basis.get_dofs(e)
 
 # get the Lagrange extraction operators
 lagrange_basis = domain.basis('lagrange', degree=p)
@@ -72,12 +101,15 @@ IEN = numpy.empty(shape=(ne,(p+1)**3),dtype=int)
 C = numpy.empty(shape=(ne,(p+1)**3,(p+1)**3))
 for e, (Ae,be) in enumerate(zip(A,b)):
     IEN[e,:] = bspline_basis.get_dofs(e)
-    Ce = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN[e,:])]))
-    C[e,:,:] = Ce[:,map]
+    if p == 2:
+        Ce = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN[e,:])]))
+        C[e,:,:] = Ce[:,map]
+    elif p == 1:
+        C[e,:,:] = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN[e,:])]))
 
 tests.test_extraction_operators(C)
 
-boundaries = ['top', 'bottom']
+boundaries = ['top', 'bottom', 'front', 'back', 'left' , 'right']
 IEN_bound_lst = {}
 C_bound_lst = {}
 
@@ -92,6 +124,8 @@ for bound in boundaries:
     ne = A.shape[0]
     assert ne==2**(2*nref), 'Incorrect number of elements'
 
+    map_boundary = [0, 6, 8, 2, 3, 7, 5, 1, 4]
+
     IEN_boundary = numpy.empty(shape=(ne,(p+1)**2),dtype=int)
     C_boundary = numpy.empty(shape=(ne,(p+1)**2,(p+1)**2))
     for e, (Ae,be) in enumerate(zip(A,b)):
@@ -104,14 +138,17 @@ for bound in boundaries:
         print(f'boundary element {e} corresponds to volume element {i}')
 
         IEN_boundary[e,:] = [dof for dof in bspline_basis.get_dofs(i) if supp[dof]]
-        C_boundary[e,:,:] = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN_boundary[e,:])]))
-
+        if p == 2:
+            Ce_boundary = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN_boundary[e,:])]))
+            C_boundary[e,:,:] = Ce_boundary[:,map_boundary]
+        elif p == 1:
+            C_boundary[e,:,:] = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN_boundary[e,:])]))
+        
+         
     tests.test_extraction_operators(C_boundary)
 
-    print(C_boundary.shape)
-    print(IEN_boundary.shape)
-    IEN_bound_lst[bound] = IEN_boundary
-    C_bound_lst[bound] = C_boundary
+    IEN_bound_lst[bound] = IEN_boundary.copy()
+    C_bound_lst[bound] = C_boundary.copy()
 
 # Save to an HDF5 file
 with h5py.File('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/cylinder.h5', 'w') as f:
@@ -119,9 +156,12 @@ with h5py.File('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/cy
     f.create_dataset('W', data=W)
     f.create_dataset('C', data=C)
     f.create_dataset('IEN', data=IEN)
+    f.create_dataset('IEN_cp', data=IEN_cp)
     for key in IEN_bound_lst:
         f.create_dataset(('IEN_'+str(key)), data=IEN_bound_lst[key])
     for key in C_bound_lst:
         f.create_dataset(('C_'+str(key)), data=C_bound_lst[key])
     f.create_dataset('BSpline_vol', data=vol_BSpline)
     f.create_dataset('NURBS_vol', data=vol_NURBS)
+    f.create_dataset('BSpline_area', data=area_BSpline)
+    f.create_dataset('NURBS_area', data=area_NURBS)
