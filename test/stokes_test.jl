@@ -9,7 +9,8 @@ using Test
     h = 1
     ne = 2
     ndim = 3
-    FunctionClass_u = "S2"
+    FunctionClass_x = "S2"
+    FunctionClass_u = "Q1"
     FunctionClass_p = "Q1"
     nDof_u = ndim  # number of degree of freedom per node
     nDof_p = 1
@@ -20,15 +21,15 @@ using Test
     μu_side = 0
 
     q, model = simulate_single_tstep_stokes(r, h, ne, ν, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-                                            μu_side)
+                                            μu_side, FunctionClass_x=FunctionClass_x)
     
     u_r = zeros(size(q,2))
     u_z = zeros(size(q,2))
 
-    iter = 1:size(model.mesh_u.NodeList, 2)
+    iter = 1:size(model.mesh_x.NodeList, 2)
     for i in iter
-        r = sqrt(model.mesh_u.NodeList[1,i]^2 + model.mesh_u.NodeList[2,i]^2)
-        h_ = model.mesh_u.NodeList[3,i]
+        r = sqrt(model.mesh_x.NodeList[1,i]^2 + model.mesh_x.NodeList[2,i]^2)
+        h_ = model.mesh_x.NodeList[3,i]
 
         @test sqrt(q[1,i]^2 + q[2,i]^2) + 0.5*μu_tp*r/h ≈ 0 atol=10^(-5)
         @test q[3,i] - μu_tp*h_/h ≈ 0 atol=10^(-5)

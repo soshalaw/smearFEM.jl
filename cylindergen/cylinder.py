@@ -17,7 +17,7 @@ r = 1 # Radius
 h = 1 # Height
 
 # discretization parameters
-p = 1 # Basis order
+p = 2 # Basis order
 nref = 1 # Number of uniform refinements
 
 # creation of the Splipy NURBS object

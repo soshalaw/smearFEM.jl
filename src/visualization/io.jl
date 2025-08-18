@@ -243,13 +243,14 @@ function read_json(filepath::String)
     data = JSON3.read(filepath)
     return data
 end
+
 """
-    read_h5(filepath, mode)
+    read_h5(filename, mode)
 
 Function to read mesh data from a .h5 file for IGA.
 
 # Arguments:
-- `filepath::String`:Path to the the .h5 file.
+- `filename::String`:Path to the the .h5 file.
 - `mode::String`:Simulation (sim) or test (test) mode. With the test modes the volume of the mesh is returned
 
 # Returns:
@@ -260,15 +261,9 @@ Function to read mesh data from a .h5 file for IGA.
 -`IEN_top::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the top surface mesh.
 -`IEN_btm::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the bottom surface mesh.
 """
-function read_h5(filepath::String, mode::String="sim")
+function read_h5(filename::String, mode::String="sim")
     # Open the HDF5 file
-    if !isfile(filepath)
-        throw(SystemError("Trying to read from $filepath, the directory does not exist."))
-    elseif mode != "sim" && mode != "test"
-        throw(ArgumentError("Mode not defined."))
-    end
-    
-    h5file = h5open(filepath, "r")
+    h5file = h5open(filename, "r")
 
     # Read mesh
     CPointList = read(h5file, "X")  # Control points
@@ -277,25 +272,30 @@ function read_h5(filepath::String, mode::String="sim")
     C = read(h5file, "C")  # Extraction operators
     C_new = permutedims(C,[2,1,3])
 
-    if mode == "sim"
-        IEN_top = read(h5file, "IEN_top").+1  # Element connectivity
-        IEN_btm = read(h5file, "IEN_bottom").+1  # Element connectivity
-        C_top = read(h5file, "C_top")
-        C_top_new = permutedims(C_top,[2,1,3])
-        C_btm = read(h5file, "C_bottom")
-        C_btm_new = permutedims(C_btm,[2,1,3])
+    IEN_top = read(h5file, "IEN_back").+1  # Element connectivity
+    IEN_btm = read(h5file, "IEN_front").+1  # Element connectivity
+    C_top = read(h5file, "C_back")
+    C_top_new = permutedims(C_top,[2,1,3])
+    C_btm = read(h5file, "C_front")
+    C_btm_new = permutedims(C_btm,[2,1,3])
 
-        # Close the HDF5 file after reading
-        close(h5file)
-
-        return CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new
-    elseif mode == "test"
+    if mode == "test"
         vol_BSpline = read(h5file, "BSpline_vol")
         vol_NURBS = read(h5file, "NURBS_vol")
+        area_BSpline = read(h5file, "BSpline_area")
+        area_NURBS = read(h5file, "NURBS_area")
 
         # Close the HDF5 file after reading
         close(h5file)   
 
-        return CPointList, W, C_new, IEN, vol_BSpline, vol_NURBS
+        return CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new, vol_BSpline, vol_NURBS, area_BSpline, area_NURBS
+    elseif mode == "sim"
+
+        IEN_cp = read(h5file, "IEN_cp").+1  # Element connectivity
+
+        # Close the HDF5 file after reading
+        close(h5file)
+
+        return CPointList, W, C_new, IEN, IEN_cp, IEN_top, C_top_new, IEN_btm, C_btm_new
     end
 end

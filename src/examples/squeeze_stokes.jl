@@ -17,20 +17,28 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     # unpack the model parameters to local variables
     # this is done to avoid the need to pass the model object around
     @unpack ne, ndim, nDof_u = mdl
-    @unpack NodeList, IEN, ID, FunctionClass, C_vol, C_top, C_btm, W = mdl.mesh_u
+    @unpack NodeList, IEN, ID, FunctionClass, C_vol, C_top, C_btm, W = mdl.mesh_u    
 
-    NodeList_cached::Matrix{Float64} = NodeList
-    IEN_cached::Matrix{Int} = IEN
+    NodeList_u_cached::Matrix{Float64} = NodeList
+    IEN_u_cached::Matrix{Int} = IEN
     ID_cached::Matrix{Int} = ID
     ne_cached::Int = ne
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
-    FunctionClass_cached::String = FunctionClass
-    C_vol_cached = C_vol
-    W_cached = W
+    FunctionClass_u_cached::String = FunctionClass
+    C_vol_u_cached = C_vol
+    W_u_cached = W
+
+    @unpack NodeList, IEN, FunctionClass, C_vol, C_top, C_btm, W = mdl.mesh_x
+
+    NodeList_x_cached::Matrix{Float64} = NodeList
+    IEN_x_cached::Matrix{Int} = IEN
+    FunctionClass_x_cached::String = FunctionClass
+    C_vol_x_cached = C_vol
+    W_x_cached = W
 
     C::Matrix{Float64} = get_cMat(1.0,0.0,type="standard")
-    IEN_u_rows::Int = size(IEN_cached,1)
+    IEN_u_rows::Int = size(IEN_u_cached,1)
   
     # (I,J,V) vectors for COO sparse matrix
     if nDof_u_cached == 1
@@ -38,10 +46,10 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
         J = zeros(  Int64, ne_cached^ndim*IEN_u_rows^2)
         V = zeros(Float64, ne_cached^ndim*IEN_u_rows^2)
     else
-        ID_u_rows::Int = size(ID_cached,1)
-        E = zeros(  Int64, ne_cached^ndim*((ID_u_rows*IEN_u_rows)^2))
-        J = zeros(  Int64, ne_cached^ndim*((ID_u_rows*IEN_u_rows)^2))
-        V = zeros(Float64, ne_cached^ndim*((ID_u_rows*IEN_u_rows)^2))  
+        ID_rows::Int = size(ID_cached,1)
+        E = zeros(  Int64, ne_cached^ndim*((ID_rows*IEN_u_rows)^2))
+        J = zeros(  Int64, ne_cached^ndim*((ID_rows*IEN_u_rows)^2))
+        V = zeros(Float64, ne_cached^ndim*((ID_rows*IEN_u_rows)^2))  
     end
 
     # element loop
@@ -103,33 +111,41 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     gpiter = 1:length(wpoints) # iterator for integration loop
     # element loop
     for e::Int in e_iter
-        coords::Matrix{Float64} = NodeList_cached[:, IEN_cached[:, e]]  # Get the coordinates of the nodes of the element
+        coords::Matrix{Float64} = NodeList_x_cached[:, IEN_x_cached[:, e]]  # Get the coordinates of the nodes of the element
         # integration loop
         for gp::Int in gpiter
             if ndim_cached == 1
-                N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_cached) # add function type
+                N_u, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached) # add function type
             elseif ndim_cached == 2
-                if string(FunctionClass_cached[1]) == "S"
-                    N, ΔN = basis_function(x[gp], y[gp], C_vol_cached[:,:,e], W_cached[IEN_cached[:,e]], FunctionClass_cached) 
-                elseif string(FunctionClass_cached[1]) == "Q"
-                    N, ΔN = basis_function(x[gp], y[gp], FunctionClass_cached) 
+                if string(FunctionClass_x_cached[1]) == "Q" && string(FunctionClass_u_cached[1]) == "Q"
+                    N_u, ΔN = basis_function(x[gp], y[gp], FunctionClass_u_cached) 
+                    N_x, ΔN_x = N_u, ΔN
+                    N_u, ΔN_u = N_u, ΔN 
+                elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "S"
+                    N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_u_cached[IEN_x_cached[:,e]], FunctionClass_x_cached)
+                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], C_vol_u_cached[:,:,e], W_u_cached[IEN_u_cached[:,e]], FunctionClass_u_cached)
+                elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "Q"
+                    N_x, ΔN_x = basis_function(x[gp], y[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
+                    N_u, ΔN_u = basis_function(x[gp], y[gp], FunctionClass_u_cached) 
                 end
             elseif ndim_cached == 3
-                if string(FunctionClass_cached[1]) == "S"
-                    # N, ΔN = basis_function(x[gp], y[gp], z[gp], C_vol_cached[:,:,e], W_cached[IEN_cached[:,e]], FunctionClass_cached) 
-                    N, ΔN = basis_function(x[gp], y[gp], z[gp], string("Q",FunctionClass_cached[2]))
-                elseif string(FunctionClass_cached[1]) == "Q"
-                    N, ΔN = basis_function(x[gp], y[gp], z[gp], FunctionClass_cached) 
-                else
-                     ArgumentError("FunctionClass type unknown")
+                if string(FunctionClass_x_cached[1]) == "Q" && string(FunctionClass_u_cached[1]) == "Q"
+                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached) 
+                    N_x, ΔN_x = N_u, ΔN_u
+                elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "S"
+                    N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached)
+                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], C_vol_u_cached[:,:,e], W_u_cached[IEN_u_cached[:,e]], FunctionClass_u_cached)
+                elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "Q"
+                    N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
+                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached) 
                 end
             end
 
-            dNdX = zeros(Float64, size(ΔN, 1), ndim_cached) # Gradient of basis functions
-            if nDof_u == 2
-                B = zeros(Float64, ndim*length(N), 3)
-            elseif nDof_u == 3
-                B = zeros(Float64, ndim*length(N), 6)
+            dNdX_u = zeros(Float64, size(N_u, 1), ndim_cached) # Gradient of basis functions
+            if nDof_u_cached == 2
+                B = zeros(Float64, ndim*length(N_u), 3)
+            elseif nDof_u_cached == 3
+                B = zeros(Float64, ndim*length(N_u), 6)
             end
 
             szB::Int = size(B, 1)  # Number of basis functions
@@ -137,51 +153,48 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
             Ke_row::Int, Ke_col::Int = szB, szB
             Ke_len::Int = length(Ke)  
 
-            mul!(Jac, coords, ΔN)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
+            mul!(Jac, coords, ΔN_x)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
             w::Float64 = wpoints[gp] * abs(det(Jac))
-            display(ΔN)
-            display(coords)
-            display(Jac)
             invJ .= inv(Jac)  # Inverse of the Jacobian matrix
-            mul!(dNdX, ΔN, invJ)
+            mul!(dNdX_u, ΔN_u, invJ)
 
             if nDof_u_cached == 1
-                szN::Int = size(N, 1)  # Number of basis functions
+                szN::Int = size(N_u, 1)  # Number of basis functions
                 # Loop between basis functions of the element
                 for i::Int in 1:szN
                     for j::Int in 1:szN
                         inz::Int = (szN)^2 * (e - 1) + szN * (i - 1) + j  # Index for the COO sparse matrix
-                        E[inz] = IEN_cached[i, e]  # Row index
-                        J[inz] = IEN_cached[j, e]  # Column index
-                        V[inz] += w * dot(dNdX[i, :], dNdX[j, :])  # Inner product of the gradient of the basis functions
+                        E[inz] = IEN_u_cached[i, e]  # Row index
+                        J[inz] = IEN_u_cached[j, e]  # Column index
+                        V[inz] += w * dot(dNdX_u[i, :], dNdX_u[j, :])  # Inner product of the gradient of the basis functions
                     end
                 end
             else
                 if nDof_u_cached == 2
                     B .= 0.0
-                    B[1:nDof_u_cached:end, 1] = dNdX[:, 1]
-                    B[2:nDof_u_cached:end, 2] = dNdX[:, 2]
-                    B[1:nDof_u_cached:end, 3] = dNdX[:, 2]
-                    B[2:nDof_u_cached:end, 3] = dNdX[:, 1]
+                    B[1:nDof_u_cached:end, 1] = dNdX_u[:, 1]
+                    B[2:nDof_u_cached:end, 2] = dNdX_u[:, 2]
+                    B[1:nDof_u_cached:end, 3] = dNdX_u[:, 2]
+                    B[2:nDof_u_cached:end, 3] = dNdX_u[:, 1]
                 elseif nDof_u_cached == 3
                     B .= 0.0
-                    B[1:nDof_u_cached:end, 1] = dNdX[:, 1]
-                    B[2:nDof_u_cached:end, 2] = dNdX[:, 2]
-                    B[3:nDof_u_cached:end, 3] = dNdX[:, 3]
-                    B[2:nDof_u_cached:end, 4] = dNdX[:, 3]
-                    B[3:nDof_u_cached:end, 4] = dNdX[:, 2]
-                    B[1:nDof_u_cached:end, 5] = dNdX[:, 3]
-                    B[3:nDof_u_cached:end, 5] = dNdX[:, 1]
-                    B[1:nDof_u_cached:end, 6] = dNdX[:, 2]
-                    B[2:nDof_u_cached:end, 6] = dNdX[:, 1]
+                    B[1:nDof_u_cached:end, 1] = dNdX_u[:, 1]
+                    B[2:nDof_u_cached:end, 2] = dNdX_u[:, 2]
+                    B[3:nDof_u_cached:end, 3] = dNdX_u[:, 3]
+                    B[2:nDof_u_cached:end, 4] = dNdX_u[:, 3]
+                    B[3:nDof_u_cached:end, 4] = dNdX_u[:, 2]
+                    B[1:nDof_u_cached:end, 5] = dNdX_u[:, 3]
+                    B[3:nDof_u_cached:end, 5] = dNdX_u[:, 1]
+                    B[1:nDof_u_cached:end, 6] = dNdX_u[:, 2]
+                    B[2:nDof_u_cached:end, 6] = dNdX_u[:, 1]
                 end
                 mul!(Ke, 2*w*B, C*B')  # Element stiffness matrix
 
                 # Loop between basis functions of the element
                 iNodes = 1:div(Ke_row, nDof_u_cached)
                 jNodes = 1:div(Ke_col, nDof_u_cached)
-                iDofs = 1:ID_u_rows
-                jDofs = 1:ID_u_rows
+                iDofs = 1:ID_rows
+                jDofs = 1:ID_rows
                 
                 for iNode::Int in iNodes
                     for jNode::Int in jNodes
@@ -190,8 +203,8 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
                                 i::Int = (iNode - 1) * nDof_u_cached + iDof
                                 j::Int = (jNode - 1) * nDof_u_cached + jDof
                                 inz::Int = Ke_len * (e - 1) + (iNode - 1) * nDof_u_cached * Ke_col + (jNode - 1) * nDof_u_cached^2 + (iDof - 1) * nDof_u_cached + jDof  # Index for the COO sparse matrix
-                                E[inz] = ID_cached[iDof, IEN_cached[iNode, e]]  # Row index
-                                J[inz] = ID_cached[jDof, IEN_cached[jNode, e]]  # Column index
+                                E[inz] = ID_cached[iDof, IEN_u_cached[iNode, e]]  # Row index
+                                J[inz] = ID_cached[jDof, IEN_u_cached[jNode, e]]  # Column index
                                 V[inz] += Ke[i, j]
                             end
                         end
@@ -378,6 +391,14 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     C_vol_cached = C_vol
     W_cached = W
 
+    @unpack NodeList, IEN, FunctionClass, C_vol, C_top, C_btm, W = mdl.mesh_x
+
+    NodeList_x_cached::Matrix{Float64} = NodeList
+    IEN_x_cached::Matrix{Int} = IEN
+    FunctionClass_x_cached::String = FunctionClass
+    C_vol_x_cached = C_vol
+    W_x_cached = W
+
     # (I,J,V) vectors for COO sparse matrix
     IEN_u_rows::Int = size(IEN_u_cached,1)
     IEN_p_rows::Int = size(IEN_p_cached,1)
@@ -450,10 +471,9 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
 
     e_iter = 1:ne_cached^ndim_cached    # iterator for elements loop
     gpiter = 1:length(wpoints)  # iterator for integration loop
-    
     # element loop
     for e::Int in e_iter
-        coords_u::Matrix{Float64} = NodeList_cached[:, IEN_u_cached[:, e]]  # Get the coordinates of the nodes of the element
+        coords::Matrix{Float64} = NodeList_x_cached[:, IEN_x_cached[:, e]]  # Get the coordinates of the nodes of the element
         # integration loop
         for gp::Int in gpiter
             if ndim_cached == 1
@@ -463,27 +483,31 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
                 N_u, ΔN_u = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached)
                 N_p, ΔN_p = basis_function(x[gp], y[gp], nothing, FunctionClass_p_cached)
             elseif ndim_cached == 3
-                if string(FunctionClass_u_cached[1]) == "S"
-                    # N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], C_vol_cached[:,:,e], W_cached[IEN_cached[:,e]], FunctionClass_u_cached) 
+                if string(FunctionClass_x_cached[1]) == "Q" && string(FunctionClass_u_cached[1]) == "Q" && string(FunctionClass_p_cached[1]) == "Q"
                     N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached)
-                elseif string(FunctionClass_u_cached[1]) == "Q"
+                    N_x, ΔN_x = N_u, ΔN_u 
+                    N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
+                elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "S" && string(FunctionClass_p_cached[1]) == "S"
+                    N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
+                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], C_vol_u_cached[:,:,e], W_u_cached[IEN_u_cached[:,e]], FunctionClass_u_cached) 
+                    N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], C_vol_p_cached[:,:,e], W_p_cached[IEN_p_cached[:,e]], FunctionClass_p_cached) 
+                elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "Q" && string(FunctionClass_p_cached[1]) == "Q"
+                    N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
                     N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached)
-                else
-                    ArgumentError("FunctionClass type unknown")
+                    N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
                 end
-                N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
             end
-            dNdX = zeros(Float64, size(ΔN_u, 1), ndim_cached) # Gradient of basis functions
-            Be = zeros(Float64, 1, 3*size(dNdX, 1)) # Gradient of basis functions
+            dNdX_u = zeros(Float64, size(ΔN_u, 1), ndim_cached) # Gradient of basis functions
+            Be = zeros(Float64, 1, 3*size(dNdX_u, 1)) # Gradient of basis functions
             colB::Int = size(Be, 2)  # Number of basis functions
             rowNp::Int = size(N_p, 1)  # Number of basis functions
             Ke = zeros(Float64, rowNp, colB)  # Element stiffness matrix
             Ke_row::Int, Ke_col::Int = rowNp, colB
 
-            mul!(Jac, coords_u, ΔN_u)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
+            mul!(Jac, coords, ΔN_x)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
             w::Float64 = wpoints[gp] * abs(det(Jac))
             invJ .= inv(Jac)  # Inverse of the Jacobian matrix
-            mul!(dNdX, ΔN_u, invJ)
+            mul!(dNdX_u, ΔN_u, invJ)
 
             if nDof_u_cached == 1
                 szN = size(N_u,1) # number of basis functions
@@ -493,15 +517,15 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
                         inz::Int = (szN)^2*(e-1) + szN*(i-1) + j # index for the COO sparse matrix
                         E[inz] = IEN_u_cached[i,e] # row index 
                         J[inz] = IEN_u_cached[j,e] # column index
-                        V[inz] += w*dot(dNdX[i,:],dNdX[j,:])# inner product of the gradient of the basis functions
+                        V[inz] += w*dot(dNdX_u[i,:],dNdX_u[j,:])# inner product of the gradient of the basis functions
                     end
                 end
             else  
 
                 Be .= 0.0
-                Be[1:nDof_u_cached:end] = dNdX[:,1]
-                Be[2:nDof_u_cached:end] = dNdX[:,2]
-                Be[3:nDof_u_cached:end] = dNdX[:,3]
+                Be[1:nDof_u_cached:end] = dNdX_u[:,1]
+                Be[2:nDof_u_cached:end] = dNdX_u[:,2]
+                Be[3:nDof_u_cached:end] = dNdX_u[:,3]
                 # Ke = -w*N_p*Be # element stiffness matrix
                 mul!(Ke, -w*N_p, Be) # element stiffness matrix
 
