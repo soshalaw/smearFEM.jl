@@ -6,36 +6,27 @@
 # This script generates a Bezier extraction file for a cylinder.
 
 import splipy, splipy.volume_factory, splipy.surface_factory, splipy.utils.nutils
-from nutils import mesh, function, export
+from nutils import mesh, function, cli
+import treelog
 import numpy, h5py
-import tests
+import cylindergen.stokes as stokes, extraction
 from pathlib import Path
 
-def main():
+_ = numpy.newaxis
 
-    _ = numpy.newaxis
+def main(case = 'iga', # alternative: 'nurbs geometry'
+         r = 1,        # Radius
+         h = 1,        # Height
+         p = 2,        # Basis order
+         nref = 2):    # Number of uniform refinements
 
-    case = 'iga' # alternative: 'nurbs geometry'
-
-    # File paths
-    script_dir = Path( __file__ ).parent.absolute()
-    output_name = 'cylinder'
-
-    # problem parameters
-    r = 1 # Radius
-    h = 1 # Height
-
-    # discretization parameters
-    p = 2 # Basis order
-    nref = 2 # Number of uniform refinements
-
-    # creation of the Splipy NURBS object
+    # Creation of the Splipy NURBS object
     disk = splipy.surface_factory.disc(r, type='square')
     cylinder = splipy.volume_factory.extrude(disk, [0.,0.,h])
     cylinder.raise_order(p-2,p-2,p-1)
     cylinder.refine(2**nref-1)
 
-    # extaction of the control points and weights
+    # Extraction of the control points and weights
     Xh = numpy.reshape(cylinder.controlpoints[:,:,:,[0,1,2]].swapaxes(0,2), (-1,3), order='F')
     W  = numpy.reshape(cylinder.controlpoints[:,:,:,3].swapaxes(0,2), (-1,), order='F')
     X  = Xh / W[:,numpy.newaxis]
@@ -44,7 +35,7 @@ def main():
     knotmultiplicities = splipy.utils.nutils.multiplicities(cylinder)
     degree             = splipy.utils.nutils.degree(cylinder)
 
-    # define the domain with coordinate ξ
+    # Define the domain with coordinate ξ
     domain, ξ = mesh.rectilinear(knotvalues)
 
     # B-spline basis
@@ -52,94 +43,46 @@ def main():
     w             = bspline_basis.dot(W)
     nurbs_basis   = (W*bspline_basis)/w
 
-    # B-spline geometry interpolation
+    # NURBS geometry interpolation
     geom = function.matmat(nurbs_basis, X)
 
     vol_BSpline = domain.integrate(function.J(function.matmat(bspline_basis, X)), degree=2*p)
     vol_NURBS = domain.integrate(function.J(geom), degree=2*p)
 
-    print(f'BSpline volume = {vol_BSpline}')
-    print(f'NURBS volume = {vol_NURBS}')
+    treelog.user(f'BSpline volume = {vol_BSpline}')
+    treelog.user(f'NURBS volume = {vol_NURBS}')
 
     # Stokes test case
     if case == 'nurbs geometry':
-        tests.test_stokes(domain, geom, u_basis=domain.basis('lagrange', degree=2), p_basis=domain.basis('lagrange', degree=1))
+        stokes.test_stokes(domain, geom, u_basis=domain.basis('lagrange', degree=2), p_basis=domain.basis('lagrange', degree=1))
     elif case == 'iga':
-        tests.test_stokes(domain, geom, u_basis=domain.basis('spline', degree=3, continuity=-2), p_basis=domain.basis('spline', degree=2, continuity=-1))
+        stokes.test_stokes(domain, geom, u_basis=domain.basis('spline', degree=3, continuity=-2), p_basis=domain.basis('spline', degree=2, continuity=-1))
 
-    # plot the CAD object
-    bezier = domain.sample('bezier', 3)
-    x = bezier.eval(geom)
-    export.vtk(str(script_dir / output_name), bezier.tri, x)
+    # Interior lagrange extraction
+    IEN, C = extraction.get_lagrange_extraction(extraction_topo=domain, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
 
-    # get the Lagrange extraction operators
-    lagrange_basis = domain.basis('lagrange', degree=p)
-    Afun = lagrange_basis[:,_]*lagrange_basis[_,:]
-    bfun = lagrange_basis[:,_]*bspline_basis[_,:]
-    A, b = domain.integrate_elementwise([Afun*function.J(geom), bfun*function.J(geom)], degree=2*p)
+    # Boundary lagrange extraction
+    boundaries = {'front': 'front', 'back': 'back', 'sides': 'left, right, top, bottom'}
+    boundaries_IEN = {}
+    boundaries_C   = {}
 
-    ne = A.shape[0]
-    assert ne==2**(3*nref), 'Incorrect number of elements'
-
-    # map node order of nutils to fit with smearFEM
-    assert p==2, "Node map only works for second order"
-    map = [0, 18, 24, 6, 2, 20, 26, 8, 9, 21, 15, 3, 11, 23, 17, 5, 1, 19, 25, 7, 10, 22, 16, 4, 12, 14, 13]
-
-    IEN = numpy.empty(shape=(ne,(p+1)**3),dtype=int)
-    C = numpy.empty(shape=(ne,(p+1)**3,(p+1)**3))
-    for e, (Ae,be) in enumerate(zip(A,b)):
-        IEN[e,:] = bspline_basis.get_dofs(e)
-        Ce = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN[e,:])]))
-        C[e,:,:] = Ce[:,map]
-
-    tests.test_extraction_operators(C)
-
-    boundaries = ['top', 'bottom']
-    IEN_bound_lst = {}
-    C_bound_lst = {}
-
-    for bound in boundaries:
-        # Boundary mesh (1 boundary at a time)
-        boundary = domain.boundary[bound]
-        lagrange_basis = boundary.basis('lagrange', degree=p)
-        Afun = lagrange_basis[:,_]*lagrange_basis[_,:]
-        bfun = lagrange_basis[:,_]*bspline_basis[_,:]
-        A, b = boundary.integrate_elementwise([Afun*function.J(geom), bfun*function.J(geom)], degree=2*p)
-
-        ne = A.shape[0]
-        assert ne==2**(2*nref), 'Incorrect number of elements'
-
-        IEN_boundary = numpy.empty(shape=(ne,(p+1)**2),dtype=int)
-        C_boundary = numpy.empty(shape=(ne,(p+1)**2,(p+1)**2))
-        for e, (Ae,be) in enumerate(zip(A,b)):
-
-            # Only consider basis functions that are supported on the boundary
-            supp = (numpy.sum(be,axis=0)>1e-10)
-            assert sum(supp)==(p+1)**2
-
-            i, tail = domain.transforms.index_with_tail(boundary.transforms[e])
-            print(f'boundary element {e} corresponds to volume element {i}')
-
-            IEN_boundary[e,:] = [dof for dof in bspline_basis.get_dofs(i) if supp[dof]]
-            C_boundary[e,:,:] = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e),lagrange_basis.get_dofs(e))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e),IEN_boundary[e,:])]))
-
-        tests.test_extraction_operators(C_boundary)
-
-        IEN_bound_lst[bound] = IEN_boundary
-        C_bound_lst[bound] = C_boundary
-
+    for boundary_name, boundary_tags in boundaries.items():
+        boundary = domain.boundary[boundary_tags]
+        boundaries_IEN[boundary_name], boundaries_C[boundary_name] = extraction.get_lagrange_extraction(extraction_topo=boundary, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
+        
     # Save to an HDF5 file
-    with h5py.File((script_dir / output_name).with_suffix('.h5'), 'w') as f:
+    script_dir = Path( __file__ ).parent.absolute()
+    with h5py.File((script_dir / 'cylinder').with_suffix('.h5'), 'w') as f:
         f.create_dataset('X', data=X)
         f.create_dataset('W', data=W)
         f.create_dataset('C', data=C)
         f.create_dataset('IEN', data=IEN)
-        for key in IEN_bound_lst:
-            f.create_dataset(('IEN_'+str(key)), data=IEN_bound_lst[key])
-        for key in C_bound_lst:
-            f.create_dataset(('C_'+str(key)), data=C_bound_lst[key])
+        for boundary_name, boundary_IEN in boundaries_IEN.items():
+            f.create_dataset(('IEN_'+str(boundary_name)), data=boundary_IEN)
+        for boundary_name, boundary_C in boundaries_C.items():
+            f.create_dataset(('C_'+str(boundary_name)), data=boundary_C)
         f.create_dataset('BSpline_vol', data=vol_BSpline)
         f.create_dataset('NURBS_vol', data=vol_NURBS)
 
 if __name__ == '__main__':
-    main()
+    cli.run(main)

@@ -1,8 +1,4 @@
-from unittest import result
-import cons
 import numpy
-from pathlib import Path
-
 from nutils import function, solver, export
 from nutils.expression_v2 import Namespace
 
@@ -21,7 +17,7 @@ def test_stokes(domain, geom, u_basis, p_basis):
     ns.u = function.dotarg('lhs_u', ns.Nu)
     ns.p = function.dotarg('lhs_p', ns.Np)
 
-    # weak formulation for Stokes flow
+    # Weak formulation for Stokes flow
     A = domain.integrate('2 ν (∇_j(Nu_mi) + ∇_i(Nu_mj)) (∇_j(Nu_ni) + ∇_i(Nu_nj)) dV' @ ns, degree=4).export('dense')
     B = domain.integrate('-Np_m ∇_i(Nu_ni) dV' @ ns, degree=4).export('dense')
 
@@ -35,7 +31,7 @@ def test_stokes(domain, geom, u_basis, p_basis):
     print(f'Top boundary area = {Stop}, height = {Qtop/Stop}')
     print(f'Bottom boundary area = {Sbot}, height = {Qbot/Sbot}')
 
-    # boundary condition matrix
+    # Boundary condition matrix
     A_bcs = slp_boundary.integrate('β Nu_mi Nu_ni dS' @ ns, degree=4).export('dense')
 
     top_sqr = top_boundary.integral('( (u_2 + 0.1)^2 ) dS' @ ns, degree=4)
@@ -75,13 +71,7 @@ def test_stokes(domain, geom, u_basis, p_basis):
     # Reconstruct full velocity solution
     lhsu = C @ lhsuc + up
 
-    # plot
-    script_dir = Path( __file__ ).parent.absolute()
-
+    # Plot
     bezier = domain.sample('bezier', 3)
     x, pvals, uvals = bezier.eval(['x_i', 'p', 'u_i'] @ ns, arguments={'lhs_u': lhsu, 'lhs_p': lhsp})
-    export.vtk(str(script_dir / 'stokes'), bezier.tri, x, u=uvals, p=pvals)
-
-def test_extraction_operators(C):
-    for Ce in C:
-        numpy.testing.assert_allclose(numpy.sum(Ce, axis=0), 1.0)
+    export.vtk('stokes', bezier.tri, x, u=uvals, p=pvals)
