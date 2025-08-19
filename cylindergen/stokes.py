@@ -7,7 +7,7 @@ def test_stokes(domain, geom, u_basis, p_basis):
     ns = Namespace()
     
     ns.ν = 1.0 # viscosity
-    ns.β = 1e3 # slip
+    ns.β = 1e-5 # slip
 
     ns.x = geom
     ns.define_for('x', gradient='∇', normal='n', jacobians=('dV', 'dS'))
@@ -50,6 +50,8 @@ def test_stokes(domain, geom, u_basis, p_basis):
     up[numpy.isnan(up)] = 0.
     
     # Solving
+    print(numpy.min(A), numpy.max(A))
+
     A_total = A  + A_bcs
     Ac = C.T @ A_total @ C
     fc = -C.T @ A_total @ up

@@ -14,11 +14,11 @@ from pathlib import Path
 
 _ = numpy.newaxis
 
-def main(case = 'iga', # alternative: 'nurbs geometry'
+def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
          r = 1,        # Radius
          h = 1,        # Height
          p = 2,        # Basis order
-         nref = 2):    # Number of uniform refinements
+         nref = 1):    # Number of uniform refinements
 
     # Creation of the Splipy NURBS object
     disk = splipy.surface_factory.disc(r, type='square')
