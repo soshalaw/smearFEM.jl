@@ -143,7 +143,9 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
         B = assemble_system_B(mdl)                   # assemble the stiffness matrix
         b = apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
     end
-
+    # A_ = Matrix(A_bar)
+    println(maximum(b))
+    println(minimum(b))
     q_d = (μu_btm*q_btm + μu_tp*q_tp + μu_side*q_side)      # apply the Dirichlet boundary conditions
 
     if GRAD

@@ -26,10 +26,10 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
     FunctionClass_u_cached::String = FunctionClass
-    C_vol_u_cached = C_vol
-    W_u_cached = W
+    # C_vol_u_cached = C_vol
+    # W_u_cached = W
 
-    @unpack NodeList, IEN, FunctionClass, C_vol, C_top, C_btm, W = mdl.mesh_x
+    @unpack NodeList, IEN, FunctionClass, C_vol, W = mdl.mesh_x
 
     NodeList_x_cached::Matrix{Float64} = NodeList
     IEN_x_cached::Matrix{Int} = IEN
@@ -106,7 +106,7 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     # initialize the Jacobian matrix and its inverse
     Jac = zeros(Float64, ndim_cached, ndim_cached)  # Jacobian matrix
     invJ = similar(Jac) # Inverse of the Jacobian matrix
-
+    vol::Float64 = 0.0
     e_iter = 1:ne_cached^ndim_cached # iterator for elements loop 
     gpiter = 1:length(wpoints) # iterator for integration loop
     # element loop
@@ -118,25 +118,36 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
                 N_u, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached) # add function type
             elseif ndim_cached == 2
                 if string(FunctionClass_x_cached[1]) == "Q" && string(FunctionClass_u_cached[1]) == "Q"
+                    # basis functions for fields
                     N_u, ΔN = basis_function(x[gp], y[gp], FunctionClass_u_cached) 
+                    # basis functions for geometry
                     N_x, ΔN_x = N_u, ΔN
-                    N_u, ΔN_u = N_u, ΔN 
                 elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "S"
-                    N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_u_cached[IEN_x_cached[:,e]], FunctionClass_x_cached)
-                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], C_vol_u_cached[:,:,e], W_u_cached[IEN_u_cached[:,e]], FunctionClass_u_cached)
+                    # basis functions for geometry
+                    N_x, ΔN_x = basis_function(x[gp], y[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached)
+                    # basis functions for fields
+                    N_u, ΔN_u = basis_function(x[gp], y[gp], C_vol_u_cached[:,:,e], W_u_cached[IEN_u_cached[:,e]], FunctionClass_u_cached)
                 elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "Q"
+                    # basis functions for geometry
                     N_x, ΔN_x = basis_function(x[gp], y[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
+                    # basis functions for fields
                     N_u, ΔN_u = basis_function(x[gp], y[gp], FunctionClass_u_cached) 
                 end
             elseif ndim_cached == 3
                 if string(FunctionClass_x_cached[1]) == "Q" && string(FunctionClass_u_cached[1]) == "Q"
+                    # basis functions for fields
                     N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached) 
+                    # basis functions for geometry
                     N_x, ΔN_x = N_u, ΔN_u
                 elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "S"
+                    # basis functions for geometry
                     N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached)
+                    # basis functions for fields
                     N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], C_vol_u_cached[:,:,e], W_u_cached[IEN_u_cached[:,e]], FunctionClass_u_cached)
                 elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "Q"
+                    # basis functions for geometry
                     N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
+                    # basis functions for fields
                     N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached) 
                 end
             end
@@ -155,6 +166,7 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
 
             mul!(Jac, coords, ΔN_x)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
             w::Float64 = wpoints[gp] * abs(det(Jac))
+            vol = vol + w
             invJ .= inv(Jac)  # Inverse of the Jacobian matrix
             mul!(dNdX_u, ΔN_u, invJ)
 
@@ -214,6 +226,7 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
         end
     end
     K = sparse(E,J,V)
+    println("volume :", vol)
     return K
 end
 
@@ -388,8 +401,8 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
     FunctionClass_u_cached::String = FunctionClass
-    C_vol_cached = C_vol
-    W_cached = W
+    C_vol_u_cached = C_vol
+    W_u_cached = W
 
     @unpack NodeList, IEN, FunctionClass, C_vol, C_top, C_btm, W = mdl.mesh_x
 
@@ -484,15 +497,21 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
                 N_p, ΔN_p = basis_function(x[gp], y[gp], nothing, FunctionClass_p_cached)
             elseif ndim_cached == 3
                 if string(FunctionClass_x_cached[1]) == "Q" && string(FunctionClass_u_cached[1]) == "Q" && string(FunctionClass_p_cached[1]) == "Q"
+                    # basis functions for fields
                     N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached)
-                    N_x, ΔN_x = N_u, ΔN_u 
                     N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
+                    # basis functions for geometry
+                    N_x, ΔN_x = N_u, ΔN_u 
                 elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "S" && string(FunctionClass_p_cached[1]) == "S"
+                    # basis functions for geometry
                     N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
+                    # basis functions for fields
                     N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], C_vol_u_cached[:,:,e], W_u_cached[IEN_u_cached[:,e]], FunctionClass_u_cached) 
                     N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], C_vol_p_cached[:,:,e], W_p_cached[IEN_p_cached[:,e]], FunctionClass_p_cached) 
                 elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "Q" && string(FunctionClass_p_cached[1]) == "Q"
+                    # basis functions for geometry
                     N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
+                    # basis functions for fields
                     N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached)
                     N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
                 end
@@ -722,20 +741,30 @@ function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     @unpack ne, ndim, nDof_u = mdl
     @unpack NodeList, IEN_top, IEN_bottom, ID, FunctionClass, C_top, C_btm, W = mdl.mesh_u
 
-    NodeList_cached::Matrix{Float64} = NodeList
-    IEN_top_cached::Matrix{Int} = IEN_top
-    IEN_btm_cached::Matrix{Int} = IEN_bottom
+    NodeList_u_cached::Matrix{Float64} = NodeList
+    IEN_u_top_cached::Matrix{Int} = IEN_top
+    IEN_u_btm_cached::Matrix{Int} = IEN_bottom
     ID_cached::Matrix{Int} = ID
     ne_cached::Int = ne
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
-    FunctionClass_cached::String = FunctionClass
-    C_top_cached = C_top
-    C_btm_cached = C_btm
-    W_cached = W
+    FunctionClass_u_cached::String = FunctionClass
+    C_top_u_cached = C_top
+    C_btm_u_cached = C_btm
+    W_u_cached = W
+
+    @unpack NodeList, IEN_top, IEN_bottom, ID, FunctionClass, C_top, C_btm, W = mdl.mesh_x
+
+    NodeList_x_cached::Matrix{Float64} = NodeList
+    IEN_x_top_cached::Matrix{Int} = IEN_top
+    IEN_x_btm_cached::Matrix{Int} = IEN_bottom
+    FunctionClass_x_cached::String = FunctionClass
+    C_top_x_cached = C_top
+    C_btm_x_cached = C_btm
+    W_x_cached = W
 
     ID_u_rows::Int = size(ID_cached,1)
-    IEN_btm_rows::Int = size(IEN_btm_cached,1)
+    IEN_btm_rows::Int = size(IEN_u_btm_cached,1)
 
     E = zeros(  Int64, ne_cached^(ndim_cached-1)*(ID_u_rows*IEN_btm_rows)^2*2) # *2 because we have two surfaces
     J = zeros(  Int64, ne_cached^(ndim_cached-1)*(ID_u_rows*IEN_btm_rows)^2*2) # *2 because we have two surfaces
@@ -763,48 +792,60 @@ function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     gpiter = 1:length(wpoints) # iterator for integration loop
     # element loop
     for e::Int in e_iter
-        coords_u_top::Matrix{Float64} = NodeList_cached[:,IEN_top_cached[:,e]] # get the coordinates of the nodes of the element
-        coords_u_btm::Matrix{Float64} = NodeList_cached[:,IEN_btm_cached[:,e]] # get the coordinates of the nodes of the element
+        coords_top::Matrix{Float64} = NodeList_x_cached[:,IEN_x_top_cached[:,e]] # get the coordinates of the nodes of the element
+        coords_btm::Matrix{Float64} = NodeList_x_cached[:,IEN_x_btm_cached[:,e]] # get the coordinates of the nodes of the element
         # integration loop
         for gp::Int in gpiter
             if ndim_cached == 2
-                N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_cached)
+                N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
             elseif ndim_cached == 3
-                if string(FunctionClass_cached[1]) == "S"
-                    N_top, ΔN_top = basis_function(x[gp], y[gp], C_top_cached[:,:,e], W_cached[IEN_top_cached[:,e]], FunctionClass_cached)
-                    N_btm, ΔN_btm = basis_function(x[gp], y[gp], C_btm_cached[:,:,e], W_cached[IEN_btm_cached[:,e]], FunctionClass_cached)
-                elseif string(FunctionClass_cached[1]) == "Q"
-                    N, ΔN = basis_function(x[gp], y[gp], nothing, FunctionClass_cached) 
-                    N_top, ΔN_top = N, ΔN
-                    N_btm, ΔN_btm = N, ΔN
-                else
-                     ArgumentError("FunctionClass type unknown")
+                if string(FunctionClass_x_cached[1]) == "Q" && string(FunctionClass_u_cached[1]) == "Q"
+                    # fields
+                    N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached) 
+                    N_u_btm, ΔN_u_btm = N_u_top, ΔN_u_top
+                    # geometry
+                    N_x_top, ΔN_x_top = N_u_top, ΔN_u_top
+                    N_x_btm, ΔN_x_btm = N_u_top, ΔN_u_top
+                elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "S"
+                    # geometry
+                    N_x_top, ΔN_x_top = basis_function(x[gp], y[gp], C_top_x_cached[:,:,e], W_x_cached[IEN_x_top_cached[:,e]], FunctionClass_x_cached)
+                    N_x_btm, ΔN_x_btm = basis_function(x[gp], y[gp], C_btm_x_cached[:,:,e], W_x_cached[IEN_x_btm_cached[:,e]], FunctionClass_x_cached)
+                    # fields
+                    N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], C_top_u_cached[:,:,e], W_u_cached[IEN_u_top_cached[:,e]], FunctionClass_u_cached)
+                    N_u_btm, ΔN_u_btm = basis_function(x[gp], y[gp], C_btm_u_cached[:,:,e], W_u_cached[IEN_u_btm_cached[:,e]], FunctionClass_u_cached)
+                elseif string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "Q"
+                    # geometry
+                    N_x_top, ΔN_x_top = basis_function(x[gp], y[gp], C_top_x_cached[:,:,e], W_x_cached[IEN_x_top_cached[:,e]], FunctionClass_x_cached) 
+                    N_x_btm, ΔN_x_btm = basis_function(x[gp], y[gp], C_btm_x_cached[:,:,e], W_x_cached[IEN_x_btm_cached[:,e]], FunctionClass_x_cached)
+                    # fields
+                    N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached) 
+                    N_u_btm, ΔN_u_btm = N_u_top, ΔN_u_top
                 end
             end
 
-            M_top = zeros(Float64, 3, ndim_cached*length(N_top))
-            M_btm = zeros(Float64, 3, ndim_cached*length(N_top))
+            M_top = zeros(Float64, 3, ndim_cached*length(N_u_top))
+            M_btm = zeros(Float64, 3, ndim_cached*length(N_u_top))
             rowM::Int = size(M_top,2)
             be_row::Int, be_col::Int = rowM, rowM
             be_top = zeros(Float64, be_col, be_row)
             be_btm = zeros(Float64, be_col, be_row)
             len_be::Int = length(be_top)
 
-            dxdξ_top = coords_u_top*ΔN_top         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
-            dxdξ_btm = coords_u_btm*ΔN_btm         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
+            dxdξ_top = coords_top*ΔN_x_top         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
+            dxdξ_btm = coords_btm*ΔN_x_btm         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
 
             w_top::Float64 = wpoints[gp]*norm(cross(dxdξ_top[:,1],dxdξ_top[:,2]))     # weight of the quadrature point top surface
             w_btm::Float64 = wpoints[gp]*norm(cross(dxdξ_btm[:,1],dxdξ_btm[:,2]))     # weight of the quadrature point bottom surface
             
             M_top .= 0.0
-            M_top[1,1:nDof_u_cached:end] = N_top
-            M_top[2,2:nDof_u_cached:end] = N_top
-            M_top[3,3:nDof_u_cached:end] = N_top
+            M_top[1,1:nDof_u_cached:end] = N_u_top
+            M_top[2,2:nDof_u_cached:end] = N_u_top
+            M_top[3,3:nDof_u_cached:end] = N_u_top
 
             M_btm .= 0.0
-            M_btm[1,1:nDof_u_cached:end] = N_btm
-            M_btm[2,2:nDof_u_cached:end] = N_btm
-            M_btm[3,3:nDof_u_cached:end] = N_btm
+            M_btm[1,1:nDof_u_cached:end] = N_u_btm
+            M_btm[2,2:nDof_u_cached:end] = N_u_btm
+            M_btm[3,3:nDof_u_cached:end] = N_u_btm
 
             # be = M'*M
             mul!(be_btm,M_btm',M_btm) # multiply the matrix by itself to get the stiffness matrix
@@ -825,12 +866,12 @@ function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
                             inz_btm::Int = len_be*(e-1) + (iNode-1)*nDof_u_cached*be_col + (jNode-1)*nDof_u_cached^2 + (iDof-1)*nDof_u_cached + jDof # index for the COO sparse matrix
                             inz_top::Int = len_be*(ne_cached)^(ndim_cached-1)+ len_be*((e-1)) + (iNode-1)*nDof_u_cached*be_col + (jNode-1)*nDof_u_cached^2 + (iDof-1)*nDof_u_cached + jDof # index for the COO sparse matrix
                             
-                            E[inz_top] = ID_cached[iDof,IEN_top_cached[iNode,e]]    # row index 
-                            J[inz_top] = ID_cached[jDof,IEN_top_cached[jNode,e]]   # column index
+                            E[inz_top] = ID_cached[iDof,IEN_u_top_cached[iNode,e]]    # row index 
+                            J[inz_top] = ID_cached[jDof,IEN_u_top_cached[jNode,e]]   # column index
                             V[inz_top] += w_top*be_top[i,j] 
 
-                            E[inz_btm] = ID_cached[iDof,IEN_btm_cached[iNode,e]]    # row index 
-                            J[inz_btm] = ID_cached[jDof,IEN_btm_cached[jNode,e]]   # column index
+                            E[inz_btm] = ID_cached[iDof,IEN_u_btm_cached[iNode,e]]    # row index 
+                            J[inz_btm] = ID_cached[jDof,IEN_u_btm_cached[jNode,e]]   # column index
                             V[inz_btm] += w_btm*be_btm[i,j] 
                         end
                     end

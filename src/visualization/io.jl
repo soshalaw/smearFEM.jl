@@ -42,7 +42,7 @@ function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64
         IEN = rearrange(ndim, IEN)  # rearrange the solution
     end
 
-    cells = [MeshCell(cellType,IEN[:,e]) for e in 1:ne^ndim]
+    cells = [MeshCell(cellType,IEN[:,e]) for e in 1:size(IEN,2)]
 
     vtk_grid(string(filePath,"/vtkFiles/",fieldName), NodeList, cells) do vtk
         vtk[fieldName] = q
