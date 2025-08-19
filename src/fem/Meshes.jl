@@ -199,6 +199,7 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
     h::Number
     NodeList::Matrix{Float64}
     IEN::Matrix{Int}
+    IEN_cp::Matrix{Int}
     IEN_top::Matrix{Int}
     IEN_bottom::Matrix{Int}
     IEN_sides::Matrix{Int}
@@ -220,6 +221,7 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
         h::Number=0.0,
         NodeList::Matrix{Float64}=Matrix{Float64}(undef, 3, 1),
         IEN::Matrix{Int}=Matrix{Int}(undef, 8, 1),
+        IEN_cp::Matrix{Int}=Matrix{Int}(undef, 8, 1),
         IEN_top::Matrix{Int}=Matrix{Int}(undef, 4, 1),
         IEN_bottom::Matrix{Int}=Matrix{Int}(undef, 4, 1),
         IEN_sides::Matrix{Int}=Matrix{Int}(undef, 4, 1),
@@ -236,7 +238,7 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
         W::Vector{Float64} = Vector{Float64}(undef, 1)
     )
         # Constructor for MeshgridCylinder
-        new(r, h, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides,
+        new(r, h, NodeList, IEN, IEN_cp, IEN_top, IEN_bottom, IEN_sides,
             ID, FunctionClass, nNodes, ne, top_nodes, bottom_nodes, side_nodes, NodeList, C_vol, C_top, C_btm, W)
         
     end
@@ -748,7 +750,7 @@ Set up the mesh grid for a 3D cylinder
 function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", filePath::String=" ") where {T<:Number,U<:Number}
     if string(FunctionClass[1]) == "S"
         @info "Representing fields / geometry using Splines"
-        CPointList, W, C, IEN, IEN_top, C_top, IEN_bottom, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
+        CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
         ndim = size(CPointList,1)
         @argcheck ne^ndim == size(IEN,2) "Loaded mesh does not have the correct number of elements" 
         nNodes = ne + 2
@@ -762,7 +764,7 @@ function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", fi
             end
         end 
 
-        mesh = MeshgridCylinder(r=r, h=h, NodeList=CPointList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID, FunctionClass=FunctionClass,
+        mesh = MeshgridCylinder(r=r, h=h, NodeList=CPointList, IEN=IEN, IEN_cp=IEN_cp, IEN_top=IEN_top, IEN_bottom=IEN_btm, ID=ID, FunctionClass=FunctionClass,
             C_vol=C, C_top=C_top, C_btm=C_btm, W=W, nNodes=nNodes, ne=ne)
     elseif string(FunctionClass[1]) == "Q"  
         @info "Representing fields / geometry using basis functions"         

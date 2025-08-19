@@ -119,15 +119,16 @@ Simulates the deformation of the mesh for a single time step using the Stokes mo
 - `mdl::model`: Model object containing mesh and material properties.
 """
 function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Number, ndim::Int64, FunctionClass_u::String, FunctionClass_p::String, nDof_u::Int64,
-                                    nDof_p::Int64, β::Number, μu_tp::Number, μu_btm::Number, μu_side::Number; GRAD::Bool=false, DENSE::Bool=false)
+                                    nDof_p::Int64, β::Number, μu_tp::Number, μu_btm::Number, μu_side::Number; FunctionClass_x::String=FunctionClass_u, GRAD::Bool=false, DENSE::Bool=false)
     
     
     filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
 
-    mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u, filePath=filePath)  # generate the mesh grid
+    mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
+    mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
-    mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
+    mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
     
     ID_u = mdl.mesh_u.ID
     
@@ -142,7 +143,9 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
         B = assemble_system_B(mdl)                   # assemble the stiffness matrix
         b = apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
     end
-
+    # A_ = Matrix(A_bar)
+    println(maximum(b))
+    println(minimum(b))
     q_d = (μu_btm*q_btm + μu_tp*q_tp + μu_side*q_side)      # apply the Dirichlet boundary conditions
 
     if GRAD

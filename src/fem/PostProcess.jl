@@ -4,7 +4,7 @@ using ElasticArrays
 using ConvexHulls2d
 import ConvexHulls2d as ch
 using Distributions
-
+using Parameters
 using Statistics
 using StatsPlots
 """ 
@@ -528,4 +528,92 @@ function plot_covariance(η_list::Vector{Float64}, β_list::Vector{Float64}, fil
     ylabel!("β")    
     title!("Covariance")
     Plots.savefig(string(filepath,"covariance.svg"))
+end
+
+function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
+
+    @unpack NodeList, IEN, C_vol, W, FunctionClass = mdl.mesh_x
+
+    NodeList_x_cached = NodeList
+    C_vol_x_cached = C_vol
+    IEN_x_cached = IEN
+    W_x_cached = W
+    FunctionClass_x_cached = FunctionClass
+
+    @unpack NodeList, IEN, C_vol, W, FunctionClass = mdl.mesh_u
+
+    C_vol_u_cached = C_vol
+    IEN_u_cached = IEN
+    W_u_cached = W
+    FunctionClass_u_cached = FunctionClass
+
+    NodeList_ = zeros(Float64, 3, (2^(nsub*3))*size(IEN_x_cached,2)*size(IEN_x_cached,1))
+    IEN_list = zeros(Int64, size(IEN_x_cached,1), (2^(nsub*3))*size(IEN_x_cached,2))
+    plot_u = zeros(Float64, 3, (2^(nsub*3))*size(IEN_u_cached,2)*size(IEN_u_cached,1))
+    # get parent element
+    lPoints = zeros(27,3)
+    lPoints[1,:] = [-1 , -1, -1]
+    lPoints[2,:] = [1 , -1, -1]
+    lPoints[3,:] = [1 , 1, -1]
+    lPoints[4,:] = [-1 , 1, -1]
+
+    lPoints[5,:] = [-1 , -1, 1]
+    lPoints[6,:] = [1 , -1, 1]
+    lPoints[7,:] = [1 , 1, 1]
+    lPoints[8,:] = [-1 , 1, 1]
+    
+    lPoints[9,:] = [0 , -1, -1]
+    lPoints[10,:] = [1 , 0, -1]
+    lPoints[11,:] = [0 , 1, -1]
+    lPoints[12,:] = [-1 , 0, -1]
+
+    lPoints[13,:] = [0 , -1, 1]
+    lPoints[14,:] = [1 , 0, 1]
+    lPoints[15,:] = [0 , 1, 1]
+    lPoints[16,:] = [-1 , 0, 1]
+
+    lPoints[17,:] = [-1 , -1, 0]
+    lPoints[18,:] = [1 , -1, 0]
+    lPoints[19,:] = [1 , 1, 0]
+    lPoints[20,:] = [-1 , 1, 0]
+
+    lPoints[21,:] = [0 , -1, 0]
+    lPoints[22,:] = [1 , 0, 0]
+    lPoints[23,:] = [0 , 1, 0]
+    lPoints[24,:] = [-1 , 0, 0]
+
+    lPoints[25,:] = [0, 0, -1]
+    lPoints[26,:] = [0, 0, 1]
+    lPoints[27,:] = [0, 0, 0]
+
+    scale = 1/(2^nsub)
+
+    eiter = 1:size(IEN_x_cached,2)
+    nodeiter = 1:size(lPoints,1)
+    for e in eiter
+        for xsub in 1:2^nsub
+            for ysub in 1:2^nsub
+                for zsub in 1:2^nsub
+                    # counter within the elements
+                    cnte = (e-1)*(2^(nsub*3)) + (xsub-1)*(2^(nsub*2)) + (ysub-1)*(2^(nsub)) + zsub
+
+                    offset = [(xsub-1)*scale, (ysub-1)*scale, (zsub-1)*scale]
+                    for j in nodeiter
+                        scaledPoint = offset .+ scale*(0.5.+0.5*lPoints[j,:])
+                        scaledPoint = -1 .+ 2*scaledPoint
+                        # get the NURBs and the gradients
+                        Re, ΔRe = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached)
+                        NodeList_[:,(cnte-1)*size(IEN_x_cached,1)+j] = Re'*NodeList_x_cached[:,IEN_x_cached[:,e]]'
+                        IEN_list[j,cnte] = (cnte-1)*size(IEN_x_cached,1)+j
+
+                        Re_u, _ = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], FunctionClass_u_cached) #TODO generalise to both cases
+                        plot_u[:,(cnte-1)*size(IEN_u_cached,1)+j] = Re_u'*sol_u[:,IEN_u_cached[:,e]]'
+                        
+                        # println(size(plot_u))
+                    end
+                end
+            end
+        end
+    end
+    return NodeList_, IEN_list, plot_u
 end

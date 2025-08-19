@@ -67,6 +67,9 @@ mutable struct Stokes <: AbstractModel
     ne::Int
     ndim::Int
 
+    # Mesh for the geometry
+    mesh_x::AbstractMeshgrid
+
     # Mesh and degrees of freedom for velocity
     mesh_u::AbstractMeshgrid
     nDof_u::Int
@@ -86,7 +89,8 @@ mutable struct Stokes <: AbstractModel
         Initialize the Stokes model with the provided parameters.
     """
     function Stokes(;
-        ndim::Int=1, 
+        ndim::Int=1,
+        mesh_x::AbstractMeshgrid=Meshgrid1D(), 
         mesh_u::AbstractMeshgrid=Meshgrid1D(),
         mesh_p::AbstractMeshgrid=Meshgrid1D(),
         nDof_u::Int=0,
@@ -96,7 +100,7 @@ mutable struct Stokes <: AbstractModel
     )   
         ne = mesh_u.ne
         # Initialize the Stokes model with the provided parameters
-        new(ne, ndim, mesh_u, nDof_u, mesh_p, nDof_p, η, tick)
+        new(ne, ndim, mesh_x, mesh_u, nDof_u, mesh_p, nDof_p, η, tick)
     end
 end
 
@@ -112,9 +116,12 @@ Updates the initial states of the nodal meshes of the model and updates the curr
 This function modifies the meshes in place.
 """
 function update_model!(model::Stokes)
+    mesh_x = model.mesh_x
     mesh_u = model.mesh_u
     mesh_p = model.mesh_p
+
     # Update the nodal coordinates of the meshes
+    update_initial_state!(mesh_x,mesh_x.NodeList)
     update_initial_state!(mesh_u,mesh_u.NodeList)
     update_initial_state!(mesh_p,mesh_p.NodeList)
 end
@@ -137,9 +144,12 @@ Resets the nodal coordinates of the meshes of the model.
 This function modifies the meshes in place.
 """
 function reset_model!(model::Stokes)
+    mesh_x = model.mesh_x
     mesh_u = model.mesh_u
     mesh_p = model.mesh_p
+    
     # Reset the nodal coordinates of the meshes
+    reset_mesh!(mesh_x)
     reset_mesh!(mesh_u)
     reset_mesh!(mesh_p)
 end
