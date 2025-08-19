@@ -71,12 +71,15 @@ def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
         boundaries_IEN[boundary_name], boundaries_C[boundary_name] = extraction.get_lagrange_extraction(extraction_topo=boundary, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
         
     # Save to an HDF5 file
+
+    elem_renumbering = numpy.swapaxes(numpy.arange(IEN.shape[0]).reshape(domain.shape),0,2).ravel()
+    #TODO: RENUMBERING FOR BOUNDARIES?
     script_dir = Path( __file__ ).parent.absolute()
     with h5py.File((script_dir / 'cylinder').with_suffix('.h5'), 'w') as f:
         f.create_dataset('X', data=X)
         f.create_dataset('W', data=W)
-        f.create_dataset('C', data=C)
-        f.create_dataset('IEN', data=IEN)
+        f.create_dataset('C', data=C[elem_renumbering,:,:])
+        f.create_dataset('IEN', data=IEN[elem_renumbering,:])
         for boundary_name, boundary_IEN in boundaries_IEN.items():
             f.create_dataset(('IEN_'+str(boundary_name)), data=boundary_IEN)
         for boundary_name, boundary_C in boundaries_C.items():

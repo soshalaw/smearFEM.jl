@@ -1,6 +1,7 @@
 using LinearSolve
 using SparseArrays
 using IterativeSolvers
+using Base: dirname
 
 """
     simulate_single_tstep(r, h, ne, c1, c2, ndim, FunctionClass, nDof, β, μ_tp, μ_btm; mode="lame", GRAD=false, DENSE=false, CG=false)
@@ -122,7 +123,7 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
                                     nDof_p::Int64, β::Number, μu_tp::Number, μu_btm::Number, μu_side::Number; FunctionClass_x::String=FunctionClass_u, GRAD::Bool=false, DENSE::Bool=false)
     
     
-    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
+    filePath = joinpath(dirname(dirname(@__DIR__)), "cylindergen")
 
     mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
     mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid

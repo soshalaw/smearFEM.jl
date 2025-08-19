@@ -540,16 +540,15 @@ function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
     W_x_cached = W
     FunctionClass_x_cached = FunctionClass
 
-    @unpack NodeList, IEN, C_vol, W, FunctionClass = mdl.mesh_u
+    @unpack NodeList, IEN, FunctionClass = mdl.mesh_u
 
-    C_vol_u_cached = C_vol
     IEN_u_cached = IEN
-    W_u_cached = W
     FunctionClass_u_cached = FunctionClass
 
     NodeList_ = zeros(Float64, 3, (2^(nsub*3))*size(IEN_x_cached,2)*size(IEN_x_cached,1))
     IEN_list = zeros(Int64, size(IEN_x_cached,1), (2^(nsub*3))*size(IEN_x_cached,2))
-    plot_u = zeros(Float64, 3, (2^(nsub*3))*size(IEN_u_cached,2)*size(IEN_u_cached,1))
+    plot_u = zeros(Float64, 3, (2^(nsub*3))*size(IEN_x_cached,2)*size(IEN_x_cached,1))
+
     # get parent element
     lPoints = zeros(27,3)
     lPoints[1,:] = [-1 , -1, -1]
@@ -607,7 +606,10 @@ function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
                         IEN_list[j,cnte] = (cnte-1)*size(IEN_x_cached,1)+j
 
                         Re_u, _ = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], FunctionClass_u_cached) #TODO generalise to both cases
-                        plot_u[:,(cnte-1)*size(IEN_u_cached,1)+j] = Re_u'*sol_u[:,IEN_u_cached[:,e]]'
+
+                        # println(Re_u'*sol_u[:,IEN_u_cached[:,e]]')
+                        
+                        plot_u[:,(cnte-1)*size(IEN_x_cached,1)+j] = Re_u'*sol_u[:,IEN_u_cached[:,e]]'
                         
                         # println(size(plot_u))
                     end
@@ -615,5 +617,6 @@ function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
             end
         end
     end
+
     return NodeList_, IEN_list, plot_u
 end
