@@ -14,7 +14,7 @@ using Test
     FunctionClass_p = "Q1"
     nDof_u = ndim  # number of degree of freedom per node
     nDof_p = 1
-    β = 1.0e-5
+    β = 1e-5
     ν = 1.0
     μu_tp = -0.1
     μu_btm = 0
@@ -26,23 +26,29 @@ using Test
     u_r = zeros(size(q,2))
     u_z = zeros(size(q,2))
 
-    # println(size(model.mesh_x.NodeList))
     iter = 1:size(model.mesh_x.NodeList, 2)
     
-    # NodeList_, IEN_, q_ = eval_on_cylinder(model, 1, q)
-    # println(size(IEN_))
-    # println(size(NodeList_))
-    # println(q[3,:])
-    # q_ = zeros(size(NodeList_,2))
+    q_ = zeros(size(q))
+    NodeList_ = zeros(size(model.mesh_x.NodeList))
+    IEN_ = zeros(size(model.mesh_x.IEN))
 
-    write_vtk("/home/soshala/SMEAR-PhD", "u", model.mesh_u.NodeList, model.mesh_u.IEN, ne, ndim, q, FunctionClass=FunctionClass_u)
+    if FunctionClass_x != "S2"
+        q_ = q
+        NodeList_ = model.mesh_u.NodeList
+        IEN_ = model.mesh_u.IEN
+    else
+        NodeList_, IEN_, q_ = eval_on_cylinder(model, 1, q)
+    end
+
+    # write_vtk("/home/soshala/SMEAR-PhD", "u", model.mesh_u.NodeList, model.mesh_u.IEN, ne, ndim, q, FunctionClass=FunctionClass_u)
+    write_vtk("/home/soshala/SMEAR-PhD", "u", NodeList_, IEN_, ne, ndim, q_, FunctionClass=FunctionClass_u)
 
     for i in iter
-        r = sqrt(model.mesh_x.NodeList[1,i]^2 + model.mesh_x.NodeList[2,i]^2)
-        h_ = model.mesh_x.NodeList[3,i]
+        r = sqrt(NodeList_[1,i]^2 + NodeList_[2,i]^2)
+        h_ = NodeList_[3,i]
 
-        @test sqrt(q[1,i]^2 + q[2,i]^2) + 0.5*μu_tp*r/h ≈ 0 atol=10^(-5)
-        @test q[3,i] - k*h_/h ≈ 0 atol=10^(-5)
+        @test sqrt(q_[1,i]^2 + q_[2,i]^2) + 0.5*μu_tp*r/h ≈ 0 atol=10^(-5)
+        @test q_[3,i] - μu_tp*h_/h ≈ 0 atol=10^(-5)
     end
 
 end

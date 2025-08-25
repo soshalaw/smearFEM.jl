@@ -226,7 +226,7 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
         end
     end
     K = sparse(E,J,V)
-    println("volume :", vol)
+    # println("volume :", vol)
     return K
 end
 
@@ -1158,12 +1158,15 @@ Sets the model for the finite element method.
 - `mdl::Stokes`: model for the finite element method
 """ 
 function set_model(r::R, h::H, ne::Int64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                nDof_p::Int64)::Stokes where {R<:Number,H<:Number}
+                nDof_p::Int64; FunctionClass_x::String=FunctionClass_u)::Stokes where {R<:Number,H<:Number}
 
+    filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
+
+    mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
     mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
-    mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
+    mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 
     return mdl
 end
@@ -1192,6 +1195,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     @unpack η, nDof_u, nDof_p, ndim = mdl
     @unpack β, viscosity_type, q_d, C_uc, t_steps, sim_time, control = scene
     @unpack camera_matrix, camera_pose, SIDES = conditions
+    @unpack FunctionClass = mdl.mesh_x
 
     β_cached::Float64 = β[1]
     viscosity_type_cached::String = viscosity_type
@@ -1214,6 +1218,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     side_node_list_cached::Vector{Int} = side_nodes
     ID_cached::Matrix{Int} = ID
 
+    FunctionClass_x_cached::String = FunctionClass
+
     @unpack nNodes = mdl.mesh_p
     nNodes_p_cached::Int = nNodes
 
@@ -1223,7 +1229,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     camera_pose_cached::Matrix{Float64} = camera_pose
     SIDES_cached::Bool = SIDES
     
-    C_Tu = transpose(C_uc_cached)           # transpose the constraint matrix
+    C_Tu = transpose(C_uc_cached) # transpose the constraint matrix
 
     if conditions.filepath != ""
         isnothing(conditions.filepath) || AssertionError("Please provide a filepath to write the data")
@@ -1244,32 +1250,27 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     displacement = AbstractArray[zeros(Float64,size(NodeList_cached,1),size(NodeList_cached,2))] # store the displacement of the mesh in 3D
     surface_fields = AbstractArray[]
-    surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
-    gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)]                                                 # store the solution fields of the border nodes in 2D 
-    pos3D = AbstractArray[NodeList_cached]                                                             # store the solution fields of the mesh in 3D
-    pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
-    borderPts2DList = AbstractArray[BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
-    splinep = AbstractArray[pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
-    splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes
+    surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', 
+                                        NodeList_cached[:,bottom_node_list_cached]', 
+                                        NodeList_cached[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
+    gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)] # store the solution fields of the border nodes in 2D 
+    pos3D = AbstractArray[NodeList_cached]       # store the solution fields of the mesh in 3D
+    pos2D = AbstractArray[SurfacePts2D]          # store the solution fields of the mesh in 2D
+    borderPts2DList = AbstractArray[BorderPts2D] # store the solution fields of the surfaces in 2D
+    splinep = AbstractArray[pi]  # store the x coordinates samples of the spline parameters of the border nodes
+    splineq = AbstractArray[qi]  # store the y coordinates samples of the spline parameters of the border nodes
     output = Float64[] 
     writeborderList = [vcat(pi', qi')]
 
     iter::Int = 1
     pr = Progress(len_t; desc= "Simulating with prescribed $(control_cached) ...", showspeed=true)
     if control_cached == "force"
-        A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached) # initialize the stiffness matrix
-        B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_p_cached*(nNodes_p_cached)^ndim_cached) # initialize the stiffness matrix
-        b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached) # initialize the stiffness matrix
-        q_d = spzeros(nDof_u_cached*(nNodes_u_cached)^ndim_cached,1) # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-        A = similar(A_bar)
 
-        # A_free = C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
-        # B_free = C_Tu*B             # extract the free part of the stiffness matrix
-        
-        # dA_freedη = zeros(Float64, size(A_free,1), size(A_free,2))       # extract the free part of the stiffness matrix
-        # dA_freedβ = zeros(Float64, size(A_free,1), size(A_free,2))            # extract the free part of the stiffness matrix
-        # dB_free = zeros(Float64, size(B_free))
-        # zero = zeros(Float64, size(B_free,2),size(B_free,2))
+        A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached)  # initialize the stiffness matrix
+        B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_p_cached*(nNodes_p_cached)^ndim_cached)      # initialize the stiffness matrix
+        b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached)      # initialize the stiffness matrix
+        q_d = spzeros(nDof_u_cached*(nNodes_u_cached)^ndim_cached,1)                                                                       # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        A = similar(A_bar)
 
         A_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(C_uc_cached,2)) # convert to sparse matrix
         B_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(B,2)) # convert to sparse matrix
@@ -1292,9 +1293,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         dMdβ = spzeros(size(M))
 
         for t in time
-            A_bar .= assemble_system_A(mdl)                   # assemble the stiffness matrix
-            B .= assemble_system_B(mdl)                   # assemble the stiffness matrix
-            b .= apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
+            A_bar .= assemble_system_A(mdl)     # assemble the stiffness matrix
+            B .= assemble_system_B(mdl)         # assemble the stiffness matrix
+            b .= apply_boundary_conditions(mdl) # apply the neumann boundary conditions
         
             q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
             
@@ -1307,17 +1308,11 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dAdη .= A_bar
             dAdβ .= b
 
-            A_free .= C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
-            # mul!(A_free, C_Tu*A, C_uc_cached) # extract the free part of the stiffness matrix
+            A_free .= C_Tu*A*C_uc_cached # extract the free part of the stiffness matrix
             B_free .= C_Tu*B             # extract the free part of the stiffness matrix
-            # mul!(B_free, C_Tu, B) # extract the free part of the stiffness matrix
 
-            dA_freedη .= C_Tu*dAdη*C_uc_cached        # extract the free part of the stiffness matrix
-            # mul!(dA_freedη, C_Tu*dAdη, C_uc_cached) # extract the free part of the stiffness matrix
-            dA_freedβ .= C_Tu*dAdβ*C_uc_cached             # extract the free part of the stiffness matrix
-            # mul!(dA_freedβ, C_Tu*dAdβ, C_uc_cached) # extract the free part of the stiffness matrix
-            
-            # M .= [A_free B_free C_Tu*A*q_d_cached_top; B_free' zero B'*q_d_cached_top; q_d_cached_top'*A*C_uc_cached q_d_cached_top'*B q_d_cached_top'A*q_d_cached_top] # assemble the system of equations
+            dA_freedη .= C_Tu*dAdη*C_uc_cached # extract the free part of the stiffness matrix
+            dA_freedβ .= C_Tu*dAdβ*C_uc_cached # extract the free part of the stiffness matrix
 
             M[1:size(A_free,1),1:size(A_free,2)] = A_free
             M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = B_free'
@@ -1343,8 +1338,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
             dMdη[end,end] = (q_d_cached_top'dAdη*q_d_cached_top)[end]
             
-            # dMdη .= [dA_freedη dB_free C_Tu*dAdη*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdη*C_uc_cached q_d_cached_top'*dB q_d_cached_top'dAdη*q_d_cached_top]
-            
             dMdβ[1:size(A_free,1),1:size(A_free,2)] = dA_freedβ
             dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = dB_free'
             dMdβ[end,1:size(A_free,2)] = q_d_cached_top'*dAdβ*C_uc_cached
@@ -1357,18 +1350,11 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
             dMdβ[end,end] = (q_d_cached_top'dAdβ*q_d_cached_top)[end]
 
-            # dMdβ .= [dA_freedβ dB_free C_Tu*dAdβ*q_d_cached_top; dB_free' zero dB'*q_d_cached_top; q_d_cached_top'*dAdβ*C_uc_cached q_d_cached_top'*dB q_d_cached_top'dAdβ*q_d_cached_top]
-            
             r = [-C_Tu*A*q_d; -B'*q_d; scene.cParam[iter].-q_d_cached_top'A*q_d]    # assemble the system of equations
             drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdη*q_d] # solve the system of equations
             drdβ = -[C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdβ*q_d] # solve the system of equations
 
-            # invM::Matrix = inv(Matrix(M)) # inverse of the system of equations
             lum = lu(M) # LU decomposition of the system of equations
-
-            # sol = invM*r                 # solve the system of equations
-            # dsoldη = invM*(drdη - dMdη*sol) # solve the system of equations
-            # dsoldβ = invM*(drdβ - dMdβ*sol) # solve the system of equations
 
             sol = lum\Matrix(r) # solve the system of equations
             dsoldη = lum\(drdη - dMdη*sol) # solve the system of equations
@@ -1386,19 +1372,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dμdη = dsoldη[end]
             dμdβ = dsoldβ[end]
         
-            q .= q_d + C_uc_cached*q_f + μ_tp*q_d_cached_top;              # assemble the solution 
-            dqdη .= dqdη + C_uc_cached*dqfdη + dμdη*q_d_cached_top;               # assemble the solution
-            dqdβ .= dqdβ + C_uc_cached*dqfdβ + dμdβ*q_d_cached_top;               # assemble the solution
-
-            # println(typeof(lum))
-            # println(typeof(r))
-            # println(typeof(sol))
-            # println(typeof(q_f))
-            # println(typeof(q))
+            q .= q_d + C_uc_cached*q_f + μ_tp*q_d_cached_top;       # assemble the solution 
+            dqdη .= dqdη + C_uc_cached*dqfdη + dμdη*q_d_cached_top; # assemble the solution
+            dqdβ .= dqdβ + C_uc_cached*dqfdβ + dμdβ*q_d_cached_top; # assemble the solution
 
             p = p_f;
-            dpdη = dpfdη;                  # assemble the solution
-            dpdβ = dpfdβ;                  # assemble the solution
+            dpdη = dpfdη; # assemble the solution
+            dpdβ = dpfdβ; # assemble the solution
 
             motion = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'* t_steps_cached # extract the motion of the mesh grid
             dmdη_out = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
@@ -1407,7 +1387,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dmdθ_out = @views cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
             
             NodeList_cached = NodeList_cached + motion # update the mesh grid
-            mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
+            mdl.mesh_u.NodeList = NodeList_cached      # update the mesh grid
         
             BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
@@ -1416,6 +1396,14 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             mat_nan_inf_check(dudθ[:,:,2])
 
             # store the solutions in a list
+            if FunctionClass_x_cached == "S2"
+                NodeList_, IEN_, q_ = eval_on_cylinder(model, 1, q)
+            else
+                NodeList_ = NodeList_cached
+                IEN_ = mdl.mesh_u.IEN
+                q_ = q
+            end
+
             push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
@@ -1433,9 +1421,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         end
     elseif control_cached == "velocity"
         for t in time
-            A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
-            B = assemble_system_B(mdl)                   # assemble the stiffness matrix
-            b = apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
+            A_bar = assemble_system_A(mdl)     # assemble the stiffness matrix
+            B = assemble_system_B(mdl)         # assemble the stiffness matrix
+            b = apply_boundary_conditions(mdl) # apply the neumann boundary conditions
         
             q_d = (μu_btm*q_d_cached_btm + scene.cParam[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
         
@@ -1449,16 +1437,16 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dAdβ = b
             dB = zeros(Float64, size(B))
 
-            C_Tu = transpose(C_uc_cached)           # transpose the constraint matrix
+            C_Tu = transpose(C_uc_cached)      # transpose the constraint matrix
         
             A_free = C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
-            B_free = C_Tu*B             # extract the free part of the stiffness matrix
+            B_free = C_Tu*B                    # extract the free part of the stiffness matrix
 
             dA_freedη = C_Tu*dAdη*C_uc_cached        # extract the free part of the stiffness matrix
-            dA_freedβ = C_Tu*dAdβ*C_uc_cached             # extract the free part of the stiffness matrix
+            dA_freedβ = C_Tu*dAdβ*C_uc_cached        # extract the free part of the stiffness matrix
             dB_free = zeros(Float64, size(B_free))
         
-            K_free = [A_free B_free; B_free' zeros(Float64, size(B_free,2),size(B_free,2))]     # assemble the system of equations
+            K_free = [A_free B_free; B_free' zeros(Float64, size(B_free,2),size(B_free,2))]      # assemble the system of equations
             dKdη = [C_Tu*dAdη*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
             dKdβ = [C_Tu*dAdβ*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
             
@@ -1468,11 +1456,11 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             drdη = [C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2))] # solve the system of equations
             drdβ = [C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2))] # solve the system of equations
 
-            sol = -invK*r                 # solve the system of equations
+            sol = -invK*r                    # solve the system of equations
             dsoldη = -invK*(drdη + dKdη*sol) # solve the system of equations
             dsoldβ = -invK*(drdβ + dKdβ*sol) # solve the system of equations
         
-            q_f = sol[1:size(A_free,1)]     # extract the free part of the solution
+            q_f = sol[1:size(A_free,1)]      # extract the free part of the solution
             dqfdη = dsoldη[1:size(A_free,1)] # extract the free part of the solution
             dqfdβ = dsoldβ[1:size(A_free,1)] # extract the free part of the solution
 
@@ -1480,13 +1468,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dpfdη = dsoldη[size(A_free,1)+1:end] # extract the free part of the solution 
             dpfdβ = dsoldβ[size(A_free,1)+1:end] # extract the free part of the solution
         
-            q = q_d + C_uc_cached*q_f;              # assemble the solution 
-            dqdη = dqdη + C_uc_cached*dqfdη;              # assemble the solution
-            dqdβ = dqdβ + C_uc_cached*dqfdβ;              # assemble the solution
+            q = q_d + C_uc_cached*q_f;         # assemble the solution 
+            dqdη = dqdη + C_uc_cached*dqfdη;   # assemble the solution
+            dqdβ = dqdβ + C_uc_cached*dqfdβ;   # assemble the solution
 
             p = p_f;
-            dpdη = dpfdη;                  # assemble the solution
-            dpdβ = dpfdβ;                  # assemble the solution
+            dpdη = dpfdη;  # assemble the solution
+            dpdβ = dpfdβ;  # assemble the solution
 
             motion = hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # get the motion of the mesh
             dmdη_out = hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
@@ -1501,7 +1489,15 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             pi, qi = fit_curve(border=BorderPts2D)
 
             # store the solutions in a list
-            # push!(output, F_est[1])
+            if FunctionClass_x_cached == "S2"
+                NodeList_, IEN_, q_ = eval_on_cylinder(model, 1, q)
+            else
+                NodeList_ = NodeList_cached
+                IEN_ = mdl.mesh_u.IEN
+                q_ = q
+            end
+
+            push!(output, μ_tp) # store displacement at the top surface
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
             push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
@@ -1519,7 +1515,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     else
             throw(ArgumentError("Control type not unknown"))
     end
-
+    
     # write the data to a file
     if conditions.ANIMATE
         animate_fields(filepath = string(conditions.filepath,"/Results/images"), Nodes=pos3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)

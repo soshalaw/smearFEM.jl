@@ -9,7 +9,7 @@ import splipy, splipy.volume_factory, splipy.surface_factory, splipy.utils.nutil
 from nutils import mesh, function, cli
 import treelog
 import numpy, h5py
-import cylindergen.stokes as stokes, extraction
+import stokes as stokes, extraction
 from pathlib import Path
 
 _ = numpy.newaxis
@@ -68,12 +68,16 @@ def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
 
     for boundary_name, boundary_tags in boundaries.items():
         boundary = domain.boundary[boundary_tags]
-        boundaries_IEN[boundary_name], boundaries_C[boundary_name] = extraction.get_lagrange_extraction(extraction_topo=boundary, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
-        
-    # Save to an HDF5 file
+        bIEN, bC = extraction.get_lagrange_extraction(extraction_topo=boundary, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
+        bnd_renumbering = numpy.swapaxes(numpy.arange(bIEN.shape[0]).reshape(boundary.shape),0,1).ravel()
+        # boundaries_IEN[boundary_name] = bIEN[bnd_renumbering,:] 
+        # boundaries_C[boundary_name] = bC[bnd_renumbering,:,:]
+        boundaries_IEN[boundary_name] = bIEN
+        boundaries_C[boundary_name] = bC
 
+    # Save to an HDF5 file
     elem_renumbering = numpy.swapaxes(numpy.arange(IEN.shape[0]).reshape(domain.shape),0,2).ravel()
-    #TODO: RENUMBERING FOR BOUNDARIES?
+    
     script_dir = Path( __file__ ).parent.absolute()
     with h5py.File((script_dir / 'cylinder').with_suffix('.h5'), 'w') as f:
         f.create_dataset('X', data=X)

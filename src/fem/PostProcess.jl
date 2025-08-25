@@ -607,7 +607,7 @@ function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
                         IEN_list[j,cnte] = (cnte-1)*size(IEN_x_cached,1)+j
 
                         Re_u, _ = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], FunctionClass_u_cached) #TODO generalise to both cases
-                        plot_u[:,(cnte-1)*size(IEN_u_cached,1)+j] = Re_u'*sol_u[:,IEN_u_cached[:,e]]'
+                        plot_u[:,(cnte-1)*size(IEN_x_cached,1)+j] = Re_u'*sol_u[:,IEN_u_cached[:,e]]'
                         
                         # println(size(plot_u))
                     end
