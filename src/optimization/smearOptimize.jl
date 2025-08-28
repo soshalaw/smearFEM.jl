@@ -247,7 +247,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         println("iteration $iter: steps : $p, Error = $totd, Error gradient : $c_grad")
         println(" ... ")
 
-        if c_grad < 0.005
+        if c_grad < 0.001
             break
         elseif iter ≥ 100
             break

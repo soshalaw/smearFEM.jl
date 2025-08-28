@@ -15,10 +15,10 @@ from pathlib import Path
 _ = numpy.newaxis
 
 def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
-         r = 1,        # Radius
-         h = 1,        # Height
+         r = 25,        # Radius
+         h = 50,        # Height
          p = 2,        # Basis order
-         nref = 1):    # Number of uniform refinements
+         nref = 3):    # Number of uniform refinements
 
     # Creation of the Splipy NURBS object
     disk = splipy.surface_factory.disc(r, type='square')
@@ -77,7 +77,7 @@ def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
 
     # Save to an HDF5 file
     elem_renumbering = numpy.swapaxes(numpy.arange(IEN.shape[0]).reshape(domain.shape),0,2).ravel()
-    
+    print(numpy.shape(IEN))
     script_dir = Path( __file__ ).parent.absolute()
     with h5py.File((script_dir / 'cylinder').with_suffix('.h5'), 'w') as f:
         f.create_dataset('X', data=X)

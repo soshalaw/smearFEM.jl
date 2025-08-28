@@ -26,8 +26,7 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
     FunctionClass_u_cached::String = FunctionClass
-    # C_vol_u_cached = C_vol
-    # W_u_cached = W
+
 
     @unpack NodeList, IEN, FunctionClass, C_vol, W = mdl.mesh_x
 
@@ -1116,7 +1115,7 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
 Define the conditions and the parameters of the squueze flow problem considered.
 """
 function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                    nDof_p::Int64, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
+                    nDof_p::Int64, FunctionClass_x::String, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
     n::Float64 = 0.5
     K::Float64 = 2.0
     len_t::Int = round(Int,(sim_time/t_steps)) # number of time steps
@@ -1129,7 +1128,7 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
     end 
 
     # define the model
-    stokes = set_model(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p) # define the model    
+    stokes = set_model(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x) # define the model    
     # set the boundary conditions
     q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes) 
     # define with problem scenario
@@ -1158,11 +1157,15 @@ Sets the model for the finite element method.
 - `mdl::Stokes`: model for the finite element method
 """ 
 function set_model(r::R, h::H, ne::Int64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                nDof_p::Int64; FunctionClass_x::String=FunctionClass_u)::Stokes where {R<:Number,H<:Number}
+                nDof_p::Int64, FunctionClass_x::String)::Stokes where {R<:Number,H<:Number}
 
     filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
 
-    mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
+    if FunctionClass_x == "S2"
+        mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
+    else
+        mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry
+    end
     mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
@@ -1191,12 +1194,32 @@ Simulate the Stokes problem for a given mesh over a given time period.
 
 """
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
-    @unpack ID, NodeList, top_nodes, bottom_nodes, side_nodes, nNodes = mdl.mesh_u
-    @unpack η, nDof_u, nDof_p, ndim = mdl
-    @unpack β, viscosity_type, q_d, C_uc, t_steps, sim_time, control = scene
-    @unpack camera_matrix, camera_pose, SIDES = conditions
-    @unpack FunctionClass = mdl.mesh_x
 
+    @unpack FunctionClass, IEN, ID, NodeList, C_vol, W = mdl.mesh_x
+    FunctionClass_x_cached::String = FunctionClass
+    NodeList_x_cached::Matrix{Float64} = NodeList
+    IEN_x_cached::Matrix{Int} = IEN
+    ID_x_cached::Matrix{Int} = ID
+    C_vol_x_cached = C_vol
+    W_x_cached = W
+
+    @unpack IEN, ID, FunctionClass, top_nodes, bottom_nodes, side_nodes, nNodes = mdl.mesh_u
+    FunctionClass_u_cached::String = FunctionClass
+    IEN_u_cached::Matrix{Int} = IEN
+    ID_u_cached::Matrix{Int} = ID
+    nNodes_u_cached::Int = nNodes
+    NodeList_u_cached::Matrix{Float64} = NodeList
+    top_node_list_cached::Vector{Int} = top_nodes # top nodes
+    bottom_node_list_cached::Vector{Int} = bottom_nodes # bottom nodes
+    side_node_list_cached::Vector{Int} = side_nodes
+
+    @unpack η, nDof_u, nDof_p, ndim = mdl
+    η_cached::Any = η
+    nDof_u_cached::Int = nDof_u
+    nDof_p_cached::Int = nDof_p
+    ndim_cached::Int = ndim
+
+    @unpack β, viscosity_type, q_d, C_uc, t_steps, sim_time, control = scene
     β_cached::Float64 = β[1]
     viscosity_type_cached::String = viscosity_type
     q_d_cached::Dict{Symbol, Matrix{Float64}} = q_d
@@ -1208,27 +1231,25 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     sim_time_cached::Float64 = sim_time
     control_cached::String = control
 
-    nNodes_u_cached::Int = nNodes
-    nDof_u_cached::Int = nDof_u
-    nDof_p_cached::Int = nDof_p
-    ndim_cached::Int = ndim
-    NodeList_cached::Matrix{Float64} = NodeList
-    top_node_list_cached::Vector{Int} = top_nodes # top nodes
-    bottom_node_list_cached::Vector{Int} = bottom_nodes # bottom nodes
-    side_node_list_cached::Vector{Int} = side_nodes
-    ID_cached::Matrix{Int} = ID
-
-    FunctionClass_x_cached::String = FunctionClass
-
     @unpack nNodes = mdl.mesh_p
     nNodes_p_cached::Int = nNodes
 
-    η_cached::Any = η
-
+    @unpack camera_matrix, camera_pose, SIDES = conditions    
     camera_matrix_cached::Matrix{Float64} = camera_matrix
     camera_pose_cached::Matrix{Float64} = camera_pose
     SIDES_cached::Bool = SIDES
     
+    NodeList_cached::Matrix{Float64} = NodeList_u_cached
+    ID_cached::Matrix{Int} = ID_u_cached
+    T = Matrix{Float64}(I, size(NodeList_x_cached,2), size(NodeList_u_cached,2)) # projection matrix from geometry to field mesh
+
+    if FunctionClass_x_cached == "S2" && FunctionClass_u_cached != "S2"
+        # ID_cached = ID_x_cached
+        T = get_nurbs_2_lagrange_proj(IEN_x_cached, IEN_u_cached, C_vol_x_cached, NodeList_x_cached, W_x_cached)
+        NodeList_cached = NodeList_x_cached
+    end
+
+    T_ = T'*inv(T*T')
     C_Tu = transpose(C_uc_cached) # transpose the constraint matrix
 
     if conditions.filepath != ""
@@ -1242,19 +1263,22 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     μu_btm = 0  
     μu_side = 0
     
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, nNodes_u_cached)
+    NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
+            
+    println(size(NodeList_proj))
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, side_node_list_cached, nNodes_u_cached)
     pi, qi = fit_curve(border=BorderPts2D)
     
     dqdη = zeros(Float64, size(q_d_cached_top))
     dqdβ = zeros(Float64, size(q_d_cached_top))
 
-    displacement = AbstractArray[zeros(Float64,size(NodeList_cached,1),size(NodeList_cached,2))] # store the displacement of the mesh in 3D
+    displacement = AbstractArray[zeros(Float64,size(NodeList_proj,1),size(NodeList_proj,2))] # store the displacement of the mesh in 3D
     surface_fields = AbstractArray[]
-    surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', 
-                                        NodeList_cached[:,bottom_node_list_cached]', 
-                                        NodeList_cached[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
+    surface_pts_3D = AbstractArray[vcat(NodeList_proj[:,top_node_list_cached]', 
+                                        NodeList_proj[:,bottom_node_list_cached]', 
+                                        NodeList_proj[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
     gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)] # store the solution fields of the border nodes in 2D 
-    pos3D = AbstractArray[NodeList_cached]       # store the solution fields of the mesh in 3D
+    pos3D = AbstractArray[NodeList_proj]       # store the solution fields of the mesh in 3D
     pos2D = AbstractArray[SurfacePts2D]          # store the solution fields of the mesh in 2D
     borderPts2DList = AbstractArray[BorderPts2D] # store the solution fields of the surfaces in 2D
     splinep = AbstractArray[pi]  # store the x coordinates samples of the spline parameters of the border nodes
@@ -1371,7 +1395,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             μ_tp = sol[end]
             dμdη = dsoldη[end]
             dμdβ = dsoldβ[end]
-        
+            
             q .= q_d + C_uc_cached*q_f + μ_tp*q_d_cached_top;       # assemble the solution 
             dqdη .= dqdη + C_uc_cached*dqfdη + dμdη*q_d_cached_top; # assemble the solution
             dqdβ .= dqdβ + C_uc_cached*dqfdβ + dμdβ*q_d_cached_top; # assemble the solution
@@ -1380,37 +1404,35 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dpdη = dpfdη; # assemble the solution
             dpdβ = dpfdβ; # assemble the solution
 
-            motion = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'* t_steps_cached # extract the motion of the mesh grid
-            dmdη_out = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
-            dmdβ_out = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
-
-            dmdθ_out = @views cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
+            motion_y = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # extract the motion of the mesh grid
+            dmdη_out_y = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
+            dmdβ_out_y = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
+            
+            motion =  motion_y*T_# extract the motion of the mesh grid
             
             NodeList_cached = NodeList_cached + motion # update the mesh grid
-            mdl.mesh_u.NodeList = NodeList_cached      # update the mesh grid
-        
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+            mdl.mesh_u.NodeList = NodeList_cached     # update the mesh grid
+
+            NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
+            dmdη_out_proj = dmdη_out_y*T_*T
+            dmdβ_out_proj = dmdβ_out_y*T_*T
+            motion_proj = motion*T
+            
+            dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
+
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
 
             mat_nan_inf_check(dudθ[:,:,1])
             mat_nan_inf_check(dudθ[:,:,2])
 
-            # store the solutions in a list
-            if FunctionClass_x_cached == "S2"
-                NodeList_, IEN_, q_ = eval_on_cylinder(model, 1, q)
-            else
-                NodeList_ = NodeList_cached
-                IEN_ = mdl.mesh_u.IEN
-                q_ = q
-            end
-
             push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
-            push!(displacement, motion)
-            push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
+            push!(displacement, motion_proj)
+            push!(surface_fields, motion_proj[:,side_node_list_cached])
+            push!(surface_pts_3D, vcat(NodeList_proj[:,top_node_list_cached]', NodeList_proj[:,bottom_node_list_cached]', NodeList_proj[:,side_node_list_cached]')')
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
-            push!(pos3D, NodeList_cached)
+            push!(pos3D, NodeList_proj)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, pi)
             push!(splineq, qi) 
@@ -1479,31 +1501,29 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             motion = hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # get the motion of the mesh
             dmdη_out = hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
             dmdβ_out = hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
-
-            dmdθ_out = cat(dmdη_out,dmdβ_out,dims=3) # concatenate the gradients in to a tensor
             
             NodeList_cached = NodeList_cached + motion # update the mesh grid
             mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
         
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+            NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
+            dmdη_out_proj = dmdη_out*T
+            dmdβ_out_proj = dmdβ_out*T
+            
+            dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
+        
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
 
-            # store the solutions in a list
-            if FunctionClass_x_cached == "S2"
-                NodeList_, IEN_, q_ = eval_on_cylinder(model, 1, q)
-            else
-                NodeList_ = NodeList_cached
-                IEN_ = mdl.mesh_u.IEN
-                q_ = q
-            end
+            mat_nan_inf_check(dudθ[:,:,1])
+            mat_nan_inf_check(dudθ[:,:,2])
 
-            push!(output, μ_tp) # store displacement at the top surface
+            push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
+            push!(surface_pts_3D, vcat(NodeList_proj[:,top_node_list_cached]', NodeList_proj[:,bottom_node_list_cached]', NodeList_proj[:,side_node_list_cached]')')
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
-            push!(pos3D, NodeList_cached)
+            push!(pos3D, NodeList_proj)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, pi)
             push!(splineq, qi) 

@@ -617,3 +617,62 @@ function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
     end
     return NodeList_, IEN_list, plot_u
 end
+
+function get_lagrange_proj(IEN_cp, IEN_l, C_e, X_cp)
+    n_elem = size(IEN_cp,2)
+    @assert size(IEN_cp,2) == size(IEN_l,2) "Number of elements in IEN_cp and IEN_l must be the same"
+
+    n_cp = size(X_cp,2)
+    n_lagrange = maximum(IEN_l)
+    
+    # println("n_cp: ", n_cp)
+    # println("n_lagrange: ", IEN_l)
+
+    C = zeros(Float64, n_cp, n_lagrange)
+
+    e_iter = 1:n_elem
+    for e in e_iter
+        C[IEN_cp[:,e],IEN_l[:,e]] = C_e[:,:,e]
+    end
+    return C
+end
+
+function get_lagrange_pts(IEN_cp, IEN_l, C_e, X_cp, W_cp)
+
+    P = get_lagrange_proj(IEN_cp, IEN_l, C_e, X_cp)
+    n_l = size(P,2)
+    n_cp = size(P,1)
+    X_l = zeros(Float64, 3, n_l)
+    W_l = P'*W_cp
+
+    # println("W_l", size(W_l))
+    n_iter = 1:n_l
+    for i in n_iter
+        # println("X_cp", size(X_cp))
+        # println("W_cp", size(diagm(W_cp)))
+        # println("P", size(P[:,i]))
+        
+        X_l[:,i] = (X_cp*diagm(W_cp)/W_l[i])*P[:,i]
+    end
+    return X_l
+end
+
+function get_nurbs_2_lagrange_proj(IEN_cp, IEN_l, C_e, X_cp, W_cp)
+
+    P = get_lagrange_proj(IEN_cp, IEN_l, C_e, X_cp)
+    n_l = size(P,2)
+    n_cp = size(P,1)
+    M = zeros(Float64, n_cp, n_l)
+    W_l = P'*W_cp
+
+    # println("W_l", size(W_l))
+    n_iter = 1:n_l
+    for i in n_iter
+        # println("X_cp", size(X_cp))
+        # println("W_cp", size(diagm(W_cp)))
+        # println("P", size(P[:,i]))
+        
+        M[:,i] = (diagm(W_cp)/W_l[i])*P[:,i]
+    end
+    return M
+end

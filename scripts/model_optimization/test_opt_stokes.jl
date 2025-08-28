@@ -14,6 +14,7 @@ function test_opt_bulk()
     r::Float64 = 0.25*scale  # radius of the cylinder in mm
     h::Float64 = 0.5*scale  # height of the cylinder in mm
     ndim::Int = 3
+    FunctionClass_x::String = "Q2"
     FunctionClass_u::String = "Q2"
     nDof_u::Int = ndim  # number of degree of freedom per node
     FunctionClass_p::String = "Q1"
@@ -69,8 +70,8 @@ function test_opt_bulk()
 
     viscosity_type = "constant"
     conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose)
-    model, scene = def_problem(r, h, ne_exp, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, sim_time, t_steps)
-
+    model, scene = def_problem(r, h, ne_exp, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, gt_β, F, control, viscosity_type, 
+                        sim_time, t_steps)
     θ::Vector{Float64} = [ηStart, βStart]
     
     gt_time_frame::Int = round(Int,gt_sim_time)
@@ -113,7 +114,8 @@ function test_opt_bulk()
 
     # run the simulation with the estimated parameters
     viscosity_type = "bulk_viscosity"
-    est_model, est_scene = def_problem(r, h, ne_exp, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, gt_β, F, control, viscosity_type, gt_sim_time, gt_t_steps)
+    est_model, est_scene = def_problem(r, h, ne_exp, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, gt_β, F, control, viscosity_type, 
+                        gt_sim_time, gt_t_steps)
     est_model.η = est_ηpList
     est_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(est_model, est_scene, conditions)
 
@@ -152,6 +154,7 @@ function test_opt_const()
     F::Vector{Float64} = ones(Float64, round(Int, (sim_time_gt/t_steps_gt))) # force applied to the cylinder in N
 
     ndim::Int = 3
+    FunctionClass_x::String = ""
     FunctionClass_u::String = "Q2"
     nDof_u::Int = ndim  # number of degree of freedom per node
     FunctionClass_p::String = "Q1"
@@ -167,17 +170,18 @@ function test_opt_const()
         r = 0.25*scale  # radius of the cylinder in mm
         h = 0.5*scale  # height of the cylinder in mm
 
+        FunctionClass_x = "Q2"
         control = "force" # "force" or "velocity"
         viscosity_type = "constant" # "constant" or "bulk_viscosity"
 
         filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/test2")
 
         sim_time_gt = 10.0# simulation time in seconds
-        steps_gt = 20.0 # number of time steps
+        steps_gt = 10.0 # number of time steps
         t_steps_gt = sim_time_gt/steps_gt
         β_gt = 100.0
         η_gt = 40.0
-        ne_gt::Int = 4
+        ne_gt::Int = 10
         F_ext::Float64 = 150000.0 # force applied to the cylinder in N
         F = -F_ext*ones(Float64, round(Int, (sim_time_gt/t_steps_gt))) # force applied to the cylinder in N
 
@@ -186,7 +190,8 @@ function test_opt_const()
 
         # Write the ground truth
         printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
-        model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
+        model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+                        sim_time_gt, t_steps_gt)
         write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepath)
 
         ObsDataList, splinexObs, splineyObs = read_csv(string(filepath,"/data/sim_data/contour_data"))  
@@ -209,14 +214,16 @@ function test_opt_const()
 
         ObsDataList, splinexObs, splineyObs = read_csv(string(filepath,"/data/img_data/contour_data"))  
 
-        model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt[1], ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt[1], F, control, viscosity_type, sim_time_gt, t_steps_gt)
+        model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt[1], ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt[1], F, control, viscosity_type, 
+                        sim_time_gt, t_steps_gt)
         printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
     end
+    FunctionClass_x = "S2"
     # Read the gt data
     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
 
     # simulation parameters for the experiments
-    sim_time::Float64 = 10.0# simulation time in seconds
+    sim_time::Float64 = 10.0# simulation time in seconds 
     steps::Float64 = 10.0 # number of time steps
     t_steps::Float64 = sim_time/steps
     ne_exp::Int = 4
@@ -231,7 +238,8 @@ function test_opt_const()
     dev_β::Float64 = dev*β_gt
     βStart::Float64 = β_gt - dev_β
 
-    model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time, t_steps)
+    model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+                        sim_time, t_steps)
     conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose, SIDES=SIDES, filepath=filepath, ANIMATE=false)
 
     θ::Vector{Float64} = [ηStart, βStart]
@@ -245,10 +253,11 @@ function test_opt_const()
 
     η = stats["η"]
     β = stats["β"]
+
     printstyled("Estimated η : $(η), estimated β: $(β)\n"; color = :green)
 
-    η_accuracy = (1 - abs(η_gt-η)/η_gt)*100
-    β_accuracy = (1 - abs(β_gt-β)/β_gt)*100
+    η_accuracy = abs((η/η_gt))*100
+    β_accuracy = abs((β/β_gt))*100
     printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
     printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
 
@@ -362,11 +371,11 @@ function test_opt_const()
     # contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
 
     # write_json(string(filepath,"/Results/data/contour_plot_params"), contour_plot_params)
-    # write_csv(string(filepath,"/Results/data/η"), ηpList)
-    # write_csv(string(filepath,"/Results/data/β"), βpList)
-    # write_csv(string(filepath,"/Results/data/est_h"), est_h)
-    # write_csv(string(filepath,"/Results/data/gt_h"), gt_h)
-    # write_csv(string(filepath,"/Results/data/cost_iter"), costList)
+    write_csv(string(filepath,"/Results/data/η_"), ηpList)
+    write_csv(string(filepath,"/Results/data/β"), βpList)
+    write_csv(string(filepath,"/Results/data/est_h"), est_h)
+    write_csv(string(filepath,"/Results/data/gt_h"), gt_h)
+    write_csv(string(filepath,"/Results/data/cost_iter"), costList)
 end
 
 

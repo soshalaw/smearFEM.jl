@@ -757,13 +757,13 @@ function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", fi
         @argcheck nNodes^ndim == size(CPointList,2) "Loaded mesh does not have the correct number of nodes"
 
         ID = zeros(Int64, ndim, size(CPointList,2))
-        cpiter = 1:nNodes
+        cpiter = 1:nNodes^ndim
         for m in cpiter
             for l in 1:ndim
                 ID[l,m] = ndim*(m-1) + l
             end
         end 
-
+        
         mesh = MeshgridCylinder(r=r, h=h, NodeList=CPointList, IEN=IEN, IEN_cp=IEN_cp, IEN_top=IEN_top, IEN_bottom=IEN_btm, ID=ID, FunctionClass=FunctionClass,
             C_vol=C, C_top=C_top, C_btm=C_btm, W=W, nNodes=nNodes, ne=ne)
     elseif string(FunctionClass[1]) == "Q"  
@@ -852,6 +852,7 @@ function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1
             scale = maximum(abs.(NodeListCube[1:2,i] - center))
             if scale ≈ 0.
                 NodeListCyl[1:2,i] = [0 , 0]
+                NodeListCyl[3,i] = NodeListCube[3,i]*h
             else
                 r_ = sqrt((NodeListCube[1,i] - center[1])^2 + (NodeListCube[2,i] - center[2])^2)
                 NodeListCyl[1:2,i] = 2*r*scale*(NodeListCube[1:2,i] - center)/r_
@@ -867,6 +868,7 @@ function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1
             scale = maximum(abs.(NodeListCube[1:2,i] - center))
             if scale ≈ 0.
                 NodeListCyl[1:2,i] = [0 , 0]
+                NodeListCyl[3,i] = NodeListCube[3,i]*h
             else
                 r_ = sqrt((NodeListCube[1,i] - center[1])^2 + (NodeListCube[2,i] - center[2])^2)
                 NodeListCyl[1:2,i] = 2*r*scale*(NodeListCube[1:2,i] - center)/r_

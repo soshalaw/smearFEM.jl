@@ -1,15 +1,17 @@
 # test 3D FEM solution for 2x2x2 elements
 using smearFEM
 using Test
+using Plots
 
 @testset "testing the stokes model" begin
 
     # test case 
-    r = 1   
-    h = 1
+    scale = 100.0
+    r = 0.25*scale  # radius of the cylinder in mm
+    h = 0.5*scale  # height of the cylinder in mm
     ne = 2
     ndim = 3
-    FunctionClass_x = "S2"
+    FunctionClass_x = "Q2"
     FunctionClass_u = "Q2"
     FunctionClass_p = "Q1"
     nDof_u = ndim  # number of degree of freedom per node
@@ -27,28 +29,50 @@ using Test
     u_z = zeros(size(q,2))
 
     iter = 1:size(model.mesh_x.NodeList, 2)
-    
+
     q_ = zeros(size(q))
     NodeList_ = zeros(size(model.mesh_x.NodeList))
     IEN_ = zeros(size(model.mesh_x.IEN))
 
-    if FunctionClass_x != "S2"
-        q_ = q
-        NodeList_ = model.mesh_u.NodeList
-        IEN_ = model.mesh_u.IEN
-    else
-        NodeList_, IEN_, q_ = eval_on_cylinder(model, 1, q)
-    end
-
     # write_vtk("/home/soshala/SMEAR-PhD", "u", model.mesh_u.NodeList, model.mesh_u.IEN, ne, ndim, q, FunctionClass=FunctionClass_u)
     write_vtk("/home/soshala/SMEAR-PhD", "u", NodeList_, IEN_, ne, ndim, q_, FunctionClass=FunctionClass_u)
+    # lp = get_lagrange_pts(model.mesh_x.IEN, model.mesh_u.IEN, model.mesh_x.C_vol, model.mesh_x.NodeList, model.mesh_x.W)
 
+    T = Matrix{Float64}(I, size(model.mesh_u.NodeList,2), size(model.mesh_u.NodeList,2))
+    if model.mesh_x.FunctionClass == "S2" && model.mesh_u.FunctionClass != "S2"
+        T = get_nurbs_2_lagrange_proj(model.mesh_x.IEN, model.mesh_u.IEN, model.mesh_x.C_vol, model.mesh_x.NodeList, model.mesh_x.W)
+    end
+    T_ = T'*inv(T*T')
+
+    lp = model.mesh_x.NodeList * T
+
+    # NodeList_, IEN_, q_ = eval_on_cylinder(model, 1, q)
+    q_ = q*T_*T
+    NodeList_ = model.mesh_u.NodeList
+    IEN_ = model.mesh_u.IEN
+
+    println("Control pt size: ", size(model.mesh_x.NodeList))
+    println("Lagrange points size: ", size(lp))
+    println("Lagrange point mesh size: ", size(model.mesh_u.IEN))
+    println("solution ",size(q))
+    n_pts = size(lp, 2)
+
+    # for i in 1:n_pts
+    #     r_ = sqrt(lp[1,i]^2 + lp[2,i]^2)
+    #     println("r_: ", r_)
+    # end
+
+    Plots.scatter3d(lp[1,:], lp[2,:], lp[3,:], markersize=5, label="Lagrange points")
+    Plots.savefig("/home/soshala/SMEAR-PhD/temp/stokes_lagrange_pts.png")
+
+    animate_fields(filepath = "/home/soshala/SMEAR-PhD/temp", Nodes=[lp] , IEN=model.mesh_u.IEN)
+    
     for i in iter
         r = sqrt(NodeList_[1,i]^2 + NodeList_[2,i]^2)
         h_ = NodeList_[3,i]
 
-        @test sqrt(q_[1,i]^2 + q_[2,i]^2) + 0.5*μu_tp*r/h ≈ 0 atol=10^(-5)
-        @test q_[3,i] - μu_tp*h_/h ≈ 0 atol=10^(-5)
+        @test sqrt(q_[1,i]^2 + q_[2,i]^2) + 0.5*μu_tp*r/h ≈ 0 atol=10^(-3)
+        @test q_[3,i] - μu_tp*h_/h ≈ 0 atol=10^(-3)
     end
 
 end

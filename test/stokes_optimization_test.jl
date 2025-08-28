@@ -1,5 +1,6 @@
 using smearFEM
 using Test
+using LinearAlgebra
 
 file = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/test3"
 
@@ -8,6 +9,7 @@ scale = 100
 r::Float64 = 0.25*scale  # radius of the cylinder in mm
 h::Float64 = 0.5*scale  # height of the cylinder in mm
 ndim::Int = 3
+FunctionClass_x::String = "S2"
 FunctionClass_u::String = "Q2"
 nDof_u::Int = ndim  # number of degree of freedom per node
 FunctionClass_p::String = "Q1"
@@ -33,14 +35,17 @@ viscosity_type = "constant" # "constant" or "bulk_viscosity"
 F_ext::Float64 = 250000.0
 F::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps)))
 # F::Float64 = 3.0
-ne = 4
+ne = 2
 Δη = 1e-8
 Δβ = 1e-8
 
+filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
+
+mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
 mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
 mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
-mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
+mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
 # q_tp, q_side, q_btm, C_uc = set_boundary_cond(mdl)
 
 # A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
@@ -64,28 +69,46 @@ mdl = Stokes(ndim=ndim, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof
 #     end
 # end
 
-p, dp, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-μu_side, GRAD=true)
+T = Matrix{Float64}(I, size(mesh_u.NodeList,2), size(mesh_u.NodeList,2))
+if mesh_x.FunctionClass == "S2" && mesh_u.FunctionClass != "S2"
+    T = get_nurbs_2_lagrange_proj(mesh_x.IEN, mesh_u.IEN, mesh_x.C_vol, mesh_x.NodeList, mesh_x.W)
+end
+T_ = T'*inv(T*T')
 
-Nodes = model.mesh_u.NodeList + p
+p_, dp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
+μu_side, FunctionClass_x=FunctionClass_x, GRAD=true)
+p = p_*T_
+dp = similar(dp_)
+dp[:,:,1] = (dp_[:,:,1]*T_)*T
+dp[:,:,2] = (dp_[:,:,2]*T_)*T
+Nodes_ = model.mesh_x.NodeList + p
+Nodes = Nodes_*T
 
 # estimate dp with finite (central) difference
-Δp_ηp, model = simulate_single_tstep_stokes(r, h, ne, (η+Δη), ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-μu_side)
-ΔNodesηp = model.mesh_u.NodeList + Δp_ηp
+Δp_ηp_, model = simulate_single_tstep_stokes(r, h, ne, (η+Δη), ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
+μu_side, FunctionClass_x=FunctionClass_x)
+Δp_ηp = Δp_ηp_*T_
+ΔNodesηp_ = model.mesh_x.NodeList + Δp_ηp
+ΔNodesηp = ΔNodesηp_*T
 
-Δp_ηm, model = simulate_single_tstep_stokes(r, h, ne, (η-Δη), ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-μu_side)
-ΔNodesηm = model.mesh_u.NodeList + Δp_ηm
+Δp_ηm_, model = simulate_single_tstep_stokes(r, h, ne, (η-Δη), ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
+μu_side, FunctionClass_x=FunctionClass_x)
+Δp_ηm = Δp_ηm_*T_
+ΔNodesηm_ = model.mesh_x.NodeList + Δp_ηm
+ΔNodesηm = ΔNodesηm_*T
 
 # estimate dp with finite (central) difference
-Δp_βp, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, (β+Δβ), μu_tp, μu_btm, 
-μu_side)
-ΔNodesβp = model.mesh_u.NodeList + Δp_βp
+Δp_βp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, (β+Δβ), μu_tp, μu_btm, 
+μu_side, FunctionClass_x=FunctionClass_x)
+Δp_βp = Δp_βp_*T_
+ΔNodesβp_ = model.mesh_x.NodeList + Δp_βp
+ΔNodesβp = ΔNodesβp_*T
 
-Δp_βm, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, (β-Δβ), μu_tp, μu_btm, 
-μu_side)
-ΔNodesβm = model.mesh_u.NodeList + Δp_βm
+Δp_βm_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, (β-Δβ), μu_tp, μu_btm, 
+μu_side, FunctionClass_x=FunctionClass_x)
+Δp_βm = Δp_βm_*T_
+ΔNodesβm_ = model.mesh_x.NodeList + Δp_βm
+ΔNodesβm = ΔNodesβm_*T
 
 dηp_approx = (ΔNodesηp-ΔNodesηm)/(2*Δη)
 dβp_approx = (ΔNodesβp-ΔNodesβm)/(2*Δβ)
@@ -158,9 +181,11 @@ end
 # println("dudβ approx: ")
 # display(dudβ_approx)
 
-p_gt, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-μu_side)
-Nodes_gt = model.mesh_u.NodeList + p_gt
+p_gt_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
+μu_side, FunctionClass_x=FunctionClass_x)
+p_gt = p_gt_*T_
+Nodes_gt_ = model.mesh_x.NodeList + p_gt
+Nodes_gt = Nodes_gt_*T
 
 BorderPts2D_gt = back_project(Nodes_gt, camera_matrix, camera_pose)
 
@@ -181,8 +206,8 @@ iIter = size(∇d[1],1)
 @test ∇d[1][2] ≈ ∇dβ_approx[1] atol=10^(-4)
 
 conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose)
-model, scene = def_problem(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β, F, control, viscosity_type, sim_time, t_steps)
-
+model, scene = def_problem(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
+                        sim_time, t_steps)
 ## testing Σ∇p(θ)
 μ_list, gradList, simBorderPts, splinex, spliney, SurfacePt2D = simulate(model, scene, conditions)
 reset_model!(model)
@@ -222,8 +247,8 @@ for t in titer
     pIter,qIter = size(grad_approx_η)
     for i in 1:pIter  
         for j in 1:qIter
-            @test grad[i,j,1] ≈ grad_approx_η[i,j] atol=10^(-1)
-            @test grad[i,j,2] ≈ grad_approx_β[i,j] atol=10^(-1)
+            @test grad[i,j,1] ≈ grad_approx_η[i,j] atol=10^(-4)
+            @test grad[i,j,2] ≈ grad_approx_β[i,j] atol=10^(-4)
         end
     end
 end

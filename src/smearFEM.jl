@@ -10,7 +10,7 @@ export EnvConditions, Conditions # types.jl
 
 export meshgrid_line, meshgrid_square, meshgrid_cube, inflate_cylinder, meshgrid_ring, meshgrid_cylinder # Meshes.jl
 export gaussian_quadrature, basis_function # fem.jl
-export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, plot_covariance, eval_on_cylinder # PostProcess.jl
+export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, plot_covariance, eval_on_cylinder, get_lagrange_proj, get_lagrange_pts, get_nurbs_2_lagrange_proj # PostProcess.jl
 export closest_point, height_sample, match_points, fit_model # smearOptimize.jl
 export reset_model!, update_model! # models.jl
 
