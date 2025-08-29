@@ -10,7 +10,6 @@ images
 /docs/build/
 /cylindergen/vtkFiles/
 /cylindergen/__pycache__/
-/cylindergen/cylinder.h5
 
 *.jl.*.cov
 *.jl.cov
