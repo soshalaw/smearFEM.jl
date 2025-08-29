@@ -421,7 +421,7 @@ function main()
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     β_gt_list = [100.0, 1000.0, 10000.0]
     η_gt_list = [60.0, 40.0]
-    FunctionClass_x_List = ["Q2", "S2"]
+    FunctionClass_x_List = ["S2", "Q2"]
     refine_list = [1, 2, 3]
     control = "force" # "force" or "velocity"
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test")
