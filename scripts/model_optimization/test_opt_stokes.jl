@@ -242,7 +242,7 @@ function test_opt_const(exp_params::Dict)
     dev_η::Float64 = dev*η_gt
     ηStart::Float64 = η_gt - dev_η
 
-    dev_β::Float64 = dev*β_gt
+    dev_β::Float64 = 30 #dev*β_gt
     βStart::Float64 = β_gt - dev_β
 
     model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
@@ -427,8 +427,8 @@ function main()
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test")
     run_id = 1
     WRITE_GT = true
-    for η_gt in η_gt_list
-        for β_gt in β_gt_list
+    for β_gt in β_gt_list
+        for η_gt in η_gt_list
             filepath = string(file_path,"/",run_id)
             for ref in refine_list
                 ne = ne_exp^ref
