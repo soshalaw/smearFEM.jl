@@ -192,7 +192,7 @@ function test_opt_const()
         printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
         model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
                         sim_time_gt, t_steps_gt)
-        write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepath)
+        # write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepath)
 
         ObsDataList, splinexObs, splineyObs = read_csv(string(filepath,"/data/sim_data/contour_data"))  
     else
@@ -218,7 +218,7 @@ function test_opt_const()
                         sim_time_gt, t_steps_gt)
         printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
     end
-    FunctionClass_x = "S2"
+    FunctionClass_x = "Q2"
     # Read the gt data
     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
 
@@ -226,7 +226,7 @@ function test_opt_const()
     sim_time::Float64 = 10.0# simulation time in seconds 
     steps::Float64 = 10.0 # number of time steps
     t_steps::Float64 = sim_time/steps
-    ne_exp::Int = 4
+    ne_exp::Int = 10
 
     obsBorderPts = obsBorderPts[1:(round(Int,sim_time/t_steps)+1)] # align the observation points with the simulation time
 
@@ -371,7 +371,7 @@ function test_opt_const()
     # contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
 
     # write_json(string(filepath,"/Results/data/contour_plot_params"), contour_plot_params)
-    write_csv(string(filepath,"/Results/data/η_"), ηpList)
+    write_csv(string(filepath,"/Results/data/η"), ηpList)
     write_csv(string(filepath,"/Results/data/β"), βpList)
     write_csv(string(filepath,"/Results/data/est_h"), est_h)
     write_csv(string(filepath,"/Results/data/gt_h"), gt_h)

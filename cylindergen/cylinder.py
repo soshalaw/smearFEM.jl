@@ -79,7 +79,7 @@ def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
     elem_renumbering = numpy.swapaxes(numpy.arange(IEN.shape[0]).reshape(domain.shape),0,2).ravel()
     print(numpy.shape(IEN))
     script_dir = Path( __file__ ).parent.absolute()
-    with h5py.File((script_dir / 'cylinder').with_suffix('.h5'), 'w') as f:
+    with h5py.File(Path(script_dir / ('cylinder_'+str(nref))).with_suffix('.h5'), 'w') as f:
         f.create_dataset('X', data=X)
         f.create_dataset('W', data=W)
         f.create_dataset('C', data=C[elem_renumbering,:,:])

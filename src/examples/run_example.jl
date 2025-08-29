@@ -129,6 +129,8 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
     mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
+    
+
 
     ID_u = mdl.mesh_u.ID
     
