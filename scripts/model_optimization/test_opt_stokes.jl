@@ -228,14 +228,14 @@ function test_opt_const(exp_params::Dict)
     ne_exp::Int = exp_params["ne_exp"] # number of elements in the mesh for the experiment
     exp_path = string(filepath,"/runs/",FunctionClass_x,"_",ne_exp)
 
-    # Read the gt data
-    obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
-    obsBorderPts = obsBorderPts[1:(round(Int,sim_time/t_steps)+1)] # align the observation points with the simulation time
-    
     # simulation parameters for the experiments
     sim_time::Float64 = 10.0 # simulation time in seconds 
     steps::Float64 = 10.0 # number of time steps
     t_steps::Float64 = sim_time/steps
+
+    # Read the gt data
+    obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
+    obsBorderPts = obsBorderPts[1:(round(Int,sim_time/t_steps)+1)] # align the observation points with the simulation time
     
     dev::Float64 = 0.3
 
