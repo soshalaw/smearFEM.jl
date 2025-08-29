@@ -129,8 +129,6 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
     mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
-    
-
 
     ID_u = mdl.mesh_u.ID
     
@@ -239,19 +237,20 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     # copy the model and scene to avoid modifying the original objects
     model::AbstractModel = deepcopy(_model)
     scene::AbstractScenario = deepcopy(_scene)
+    
     # set the model parameters
     conditions = Conditions(ANIMATE=ANIMATE, WRITECONTOUR=WRITECONTOUR, RENDER=RENDER, WRITEVTK=WRITEVTK, camera_matrix=camera_matrix, camera_pose=camera_pose, filepath=filepath)
+    
     # remove the previous results folder if it exists
     if isdir(string(filepath))
         @info "Removing previous results folder: $filepath"
         rm(string(filepath), recursive=true, force=true) # remove the previous results folder if it exists
     end
 
-    # run the simulation
-    h_, gradList, borderPts2DList, fields, pos3D, pos2D = simulate(model, scene, conditions)
-    # get the mesh height with time
-    h = get_height(h_, model.mesh_u.h)
-
+    
+    h_, gradList, borderPts2DList, fields, pos3D, pos2D = simulate(model, scene, conditions) # run the simulation
+    
+    h = get_height(h_, model.mesh_u.h) # get the mesh height with time
     
     params = Dict("r"=>model.mesh_u.r, h=>model.mesh_u.h, "η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "camera_pose" => conditions.camera_pose, 
                     "control_type"=>scene.control, "cParam"=>scene.cParam, "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps, 

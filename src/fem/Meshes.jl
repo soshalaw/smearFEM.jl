@@ -750,7 +750,19 @@ Set up the mesh grid for a 3D cylinder
 function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", filePath::String=" ") where {T<:Number,U<:Number}
     if string(FunctionClass[1]) == "S"
         @info "Representing fields / geometry using Splines"
-        CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder.h5"),"sim")
+        
+        if ne == 2
+            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_1.h5"),"sim")
+        elseif ne == 4
+            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_2.h5"),"sim")
+        elseif ne == 8
+            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_3.h5"),"sim")
+        elseif ne == 16
+            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_4.h5"),"sim")
+        else
+            throw(ArgumentError("No mesh file found for ne=$ne"))
+        end
+
         ndim = size(CPointList,1)
         @argcheck ne^ndim == size(IEN,2) "Loaded mesh does not have the correct number of elements" 
         nNodes = ne + 2
