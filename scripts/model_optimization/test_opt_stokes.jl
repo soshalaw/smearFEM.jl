@@ -8,6 +8,7 @@ using Distributions
 using Dates
 using Plots
 using LaTeXStrings
+using DelimitedFiles
 
 function test_opt_bulk()
     scale = 100
@@ -228,6 +229,8 @@ function test_opt_const(exp_params::Dict)
     ne_exp::Int = exp_params["ne_exp"] # number of elements in the mesh for the experiment
     exp_path = string(filepath,"/runs/",FunctionClass_x,"_",ne_exp)
 
+    write_json(string(exp_path,"/Results/data/sim_params"), exp_params)
+
     # simulation parameters for the experiments
     sim_time::Float64 = 10.0 # simulation time in seconds 
     steps::Float64 = 10.0 # number of time steps
@@ -273,7 +276,7 @@ function test_opt_const(exp_params::Dict)
     scene_gt.β = [β]
 
     # simulate the gt model with the estimated parameters
-    est_μ_list, others = simulate(model, scene, conditions)
+    est_μ_list, _ = simulate(model, scene, conditions)
 
     est_h = get_height(est_μ_list, h)
     gt_h = readdlm(string(filepath,"data/h.csv"), ',', Float64)
@@ -425,7 +428,7 @@ function main()
     control = "force" # "force" or "velocity"
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test")
     run_id = 1
-    WRITE_GT = true
+    WRITE_GT = false
     for β_gt in β_gt_list
         for η_gt in η_gt_list
             filepath = string(file_path,"/",run_id)
@@ -445,6 +448,32 @@ function main()
         end
     end
     
+end
+
+function post_analysis(filepath_gt::String)
+
+    ηList = readdlm(string(filepath,"data/η.csv"), ',', Float64)
+    βList = readdlm(string(filepath,"data/β.csv"), ',', Float64)
+
+    params = read_json(string(filepath_gt,"data/sim_params.json"))
+    gt_η = params["η"]
+    gt_β = params["β"]  
+
+    gt_η_list = gt_η*ones(size(ηList,1))
+    gt_β_list = gt_β*ones(size(βList,1))
+
+    Plots.plot!(gt_η_list, label="Ground truth η", dpi=400)
+    Plots.plot!(ηList, label="Estimated η")
+    Plots.xlabel!("Iterations")
+    Plots.ylabel!("η")
+    Plots.savefig(string(filepath,"/Results/plots/η_iter.pdf"))
+
+    Plots.plot(gt_β_list, label="Ground truth β", dpi=400)
+    Plots.plot!(βList, label="Estimated β")
+    Plots.xlabel!("Iterations")
+    Plots.ylabel!("β")
+    Plots.savefig(string(filepath,"/Results/plots/β_iter.pdf"))
+
 end
 
 main()
