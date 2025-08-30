@@ -183,7 +183,7 @@ function test_opt_const(exp_params::Dict)
         η_gt = exp_params["η_gt"]
         ne_gt::Int = exp_params["ne_gt"] # number of elements in the mesh for the ground truth
 
-        F_ext::Float64 = 150000.0 # force applied to the cylinder in N
+        F_ext::Float64 = 1500.0*β_gt # force applied to the cylinder in N
         F = -F_ext*ones(Float64, round(Int, (sim_time_gt/t_steps_gt))) # force applied to the cylinder in N
 
         camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
@@ -342,21 +342,21 @@ function test_opt_const(exp_params::Dict)
     η_iter = 1:size(ηList,1)
     β_iter = 1:size(βList,1)
 
-    for i::Int in η_iter
-        η = ηList[i]
-        for j::Int in β_iter
-            β = βList[j]
-            reset_model!(model)
-            model.η = [η]
-            scene.β = [β]
-            μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+    # for i::Int in η_iter
+    #     η = ηList[i]
+    #     for j::Int in β_iter
+    #         β = βList[j]
+    #         reset_model!(model)
+    #         model.η = [η]
+    #         scene.β = [β]
+    #         μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
 
-            # test the closest point function
-            d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+    #         # test the closest point function
+    #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
             
-            CostMat[i,j] = sum(d_cp)
-        end
-    end
+    #         CostMat[i,j] = sum(d_cp)
+    #     end
+    # end
     
     # Plot the cost function surface
     set_plot(22)
