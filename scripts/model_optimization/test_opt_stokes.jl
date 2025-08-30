@@ -428,7 +428,7 @@ function main()
     control = "force" # "force" or "velocity"
     file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test")
     run_id = 1
-    WRITE_GT = false
+    WRITE_GT = true
     for β_gt in β_gt_list
         for η_gt in η_gt_list
             filepath = string(file_path,"/",run_id)
