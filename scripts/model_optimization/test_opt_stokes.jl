@@ -279,7 +279,7 @@ function test_opt_const(exp_params::Dict)
     est_μ_list, _ = simulate(model, scene, conditions)
 
     est_h = get_height(est_μ_list, h)
-    gt_h = readdlm(string(filepath,"data/h.csv"), ',', Float64)
+    gt_h = readdlm(string(filepath,"/data/h.csv"), ',', Float64)
 
     set_file(string(exp_path,"/Results/plots"))
     set_plot(22)
