@@ -269,15 +269,14 @@ function test_opt_const(exp_params::Dict)
     printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
 
     reset_model!(model)
-    model.η = [η]
-    scene.β = [β]
+    model_gt.η = [η]
+    scene_gt.β = [β]
 
-    # simulate the model with the estimated parameters
-    gt_μ_list, others = simulate(model_gt, scene_gt, conditions)
+    # simulate the gt model with the estimated parameters
     est_μ_list, others = simulate(model, scene, conditions)
 
     est_h = get_height(est_μ_list, h)
-    gt_h = get_height(gt_μ_list, h)
+    gt_h = readdlm(string(filepath,"data/h.csv"), ',', Float64)
 
     set_file(string(exp_path,"/Results/plots"))
     set_plot(22)
