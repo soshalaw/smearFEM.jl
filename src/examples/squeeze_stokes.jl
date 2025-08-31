@@ -1281,8 +1281,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     pos3D = AbstractArray[NodeList_proj]       # store the solution fields of the mesh in 3D
     pos2D = AbstractArray[SurfacePts2D]          # store the solution fields of the mesh in 2D
     borderPts2DList = AbstractArray[BorderPts2D] # store the solution fields of the surfaces in 2D
-    splinep = AbstractArray[pi]  # store the x coordinates samples of the spline parameters of the border nodes
-    splineq = AbstractArray[qi]  # store the y coordinates samples of the spline parameters of the border nodes
+    splinep = AbstractArray[BorderPts2D[1,:]]  # store the x coordinates samples of the spline parameters of the border nodes
+    splineq = AbstractArray[BorderPts2D[2,:]]  # store the y coordinates samples of the spline parameters of the border nodes
     output = Float64[] 
     writeborderList = [vcat(pi', qi')]
 
@@ -1434,8 +1434,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_proj)
             push!(borderPts2DList, BorderPts2D)
-            push!(splinep, pi)
-            push!(splineq, qi) 
+            push!(splinep, BorderPts2D[1,:])
+            push!(splineq, BorderPts2D[2,:])
             push!(writeborderList, vcat(pi', qi'))
         
             iter += 1
@@ -1525,8 +1525,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_proj)
             push!(borderPts2DList, BorderPts2D)
-            push!(splinep, pi)
-            push!(splineq, qi) 
+            push!(splinep, BorderPts2D[1,:])
+            push!(splineq, BorderPts2D[2,:]) 
             push!(writeborderList, vcat(pi', qi'))
         
             iter += 1
@@ -1546,5 +1546,5 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     if conditions.WRITEVTK
         write_scene(string(conditions.filepath,"/data"), pos3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, displacement, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
     end
-    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D
+    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, splinep, splineq
 end

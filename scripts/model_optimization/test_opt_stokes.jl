@@ -276,7 +276,9 @@ function test_opt_const(exp_params::Dict)
     scene_gt.β = [β]
 
     # simulate the gt model with the estimated parameters
-    est_μ_list, _ = simulate(model, scene, conditions)
+    est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)
+
+    animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinep, q=splineq, pObs=splinexObs, qObs=splineyObs)
 
     est_h = get_height(est_μ_list, h)
     gt_h = readdlm(string(filepath,"/data/h.csv"), ',', Float64)
@@ -386,6 +388,11 @@ function test_opt_const(exp_params::Dict)
     write_csv(string(exp_path,"/Results/data/est_h"), est_h)
     write_csv(string(exp_path,"/Results/data/gt_h"), gt_h)
     write_csv(string(exp_path,"/Results/data/cost_iter"), costList)
+
+    write_data(string(exp_path,"/Results/data/sim_data/2D_surface_points"), pos2D)
+    write_data(string(exp_path,"/Results/data/sim_data/3D_points"), pos3D)
+    write_data(string(exp_path,"/Results/data/sim_data/motion_fields "), fields)
+    write_data(string(exp_path,"/Results/data/sim_data/2D_border_points"), borderPts2DList)
 end
 
 function plot_()
@@ -416,6 +423,8 @@ function plot_()
     Plots.xlabel!("Time (s)")
     Plots.ylabel!("η")
     Plots.savefig(string(filepath,"/plots/η.pdf"))
+
+    return 
 end
 
 function main()
@@ -424,10 +433,15 @@ function main()
     β_gt_list = [100.0, 1000.0, 10000.0]
     η_gt_list = [60.0, 40.0]
     FunctionClass_x_List = ["S2", "Q2"]
-    refine_list = [1, 2, 3]
+    refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test")
+    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test/model_acc_test")
     run_id = 1
+
+    exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
+    η_mat = zeros(30, exp_size)
+    β_mat = zeros(30, exp_size)
+
     WRITE_GT = true
     for β_gt in β_gt_list
         for η_gt in η_gt_list
@@ -440,6 +454,7 @@ function main()
                     exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => ne_gt, "ne_exp" => ne, 
                                 "β_gt" => β_gt, "η_gt" => η_gt, "WRITE_GT" => WRITE_GT, "filepath" => filepath, "control" => control)
                     test_opt_const(exp_params)
+                    post_analysis(filepath)
                     WRITE_GT = false
                 end
             end
@@ -452,27 +467,46 @@ end
 
 function post_analysis(filepath_gt::String)
 
-    ηList = readdlm(string(filepath,"data/η.csv"), ',', Float64)
-    βList = readdlm(string(filepath,"data/β.csv"), ',', Float64)
+    # ηList = readdlm(string(filepath_gt,"/data/η.csv"), ',', Float64)
+    # βList = readdlm(string(filepath_gt,"/data/β.csv"), ',', Float64)
 
-    params = read_json(string(filepath_gt,"data/sim_params.json"))
+    params = read_json(string(filepath_gt,"/data/sim_params.json"))
     gt_η = params["η"]
     gt_β = params["β"]  
 
-    gt_η_list = gt_η*ones(size(ηList,1))
-    gt_β_list = gt_β*ones(size(βList,1))
+    println("Ground truth η: ", gt_η[1])
+    gt_η_list = gt_η[1]*ones(30,1)
+    gt_β_list = gt_β[1]*ones(30,1)
 
-    Plots.plot!(gt_η_list, label="Ground truth η", dpi=400)
-    Plots.plot!(ηList, label="Estimated η")
-    Plots.xlabel!("Iterations")
-    Plots.ylabel!("η")
-    Plots.savefig(string(filepath,"/Results/plots/η_iter.pdf"))
+    run_filepath = readdir(string(filepath_gt,"/runs/"))
 
-    Plots.plot(gt_β_list, label="Ground truth β", dpi=400)
-    Plots.plot!(βList, label="Estimated β")
-    Plots.xlabel!("Iterations")
-    Plots.ylabel!("β")
-    Plots.savefig(string(filepath,"/Results/plots/β_iter.pdf"))
+    fig1 = Plots.plot(gt_η_list, label="Ground truth η", dpi=400)
+    Plots.xlabel!(fig1,"Iterations")
+    Plots.ylabel!(fig1,"η")
+
+    fig2 = Plots.plot(gt_β_list, label="Ground truth β", dpi=400)
+    Plots.xlabel!(fig2, "Iterations")
+    Plots.ylabel!(fig2, "β")
+
+    for run_folder_ in run_filepath
+        println("Processing folder: ", run_folder_)
+        run_folder = string(filepath_gt,"/runs/",run_folder_)
+        params = read_json(string(run_folder,"/Results/data/sim_params.json"))
+
+        FunctionClass_x = params["FunctionClass_x"]
+        ne = params["ne_exp"]
+
+        η = readdlm(string(run_folder,"/Results/data/η.csv"), ',', Float64)
+        β = readdlm(string(run_folder,"/Results/data/β.csv"), ',', Float64)
+
+        Plots.plot!(fig1, η, label=string("Basis - ",FunctionClass_x," - ne: ",ne))
+        Plots.plot!(fig2, β, label=string("Basis - ",FunctionClass_x," - ne: ",ne))
+    end
+
+    plot_path = string(filepath_gt,"/Results/plots")
+    set_file(plot_path)
+    Plots.savefig(fig1, string(plot_path,"/η_comp.pdf"))
+    Plots.savefig(fig2, string(plot_path,"/β_comp.pdf"))
 
 end
 

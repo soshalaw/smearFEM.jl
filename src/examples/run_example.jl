@@ -248,7 +248,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     end
 
     
-    h_, gradList, borderPts2DList, fields, pos3D, pos2D = simulate(model, scene, conditions) # run the simulation
+    h_, gradList, borderPts2DList, fields, pos3D, pos2D, _ = simulate(model, scene, conditions) # run the simulation
     
     h = get_height(h_, model.mesh_u.h) # get the mesh height with time
     
@@ -262,6 +262,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_data(string(conditions.filepath,"/data/sim_data/2D_surface_points"), pos2D)
     write_data(string(filepath,"/data/sim_data/3D_points"), pos3D)
     write_data(string(filepath,"/data/sim_data/motion_fields "), fields)
+    write_data(string(filepath,"/data/sim_data/2D_border_points"), borderPts2DList)
 
 end
 

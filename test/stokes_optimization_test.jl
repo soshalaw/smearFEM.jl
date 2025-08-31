@@ -27,7 +27,7 @@ steps = 10.0
 t_steps = sim_time/steps
 time = collect(range(start=t_steps,stop=sim_time,step=t_steps)) # time vector
 
-println("tStep ", t_steps)
+println("time step size", t_steps)
 control = "force" 
 viscosity_type = "constant" # "constant" or "bulk_viscosity"
 β::Float64 = 100.0
@@ -35,7 +35,7 @@ viscosity_type = "constant" # "constant" or "bulk_viscosity"
 F_ext::Float64 = 250000.0
 F::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps)))
 # F::Float64 = 3.0
-ne = 2
+ne = 8
 Δη = 1e-8
 Δβ = 1e-8
 
@@ -199,7 +199,6 @@ costList, ∇d, ∇2d, pairsList = closest_point([BorderPts2D],[BorderPts2D_gt],
 ∇dη_approx = (ΔcostList_ηp - ΔcostList_ηm)/(2*Δη)
 ∇dβ_approx = (ΔcostList_βp - ΔcostList_βm)/(2*Δβ)
 
-println(size(∇d[1]))
 iIter = size(∇d[1],1)
 
 @test ∇d[1][1] ≈ ∇dη_approx[1] atol=10^(-4)
