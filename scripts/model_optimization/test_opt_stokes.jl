@@ -275,6 +275,8 @@ function test_opt_const(exp_params::Dict)
     model_gt.η = [η]
     scene_gt.β = [β]
 
+    println(model.η)
+    println(scene.β)
     # simulate the gt model with the estimated parameters
     est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)
 
@@ -430,7 +432,7 @@ end
 function main()
     ne_gt::Int = 8 # number of elements in the mesh for the ground truth
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
-    β_gt_list = [100.0, 1000.0, 10000.0]
+    β_gt_list = [50, 100.0, 200.0, 500.0] #, 1000.0, 10000.0]
     η_gt_list = [60.0, 40.0]
     FunctionClass_x_List = ["S2", "Q2"]
     refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine

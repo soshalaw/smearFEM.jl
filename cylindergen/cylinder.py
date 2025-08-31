@@ -18,7 +18,7 @@ def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
          r = 25,        # Radius
          h = 50,        # Height
          p = 2,        # Basis order
-         nref = 4):    # Number of uniform refinements
+         nref = 3):    # Number of uniform refinements
 
     # Creation of the Splipy NURBS object
     disk = splipy.surface_factory.disc(r, type='square')
@@ -70,10 +70,10 @@ def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
         boundary = domain.boundary[boundary_tags]
         bIEN, bC = extraction.get_lagrange_extraction(extraction_topo=boundary, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
         bnd_renumbering = numpy.swapaxes(numpy.arange(bIEN.shape[0]).reshape(boundary.shape),0,1).ravel()
-        # boundaries_IEN[boundary_name] = bIEN[bnd_renumbering,:] 
-        # boundaries_C[boundary_name] = bC[bnd_renumbering,:,:]
-        boundaries_IEN[boundary_name] = bIEN
-        boundaries_C[boundary_name] = bC
+        boundaries_IEN[boundary_name] = bIEN[bnd_renumbering,:] 
+        boundaries_C[boundary_name] = bC[bnd_renumbering,:,:]
+        # boundaries_IEN[boundary_name] = bIEN
+        # boundaries_C[boundary_name] = bC
 
     # Save to an HDF5 file
     elem_renumbering = numpy.swapaxes(numpy.arange(IEN.shape[0]).reshape(domain.shape),0,2).ravel()
