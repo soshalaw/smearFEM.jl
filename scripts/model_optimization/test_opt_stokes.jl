@@ -176,8 +176,8 @@ function test_opt_const(exp_params::Dict)
         viscosity_type = "constant" # "constant" or "bulk_viscosity"
         filepath = exp_params["filepath"]
 
-        sim_time_gt = 10.0 # simulation time in seconds
-        steps_gt = 10.0 # number of time steps
+        sim_time_gt = 20.0 # simulation time in seconds
+        steps_gt = 20.0 # number of time steps
         t_steps_gt = sim_time_gt/steps_gt
 
         β_gt = exp_params["β_gt"]
@@ -232,8 +232,8 @@ function test_opt_const(exp_params::Dict)
     write_json(string(exp_path,"/Results/data/sim_params"), exp_params)
 
     # simulation parameters for the experiments
-    sim_time::Float64 = 10.0 # simulation time in seconds 
-    steps::Float64 = 10.0 # number of time steps
+    sim_time::Float64 = 20.0 # simulation time in seconds 
+    steps::Float64 = 20.0 # number of time steps
     t_steps::Float64 = sim_time/steps
 
     # Read the gt data
