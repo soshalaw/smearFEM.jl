@@ -1414,8 +1414,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             mdl.mesh_u.NodeList = NodeList_cached     # update the mesh grid
 
             NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
-            dmdη_out_proj = dmdη_out_y*T_*T
-            dmdβ_out_proj = dmdβ_out_y*T_*T
+            dmdη_out_proj = dmdη_out_y
+            dmdβ_out_proj = dmdβ_out_y
             motion_proj = motion*T
             
             dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor

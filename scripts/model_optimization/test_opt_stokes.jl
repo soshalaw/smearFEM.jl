@@ -435,7 +435,7 @@ function main()
     FunctionClass_x_List = ["S2", "Q2"]
     refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test/model_acc_test")
+    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test_Q2_gt_S2_no_proj")
     run_id = 1
 
     exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
@@ -453,13 +453,13 @@ function main()
                     @info "Running optimization with FunctionClass_x = $FunctionClass_x"
                     exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => ne_gt, "ne_exp" => ne, 
                                 "β_gt" => β_gt, "η_gt" => η_gt, "WRITE_GT" => WRITE_GT, "filepath" => filepath, "control" => control)
-                    test_opt_const(exp_params)
-                    post_analysis(filepath)
+                    # test_opt_const(exp_params)
                     WRITE_GT = false
                 end
             end
             WRITE_GT = true
             run_id += 1
+            post_analysis(filepath)
         end
     end
     
@@ -496,17 +496,19 @@ function post_analysis(filepath_gt::String)
         FunctionClass_x = params["FunctionClass_x"]
         ne = params["ne_exp"]
 
-        η = readdlm(string(run_folder,"/Results/data/η.csv"), ',', Float64)
-        β = readdlm(string(run_folder,"/Results/data/β.csv"), ',', Float64)
+        if ne != 2
+            η = readdlm(string(run_folder,"/Results/data/η.csv"), ',', Float64)
+            β = readdlm(string(run_folder,"/Results/data/β.csv"), ',', Float64)
 
-        Plots.plot!(fig1, η, label=string("Basis - ",FunctionClass_x," - ne: ",ne))
-        Plots.plot!(fig2, β, label=string("Basis - ",FunctionClass_x," - ne: ",ne))
+            Plots.plot!(fig1, η, label=string("Basis - ",FunctionClass_x," - ne: ",ne))
+            Plots.plot!(fig2, β, label=string("Basis - ",FunctionClass_x," - ne: ",ne))
+        end
     end
 
     plot_path = string(filepath_gt,"/Results/plots")
     set_file(plot_path)
-    Plots.savefig(fig1, string(plot_path,"/η_comp.pdf"))
-    Plots.savefig(fig2, string(plot_path,"/β_comp.pdf"))
+    Plots.savefig(fig1, string(plot_path,"/η_comp_peek.pdf"))
+    Plots.savefig(fig2, string(plot_path,"/β_comp_peek.pdf"))
 
 end
 
