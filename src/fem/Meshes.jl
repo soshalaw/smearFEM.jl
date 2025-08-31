@@ -749,7 +749,7 @@ Set up the mesh grid for a 3D cylinder
 """
 function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", filePath::String=" ") where {T<:Number,U<:Number}
     if string(FunctionClass[1]) == "S"
-        @info "Representing fields / geometry using Splines"
+        @info "Representing fields / geometry using $FunctionClass NURBS"
         
         if ne == 2
             CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_1.h5"),"sim")
@@ -779,7 +779,7 @@ function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", fi
         mesh = MeshgridCylinder(r=r, h=h, NodeList=CPointList, IEN=IEN, IEN_cp=IEN_cp, IEN_top=IEN_top, IEN_bottom=IEN_btm, ID=ID, FunctionClass=FunctionClass,
             C_vol=C, C_top=C_top, C_btm=C_btm, W=W, nNodes=nNodes, ne=ne)
     elseif string(FunctionClass[1]) == "Q"  
-        @info "Representing fields / geometry using basis functions"         
+        @info "Representing fields / geometry using $FunctionClass basis functions"         
         NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
         NodeList = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h)
 

@@ -196,7 +196,7 @@ function test_opt_const(exp_params::Dict)
                         sim_time_gt, t_steps_gt)
 
         if WRITE_GT == true
-            @info "Writing ground truth gt data to $filepath"
+            @info "Writing ground truth gt data to with $ne_gt elements to $filepath"
             write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepath)
         end
 
