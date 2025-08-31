@@ -171,7 +171,7 @@ function test_opt_const(exp_params::Dict)
         r = 0.5*scale  # radius of the cylinder in mm
         h = 1*scale  # height of the cylinder in mm
 
-        FunctionClass_x = "S2"
+        FunctionClass_x = exp_params["FunctionClass_x_gt"]
         control = exp_params["control"]
         viscosity_type = "constant" # "constant" or "bulk_viscosity"
         filepath = exp_params["filepath"]
@@ -432,39 +432,42 @@ end
 function main()
     ne_gt::Int = 8 # number of elements in the mesh for the ground truth
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
-    β_gt_list = [50, 100.0, 200.0, 500.0, 1000.0] # , 10000.0]
+    β_gt_list = [50, 100.0, 200.0, 500.0, 10000.0] # , 10000.0]
     η_gt_list = [40.0]
     FunctionClass_x_List = ["S2", "Q2"]
-    refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
+    refine_list = [1] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test_S2_gt_S2_no_proj")
+    
     run_id = 1
+    FunctionClass_x_gt_list = ["S2", "Q2"] # Function space for the ground truth
 
     exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
     η_mat = zeros(30, exp_size)
     β_mat = zeros(30, exp_size)
 
     WRITE_GT = true
-    for β_gt in β_gt_list
-        for η_gt in η_gt_list
-            filepath = string(file_path,"/",run_id)
-            for ref in refine_list
-                ne = ne_exp^ref
-                @info "Running optimization with ne = $ne"
-                for FunctionClass_x in FunctionClass_x_List
-                    @info "Running optimization with FunctionClass_x = $FunctionClass_x"
-                    exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => ne_gt, "ne_exp" => ne, 
-                                "β_gt" => β_gt, "η_gt" => η_gt, "WRITE_GT" => WRITE_GT, "filepath" => filepath, "control" => control)
-                    test_opt_const(exp_params)
-                    WRITE_GT = false
+    for FunctionClass_x_gt in FunctionClass_x_gt_list
+        file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test_",FunctionClass_x_gt,"_gt_S2_updated")
+        for β_gt in β_gt_list
+            for η_gt in η_gt_list
+                filepath = string(file_path,"/",run_id)
+                for ref in refine_list
+                    ne = ne_exp^ref
+                    @info "Running optimization with ne = $ne"
+                    for FunctionClass_x in FunctionClass_x_List
+                        @info "Running optimization with FunctionClass_x = $FunctionClass_x"
+                        exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => ne_gt, "ne_exp" => ne, 
+                                    "β_gt" => β_gt, "η_gt" => η_gt, "WRITE_GT" => WRITE_GT, "filepath" => filepath, "control" => control, "FunctionClass_x_gt" => FunctionClass_x_gt)
+                        test_opt_const(exp_params)
+                        WRITE_GT = false
+                    end
                 end
+                WRITE_GT = true
+                run_id += 1
+                post_analysis(filepath)
             end
-            WRITE_GT = true
-            run_id += 1
-            post_analysis(filepath)
         end
     end
-    
 end
 
 function post_analysis(filepath_gt::String)
