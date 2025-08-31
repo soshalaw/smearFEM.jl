@@ -18,7 +18,7 @@ def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
          r = 25,        # Radius
          h = 50,        # Height
          p = 2,        # Basis order
-         nref = 3):    # Number of uniform refinements
+         nref = 4):    # Number of uniform refinements
 
     # Creation of the Splipy NURBS object
     disk = splipy.surface_factory.disc(r, type='square')
