@@ -453,7 +453,7 @@ function main()
                     @info "Running optimization with FunctionClass_x = $FunctionClass_x"
                     exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => ne_gt, "ne_exp" => ne, 
                                 "β_gt" => β_gt, "η_gt" => η_gt, "WRITE_GT" => WRITE_GT, "filepath" => filepath, "control" => control)
-                    # test_opt_const(exp_params)
+                    test_opt_const(exp_params)
                     WRITE_GT = false
                 end
             end
