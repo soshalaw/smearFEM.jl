@@ -171,7 +171,7 @@ function test_opt_const(exp_params::Dict)
         r = 0.5*scale  # radius of the cylinder in mm
         h = 1*scale  # height of the cylinder in mm
 
-        FunctionClass_x = "Q2"
+        FunctionClass_x = "S2"
         control = exp_params["control"]
         viscosity_type = "constant" # "constant" or "bulk_viscosity"
         filepath = exp_params["filepath"]
@@ -428,14 +428,14 @@ function plot_()
 end
 
 function main()
-    ne_gt::Int = 12 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 8 # number of elements in the mesh for the ground truth
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     β_gt_list = [100.0, 1000.0, 10000.0]
     η_gt_list = [60.0, 40.0]
     FunctionClass_x_List = ["S2", "Q2"]
     refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test_Q2_gt_S2_no_proj")
+    file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test_S2_gt_S2_no_proj")
     run_id = 1
 
     exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
