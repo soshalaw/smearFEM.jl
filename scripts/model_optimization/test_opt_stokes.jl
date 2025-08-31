@@ -435,7 +435,7 @@ function main()
     β_gt_list = [50, 100.0, 200.0, 500.0, 10000.0] # , 10000.0]
     η_gt_list = [40.0]
     FunctionClass_x_List = ["S2", "Q2"]
-    refine_list = [1] # refinement levels, ne = ne_exp^refine
+    refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     
     
