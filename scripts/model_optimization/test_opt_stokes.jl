@@ -438,7 +438,7 @@ function main()
     refine_list = [1] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     
-    run_id = 1
+    
     FunctionClass_x_gt_list = ["S2", "Q2"] # Function space for the ground truth
 
     exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
@@ -447,7 +447,9 @@ function main()
 
     WRITE_GT = true
     for FunctionClass_x_gt in FunctionClass_x_gt_list
+        run_id = 1
         file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test_",FunctionClass_x_gt,"_gt_S2_updated")
+        @info "Running optimization with FunctionClass_x_gt = $FunctionClass_x_gt with $ne_gt elements for the ground truth"
         for β_gt in β_gt_list
             for η_gt in η_gt_list
                 filepath = string(file_path,"/",run_id)
