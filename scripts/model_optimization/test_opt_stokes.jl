@@ -439,7 +439,7 @@ function main()
     control = "force" # "force" or "velocity"
     
     
-    FunctionClass_x_gt_list = ["S2", "Q2"] # Function space for the ground truth
+    FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
 
     exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
     η_mat = zeros(30, exp_size)
