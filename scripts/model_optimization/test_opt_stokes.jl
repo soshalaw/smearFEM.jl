@@ -246,7 +246,7 @@ function test_opt_const(exp_params::Dict)
     ηStart::Float64 = η_gt - dev_η
 
     dev_β::Float64 = 30 #dev*β_gt
-    βStart::Float64 = β_gt - dev_β
+    βStart::Float64 = abs(β_gt - dev_β)
 
     model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
                         sim_time, t_steps)
@@ -432,14 +432,12 @@ end
 function main()
     ne_gt::Int = 8 # number of elements in the mesh for the ground truth
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
-    β_gt_list = [50, 100.0, 200.0, 500.0, 10000.0] # , 10000.0]
+    β_gt_list = [5, 10, 50, 100.0, 200.0, 500.0, 1000.0, 10000.0]
     η_gt_list = [40.0]
     FunctionClass_x_List = ["S2", "Q2"]
     refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    
-    
-    FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
+    FunctionClass_x_gt_list = ["S2", "Q2"] # Function space for the ground truth
 
     exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
     η_mat = zeros(30, exp_size)
@@ -448,7 +446,7 @@ function main()
     WRITE_GT = true
     for FunctionClass_x_gt in FunctionClass_x_gt_list
         run_id = 1
-        file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test_",FunctionClass_x_gt,"_gt_S2_updated")
+        file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/",control,"/model_acc_test_",FunctionClass_x_gt,"_gt_S2_updated_2")
         @info "Running optimization with FunctionClass_x_gt = $FunctionClass_x_gt with $ne_gt elements for the ground truth ..."
         for β_gt in β_gt_list
             for η_gt in η_gt_list
@@ -473,7 +471,6 @@ function main()
 end
 
 function post_analysis(filepath_gt::String)
-
     # ηList = readdlm(string(filepath_gt,"/data/η.csv"), ',', Float64)
     # βList = readdlm(string(filepath_gt,"/data/β.csv"), ',', Float64)
 
@@ -490,10 +487,13 @@ function post_analysis(filepath_gt::String)
     fig1 = Plots.plot(gt_η_list, label="Ground truth η", dpi=400)
     Plots.xlabel!(fig1,"Iterations")
     Plots.ylabel!(fig1,"η")
+    Plots.ylims!(fig1, gt_η[1]*0.5, gt_η[1]*1.5)
+
 
     fig2 = Plots.plot(gt_β_list, label="Ground truth β", dpi=400)
     Plots.xlabel!(fig2, "Iterations")
     Plots.ylabel!(fig2, "β")
+    Plots.ylims!(fig2, abs(gt_β[1]-30), gt_β[1]*1.05)
 
     for run_folder_ in run_filepath
         println("Processing folder: ", run_folder_)
@@ -514,8 +514,8 @@ function post_analysis(filepath_gt::String)
 
     plot_path = string(filepath_gt,"/Results/plots")
     set_file(plot_path)
-    Plots.savefig(fig1, string(plot_path,"/η_comp_peek.pdf"))
-    Plots.savefig(fig2, string(plot_path,"/β_comp_peek.pdf"))
+    Plots.savefig(fig1, string(plot_path,"/η_comp_zoomed.pdf"))
+    Plots.savefig(fig2, string(plot_path,"/β_comp_zoomed.pdf"))
 
 end
 
