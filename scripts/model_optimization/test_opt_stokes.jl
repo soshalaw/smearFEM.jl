@@ -245,7 +245,7 @@ function test_opt_const(exp_params::Dict)
     dev_η::Float64 = dev*η_gt
     ηStart::Float64 = η_gt - dev_η
 
-    dev_β::Float64 = 30 #dev*β_gt
+    dev_β::Float64 = 0.1*β_gt
     βStart::Float64 = abs(β_gt - dev_β)
 
     model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
