@@ -11,12 +11,12 @@ using Plots
     h = 0.5*scale  # height of the cylinder in mm
     ne = 2
     ndim = 3
-    FunctionClass_x = "Q2"
+    FunctionClass_x = "S2"
     FunctionClass_u = "Q2"
     FunctionClass_p = "Q1"
     nDof_u = ndim  # number of degree of freedom per node
     nDof_p = 1
-    β = 1e-5
+    β = 1e4
     ν = 1.0
     μu_tp = -0.1
     μu_btm = 0

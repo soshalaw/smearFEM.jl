@@ -14,11 +14,11 @@ from pathlib import Path
 
 _ = numpy.newaxis
 
-def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
-         r = 25,        # Radius
-         h = 50,        # Height
-         p = 2,        # Basis order
-         nref = 1):    # Number of uniform refinements
+def main(case='nurbs geometry',
+         r=25,
+         h=50,
+         p=2,
+         nref=4):
 
     # Creation of the Splipy NURBS object
     disk = splipy.surface_factory.disc(r, type='square')
@@ -72,8 +72,6 @@ def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
         bnd_renumbering = numpy.swapaxes(numpy.arange(bIEN.shape[0]).reshape(boundary.shape),0,1).ravel()
         boundaries_IEN[boundary_name] = bIEN[bnd_renumbering,:] 
         boundaries_C[boundary_name] = bC[bnd_renumbering,:,:]
-        # boundaries_IEN[boundary_name] = bIEN
-        # boundaries_C[boundary_name] = bC
 
     # Save to an HDF5 file
     elem_renumbering = numpy.swapaxes(numpy.arange(IEN.shape[0]).reshape(domain.shape),0,2).ravel()
@@ -92,4 +90,4 @@ def main(case = 'nurbs geometry', # alternative: 'nurbs geometry'
         f.create_dataset('NURBS_vol', data=vol_NURBS)
 
 if __name__ == '__main__':
-    cli.run(main)
+    main()

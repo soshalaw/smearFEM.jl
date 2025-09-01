@@ -7,7 +7,7 @@ def test_stokes(domain, geom, u_basis, p_basis):
     ns = Namespace()
     
     ns.ν = 1.0 # viscosity
-    ns.β = 1e-5 # slip
+    ns.β = 1e4 # slip
 
     ns.x = geom
     ns.define_for('x', gradient='∇', normal='n', jacobians=('dV', 'dS'))
@@ -35,10 +35,10 @@ def test_stokes(domain, geom, u_basis, p_basis):
     A_bcs = slp_boundary.integrate('β Nu_mi Nu_ni dS' @ ns, degree=4).export('dense')
 
     top_sqr = top_boundary.integral('( (u_2 + 0.1)^2 ) dS' @ ns, degree=4)
-    top_cons = solver.optimize('lhs_u', top_sqr, droptol=1e-15)
+    top_cons = solver.optimize('lhs_u', top_sqr, droptol=1e-9)
 
     bot_sqr = bot_boundary.integral('( u_2^2 ) dS' @ ns, degree=4)
-    bot_cons = solver.optimize('lhs_u', bot_sqr, droptol=1e-15)
+    bot_cons = solver.optimize('lhs_u', bot_sqr, droptol=1e-9)
 
     # Constraint matrix
     cons = numpy.full_like(bot_cons, numpy.nan)

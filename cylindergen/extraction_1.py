@@ -14,25 +14,9 @@ def get_lagrange_extraction(extraction_topo, topo, geom, basis, degree):
 
     # get the Lagrange extraction operators
     lagrange_basis = extraction_topo.basis('lagrange', degree=degree)
-
-    A = numpy.empty(shape=(len(extraction_topo),(degree+1)**extraction_topo.ndims,(degree+1)**extraction_topo.ndims))
-    b = numpy.empty(shape=(len(extraction_topo),(degree+1)**extraction_topo.ndims,basis.ndofs))
-    for e, idx in enumerate(numpy.ndindex(extraction_topo.shape)):
-
-        edofs = lagrange_basis.get_dofs(e)
-        Afun = lagrange_basis[edofs,_]*lagrange_basis[_,edofs]
-        bfun = lagrange_basis[edofs,_]*basis[_,:]
-
-        if extraction_topo.ndims==3:
-            elem = extraction_topo[idx[0]:idx[0]+1, idx[1]:idx[1]+1, idx[2]:idx[2]+1]
-        elif extraction_topo.ndims==2:
-            elem = extraction_topo[idx[0]:idx[0]+1, idx[1]:idx[1]+1]
-        else:
-            raise NotImplementedError('Extraction only implemented for 2D and 3D volumes')
-        
-        Ae, be = elem.integrate([Afun*function.J(geom), bfun*function.J(geom)], degree=2*degree)
-        A[e,:,:] = Ae.export('dense')
-        b[e,:,:] = be.export('dense')
+    Afun = lagrange_basis[:,_]*lagrange_basis[_,:]
+    bfun = lagrange_basis[:,_]*basis[_,:]
+    A, b = extraction_topo.integrate_elementwise([Afun*function.J(geom), bfun*function.J(geom)], degree=2*degree)
 
     # map node order of nutils to fit with smearFEM
     if not (degree, extraction_topo.ndims) in maps:
@@ -53,7 +37,7 @@ def get_lagrange_extraction(extraction_topo, topo, geom, basis, degree):
         assert len(tail)==topo.ndims-extraction_topo.ndims, 'Tail length mismatch'
 
         IEN[e_extract,:] = [dof for dof in basis.get_dofs(e_bspline) if supp[dof]]
-        Ce = numpy.linalg.solve(Ae, be[:,IEN[e_extract,:]]).T
+        Ce = numpy.transpose(numpy.linalg.inv(Ae[numpy.ix_(lagrange_basis.get_dofs(e_extract),lagrange_basis.get_dofs(e_extract))]).dot(be[numpy.ix_(lagrange_basis.get_dofs(e_extract),IEN[e_extract,:])]))
         C[e_extract,:,:] = Ce[:,map]
 
     return IEN, C
