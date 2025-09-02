@@ -264,6 +264,8 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_data(string(filepath,"/data/sim_data/motion_fields "), fields)
     write_data(string(filepath,"/data/sim_data/2D_border_points"), borderPts2DList)
 
+    @info "Data written to $filepath"
+
 end
 
 """
