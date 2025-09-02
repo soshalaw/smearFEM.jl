@@ -18,7 +18,7 @@ def main(case='nurbs geometry',
          r=25,
          h=50,
          p=2,
-         nref=4):
+         nref=5):
 
     # Creation of the Splipy NURBS object
     disk = splipy.surface_factory.disc(r, type='square')
