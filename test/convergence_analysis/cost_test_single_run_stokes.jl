@@ -82,7 +82,7 @@ function run_exp(exp_params::Dict)
 end
 
 function main()
-    WRITE_DATA = false
+    WRITE_DATA = true
     ne_gt::Int = 4 # number of elements in the mesh for the ground truth
     β_gt_list = [5, 10, 50, 100.0, 500.0, 1000.0, 10000.0]
     control = "force" # "force" or "velocity"
@@ -120,33 +120,33 @@ function main()
     Plots.ylabel!("Mean error (px/s)")
     Plots.savefig(string(plot_path,"/contour_convergence.pdf"))
 
-    # for (i,β) in enumerate(β_gt_list)
-    #     set_plot(22)
-    #     array = error_list[i,:,:]
-    #     iter = 1:size(array,1)
-    #     for j in iter
-    #         ne = ne_list[j]
-    #         Plots.plot!(time,array[j,:],label="ne = $ne", lw=2)
-    #     end
-    #     Plots.title!("β = $β")
-    #     Plots.ylabel!("Contour Error (px)")
-    #     Plots.xlabel!("Time (s)")
-    #     Plots.savefig(string(plot_path,"/contour_convergence_with_ne_$i.pdf"))
-    # end
+    for (i,β) in enumerate(β_gt_list)
+        set_plot(22)
+        array = error_list[i,:,:]
+        iter = 1:size(array,1)
+        for j in iter
+            ne = ne_list[j]
+            Plots.plot!(time,array[j,:],label="ne = $ne", lw=2)
+        end
+        Plots.title!("β = $β")
+        Plots.ylabel!("Contour Error (px)")
+        Plots.xlabel!("Time (s)")
+        Plots.savefig(string(plot_path,"/contour_convergence_with_ne_$i.pdf"))
+    end
 
-    # for (i,ne) in enumerate(ne_list)
-    #     set_plot(22)
-    #     array = error_list[:,i,:]
-    #     iter = 1:size(array,1)
-    #     for j in iter
-    #         β = β_gt_list[j]
-    #         Plots.plot!(time,array[j,:], label="β = $β", lw=2)
-    #     end
-    #     Plots.title!("ne = $ne")
-    #     Plots.ylabel!("Contour Error (px)")
-    #     Plots.xlabel!("Time (s)")
-    #     Plots.savefig(string(plot_path,"/contour_convergence_with_slip_$i.pdf"))
-    # end
+    for (i,ne) in enumerate(ne_list)
+        set_plot(22)
+        array = error_list[:,i,:]
+        iter = 1:size(array,1)
+        for j in iter
+            β = β_gt_list[j]
+            Plots.plot!(time,array[j,:], label="β = $β", lw=2)
+        end
+        Plots.title!("ne = $ne")
+        Plots.ylabel!("Contour Error (px)")
+        Plots.xlabel!("Time (s)")
+        Plots.savefig(string(plot_path,"/contour_convergence_with_slip_$i.pdf"))
+    end
 
     # for FunctionClass_x_gt in FunctionClass_x_gt_list
     #     run_id = 1
