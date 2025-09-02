@@ -101,8 +101,8 @@ function main()
                 d, time = run_exp(exp_params)
                 error_list[i,j,:] = d
                 error_sum_list[i,j] = sum(d)/length(d)
+            run_id += 1
         end
-        run_id += 1
     end
 
     plot_path = string(file_path,"/plot")
