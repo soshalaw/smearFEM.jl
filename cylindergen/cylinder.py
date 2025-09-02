@@ -53,10 +53,10 @@ def main(case='nurbs geometry',
     treelog.user(f'NURBS volume = {vol_NURBS}')
 
     # Stokes test case
-    if case == 'nurbs geometry':
-        stokes.test_stokes(domain, geom, u_basis=domain.basis('lagrange', degree=2), p_basis=domain.basis('lagrange', degree=1))
-    elif case == 'iga':
-        stokes.test_stokes(domain, geom, u_basis=domain.basis('spline', degree=3, continuity=-2), p_basis=domain.basis('spline', degree=2, continuity=-1))
+    # if case == 'nurbs geometry':
+    #     stokes.test_stokes(domain, geom, u_basis=domain.basis('lagrange', degree=2), p_basis=domain.basis('lagrange', degree=1))
+    # elif case == 'iga':
+    #     stokes.test_stokes(domain, geom, u_basis=domain.basis('spline', degree=3, continuity=-2), p_basis=domain.basis('spline', degree=2, continuity=-1))
 
     # Interior lagrange extraction
     IEN, C = extraction.get_lagrange_extraction(extraction_topo=domain, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
@@ -90,4 +90,4 @@ def main(case='nurbs geometry',
         f.create_dataset('NURBS_vol', data=vol_NURBS)
 
 if __name__ == '__main__':
-    main()
+    cli.run( main )
