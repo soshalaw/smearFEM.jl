@@ -759,6 +759,8 @@ function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", fi
             CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_3.h5"),"sim")
         elseif ne == 16
             CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_4.h5"),"sim")
+        elseif ne == 16
+            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_5.h5"),"sim")
         else
             throw(ArgumentError("No mesh file found for ne=$ne"))
         end

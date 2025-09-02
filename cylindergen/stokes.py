@@ -7,7 +7,7 @@ def test_stokes(domain, geom, u_basis, p_basis):
     ns = Namespace()
     
     ns.ν = 1.0 # viscosity
-    ns.β = 1e-5 # slip
+    ns.β = 1e2 # slip
 
     ns.x = geom
     ns.define_for('x', gradient='∇', normal='n', jacobians=('dV', 'dS'))

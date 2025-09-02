@@ -16,14 +16,14 @@ FunctionClass_p = "Q1"
 nDof_u = ndim  # number of degree of freedom per node
 nDof_p = 1
 β_list = [1e-5, 1e0, 1e2, 1e5, 1e10]
-ν = 1.0
-μu_tp = -1.0
+ν = 40.0
+μu_tp = -3.0
 μu_btm = 0
 μu_side = 0
 
-exp_ne = [2, 4, 8]
-error_iga_list = zeros(length(exp_ne),length(β_list))
-error_fem_list = zeros(length(exp_ne),length(β_list))
+exp_ne = [2, 4, 8, 16]  # number of elements in radial and height directions,
+# error_iga_list = zeros(length(exp_ne),length(β_list))
+# error_fem_list = zeros(length(exp_ne),length(β_list))
 error_dif_list = zeros(length(exp_ne),length(β_list))
 
 # q_ref, model_ref = simulate_single_tstep_stokes(r, h, 16, ν, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
@@ -77,8 +77,6 @@ for (i, ne) in enumerate(exp_ne)
         error_dif_list[i,j] = error_dif/length(iter)
     end
 end
-println("IGA error: ", error_iga_list)
-println("FEM error: ", error_fem_list)
 
 plotpath = string(filepath,"/plots")
 # set_plot(22)

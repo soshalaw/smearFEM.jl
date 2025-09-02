@@ -18,7 +18,7 @@ using LinearAlgebra
     nDof_p = 1
     β = 1e-5
     ν = 1.0
-    μu_tp = -1.0
+    μu_tp = -3.0
     μu_btm = 0
     μu_side = 0
     acc = 1e-3

@@ -18,7 +18,7 @@ def main(case='nurbs geometry',
          r=25,
          h=50,
          p=2,
-         nref=5):
+         nref=1):
 
     # Creation of the Splipy NURBS object
     disk = splipy.surface_factory.disc(r, type='square')
@@ -53,10 +53,10 @@ def main(case='nurbs geometry',
     treelog.user(f'NURBS volume = {vol_NURBS}')
 
     # Stokes test case
-    # if case == 'nurbs geometry':
-    #     stokes.test_stokes(domain, geom, u_basis=domain.basis('lagrange', degree=2), p_basis=domain.basis('lagrange', degree=1))
-    # elif case == 'iga':
-    #     stokes.test_stokes(domain, geom, u_basis=domain.basis('spline', degree=3, continuity=-2), p_basis=domain.basis('spline', degree=2, continuity=-1))
+    if case == 'nurbs geometry':
+        stokes.test_stokes(domain, geom, u_basis=domain.basis('lagrange', degree=2), p_basis=domain.basis('lagrange', degree=1))
+    elif case == 'iga':
+        stokes.test_stokes(domain, geom, u_basis=domain.basis('spline', degree=3, continuity=-2), p_basis=domain.basis('spline', degree=2, continuity=-1))
 
     # Interior lagrange extraction
     IEN, C = extraction.get_lagrange_extraction(extraction_topo=domain, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
