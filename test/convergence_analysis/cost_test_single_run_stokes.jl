@@ -92,7 +92,7 @@ function main()
     error_sum_list = zeros(length(β_gt_list),length(ne_list))
     time = zeros(20,1)
     run_id = 1
-    file_path = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/caovergence_analysis/stokes_convergence"
+    file_path = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence"
     for (i,β_gt) in enumerate(β_gt_list)
         filepath = string(file_path,"/",run_id)
         for (j,ne) in enumerate(ne_list)
