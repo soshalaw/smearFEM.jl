@@ -164,7 +164,7 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
             plt = set_plot(22)
 
             if !isnothing(p)   
-                Plots.plot!(p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, marker = :circle, markersize = 2)
+                Plots.plot!(p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400) #, marker = :circle, markersize = 2)
             end
             if !isnothing(pObs)
                 Plots.plot!(pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400)
@@ -184,7 +184,7 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
             Plots.ylims!(0,1536)
             next!(pr)
         end
-        gif(animation2, string(filepath,"/2D_grid.gif"), fps=1)
+        gif(animation2, string(filepath,"/2D_grid.gif"), fps=10)
     end
 end
 
@@ -236,7 +236,7 @@ function animate_2D_comp(;borders=nothing, filepath="images/2D_grid.gif")
             Plots.ylims!(0,1536)
             next!(pr)
         end
-        gif(animation2, string(filepath,"/2D_grid.gif"), fps=1)
+        gif(animation2, string(filepath,"/2D_grid.gif"), fps=10)
     end
 end
 

@@ -12,9 +12,9 @@ using DelimitedFiles
 function run(noiseLevelLst, file_path)
 
     # test case 
-    scale = 2
-    r::Float64 = 0.25*scale  # radius of the cylinder in mm
-    h::Float64 = 0.5*scale  # height of the cylinder in mm
+    scale = 50
+    r::Float64 = 0.5*scale  # radius of the cylinder in mm
+    h::Float64 = 1*scale  # height of the cylinder in mm
     ndim::Int = 3
     FunctionClass_u::String = "Q2"
     nDof_u::Int = ndim  # number of degree of freedom per node
@@ -22,7 +22,7 @@ function run(noiseLevelLst, file_path)
     nDof_p::Int = 1  # number of degree of freedom per node
 
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-    camera_pose = scale*[0 -0.25 2]'   # camera position in mm
+    camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
 
     dev::Float64 = 0.3
 

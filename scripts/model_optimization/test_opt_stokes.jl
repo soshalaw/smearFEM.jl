@@ -11,9 +11,9 @@ using LaTeXStrings
 using DelimitedFiles
 
 function test_opt_bulk()
-    scale = 100
-    r::Float64 = 0.25*scale  # radius of the cylinder in mm
-    h::Float64 = 0.5*scale  # height of the cylinder in mm
+    scale = 50
+    r::Float64 = 0.5*scale  # radius of the cylinder in mm
+    h::Float64 = 1*scale  # height of the cylinder in mm
     ndim::Int = 3
     FunctionClass_x::String = "Q2"
     FunctionClass_u::String = "Q2"
@@ -430,14 +430,14 @@ function plot_()
 end
 
 function main()
-    ne_gt::Int = 8 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 12 # number of elements in the mesh for the ground truth
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     β_gt_list = [5, 10, 50, 100.0, 200.0, 500.0, 1000.0, 10000.0]
     η_gt_list = [40.0]
     FunctionClass_x_List = ["S2", "Q2"]
     refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    FunctionClass_x_gt_list = ["S2", "Q2"] # Function space for the ground truth
+    FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
 
     exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
     η_mat = zeros(30, exp_size)

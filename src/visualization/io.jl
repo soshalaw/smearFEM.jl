@@ -162,18 +162,18 @@ Function to write the contour data to a CSV file
 - `filepath::String`: name of the file.
 - `borders::Vector{Matrix{Float64}}`: vector of border data.
 """
-function write_data(filepath::String, borders)
+function write_data(filepath::String, data_array::AbstractArray)
     @info "Writing contour files..."
-    counter = 1
+    counter = 0
     set_file(string(filepath))
-    for border in borders
+    for data in data_array
         cStr = string(counter,pad=3)
-        if size(border, 1) == 2
-            border = hcat(border[1,:], border[2,:])
-        elseif size(border, 1) == 3
-            border = hcat(border[1,:], border[2,:], border[3,:])
+        if size(data, 1) == 2
+            data = hcat(data[1,:], data[2,:])
+        elseif size(data, 1) == 3
+            data = hcat(data[1,:], data[2,:], data[3,:])
         end
-        write_csv(string(filepath,"/",cStr),border)
+        write_csv(string(filepath,"/",cStr),data)
         counter += 1
     end
 end

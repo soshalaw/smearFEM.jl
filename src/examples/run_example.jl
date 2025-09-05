@@ -260,8 +260,8 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_json(string(filepath,"/data/sim_params"), params)
     write_csv(string(filepath,"/data/h"), h)
     write_data(string(conditions.filepath,"/data/sim_data/2D_surface_points"), pos2D)
-    write_data(string(filepath,"/data/sim_data/3D_points"), pos3D)
-    write_data(string(filepath,"/data/sim_data/motion_fields "), fields)
+    write_data(string(filepath,"/data/sim_data/node_points"), pos3D)
+    write_data(string(filepath,"/data/sim_data/displacement_fields"), fields)
     write_data(string(filepath,"/data/sim_data/2D_border_points"), borderPts2DList)
 
     @info "Data written to $filepath"
@@ -417,16 +417,16 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String,
     
     mesh = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)
 
-    BorderPts2D, SurfacePts2D = extract_borders(mesh.NodeList, camera_matrix, camera_pose, mesh.side_nodes, mesh.nNodes)
+    BorderPts2D, SurfacePts2D = extract_borders(mesh.NodeList, camera_matrix, camera_pose, mesh.nNodes, BorderNodesList= mesh.side_nodes)
     pi, qi = fit_curve(border=BorderPts2D)
         
                                                # store the solution fields of the border nodes in 2D 
     pos3D = AbstractArray[mesh.NodeList]                                                             # store the solution fields of the mesh in 3D
     surface_pts_3D = [vcat(mesh.NodeList[:,mesh.top_nodes]', mesh.NodeList[:,mesh.bottom_nodes]', mesh.NodeList[:,mesh.side_nodes]')'] # store the solution fields of the mesh in 3D
     pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
-    borderPts2DList = AbstractArray[BorderPts2D]                                                               # store the solution fields of the surfaces in 2D
-    splinep = AbstractArray[pi]                                                                            # store the x coordinates samples of the spline parameters of the border nodes
-    splineq = AbstractArray[qi]                                                                            # store the y coordinates samples of the spline parameters of the border nodes 
+    borderPts2DList = AbstractArray[BorderPts2D]                                                          # store the solution fields of the surfaces in 2D
+    splinep = AbstractArray[pi]                                                                           # store the x coordinates samples of the spline parameters of the border nodes
+    splineq = AbstractArray[qi]                                                                           # store the y coordinates samples of the spline parameters of the border nodes 
     writeborderList = [vcat(pi', qi')]
 
     animate_fields(filepath = string(filepath,"/Results/images"), SurfaceNodes3D=surface_pts_3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)

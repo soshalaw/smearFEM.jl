@@ -5,9 +5,9 @@ using LinearAlgebra
 file = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/test3"
 
 # test case 
-scale = 100
-r::Float64 = 0.25*scale  # radius of the cylinder in mm
-h::Float64 = 0.5*scale  # height of the cylinder in mm
+scale = 50
+r::Float64 = 0.5*scale  # radius of the cylinder in mm
+h::Float64 = 1*scale  # height of the cylinder in mm
 ndim::Int = 3
 FunctionClass_x::String = "S2"
 FunctionClass_u::String = "Q2"
@@ -16,7 +16,7 @@ FunctionClass_p::String = "Q1"
 nDof_p::Int = 1  # number of degree of freedom per node
 
 camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-camera_pose = scale*[0 -0.25 2]'   # camera position in mm
+camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
 
 μu_tp = -0.02*scale  # top boundary condition in mm/s
 μu_btm = 0

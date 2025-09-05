@@ -1,14 +1,18 @@
 import numpy
 from nutils import function, solver, export
 from nutils.expression_v2 import Namespace
+import matplotlib.pyplot as plt
 
 def test_stokes(domain, geom, u_basis, p_basis):
 
     ns = Namespace()
     
-    ns.ν = 1.0 # viscosity
-    ns.β = 1e2 # slip
-
+    ns.ν = 40.0 # viscosity
+    ns.β = 1e1 # slip
+    # ns.β = 1e2 # slip
+    # ns.β = 1e3 # slip
+    # ns.β = 1e5 # slip
+    
     ns.x = geom
     ns.define_for('x', gradient='∇', normal='n', jacobians=('dV', 'dS'))
     
@@ -34,7 +38,7 @@ def test_stokes(domain, geom, u_basis, p_basis):
     # Boundary condition matrix
     A_bcs = slp_boundary.integrate('β Nu_mi Nu_ni dS' @ ns, degree=4).export('dense')
 
-    top_sqr = top_boundary.integral('( (u_2 + 0.1)^2 ) dS' @ ns, degree=4)
+    top_sqr = top_boundary.integral('( (u_2 + 1.0)^2 ) dS' @ ns, degree=4)
     top_cons = solver.optimize('lhs_u', top_sqr, droptol=1e-9)
 
     bot_sqr = bot_boundary.integral('( u_2^2 ) dS' @ ns, degree=4)
@@ -73,7 +77,16 @@ def test_stokes(domain, geom, u_basis, p_basis):
     # Reconstruct full velocity solution
     lhsu = C @ lhsuc + up
 
+    print(numpy.shape(lhsu))
     # Plot
-    bezier = domain.sample('bezier', 3)
+    bezier = domain.sample('bezier', 4)
     x, pvals, uvals = bezier.eval(['x_i', 'p', 'u_i'] @ ns, arguments={'lhs_u': lhsu, 'lhs_p': lhsp})
     export.vtk('stokes', bezier.tri, x, u=uvals, p=pvals)
+
+    print("Number of nodes :",numpy.shape(uvals)[0])
+    # numpy.savetxt("params.txt",[ns.ν, ns.β])
+
+    print(ns.ν)
+    print(ns.β)
+
+    return x, uvals

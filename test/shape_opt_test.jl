@@ -4,15 +4,15 @@ using Plots
 
 function test_cylinder()
 
-    scale = 100
+    scale = 50
     ne::Int = 4 # number of elements in the mesh for the ground truth
     ndim::Int = 3
     FunctionClass::String = "Q2"
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-    camera_pose = scale*[0 -0.25 2]'   # camera position in mm
+    camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
     NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
     side_node_list = BorderNodes[1]
-    r = 1*scale
+    r = 0.5*scale
     h = 1*scale
     NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
 
@@ -68,17 +68,17 @@ end
 
 function test_cyl_dif()
 
-    scale = 100
     ne::Int = 4 # number of elements in the mesh for the ground truth
     FunctionClass::String = "Q2"
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-    camera_pose = scale*[0 -0.25 2]'   # camera position in mm
+    camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
     len = 101
     cost_list = zeros(Float64,len,len)
 
     #g_truth
-    r::Float64 = 0.25*scale  # radius of the cylinder in mm
-    h::Float64 = 0.5*scale  # height of the cylinder in mm
+    scale = 50
+    r::Float64 = 0.5*scale  # radius of the cylinder in mm
+    h::Float64 = 1*scale  # height of the cylinder in mm
     NodeList_gt, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, h, ne, FunctionClass=FunctionClass)
     NodeListCyl_gt = inflate_cylinder(NodeList_gt, -0.5, 0.5, -0.5, 0.5, r)
     side_nodes = BorderNodes[1]

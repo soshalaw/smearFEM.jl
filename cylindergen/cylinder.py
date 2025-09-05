@@ -18,7 +18,7 @@ def main(case='nurbs geometry',
          r=25,
          h=50,
          p=2,
-         nref=1):
+         nref=3):
 
     # Creation of the Splipy NURBS object
     disk = splipy.surface_factory.disc(r, type='square')
@@ -54,9 +54,9 @@ def main(case='nurbs geometry',
 
     # Stokes test case
     if case == 'nurbs geometry':
-        stokes.test_stokes(domain, geom, u_basis=domain.basis('lagrange', degree=2), p_basis=domain.basis('lagrange', degree=1))
+        x, lhsu = stokes.test_stokes(domain, geom, u_basis=domain.basis('lagrange', degree=2), p_basis=domain.basis('lagrange', degree=1))
     elif case == 'iga':
-        stokes.test_stokes(domain, geom, u_basis=domain.basis('spline', degree=3, continuity=-2), p_basis=domain.basis('spline', degree=2, continuity=-1))
+        x, lhsu = stokes.test_stokes(domain, geom, u_basis=domain.basis('spline', degree=3, continuity=-2), p_basis=domain.basis('spline', degree=2, continuity=-1))
 
     # Interior lagrange extraction
     IEN, C = extraction.get_lagrange_extraction(extraction_topo=domain, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
@@ -73,11 +73,20 @@ def main(case='nurbs geometry',
         boundaries_IEN[boundary_name] = bIEN[bnd_renumbering,:] 
         boundaries_C[boundary_name] = bC[bnd_renumbering,:,:]
 
+    print(numpy.shape(x))
+    print(numpy.shape(lhsu))
     # Save to an HDF5 file
     elem_renumbering = numpy.swapaxes(numpy.arange(IEN.shape[0]).reshape(domain.shape),0,2).ravel()
-    print(numpy.shape(IEN))
+    print("IEN shape :",numpy.shape(IEN))
     script_dir = Path( __file__ ).parent.absolute()
-    with h5py.File(Path(script_dir / ('cylinder_'+str(nref))).with_suffix('.h5'), 'w') as f:
+
+    save_dir = Path(script_dir,'slip_1')
+    save_dir.mkdir(parents=True, exist_ok=True)
+    
+    numpy.savetxt(str(Path(save_dir,'node_list.csv')),x.astype(numpy.float64),delimiter=",")
+    numpy.savetxt(str(Path(save_dir,'sol_u.csv')),lhsu.astype(numpy.float64),delimiter=",")
+
+    with h5py.File(Path(save_dir , ('cylinder')).with_suffix('.h5'), 'w') as f:
         f.create_dataset('X', data=X)
         f.create_dataset('W', data=W)
         f.create_dataset('C', data=C[elem_renumbering,:,:])
@@ -90,4 +99,5 @@ def main(case='nurbs geometry',
         f.create_dataset('NURBS_vol', data=vol_NURBS)
 
 if __name__ == '__main__':
-    cli.run( main )
+    # cli.run( main )
+    main()

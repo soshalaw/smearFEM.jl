@@ -27,7 +27,8 @@ end
 
 function closest_point(simScene::AbstractArray, obsScene::AbstractArray)
     # Define the cost function
-    costList = Float64[]
+    cost_list = Float64[]
+    norm_cost_list = Float64[]
     pairsList = []
     
     @argcheck length(simScene) == length(obsScene) "Size of the simulation and observation scenes should be the same"
@@ -41,17 +42,22 @@ function closest_point(simScene::AbstractArray, obsScene::AbstractArray)
         u = [(pSim[pairs[:,1]] - pObs[pairs[:,2]]); (qSim[pairs[:,1]] - qObs[pairs[:,2]])]
         tcost = u'*u
 
+        u_ = [(pObs[pairs[:,2]]); (qObs[pairs[:,2]])]
+        denom = u_'*u_
+        
         mCost = tcost/(2*length(pairs))     # 1/2m(Σ(√(xi-x_obs)^2+(yi-y_obs)^2))^2 (mean error)
-        push!(costList, mCost)
+        norm_cost = tcost/denom
+        push!(cost_list, mCost)
         push!(pairsList,pairs)
+        push!(norm_cost_list,norm_cost)
     end
-    return costList, pairsList
+    return cost_list, [pairsList, norm_cost_list]
 end
 
 function closest_point(simScene::AbstractArray, obsScene::AbstractArray, dudθ::AbstractArray)
     # Define the cost function 
-    costList = Float64[]
-    dcostList = []
+    cost_list = Float64[]
+    dcost_list = []
     dcost2List = []
     pairsList = []
     @argcheck length(simScene) == length(obsScene) "Size of the simulation and observation scenes should be the same"
@@ -85,12 +91,12 @@ function closest_point(simScene::AbstractArray, obsScene::AbstractArray, dudθ::
         dmcost = dtcost/length(pairs)   # 1/m(Σ(xi-x_obs)∂x/∂θ_i +(yi-y_obs)∂y/∂θ_i))
         dm2cost = dt2cost/length(pairs) # 1/m(Σ(∂x2/∂2θ_i + ∂y2/∂2θ_i))
 
-        push!(costList, mCost)
-        push!(dcostList,dmcost)
+        push!(cost_list, mCost)
+        push!(dcost_list,dmcost)
         push!(dcost2List,dm2cost)
         push!(pairsList,pairs)
     end
-    return costList, dcostList, dcost2List, pairsList
+    return cost_list, dcost_list, dcost2List, pairsList
 end
 
 function init_cylinder()             
@@ -102,7 +108,7 @@ function init_cylinder()
 
     rList = Vector{Float64}(undef,0)
     hList = Vector{Float64}(undef,0)
-    costList = Vector{Float64}(undef,0)
+    cost_list = Vector{Float64}(undef,0)
     iterList = Vector{Float64}(undef,0)
 
     NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
@@ -166,7 +172,7 @@ function init_cylinder()
         
         push!(rList,θ[1]) 
         push!(hList,θ[2])
-        push!(costList,totd)
+        push!(cost_list,totd)
         push!(iterList,iter)
         println("iteration $iter: steps : $p, Error = $totd, Error gradient : $c_grad")
         println(" ... ")
@@ -187,7 +193,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
 
     ηpList = Vector{Float64}(undef,0)
     βpList = Vector{Float64}(undef,0)
-    costList = Vector{Float64}(undef,0)
+    cost_list = Vector{Float64}(undef,0)
     iterList = Vector{Float64}(undef,0)
     
     μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
@@ -196,7 +202,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
     
     push!(ηpList,θ[1])
     push!(βpList,θ[2])
-    push!(costList,totdinit)
+    push!(cost_list,totdinit)
     push!(iterList,1)
 
     iter::Int = 1
@@ -242,7 +248,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         
         push!(ηpList,θ[1]) 
         push!(βpList,θ[2])
-        push!(costList,totd)
+        push!(cost_list,totd)
         push!(iterList,iter)
         println("iteration $iter: steps : $p, Error = $totd, Error gradient : $c_grad")
         println(" ... ")
@@ -259,7 +265,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
                  "β" => θ[2],
                  "ηList" => ηpList, 
                  "βList" => βpList,
-                 "costList" => costList,
+                 "cost_list" => cost_list,
                  "iterList" => iterList,
                  "η" => θ[1],
                  "β" => θ[2])
@@ -286,7 +292,7 @@ function height_sample(simScene::Vector{AbstractArray}, obsScene::Vector{Abstrac
     xSimintlst = AbstractArray[]
     ySimintlst = AbstractArray[]
     xObsintlst = AbstractArray[]
-    costList = Float64[]
+    cost_list = Float64[]
     for (obsData, simData) in zip(obsScene, simScene) # iterate over the scenes
 
         xSim, ySim = filter_points(simData, 2048/2)
@@ -304,12 +310,12 @@ function height_sample(simScene::Vector{AbstractArray}, obsScene::Vector{Abstrac
         totPts = length(ySim)
         mCost = cost/totPts
 
-        push!(costList, mCost)
+        push!(cost_list, mCost)
         push!(xSimintlst, xSim)
         push!(ySimintlst, ySim)
         push!(xObsintlst, xObsint)
     end
-    return costList, xObsintlst, xSimintlst, ySimintlst
+    return cost_list, xObsintlst, xSimintlst, ySimintlst
 end
 # animate_fields(filepath = string(conditions.filepath,"/Results/images"),fields2D=borderPts2DList, pObs=splinexObs, qObs=splineyObs)
 

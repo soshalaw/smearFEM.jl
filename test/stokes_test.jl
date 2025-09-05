@@ -6,19 +6,19 @@ using LinearAlgebra
 @testset "testing the stokes model" begin
 
     # test case 
-    scale = 100.0
-    r = 0.25*scale  # radius of the cylinder in mm
-    h = 0.5*scale  # height of the cylinder in mm
-    ne = 4
+    scale = 50
+    r::Float64 = 0.5*scale  # radius of the cylinder in mm
+    h::Float64 = 1*scale  # height of the cylinder in mm
+    ne = 12
     ndim = 3
-    FunctionClass_x = "S2"
+    FunctionClass_x = "Q2"
     FunctionClass_u = "Q2"
     FunctionClass_p = "Q1"
     nDof_u = ndim  # number of degree of freedom per node
     nDof_p = 1
     β = 1e-5
-    ν = 1.0
-    μu_tp = -3.0
+    ν = 40.0
+    μu_tp = -1.0
     μu_btm = 0
     μu_side = 0
     acc = 1e-3
@@ -43,6 +43,7 @@ using LinearAlgebra
     println("Control pt size: ", size(model.mesh_x.NodeList))
     println("Lagrange point mesh size: ", size(model.mesh_u.IEN))
     println("solution ",size(q))
+    println("solution ",size(q_))
 
     r_list = zeros(iter)
     h_list = zeros(iter)
@@ -59,19 +60,20 @@ using LinearAlgebra
 
     @test maximum(r_list) ≈ r atol=10^(-6)
     @test maximum(h_list) ≈ h atol=10^(-6)
+    
+    write_vtk("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/unit_tests/1", "u", NodeList_, IEN_, ne, ndim, q_, FunctionClass=FunctionClass_u)
 
     lp = model.mesh_x.NodeList * T
     n_pts = size(lp, 2)
 
-    q_ = zeros(size(q))
-    NodeList_ = zeros(size(model.mesh_x.NodeList))
-    IEN_ = zeros(size(model.mesh_x.IEN))
+    # q_ = zeros(size(q))
+    # NodeList_ = zeros(size(model.mesh_x.NodeList))
+    # IEN_ = zeros(size(model.mesh_x.IEN))
     # write_vtk("/home/soshala/SMEAR-PhD", "u", model.mesh_u.NodeList, model.mesh_u.IEN, ne, ndim, q, FunctionClass=FunctionClass_u)
-    write_vtk("/home/soshala/SMEAR-PhD", "u", NodeList_, IEN_, ne, ndim, q_, FunctionClass=FunctionClass_u)
     # lp = get_lagrange_pts(model.mesh_x.IEN, model.mesh_u.IEN, model.mesh_x.C_vol, model.mesh_x.NodeList, model.mesh_x.W)
 
-    Plots.scatter3d(lp[1,:], lp[2,:], lp[3,:], markersize=5, label="Lagrange points")
-    Plots.savefig("/home/soshala/SMEAR-PhD/temp/stokes_lagrange_pts.png")
+    # Plots.scatter3d(lp[1,:], lp[2,:], lp[3,:], markersize=5, label="Lagrange points")
+    # Plots.savefig("/home/soshala/SMEAR-PhD/temp/stokes_lagrange_pts.png")
 
     animate_fields(filepath = "/home/soshala/SMEAR-PhD/temp", Nodes=[lp] , IEN=model.mesh_u.IEN)
     # NodeList_, IEN_, q_ = eval_on_cylinder(model, 1, q)

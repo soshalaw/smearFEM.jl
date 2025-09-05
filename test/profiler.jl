@@ -4,9 +4,9 @@ using BenchmarkTools
 using DelimitedFiles
 
     # test case 
-    scale = 100
-    r = 0.25*scale  # radius of the cylinder in mm
-    h = 0.5*scale  # height of the cylinder in mm
+    scale = 50
+    r::Float64 = 0.5*scale  # radius of the cylinder in mm
+    h::Float64 = 1*scale  # height of the cylinder in mm
     ne = 4
     ndim = 3
     FunctionClass_u = "Q2"
@@ -15,7 +15,7 @@ using DelimitedFiles
     nDof_p = 1  # number of degree of freedom per node
   
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-    camera_pose = scale*[0 -0.25 2]'   # camera position in mm
+    camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
   
     sim_time = 10.0
     steps = 100.0

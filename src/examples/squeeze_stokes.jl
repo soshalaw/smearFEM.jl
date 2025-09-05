@@ -1116,13 +1116,14 @@ Define the conditions and the parameters of the squueze flow problem considered.
 """
 function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
                     nDof_p::Int64, FunctionClass_x::String, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
-    n::Float64 = 0.5
-    K::Float64 = 2.0
+    n::Float64 = 0.9
+    K::Float64 = 100.0
     len_t::Int = round(Int,(sim_time/t_steps)) # number of time steps
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
 
     if viscosity_type == "bulk_viscosity"
         η = get_η.(time, -cParam, r, h, η_0, n, K)
+        display(Plots.plot(time,η))
     else
         η = [η_0]
     end 
@@ -1266,7 +1267,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
             
     println(size(NodeList_proj))
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, side_node_list_cached, nNodes_u_cached)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, nNodes_u_cached, BorderNodesList=side_node_list_cached)
     pi, qi = fit_curve(border=BorderPts2D)
     
     dqdη = zeros(Float64, size(q_d_cached_top))
@@ -1420,7 +1421,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             
             dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
 
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
 
             mat_nan_inf_check(dudθ[:,:,1])
@@ -1538,7 +1539,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     
     # write the data to a file
     if conditions.ANIMATE
-        animate_fields(filepath = string(conditions.filepath,"/Results/images"), Nodes=pos3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+        animate_fields(filepath = string(conditions.filepath,"/Results/images"), Nodes=pos3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D, p=splinep, q=splineq)
     end
     if conditions.WRITECONTOUR
         write_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)

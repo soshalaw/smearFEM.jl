@@ -25,130 +25,151 @@ Project the 3D mesh to 2D image plane and extract the border nodes (left and rig
 - `NodeList::Matrix{Float64}{ndim,nbNodes}`: 2D coordinates of the border nodes
 - `BorderNodes::Vector{Int}`: Indexes of the border nodes
 """
-function extract_borders(NodeList::Matrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, BorderNodesList::Vector{Int64}, nNodes::Int64; GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
+function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, n_nodes::Int64; BorderNodesList::Vector{Int64}=zeros(Int64,0),GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
 
-    surface_nodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
+    if length(BorderNodesList) != 0
+        surface_nodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
+    else        
+        surface_nodes = NodeList
+    end
     
     if GRAD
         ∇surface_nodes = dqdθ[:,BorderNodesList,:] 
-        SurfacePts2D, ∇SurfacePts2D = back_project(surface_nodes, camera_matrix, camera_pose, ∇surface_nodes) 
+        surface_pts_2d, ∇surface_pts_2d = back_project(surface_nodes, camera_matrix, camera_pose, ∇surface_nodes) 
     else
-        SurfacePts2D = back_project(surface_nodes, camera_matrix, camera_pose) 
+        surface_pts_2d = back_project(surface_nodes, camera_matrix, camera_pose) 
     end
 
-    LeftborderPts = zeros(Float64,2,(nNodes))        # vector to store indexes of the border nodes
-    RightborderPts = zeros(Float64,2,(nNodes))       # vector to store indexes of the border nodes
+    left_border_pts = zeros(Float64,2,(n_nodes))        # vector to store indexes of the border nodes
+    right_border_pts = zeros(Float64,2,(n_nodes))       # vector to store indexes of the border nodes
 
-    LeftborderNodes = Vector{Int64}(undef, 0)        # vector to store indexes of the border nodes
-    RightborderNodes = Vector{Int64}(undef, 0)       # vector to store indexes of the border nodes
-    TopBorderNodes = Vector{Int64}(undef, 0)         # vector to store indexes of the border nodes
-    BottomBorderNodes = Vector{Int64}(undef, 0)      # vector to store indexes of the border nodes
+    left_border_nodes = Vector{Int64}(undef, 0)        # vector to store indexes of the border nodes
+    right_border_nodes = Vector{Int64}(undef, 0)       # vector to store indexes of the border nodes
+    # TopBorderNodes = Vector{Int64}(undef, 0)         # vector to store indexes of the border nodes
+    # BottomBorderNodes = Vector{Int64}(undef, 0)      # vector to store indexes of the border nodes
 
-    szSide = size(SurfacePts2D,2)÷(nNodes)           # size of each layer
-
-    for Layers in 1:nNodes                                        # loop through each layer
-        nodes = SurfacePts2D[:,(Layers-1)*szSide+1:Layers*szSide]
-        minNode = (Layers-1)*szSide + argmin(nodes[1,:])
-        maxNode = (Layers-1)*szSide + argmax(nodes[1,:])
-        push!(LeftborderNodes, minNode)
-        push!(RightborderNodes, maxNode)
-        LeftborderPts[:,Layers] = SurfacePts2D[:,minNode]         # left border nodes
-        RightborderPts[:,Layers] = SurfacePts2D[:,maxNode]        # right border nodes
-        if Layers == nNodes
-            nodeIdi = 1:size(nodes,2)
-            for nodeId in nodeIdi
-                if nodes[2,nodeId] > SurfacePts2D[2,minNode]    
-                    push!(TopBorderNodes, (Layers-1)*szSide+nodeId)
-                end
-            end 
-        elseif Layers == 1
-            nodeIdi = 1:size(nodes,2)
-            for nodeId in nodeIdi
-                if nodes[2,nodeId] < SurfacePts2D[2,minNode] 
-                    push!(BottomBorderNodes, nodeId)
-                end
-            end 
-        end
-    end  
-
-    BorderPtIds = vcat(LeftborderNodes, TopBorderNodes, RightborderNodes, BottomBorderNodes)
-    BorderPts = SurfacePts2D[:,BorderPtIds]
-    BorderPtsSorted, BorderPtsSortedIds = sort_points(BorderPts)
-
-    if GRAD
-        ∇BorderPts = ∇SurfacePts2D[:,BorderPtIds,:]
-        ∇BorderPtsSorted = ∇BorderPts[:,BorderPtsSortedIds,:]
-        if SIDES
-            sidePts, index = get_sides(BorderPtsSorted)
-
-            sidePtsIds = BorderPtsSortedIds[index]
-            ∇sidePts = ∇BorderPtsSorted[:,sidePtsIds,:]
-
-            return sidePts, ∇sidePts, SurfacePts2D
-        else
-            return BorderPtsSorted, ∇BorderPtsSorted, SurfacePts2D, ∇SurfacePts2D
-        end
-    else
-        if SIDES
-            sidePts, index = get_sides(BorderPtsSorted)
-    
-            sidePts = BorderPtsSorted[index]
-            sidePtsIds = BorderPtsSortedIds[index]
-    
-            return sidePts, SurfacePts2D
-        else
-            return BorderPtsSorted, SurfacePts2D
-        end
-    end 
-end
-
-function extract_borders(NodeList::Matrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, BorderNodesList::Vector{Int64}; GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
-    
-    surface_nodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
-
-    if GRAD
-        ∇surface_nodes = dqdθ[:,BorderNodesList,:] 
-        SurfacePts2D, ∇SurfacePts2D = back_project(surface_nodes, camera_matrix, camera_pose, ∇surface_nodes) 
-    else
-        SurfacePts2D = back_project(surface_nodes, camera_matrix, camera_pose) 
-    end
+    sz_side = size(surface_pts_2d,2)÷(n_nodes)           # size of each layer
 
     p = Array{Vector{Float64}}(undef,0)
 
-    iter = 1:size(SurfacePts2D,2)
+    iter = 1:size(surface_pts_2d,2)
     for i in iter
-        push!(p, SurfacePts2D[:,i])
+        push!(p, surface_pts_2d[:,i])
     end
 
     hull = ch.ConvexHull(p)
 
-    BorderPtIds = ch.indices(hull)
-    BorderPts = SurfacePts2D[:,BorderPtIds]
-    BorderPtsSorted, BorderPtsSortedIds = sort_points(BorderPts)
+    top_bottom_nodes = ch.indices(hull)
+    # border_pts = surface_pts_2d[:,border_pt_ids]
+    # border_pts_sorted, border_pts_sorted_ids = sort_points(border_pts)
+
+    for layers in 1:n_nodes                                        # loop through each layer
+        nodes = surface_pts_2d[:,(layers-1)*sz_side+1:layers*sz_side]
+        min_node = (layers-1)*sz_side + argmin(nodes[1,:])
+        max_node = (layers-1)*sz_side + argmax(nodes[1,:])
+        push!(left_border_nodes, min_node)
+        push!(right_border_nodes, max_node)
+        left_border_pts[:,layers] = surface_pts_2d[:,min_node]         # left border nodes
+        right_border_pts[:,layers] = surface_pts_2d[:,max_node]        # right border nodes
+        # if Layers == nNodes
+        #     nodeIdi = 1:size(nodes,2)
+        #     for nodeId in nodeIdi
+        #         if nodes[2,nodeId] > surface_pts_2d[2,min_node]    
+        #             push!(TopBorderNodes, (Layers-1)*szSide+nodeId)
+        #         end
+        #     end 
+        # elseif Layers == 1
+        #     nodeIdi = 1:size(nodes,2)
+        #     for nodeId in nodeIdi
+        #         if nodes[2,nodeId] < surface_pts_2d[2,min_node] 
+        #             push!(BottomBorderNodes, nodeId)
+        #         end
+        #     end 
+        # end
+    end  
+
+    border_pt_ids = vcat(left_border_nodes, top_bottom_nodes, right_border_nodes)
+    border_pts = surface_pts_2d[:,border_pt_ids]
+    border_pts_sorted, border_pts_sorted_ids = sort_points(border_pts)
 
     if GRAD
-        ∇BorderPts = ∇SurfacePts2D[:,BorderPtIds,:]
-        ∇BorderPtsSorted = ∇BorderPts[:,BorderPtsSortedIds,:]
+        ∇border_pts = ∇surface_pts_2d[:,border_pt_ids,:]
+        ∇border_pts_sorted = ∇border_pts[:,border_pts_sorted_ids,:]
         if SIDES
-            sidePts, index = get_sides(BorderPtsSorted)
+            side_pts, index = get_sides(border_pts_sorted)
 
-            sidePtsIds = BorderPtsSortedIds[index]
-            ∇sidePts = ∇BorderPtsSorted[:,sidePtsIds,:]
+            side_pts_ids = border_pts_sorted_ids[index]
+            ∇side_pts = ∇border_pts_sorted[:,side_pts_ids,:]
 
-            return sidePts, ∇sidePts, SurfacePts2D
+            return side_pts, ∇side_pts, surface_pts_2d
         else
-            return BorderPtsSorted, ∇BorderPtsSorted, SurfacePts2D, ∇SurfacePts2D
+            return border_pts_sorted, ∇border_pts_sorted, surface_pts_2d, ∇surface_pts_2d
         end
     else
         if SIDES
-            sidePts, index = get_sides(BorderPtsSorted)
+            side_pts, index = get_sides(border_pts_sorted)
     
-            sidePts = BorderPtsSorted[index]
-            sidePtsIds = BorderPtsSortedIds[index]
+            side_pts = border_pts_sorted[index]
+            side_pts_ids = border_pts_sorted_ids[index]
     
-            return sidePts, SurfacePts2D
+            return side_pts, surface_pts_2d
         else
-            return BorderPtsSorted, SurfacePts2D
+            return border_pts_sorted, surface_pts_2d
+        end
+    end 
+end
+
+function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
+    
+    if length(BorderNodesList) != 0
+        surface_nodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
+    else        
+        surface_nodes = NodeList
+    end
+
+    if GRAD
+        ∇surface_nodes = dqdθ[:,BorderNodesList,:] 
+        surface_pts_2d, ∇surface_pts_2d = back_project(surface_nodes, camera_matrix, camera_pose, ∇surface_nodes) 
+    else
+        surface_pts_2d = back_project(surface_nodes, camera_matrix, camera_pose) 
+    end
+
+    p = Array{Vector{Float64}}(undef,0)
+
+    iter = 1:size(surface_pts_2d,2)
+    for i in iter
+        push!(p, surface_pts_2d[:,i])
+    end
+
+    hull = ch.ConvexHull(p)
+
+    border_pt_ids = ch.indices(hull)
+    border_pts = surface_pts_2d[:,border_pt_ids]
+    border_pts_sorted, border_pts_sorted_ids = sort_points(border_pts)
+
+    if GRAD
+        ∇border_pts = ∇surface_pts_2d[:,border_pt_ids,:]
+        ∇border_pts_sorted = ∇border_pts[:,border_pts_sorted_ids,:]
+        if SIDES
+            side_pts, index = get_sides(border_pts_sorted)
+
+            side_pts_ids = border_pts_sorted_ids[index]
+            ∇side_pts = ∇border_pts_sorted[:,side_pts_ids,:]
+
+            return side_pts, ∇side_pts, surface_pts_2d
+        else
+            return border_pts_sorted, ∇border_pts_sorted, surface_pts_2d, ∇surface_pts_2d
+        end
+    else
+        if SIDES
+            side_pts, index = get_sides(border_pts_sorted)
+    
+            side_pts = border_pts_sorted[index]
+            side_pts_ids = border_pts_sorted_ids[index]
+    
+            return side_pts, surface_pts_2d
+        else
+            return border_pts_sorted, surface_pts_2d
         end
     end
 end
