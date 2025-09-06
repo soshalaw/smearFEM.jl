@@ -103,9 +103,12 @@ function main()
   camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
   camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
 
-  β_list = [10.0, 50.0, 100.0, 400.0, 700.0, 1e3, 4e3, 7e3, 1e4, 9e4, 1e5, 1e6]
-  η_list = [60.0]
+  # β_list = [10.0, 50.0, 100.0, 400.0, 700.0, 1e3, 4e3, 7e3, 1e4, 9e4, 1e5, 1e6]
+  # η_list = [60.0]
 
+  β_list = [10.0, 50.0, 100.0, 1e3]
+  η_list = [60.0]
+  
   const_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, ne, camera_matrix, camera_pose, β_list, η_list)
   bulk_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, ne, camera_matrix, camera_pose, β_list, η_list)
 
