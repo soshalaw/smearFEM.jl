@@ -200,7 +200,7 @@ function test_opt_const(exp_params::Dict)
 
         if WRITE_GT == true
             @info "Writing ground truth gt data to with $ne_gt elements to $filepath"
-            write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepath)
+            write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepath_gt)
         end
 
         ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/data/sim_data/contour_data"))  
@@ -264,7 +264,7 @@ function test_opt_const(exp_params::Dict)
 
     time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
     iterList::Vector{Float64} = stats["iterList"]
-    costList::Vector{Float64} = stats["costList"]
+    costList::Vector{Float64} = stats["cost_list"]
     ηpList::Vector{Float64} = stats["ηList"]
     βpList::Vector{Float64} = stats["βList"]
 
@@ -437,7 +437,7 @@ function plot_()
 end
 
 function main()
-    ne_gt::Int = 12 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 8 # number of elements in the mesh for the ground truth
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     # β_gt_list = [5, 10, 50, 100.0, 200.0, 500.0, 1000.0, 10000.0]
     # η_gt_list = [40.0]
@@ -448,7 +448,7 @@ function main()
     refine_list = [2] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type = "constant"
-    FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
+    FunctionClass_x_gt_list = ["S2"] # Function space for the ground truth
 
     exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
     η_mat = zeros(30, exp_size)
@@ -466,7 +466,7 @@ function main()
                         @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                         filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/$control/model_validation/$FunctionClass_x/$run_id")
-                        filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/FEM/Stokes/$control/$viscosity_type/$run_id")
+                        filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/FEM/Stokes/$control/$viscosity_type/15/$run_id")
 
                         exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => ne_gt, "ne_exp" => ne, 
                                     "β_gt" => β_gt, "η_gt" => η_gt, "WRITE_GT" => WRITE_GT, "filepath" => filepath, "filepath_gt"=>filepath_gt, "control" => control, 

@@ -1406,8 +1406,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dpdβ = dpfdβ; # assemble the solution
 
             motion_y = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # extract the motion of the mesh grid
-            dmdη_out_y = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
-            dmdβ_out_y = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
+            dmdη_out_y = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'*t_steps_cached
+            dmdβ_out_y = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'*t_steps_cached
             
             motion =  motion_y*T_# extract the motion of the mesh grid
             
@@ -1415,8 +1415,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             mdl.mesh_u.NodeList = NodeList_cached     # update the mesh grid
 
             NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
-            dmdη_out_proj = dmdη_out_y
-            dmdβ_out_proj = dmdβ_out_y
+            dmdη_out_proj = dmdη_out_y*T_*T
+            dmdβ_out_proj = dmdβ_out_y*T_*T
             motion_proj = motion*T
             
             dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
@@ -1539,7 +1539,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     
     # write the data to a file
     if conditions.ANIMATE
-        animate_fields(filepath = string(conditions.filepath,"/Results/images"), Nodes=pos3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+        animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
         animate_fields(filepath = string(conditions.filepath,"/Results/images/surface"), Nodes=surface_pts_3D)
     end
     if conditions.WRITECONTOUR

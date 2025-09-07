@@ -35,7 +35,7 @@ viscosity_type = "constant" # "constant" or "bulk_viscosity"
 F_ext::Float64 = 250000.0
 F::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps)))
 # F::Float64 = 3.0
-ne = 8
+ne = 4
 Δη = 1e-8
 Δβ = 1e-8
 
@@ -128,14 +128,14 @@ for i in 1:iIter
 end
 
 ## Testing ∇u(θ)
-BorderPts2D, dudη, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, camera_matrix, camera_pose, mdl.mesh_u.side_nodes, GRAD=true, dqdθ=dp, SIDES=false)
+BorderPts2D, dudη, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, camera_matrix, camera_pose, BorderNodesList = mdl.mesh_u.side_nodes, GRAD=true, dqdθ=dp, SIDES=false)
 
 # estimate dudη with finite (central) difference
-ΔBorderPts2Dηp, ΔSurfacePts2Dηp = extract_borders(ΔNodesηp, camera_matrix, camera_pose, mdl.mesh_u.side_nodes, GRAD=false)
-ΔBorderPts2Dηm, ΔSurfacePts2Dηm = extract_borders(ΔNodesηm, camera_matrix, camera_pose, mdl.mesh_u.side_nodes, GRAD=false)
+ΔBorderPts2Dηp, ΔSurfacePts2Dηp = extract_borders(ΔNodesηp, camera_matrix, camera_pose, BorderNodesList=mdl.mesh_u.side_nodes, GRAD=false)
+ΔBorderPts2Dηm, ΔSurfacePts2Dηm = extract_borders(ΔNodesηm, camera_matrix, camera_pose, BorderNodesList=mdl.mesh_u.side_nodes, GRAD=false)
 
-ΔBorderPts2Dβp, ΔSurfacePts2Dβp = extract_borders(ΔNodesβp, camera_matrix, camera_pose, mdl.mesh_u.side_nodes, GRAD=false)
-ΔBorderPts2Dβm, ΔSurfacePts2Dβm = extract_borders(ΔNodesβm, camera_matrix, camera_pose, mdl.mesh_u.side_nodes, GRAD=false)
+ΔBorderPts2Dβp, ΔSurfacePts2Dβp = extract_borders(ΔNodesβp, camera_matrix, camera_pose, BorderNodesList=mdl.mesh_u.side_nodes, GRAD=false)
+ΔBorderPts2Dβm, ΔSurfacePts2Dβm = extract_borders(ΔNodesβm, camera_matrix, camera_pose, BorderNodesList=mdl.mesh_u.side_nodes, GRAD=false)
 
 ∇SurfacePts2dη_approx = (ΔSurfacePts2Dηp - ΔSurfacePts2Dηm)/(2*Δη)
 ∇SurfacePts2Dβ_approx = (ΔSurfacePts2Dβp - ΔSurfacePts2Dβm)/(2*Δβ)

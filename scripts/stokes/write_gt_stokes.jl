@@ -89,7 +89,7 @@ function main()
   FunctionClass_p::String = "Q1"
   nDof_p::Int = 1  # number of degree of freedom per node
 
-  ne::Int = 8 # number of elements in the mesh for the ground truth
+  ne::Int = 15 # number of elements in the mesh for the ground truth
 
   camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
   camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
@@ -100,7 +100,7 @@ function main()
   β_list = [10.0, 50.0, 100.0, 1e3]
   η_list = [60.0]
   
-  const_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, ne, camera_matrix, camera_pose, β_list, η_list)
+  # const_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, ne, camera_matrix, camera_pose, β_list, η_list)
   bulk_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, ne, camera_matrix, camera_pose, β_list, η_list)
 
 end
