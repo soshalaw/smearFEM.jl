@@ -251,7 +251,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     h_, gradList, borderPts2DList, fields, pos3D, pos2D, _ = simulate(model, scene, conditions) # run the simulation
     
     h = get_height(h_, model.mesh_u.h) # get the mesh height with time
-    
+    display(scene.cParam)
     params = Dict("r"=>model.mesh_u.r, "h"=>model.mesh_u.h, "η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "camera_pose" => conditions.camera_pose, 
                     "control_type"=>scene.control, "cParam"=>scene.cParam, "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps, 
                     "viscosity_type"=>scene.viscosity_type)

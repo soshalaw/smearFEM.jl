@@ -237,8 +237,8 @@ function test_opt_const(exp_params::Dict)
     write_json(string(exp_path,"/Results/data/sim_params"), exp_params)
 
     # simulation parameters for the experiments
-    sim_time::Float64 = 5.0 # simulation time in seconds 
-    steps::Float64 = 50.0 # number of time steps
+    sim_time::Float64 = 10.0 # simulation time in seconds 
+    steps::Float64 = 100.0 # number of time steps
     t_steps::Float64 = sim_time/steps
 
     @argcheck t_steps >= t_steps_gt "time resolution of the ground truth is not enough"
@@ -445,8 +445,8 @@ function main()
     β_gt_list = [10.0, 50.0, 100.0, 1e3]
     η_gt_list = [60.0]
     FunctionClass_x_List = ["S2", "Q2"]
+    # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    # refine_list = [1] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type = "constant"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
@@ -462,7 +462,7 @@ function main()
             for η_gt in η_gt_list
 
                 filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/$control/model_validation/$run_id")
-                filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/FEM/Stokes/$control/$viscosity_type/$ne_gt/$run_id")
+                filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$ne_gt/$run_id")
                 
                 for ref in refine_list
                     ne = ne_exp^ref
