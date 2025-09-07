@@ -4,7 +4,7 @@ using Plots, Plots.PlotMeasures
 using LaTeXStrings
 using StatsPlots
 
-function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, nDof_u::Int, FunctionClass_p::String, nDof_p::Int, ne::Int, 
+function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, nDof_u::Int, FunctionClass_p::String, nDof_p::Int, FunctionClass_x::String, ne::Int, 
                     camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, β_list::Vector{Float64}, η_list::Vector{Float64})
 
   control::String = "force" # "force" or "velocity"
@@ -28,9 +28,9 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
     F = F_*3*gt_β
     for gt_η::Float64 in η_list
 
-      model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, "Q2", gt_β, F, control, viscosity_type, 
+      model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, gt_β, F, control, viscosity_type, 
                     sim_time, t_steps)
-      filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$i")
+      filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$ne/$i")
       write_sim_data(model, scene, camera_matrix, camera_pose, filepath)
 
       i += 1
@@ -38,7 +38,7 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
   end
 end
 
-function bulk_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, nDof_u::Int, FunctionClass_p::String, nDof_p::Int, ne::Int, 
+function bulk_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, nDof_u::Int, FunctionClass_p::String, nDof_p::Int, FunctionClass_x::String, ne::Int, 
                     camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, β_list::Vector{Float64}, η_list::Vector{Float64})
 
   control::String = "force" # "force" or "velocity"
@@ -59,9 +59,9 @@ function bulk_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, nD
 
     for gt_η::Float64 in η_list
 
-      model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, "Q2", gt_β, F, control, viscosity_type, 
+      model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, gt_β, F, control, viscosity_type, 
               sim_time, t_steps)
-      filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$i")
+      filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$ne/$i")
       write_sim_data(model, scene, camera_matrix, camera_pose, filepath)
 
       set_file(string(filepath,"/Results/plots"))
@@ -83,12 +83,13 @@ function main()
   r::Float64 = 0.5*scale  # radius of the cylinder in mm
   h::Float64 = 1*scale  # height of the cylinder in mm
   ndim::Int = 3
-  FunctionClass_u::String = "S2"
+  FunctionClass_x::String = "S2"
+  FunctionClass_u::String = "Q2"
   nDof_u::Int = ndim  # number of degree of freedom per node
   FunctionClass_p::String = "Q1"
   nDof_p::Int = 1  # number of degree of freedom per node
 
-  ne::Int = 8 # number of elements in the mesh for the ground truth
+  ne::Int = 4 # number of elements in the mesh for the ground truth
 
   camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
   camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
@@ -99,8 +100,8 @@ function main()
   β_list = [10.0, 50.0, 100.0, 1e3]
   η_list = [60.0]
   
-  const_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, ne, camera_matrix, camera_pose, β_list, η_list)
-  bulk_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, ne, camera_matrix, camera_pose, β_list, η_list)
+  const_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, ne, camera_matrix, camera_pose, β_list, η_list)
+  bulk_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, ne, camera_matrix, camera_pose, β_list, η_list)
 
 end
 

@@ -263,6 +263,7 @@ Function to read mesh data from a .h5 file for IGA.
 """
 function read_h5(filename::String, mode::String="sim")
     # Open the HDF5 file
+    @info "reading from $filename"
     h5file = h5open(filename, "r")
 
     # Read mesh
