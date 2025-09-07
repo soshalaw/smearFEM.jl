@@ -230,7 +230,7 @@ function test_opt_const(exp_params::Dict)
     
     FunctionClass_x = exp_params["FunctionClass_x"]
     ne_exp::Int = exp_params["ne_exp"] # number of elements in the mesh for the experiment
-    exp_path = string(filepath,"/runs/",FunctionClass_x,"_",ne_exp)
+    exp_path = string("$filepath/runs/$FunctionClass_x_$ne_exp")
     
     model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
                     sim_time_gt, t_steps_gt)
@@ -290,7 +290,8 @@ function test_opt_const(exp_params::Dict)
     animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinep, q=splineq, pObs=splinexObs, qObs=splineyObs)
 
     est_h = get_height(est_μ_list, h)
-    gt_h = readdlm(string(filepath_gt,"/data/h.csv"), ',', Float64)
+    gt_h_ = readdlm(string(filepath_gt,"/data/h.csv"), ',', Float64)
+    gt_h = gt_h_[1:(round(Int,sim_time/t_steps)+1)]
 
     set_file(string(exp_path,"/Results/plots"))
     set_plot(22)
@@ -437,18 +438,18 @@ function plot_()
 end
 
 function main()
-    ne_gt::Int = 8 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 15 # number of elements in the mesh for the ground truth
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     # β_gt_list = [5, 10, 50, 100.0, 200.0, 500.0, 1000.0, 10000.0]
     # η_gt_list = [40.0]
     β_gt_list = [10.0, 50.0, 100.0, 1e3]
     η_gt_list = [60.0]
-    FunctionClass_x_List = ["S2"]
-    # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2] # refinement levels, ne = ne_exp^refine
+    FunctionClass_x_List = ["S2", "Q2"]
+    refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
+    # refine_list = [2] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type = "constant"
-    FunctionClass_x_gt_list = ["S2"] # Function space for the ground truth
+    FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
 
     exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
     η_mat = zeros(30, exp_size)
@@ -459,30 +460,31 @@ function main()
         run_id = 1
         for β_gt in β_gt_list
             for η_gt in η_gt_list
+
+                filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/$control/model_validation/$run_id")
+                filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/FEM/Stokes/$control/$viscosity_type/$ne_gt/$run_id")
+                
                 for ref in refine_list
                     ne = ne_exp^ref
                     @info "Running optimization with ne = $ne"
                     for FunctionClass_x in FunctionClass_x_List
                         @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
-                        filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/$control/model_validation/$FunctionClass_x/$run_id")
-                        filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/FEM/Stokes/$control/$viscosity_type/15/$run_id")
-
                         exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => ne_gt, "ne_exp" => ne, 
                                     "β_gt" => β_gt, "η_gt" => η_gt, "WRITE_GT" => WRITE_GT, "filepath" => filepath, "filepath_gt"=>filepath_gt, "control" => control, 
                                     "viscosity_type"=>viscosity_type, "FunctionClass_x_gt" => FunctionClass_x_gt)
 
                         test_opt_const(exp_params)
-                        run_id += 1
                     end
                 end
-                post_analysis(filepath)
+                post_analysis(filepath_gt, filepath)
+                run_id = run_id + 1
             end
         end
     end
 end
 
-function post_analysis(filepath_gt::String)
+function post_analysis(filepath_gt::String, filepath::String)
     # ηList = readdlm(string(filepath_gt,"/data/η.csv"), ',', Float64)
     # βList = readdlm(string(filepath_gt,"/data/β.csv"), ',', Float64)
 
@@ -494,22 +496,22 @@ function post_analysis(filepath_gt::String)
     gt_η_list = gt_η[1]*ones(30,1)
     gt_β_list = gt_β[1]*ones(30,1)
 
-    run_filepath = readdir(string(filepath_gt,"/runs/"))
+    run_filepath = readdir(string(filepath,"/runs/"))
 
     fig1 = Plots.plot(gt_η_list, label="Ground truth η", dpi=400)
     Plots.xlabel!(fig1,"Iterations")
     Plots.ylabel!(fig1,"η")
-    Plots.ylims!(fig1, gt_η[1]*0.5, gt_η[1]*1.5)
+    # Plots.ylims!(fig1, gt_η[1]*0.5, gt_η[1]*1.5)
 
 
     fig2 = Plots.plot(gt_β_list, label="Ground truth β", dpi=400)
     Plots.xlabel!(fig2, "Iterations")
     Plots.ylabel!(fig2, "β")
-    Plots.ylims!(fig2, abs(gt_β[1]-30), gt_β[1]*1.05)
+    # Plots.ylims!(fig2, abs(gt_β[1]-30), gt_β[1]*1.05)
 
     for run_folder_ in run_filepath
         println("Processing folder: ", run_folder_)
-        run_folder = string(filepath_gt,"/runs/",run_folder_)
+        run_folder = string(filepath,"/runs/",run_folder_)
         params = read_json(string(run_folder,"/Results/data/sim_params.json"))
 
         FunctionClass_x = params["FunctionClass_x"]
@@ -524,7 +526,7 @@ function post_analysis(filepath_gt::String)
         end
     end
 
-    plot_path = string(filepath_gt,"/Results/plots")
+    plot_path = string(filepath,"/Results/plots")
     set_file(plot_path)
     Plots.savefig(fig1, string(plot_path,"/η_comp_zoomed.pdf"))
     Plots.savefig(fig2, string(plot_path,"/β_comp_zoomed.pdf"))
