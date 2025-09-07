@@ -83,7 +83,7 @@ function main()
   r::Float64 = 0.5*scale  # radius of the cylinder in mm
   h::Float64 = 1*scale  # height of the cylinder in mm
   ndim::Int = 3
-  FunctionClass_x::String = "S2"
+  FunctionClass_x::String = "Q2"
   FunctionClass_u::String = "Q2"
   nDof_u::Int = ndim  # number of degree of freedom per node
   FunctionClass_p::String = "Q1"

@@ -290,7 +290,7 @@ function test_opt_const(exp_params::Dict)
     animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinep, q=splineq, pObs=splinexObs, qObs=splineyObs)
 
     est_h = get_height(est_μ_list, h)
-    gt_h = readdlm(string(filepath,"/data/h.csv"), ',', Float64)
+    gt_h = readdlm(string(filepath_gt,"/data/h.csv"), ',', Float64)
 
     set_file(string(exp_path,"/Results/plots"))
     set_plot(22)
