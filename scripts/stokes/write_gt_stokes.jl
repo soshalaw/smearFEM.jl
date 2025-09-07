@@ -83,12 +83,12 @@ function main()
   r::Float64 = 0.5*scale  # radius of the cylinder in mm
   h::Float64 = 1*scale  # height of the cylinder in mm
   ndim::Int = 3
-  FunctionClass_u::String = "Q2"
+  FunctionClass_u::String = "S2"
   nDof_u::Int = ndim  # number of degree of freedom per node
   FunctionClass_p::String = "Q1"
   nDof_p::Int = 1  # number of degree of freedom per node
 
-  ne::Int = 15 # number of elements in the mesh for the ground truth
+  ne::Int = 8 # number of elements in the mesh for the ground truth
 
   camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
   camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm

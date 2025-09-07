@@ -1521,7 +1521,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(NodeList_proj[:,top_node_list_cached]', NodeList_proj[:,bottom_node_list_cached]', NodeList_proj[:,side_node_list_cached]')')
+            push!(surface_pts_3D, NodeList_proj[:,side_node_list_cached]')
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_proj)
@@ -1539,7 +1539,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     
     # write the data to a file
     if conditions.ANIMATE
-        animate_fields(filepath = string(conditions.filepath,"/Results/images"), Nodes=pos3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D, p=splinep, q=splineq)
+        animate_fields(filepath = string(conditions.filepath,"/Results/images"), Nodes=pos3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+        animate_fields(filepath = string(conditions.filepath,"/Results/images/surface"), Nodes=surface_pts_3D)
     end
     if conditions.WRITECONTOUR
         write_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)

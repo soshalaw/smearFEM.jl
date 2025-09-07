@@ -22,8 +22,8 @@ camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
 μu_btm = 0
 μu_side = 0
 
-sim_time = 10.0
-steps = 10.0
+sim_time = 5.0
+steps = 50.0
 t_steps = sim_time/steps
 time = collect(range(start=t_steps,stop=sim_time,step=t_steps)) # time vector
 

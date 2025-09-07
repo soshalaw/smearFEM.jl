@@ -236,7 +236,7 @@ function animate_2D_comp(;borders=nothing, filepath="images/2D_grid.gif")
             Plots.ylims!(0,1536)
             next!(pr)
         end
-        gif(animation2, string(filepath,"/2D_grid.gif"), fps=10)
+        gif(animation2, string(filepath,"2D_grid.gif"), fps=10)
     end
 end
 
@@ -297,7 +297,7 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
                             label="")
         if !isnothing(fields)
             if isnothing(IEN)
-                throw(ArgumentError("IEN array not provided"))
+                Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:indianred2, markersize=4, label=:"", dpi=:400)
             else
                 ien_iter = 1:size(IEN,2)
                 Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:royalblue, markersize=4, label=:"", dpi=:400)
@@ -317,7 +317,7 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
         next!(pr)
     end
 
-    gif(animation, string(filepath,"/3D_grid.gif"), fps=10)
+    gif(animation, string(filepath,"3D_grid.gif"), fps=10)
 end
 
 function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath::String="None")
