@@ -356,21 +356,21 @@ function test_opt_const(exp_params::Dict)
     η_iter = 1:size(ηList,1)
     β_iter = 1:size(βList,1)
 
-    for i::Int in η_iter
-        η = ηList[i]
-        for j::Int in β_iter
-            β = βList[j]
-            reset_model!(model)
-            model.η = [η]
-            scene.β = [β]
-            μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+    # for i::Int in η_iter
+    #     η = ηList[i]
+    #     for j::Int in β_iter
+    #         β = βList[j]
+    #         reset_model!(model)
+    #         model.η = [η]
+    #         scene.β = [β]
+    #         μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
 
-            # test the closest point function
-            d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+    #         # test the closest point function
+    #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
             
-            CostMat[i,j] = sum(d_cp)
-        end
-    end
+    #         CostMat[i,j] = sum(d_cp)
+    #     end
+    # end
     
     # Plot the cost function surface
     set_plot(22)
@@ -444,9 +444,9 @@ function main()
     # η_gt_list = [40.0]
     β_gt_list = [10.0, 50.0, 100.0, 1e3]
     η_gt_list = [60.0]
-    FunctionClass_x_List = ["S2", "Q2"]
+    FunctionClass_x_List = ["S2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
+    refine_list = [1, 2] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type = "constant"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth

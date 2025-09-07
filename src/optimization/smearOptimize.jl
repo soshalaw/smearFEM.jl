@@ -256,7 +256,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         # if c_grad < 0.001
         #     break
         # else
-            if iter ≥ 30
+            if iter ≥ 20
             break
         end
     end
