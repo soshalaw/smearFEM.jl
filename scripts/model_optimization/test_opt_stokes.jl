@@ -445,8 +445,8 @@ function main()
     β_gt_list = [10.0, 50.0, 100.0, 1e3]
     η_gt_list = [60.0]
     FunctionClass_x_List = ["S2", "Q2"]
-    # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [1] # refinement levels, ne = ne_exp^refine
+    refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
+    # refine_list = [1] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type = "constant"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
