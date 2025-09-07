@@ -230,7 +230,7 @@ function test_opt_const(exp_params::Dict)
     
     FunctionClass_x = exp_params["FunctionClass_x"]
     ne_exp::Int = exp_params["ne_exp"] # number of elements in the mesh for the experiment
-    exp_path = string("$filepath/runs/$FunctionClass_x_$ne_exp")
+    exp_path = string("$filepath/runs/$FunctionClass_x/$ne_exp")
     
     model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
                     sim_time_gt, t_steps_gt)
