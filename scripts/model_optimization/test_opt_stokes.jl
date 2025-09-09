@@ -481,7 +481,7 @@ function test_opt_const(exp_params::Dict)
         Plots.xlabel!("Time (s)")
         Plots.ylabel!("η")
         Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
-
+        
         # run the simulation with the estimated parameters
         viscosity_type = "bulk_viscosity"
         est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
@@ -489,8 +489,10 @@ function test_opt_const(exp_params::Dict)
         est_model.η = est_ηpList
         est_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(est_model, est_scene, conditions)
 
-        gt_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model_gt, scene_gt, conditions)
+        gt_μ_list, gradList, simBorderPts, splinexObs, splineyObs, pos2D = simulate(model_gt, scene_gt, conditions)
 
+        animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinep, q=splineq, pObs=splinexObs, qObs=splineyObs)
+        
         est_h_list = get_height(est_μ_list, h)
         gt_h_list = get_height(gt_μ_list, h)
 
