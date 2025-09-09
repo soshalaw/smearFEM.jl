@@ -1196,10 +1196,11 @@ Simulate the Stokes problem for a given mesh over a given time period.
 """
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
-    @unpack FunctionClass, IEN, ID, NodeList, C_vol, W = mdl.mesh_x
+    @unpack FunctionClass, IEN, IEN_cp, ID, NodeList, C_vol, W = mdl.mesh_x
     FunctionClass_x_cached::String = FunctionClass
     NodeList_x_cached::Matrix{Float64} = NodeList
     IEN_x_cached::Matrix{Int} = IEN
+    IEN_x_cp_cached::Matrix{Int} = IEN_cp
     ID_x_cached::Matrix{Int} = ID
     C_vol_x_cached = C_vol
     W_x_cached = W
@@ -1280,6 +1281,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
                                         NodeList_proj[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
     gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)] # store the solution fields of the border nodes in 2D 
     pos3D = AbstractArray[NodeList_proj]       # store the solution fields of the mesh in 3D
+    pos3D_cp = AbstractArray[NodeList_cached]  
     pos2D = AbstractArray[SurfacePts2D]          # store the solution fields of the mesh in 2D
     borderPts2DList = AbstractArray[BorderPts2D] # store the solution fields of the surfaces in 2D
     splinep = AbstractArray[BorderPts2D[1,:]]  # store the x coordinates samples of the spline parameters of the border nodes
@@ -1412,7 +1414,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             motion =  motion_y*T_# extract the motion of the mesh grid
             
             NodeList_cached = NodeList_cached + motion # update the mesh grid
-            mdl.mesh_u.NodeList = NodeList_cached     # update the mesh grid
+            mdl.mesh_x.NodeList = NodeList_cached     # update the mesh grid
 
             NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
             dmdη_out_proj = dmdη_out_y*T_*T
@@ -1434,6 +1436,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_proj)
+            push!(pos3D_cp, NodeList_cached)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, BorderPts2D[1,:])
             push!(splineq, BorderPts2D[2,:])
@@ -1525,6 +1528,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
             push!(pos3D, NodeList_proj)
+            push!(pos3D_cp, NodeList_cached)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, BorderPts2D[1,:])
             push!(splineq, BorderPts2D[2,:]) 
@@ -1539,8 +1543,11 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     
     # write the data to a file
     if conditions.ANIMATE
-        animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=mdl.mesh_u.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+        animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=IEN_u_cached, BorderNodes2D=borderPts2DList, fields2D=pos2D)
         animate_fields(filepath = string(conditions.filepath,"/Results/images/surface"), Nodes=surface_pts_3D)
+        if FunctionClass_x_cached == "S2"
+            animate_fields(filepath = string(conditions.filepath,"/Results/images/cp"), Nodes=pos3D_cp, IEN=IEN_x_cp_cached)
+        end
     end
     if conditions.WRITECONTOUR
         write_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)

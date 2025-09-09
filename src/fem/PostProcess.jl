@@ -666,13 +666,8 @@ function get_lagrange_pts(IEN_cp, IEN_l, C_e, X_cp, W_cp)
     X_l = zeros(Float64, 3, n_l)
     W_l = P'*W_cp
 
-    # println("W_l", size(W_l))
     n_iter = 1:n_l
     for i in n_iter
-        # println("X_cp", size(X_cp))
-        # println("W_cp", size(diagm(W_cp)))
-        # println("P", size(P[:,i]))
-        
         X_l[:,i] = (X_cp*diagm(W_cp)/W_l[i])*P[:,i]
     end
     return X_l
@@ -686,13 +681,8 @@ function get_nurbs_2_lagrange_proj(IEN_cp, IEN_l, C_e, X_cp, W_cp)
     M = zeros(Float64, n_cp, n_l)
     W_l = P'*W_cp
 
-    # println("W_l", size(W_l))
     n_iter = 1:n_l
-    for i in n_iter
-        # println("X_cp", size(X_cp))
-        # println("W_cp", size(diagm(W_cp)))
-        # println("P", size(P[:,i]))
-        
+    for i in n_iter        
         M[:,i] = (diagm(W_cp)/W_l[i])*P[:,i]
     end
     return M

@@ -292,8 +292,8 @@ function read_h5(filename::String, mode::String="sim")
         return CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new, vol_BSpline, vol_NURBS, area_BSpline, area_NURBS
     elseif mode == "sim"
 
-        # IEN_cp = read(h5file, "IEN_cp").+1  # Element connectivity
-        IEN_cp = zeros(Int64,size(IEN))
+        IEN_cp = read(h5file, "IEN_cp").+1  # Element connectivity
+        # IEN_cp = zeros(Int64,size(IEN))
 
         # Close the HDF5 file after reading
         close(h5file)

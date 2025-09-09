@@ -11,8 +11,8 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
   viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
 
   # simulation parameters for the ground truth
-  sim_time::Float64 = 10.0# simulation time in seconds
-  steps::Float64 = 100.0 # number of time steps
+  sim_time::Float64 = 5.0# simulation time in seconds
+  steps::Float64 = 50.0 # number of time steps
   t_steps::Float64 = sim_time/steps
 
   # F::Float64 = 150000000.0 force applied to the cylinder for β = 1e5
@@ -30,7 +30,7 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
 
       model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, gt_β, F, control, viscosity_type, 
                     sim_time, t_steps)
-      filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$ne/$i")
+      filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$ne/$FunctionClass_x/$i")
       write_sim_data(model, scene, camera_matrix, camera_pose, filepath)
 
       i += 1
@@ -61,7 +61,7 @@ function bulk_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, nD
 
       model, scene = def_problem(r, h, ne, gt_η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, gt_β, F, control, viscosity_type, 
               sim_time, t_steps)
-      filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$ne/$i")
+      filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$ne/$FunctionClass_x/$i")
       write_sim_data(model, scene, camera_matrix, camera_pose, filepath)
 
       set_file(string(filepath,"/Results/plots"))
@@ -83,7 +83,7 @@ function main()
   r::Float64 = 0.5*scale  # radius of the cylinder in mm
   h::Float64 = 1*scale  # height of the cylinder in mm
   ndim::Int = 3
-  FunctionClass_x::String = "Q2"
+  FunctionClass_x::String = "S2"
   FunctionClass_u::String = "Q2"
   nDof_u::Int = ndim  # number of degree of freedom per node
   FunctionClass_p::String = "Q1"
@@ -97,7 +97,7 @@ function main()
   # β_list = [10.0, 50.0, 100.0, 400.0, 700.0, 1e3, 4e3, 7e3, 1e4, 9e4, 1e5, 1e6]
   # η_list = [60.0]
 
-  β_list = [10.0, 50.0, 100.0, 1e3]
+  β_list = [100.0]
   η_list = [60.0]
   
   const_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, ne, camera_matrix, camera_pose, β_list, η_list)

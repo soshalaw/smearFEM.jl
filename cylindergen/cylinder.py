@@ -6,7 +6,7 @@
 # This script generates a Bezier extraction file for a cylinder.
 
 import splipy, splipy.volume_factory, splipy.surface_factory, splipy.utils.nutils
-from nutils import mesh, function, cli
+from nutils import mesh, function, cli, export
 import treelog
 import numpy, h5py
 import stokes as stokes, extraction
@@ -49,6 +49,26 @@ def main(case='nurbs geometry',
     vol_BSpline = domain.integrate(function.J(function.matmat(bspline_basis, X)), degree=2*p)
     vol_NURBS = domain.integrate(function.J(geom), degree=2*p)
 
+    cp_domain, cp_geom = mesh.rectilinear([numpy.linspace(0,1,n) for n in cylinder.controlpoints.shape[:-1]])
+    cp_basis = cp_domain.basis("std",1)
+    cp_geom = function.matmat(cp_basis, X)
+
+    # plot the CAD object
+    bezier = domain.sample('bezier', 3)
+    x = bezier.eval(geom)
+    export.vtk('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/vtkFiles/cylinder', bezier.tri, x)
+
+    # plot the CAD object
+    cp_bezier = cp_domain.sample('bezier', 3)
+    x_cp = cp_bezier.eval(cp_geom)
+    export.vtk('/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/vtkFiles/cylinder_cp', cp_bezier.tri, x_cp)
+
+    map_cp = [0, 4, 6, 2, 1, 5, 7, 3]
+    IEN_cp = numpy.empty(shape=(numpy.prod(cp_domain.shape),(2)**3),dtype=int)
+    for e, ref  in enumerate(cp_domain.references):
+        IEN_e = cp_basis.get_dofs(e)
+        IEN_cp[e,:] = IEN_e[map_cp]
+
     treelog.user(f'BSpline volume = {vol_BSpline}')
     treelog.user(f'NURBS volume = {vol_NURBS}')
 
@@ -60,7 +80,7 @@ def main(case='nurbs geometry',
 
     # Interior lagrange extraction
     IEN, C = extraction.get_lagrange_extraction(extraction_topo=domain, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
-
+    
     # Boundary lagrange extraction
     boundaries = {'front': 'front', 'back': 'back', 'sides': 'left, right, top, bottom'}
     boundaries_IEN = {}
@@ -86,11 +106,12 @@ def main(case='nurbs geometry',
     numpy.savetxt(str(Path(save_dir,'node_list.csv')),x.astype(numpy.float64),delimiter=",")
     numpy.savetxt(str(Path(save_dir,'sol_u.csv')),lhsu.astype(numpy.float64),delimiter=",")
 
-    with h5py.File(Path(save_dir , ('cylinder')).with_suffix('.h5'), 'w') as f:
+    with h5py.File(Path(save_dir.parent, ('cylinder_'+str(nref))).with_suffix('.h5'), 'w') as f:
         f.create_dataset('X', data=X)
         f.create_dataset('W', data=W)
         f.create_dataset('C', data=C[elem_renumbering,:,:])
         f.create_dataset('IEN', data=IEN[elem_renumbering,:])
+        f.create_dataset('IEN_cp', data=IEN_cp)
         for boundary_name, boundary_IEN in boundaries_IEN.items():
             f.create_dataset(('IEN_'+str(boundary_name)), data=boundary_IEN)
         for boundary_name, boundary_C in boundaries_C.items():

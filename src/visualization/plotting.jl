@@ -259,7 +259,7 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
         zmax = maximum(fields[1][3,:])
         zmin = minimum(fields[1][3,:])
     elseif !isnothing(surface_pts)
-        sz = length(surface_pts)
+        sz = length(surface_pts)            
         xmax = maximum(surface_pts[1][1,:])
         xmin = minimum(surface_pts[1][1,:])
         ymax = maximum(surface_pts[1][2,:])
@@ -272,6 +272,11 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
     fac = 0.2 # factor to extend the limits of the plot
     pr = Progress(sz; desc="Animating 3D fields...",showspeed=true)
     animation = @animate for i in iter
+        if !isnothing(fields)
+            zmin = minimum(fields[i][3,:])
+        elseif !isnothing(surface_pts)
+            zmin = minimum(surface_pts[i][3,:])
+        end
         plt = Plots.plot(1, 
                             xlims=(xmin-fac*(xmax-xmin), xmax+fac*(xmax-xmin)),
                             ylims=(ymin-fac*(ymax-ymin), ymax+fac*(ymax-ymin)),
@@ -301,8 +306,13 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
             else
                 ien_iter = 1:size(IEN,2)
                 Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:royalblue, markersize=4, label=:"", dpi=:400)
-                for e in ien_iter
+                seq = []
+                if size(IEN,1) == 27
                     seq = [1,9,2,10,3,11,4,12,1,17,5,13,6,14,7,15,8,16,5,13,6,18,2,10,3,19,7,15,8,20,4]
+                elseif size(IEN,1) == 8
+                    seq = [1,2,3,4,1,5,6,8,5,6,2,3,7,8,4]
+                end
+                for e in ien_iter
                     IEN_e = IEN[:,e]
                     x = fields[i][1,IEN_e[seq]]
                     y = fields[i][2,IEN_e[seq]]
