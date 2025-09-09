@@ -612,7 +612,7 @@ function main()
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [2] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"]
+    viscosity_type_list = ["bulk_viscosity"]
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
 
     exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
