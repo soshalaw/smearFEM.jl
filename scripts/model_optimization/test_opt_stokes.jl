@@ -491,7 +491,7 @@ function test_opt_const(exp_params::Dict)
 
         gt_μ_list, gradList, simBorderPts, splinexObs, splineyObs, pos2D = simulate(model_gt, scene_gt, conditions)
 
-        animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinep, q=splineq, pObs=splinexObs, qObs=splineyObs)
+        animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinex, q=spliney, pObs=splinexObs, qObs=splineyObs)
         
         est_h_list = get_height(est_μ_list, h)
         gt_h_list = get_height(gt_μ_list, h)
