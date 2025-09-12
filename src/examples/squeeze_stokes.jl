@@ -1123,7 +1123,10 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
 
     if viscosity_type == "bulk_viscosity"
         η = get_η.(time, -cParam, r, h, η_0, n, K)
-        display(Plots.plot(time,η))
+        plt = set_plot(22)
+        Plots.xlabel!(plt, "Time")
+        Plots.ylabel!(plt, "η(t)")
+        display(Plots.plot!(time,η))
     else
         η = [η_0]
     end 
