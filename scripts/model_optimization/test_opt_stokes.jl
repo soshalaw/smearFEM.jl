@@ -622,7 +622,7 @@ function main()
     η_mat = zeros(30, exp_size)
     β_mat = zeros(30, exp_size)
 
-    WRITE_GT = true
+    WRITE_GT = false
     for viscosity_type in viscosity_type_list
         for FunctionClass_x_gt in FunctionClass_x_gt_list
             run_id = 1
@@ -643,7 +643,7 @@ function main()
                                         "viscosity_type"=>viscosity_type, "FunctionClass_x_gt" => FunctionClass_x_gt)
     
                             test_opt_const(exp_params)
-                            WRITE_GT = true
+                            # WRITE_GT = true
                         end
                     end
                     # post_analysis(filepath_gt, filepath)
