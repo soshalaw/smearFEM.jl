@@ -71,7 +71,7 @@ function plot_mesh(NodeList, IEN)
         for i in iter
             x = NodeList[1,IEN[i,:]]
             y = NodeList[2,IEN[i,:]]
-            Plots.plot!(x, y, marker=1.5, lw=0.5, label="", lw=3)
+            Plots.plot!(x, y, marker=1.5, lw=0.5, label="")
         end
 
     elseif sz == 3
