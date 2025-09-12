@@ -360,7 +360,7 @@ function test_opt_const(exp_params::Dict)
             βStart = β-dev_β
         end
 
-        sampleNo = 4
+        sampleNo = 5
         ηList = collect(range(ηStart, stop=ηStop, length=sampleNo))
         βList = collect(range(βStart, stop=βStop, length=sampleNo))
         CostMat = zeros(size(ηList,1),size(βList,1))
@@ -377,8 +377,8 @@ function test_opt_const(exp_params::Dict)
                 reset_model!(model)
                 model.η = [η]
                 scene.β = [β]
-                μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-
+                μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+                
                 # test the closest point function
                 d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
                 
@@ -601,14 +601,14 @@ function post_analysis(filepath_gt::String, filepath::String)
 end
 
 function main()
-    ne_gt::Int = 4 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 8 # number of elements in the mesh for the ground truth
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     # β_gt_list = [5, 10, 50, 100.0, 200.0, 500.0, 1000.0, 10000.0]
     # η_gt_list = [40.0]
     β_gt_list = [10.0, 50.0, 100.0, 1e3]
     # β_gt_list = [100.0]
     η_gt_list = [60.0]
-    FunctionClass_x_List = ["Q2"]
+    FunctionClass_x_List = ["Q2", "S2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [2] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"

@@ -320,6 +320,6 @@ function basis_function(ξ::Float64, η::Float64, ζ::Float64, Ce::Matrix{Float6
     Re = (We.*Be)/we
     ΔRe = (We.*ΔBe)/we - ((We.*Be)*Δwe')/we^2
 
-    return Be, ΔBe
-    # return Re, ΔRe
+    # return Be, ΔBe
+    return Re, ΔRe
 end

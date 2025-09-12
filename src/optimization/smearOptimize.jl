@@ -118,13 +118,13 @@ function init_cylinder()
     h_gt::Float64 = 0.5*scale  # height of the cylinder in mm
     NodeListCyl_gt = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r_gt, h_gt)
     side_nodes = BorderNodes[1]
-    obsBorderPts, g_SurfacePts2D = extract_borders(NodeListCyl_gt, camera_matrix, camera_pose, side_nodes, nNodes)
+    obsBorderPts, g_SurfacePts2D = extract_borders(NodeListCyl_gt, camera_matrix, camera_pose, BorderNodesList=side_nodes, nNodes)
 
     # optimizer
     r = 1*scale*ones(ne)
     h = 1*scale
     NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
-    simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, side_nodes, nNodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
+    simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
 
     d, ∂d, ∂2d, pairs = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
     totdinit::Float64 = sum(d)/length(d)
@@ -160,7 +160,7 @@ function init_cylinder()
         h = θ[2]
 
         NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
-        simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, side_nodes, nNodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
+        simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
 
         d, ∂d, ∂2d, pairs = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
 
@@ -277,9 +277,6 @@ function val_check(v::Vector{Float64})
         if v[i] < 0 
             println("Negative value: ", v[i])
             v[i] = abs(v[i])
-        # elseif v[i] < 0
-        #     println("Negative value: ", v[i])
-        #     v[i] = 0.5
         end
     end
     return v
