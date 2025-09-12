@@ -398,6 +398,7 @@ function set_plot(fs::Int)
 
                             grid = :true, 
                             minorgrid = :true, 
+                            lw = 3,
                             
                             label="")
     return plt
