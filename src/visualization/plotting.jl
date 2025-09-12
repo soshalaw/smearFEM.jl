@@ -81,7 +81,7 @@ function plot_mesh(NodeList, IEN)
             x = NodeList[1,IEN[i,:]]
             y = NodeList[2,IEN[i,:]]
             z = NodeList[3,IEN[i,:]]
-            Plots.plot3d!(x, y, z,marker=1.5, lw=0.5, label="", dpi=:400, lw=3)
+            Plots.plot3d!(x, y, z,marker=1.5, lw=0.5, label="", dpi=:400)
         end
 
         Plots.xlabel!(L"x")
