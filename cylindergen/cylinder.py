@@ -80,6 +80,13 @@ def main(case='nurbs geometry',
 
     # Interior lagrange extraction
     IEN, C = extraction.get_lagrange_extraction(extraction_topo=domain, topo=domain, geom=ξ, basis=bspline_basis, degree=p)
+    print("IEN array shape :",numpy.shape(IEN))
+    print("Extraction operator shape :",numpy.shape(C))
+
+    # lagrange extraction for visualization
+    IEN, C, IEN_vis, C_vis = extraction.get_lagrange_extraction(extraction_topo=domain, topo=domain, geom=ξ, basis=bspline_basis, degree=p, increase_degree_by_vis=1)
+    print("IEN_vis array shape :",numpy.shape(IEN_vis))
+    print("Extraction operator shape :",numpy.shape(C_vis))
     
     # Boundary lagrange extraction
     boundaries = {'front': 'front', 'back': 'back', 'sides': 'left, right, top, bottom'}
@@ -93,11 +100,9 @@ def main(case='nurbs geometry',
         boundaries_IEN[boundary_name] = bIEN[bnd_renumbering,:] 
         boundaries_C[boundary_name] = bC[bnd_renumbering,:,:]
 
-    print(numpy.shape(x))
-    print(numpy.shape(lhsu))
     # Save to an HDF5 file
     elem_renumbering = numpy.swapaxes(numpy.arange(IEN.shape[0]).reshape(domain.shape),0,2).ravel()
-    print("IEN shape :",numpy.shape(IEN))
+    
     script_dir = Path( __file__ ).parent.absolute()
 
     save_dir = Path(script_dir,'slip_1')
@@ -111,6 +116,8 @@ def main(case='nurbs geometry',
         f.create_dataset('W', data=W)
         f.create_dataset('C', data=C[elem_renumbering,:,:])
         f.create_dataset('IEN', data=IEN[elem_renumbering,:])
+        f.create_dataset('C_vis', data=C_vis[elem_renumbering,:,:])
+        f.create_dataset('IEN_vis', data=IEN_vis[elem_renumbering,:])
         f.create_dataset('IEN_cp', data=IEN_cp)
         for boundary_name, boundary_IEN in boundaries_IEN.items():
             f.create_dataset(('IEN_'+str(boundary_name)), data=boundary_IEN)

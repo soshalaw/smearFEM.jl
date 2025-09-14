@@ -275,10 +275,15 @@ function read_h5(filename::String, mode::String="sim")
 
     IEN_top = read(h5file, "IEN_back").+1  # Element connectivity
     IEN_btm = read(h5file, "IEN_front").+1  # Element connectivity
+    IEN_vis = read(h5file, "IEN_vis").+1  # Element connectivity
+    IEN_cp = read(h5file, "IEN_cp").+1  # Element connectivity
+    
     C_top = read(h5file, "C_back")
     C_top_new = permutedims(C_top,[2,1,3])
     C_btm = read(h5file, "C_front")
     C_btm_new = permutedims(C_btm,[2,1,3])
+    C_vis = read(h5file, "C_vis")
+    C_vis_new = permutedims(C_vis,[2,1,3])
 
     if mode == "test"
         vol_BSpline = read(h5file, "BSpline_vol")
@@ -290,14 +295,10 @@ function read_h5(filename::String, mode::String="sim")
         close(h5file)   
 
         return CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new, vol_BSpline, vol_NURBS, area_BSpline, area_NURBS
-    elseif mode == "sim"
-
-        IEN_cp = read(h5file, "IEN_cp").+1  # Element connectivity
-        # IEN_cp = zeros(Int64,size(IEN))
-
-        # Close the HDF5 file after reading
-        close(h5file)
-
-        return CPointList, W, C_new, IEN, IEN_cp, IEN_top, C_top_new, IEN_btm, C_btm_new
     end
+
+    # Close the HDF5 file after reading
+    close(h5file)
+
+    return CPointList, W, C_new, IEN, IEN_cp, IEN_top, C_top_new, IEN_btm, C_btm_new, IEN_vis, C_vis_new
 end

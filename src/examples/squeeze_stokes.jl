@@ -1270,7 +1270,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     
     NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
             
-    println(size(NodeList_proj))
     BorderPts2D, SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, nNodes_u_cached, BorderNodesList=side_node_list_cached)
     pi, qi = fit_curve(border=BorderPts2D)
     

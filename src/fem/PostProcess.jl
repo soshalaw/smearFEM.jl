@@ -617,11 +617,11 @@ function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
                 for zsub in 1:2^nsub
                     # counter within the elements
                     cnte = (e-1)*(2^(nsub*3)) + (xsub-1)*(2^(nsub*2)) + (ysub-1)*(2^(nsub)) + zsub
-
                     offset = [(xsub-1)*scale, (ysub-1)*scale, (zsub-1)*scale]
                     for j in nodeiter
                         scaledPoint = offset .+ scale*(0.5.+0.5*lPoints[j,:])
                         scaledPoint = -1 .+ 2*scaledPoint
+                        
                         # get the NURBs and the gradients
                         Re, ΔRe = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached)
                         NodeList_[:,(cnte-1)*size(IEN_x_cached,1)+j] = Re'*NodeList_x_cached[:,IEN_x_cached[:,e]]'
@@ -639,43 +639,35 @@ function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
     return NodeList_, IEN_list, plot_u
 end
 
-function get_lagrange_proj(IEN_cp, IEN_l, C_e, X_cp)
+function get_lagrange_proj(IEN_cp, IEN_l, C_vol, X_cp)
     n_elem = size(IEN_cp,2)
     @assert size(IEN_cp,2) == size(IEN_l,2) "Number of elements in IEN_cp and IEN_l must be the same"
 
     n_cp = size(X_cp,2)
     n_lagrange = maximum(IEN_l)
     
-    # println("n_cp: ", n_cp)
-    # println("n_lagrange: ", IEN_l)
+    println("n_cp: ", n_cp)
+    println("n_lagrange: ", n_lagrange)
 
     C = zeros(Float64, n_cp, n_lagrange)
 
     e_iter = 1:n_elem
     for e in e_iter
-        C[IEN_cp[:,e],IEN_l[:,e]] = C_e[:,:,e]
+        C[IEN_cp[:,e],IEN_l[:,e]] = C_vol[:,:,e]
     end
     return C
 end
 
-function get_lagrange_pts(IEN_cp, IEN_l, C_e, X_cp, W_cp)
+"""
+    function get_lagrange_pts(IEN_cp, IEN_l, C_vol, X_cp, W_cp)
 
-    P = get_lagrange_proj(IEN_cp, IEN_l, C_e, X_cp)
-    n_l = size(P,2)
-    n_cp = size(P,1)
-    X_l = zeros(Float64, 3, n_l)
-    W_l = P'*W_cp
+    Funtion to obtain the lagrange points given the control mesh, extracton oparator and the weights.
+    
+"""
 
-    n_iter = 1:n_l
-    for i in n_iter
-        X_l[:,i] = (X_cp*diagm(W_cp)/W_l[i])*P[:,i]
-    end
-    return X_l
-end
+function get_nurbs_2_lagrange_proj(IEN_cp, IEN_l, C_vol, X_cp, W_cp)
 
-function get_nurbs_2_lagrange_proj(IEN_cp, IEN_l, C_e, X_cp, W_cp)
-
-    P = get_lagrange_proj(IEN_cp, IEN_l, C_e, X_cp)
+    P = get_lagrange_proj(IEN_cp, IEN_l, C_vol, X_cp)
     n_l = size(P,2)
     n_cp = size(P,1)
     M = zeros(Float64, n_cp, n_l)
@@ -686,4 +678,19 @@ function get_nurbs_2_lagrange_proj(IEN_cp, IEN_l, C_e, X_cp, W_cp)
         M[:,i] = (diagm(W_cp)/W_l[i])*P[:,i]
     end
     return M
+end
+
+function get_lagrange_pts(IEN_cp, IEN_l, C_vol, X_cp, W_cp)
+
+    P = get_lagrange_proj(IEN_cp, IEN_l, C_vol, X_cp)
+    n_l = size(P,2)
+    n_cp = size(P,1)
+    X_l = zeros(Float64, 3, n_l)
+    W_l = P'*W_cp
+
+    n_iter = 1:n_l
+    for i in n_iter
+        X_l[:,i] = (X_cp*diagm(W_cp)/W_l[i])*P[:,i]
+    end
+    return X_l
 end

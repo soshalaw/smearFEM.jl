@@ -200,6 +200,7 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
     NodeList::Matrix{Float64}
     IEN::Matrix{Int}
     IEN_cp::Matrix{Int}
+    IEN_vis::Matrix{Int}
     IEN_top::Matrix{Int}
     IEN_bottom::Matrix{Int}
     IEN_sides::Matrix{Int}
@@ -214,6 +215,7 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
     C_vol::Array{Float64}
     C_top::Array{Float64}
     C_btm::Array{Float64}
+    C_vol_vis::Array{Float64}
     W::Vector{Float64}
     
     function MeshgridCylinder(;
@@ -222,6 +224,7 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
         NodeList::Matrix{Float64}=Matrix{Float64}(undef, 3, 1),
         IEN::Matrix{Int}=Matrix{Int}(undef, 8, 1),
         IEN_cp::Matrix{Int}=Matrix{Int}(undef, 8, 1),
+        IEN_vis::Matrix{Int}=Matrix{Int}(undef, 8, 1),
         IEN_top::Matrix{Int}=Matrix{Int}(undef, 4, 1),
         IEN_bottom::Matrix{Int}=Matrix{Int}(undef, 4, 1),
         IEN_sides::Matrix{Int}=Matrix{Int}(undef, 4, 1),
@@ -235,11 +238,12 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
         C_vol::Array{Float64, 3} = Array{Float64, 3}(undef, 1, 1, 1),
         C_top::Array{Float64, 3} = Array{Float64, 3}(undef, 1, 1, 1),
         C_btm::Array{Float64, 3} = Array{Float64, 3}(undef, 1, 1, 1),
+        C_vol_vis::Array{Float64, 3} = Array{Float64, 3}(undef, 1, 1, 1),
         W::Vector{Float64} = Vector{Float64}(undef, 1)
     )
         # Constructor for MeshgridCylinder
-        new(r, h, NodeList, IEN, IEN_cp, IEN_top, IEN_bottom, IEN_sides,
-            ID, FunctionClass, nNodes, ne, top_nodes, bottom_nodes, side_nodes, NodeList, C_vol, C_top, C_btm, W)
+        new(r, h, NodeList, IEN, IEN_cp, IEN_vis, IEN_top, IEN_bottom, IEN_sides,
+            ID, FunctionClass, nNodes, ne, top_nodes, bottom_nodes, side_nodes, NodeList, C_vol, C_top, C_btm, C_vol_vis, W)
         
     end
 end
@@ -620,7 +624,7 @@ function meshgrid_cube(lx::X, ly::Y, lz::Z, ne::Int64; FunctionClass::String="Q1
                     IEN[24,n] = (2*k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i - 1
                     IEN[25,n] = 2*(k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i
                     IEN[26,n] = 2*k*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i
-                    IEN[27,n] = (2*k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i
+                    IEN[27,n] = (2*k-1)*(nNodes)^2 + (2*j-1)*(nNodes) + 2*i 
                     if k == 1
                         IEN_bottom[1,nb] = IEN[1,n]
                         IEN_bottom[2,nb] = IEN[2,n]
@@ -642,6 +646,207 @@ function meshgrid_cube(lx::X, ly::Y, lz::Z, ne::Int64; FunctionClass::String="Q1
                         IEN_top[7,nt] = IEN[15,n]
                         IEN_top[8,nt] = IEN[16,n]
                         IEN_top[9,nt] = IEN[26,n]
+                        nt = nt + 1
+                    # elseif j == 1 || j == ne || i == 1 || i == ne # populate the IEN for the side surfaces
+                    #     IEN_side[1,n] = IEN[1,n]
+                    #     IEN_side[2,n] = IEN[2,n]
+                    #     IEN_side[3,n] = IEN[3,n]
+                    #     IEN_side[4,n] = IEN[4,n]
+                    #     IEN_side[5,n] = IEN[5,n]
+                    #     IEN_side[6,n] = IEN[6,n]
+                    #     IEN_side[7,n] = IEN[7,n]
+                    #     IEN_side[8,n] = IEN[8,n]
+                    #     IEN_side[9,n] = IEN[9,n]
+                    #     IEN_side[10,n] = IEN[10,n]
+                    #     IEN_side[11,n] = IEN[11,n]
+                    #     IEN_side[12,n] = IEN[12,n]
+                    #     IEN_side[13,n] = IEN[13,n]
+                    #     IEN_side[14,n] = IEN[14,n]
+                    #     IEN_side[15,n] = IEN[15,n]
+                    #     IEN_side[16,n] = IEN[16,n]
+                    #     IEN_side[17,n] = IEN[17,n]
+                    #     IEN_side[18,n] = IEN[18,n]
+                    #     IEN_side[19,n] = IEN[19,n]
+                    #     IEN_side[20,n] = IEN[20,n]
+                    #     IEN_side[21,n] = IEN[21,n]
+                    #     IEN_side[22,n] = IEN[22,n]
+                    #     IEN_side[23,n] = IEN[23,n]
+                    #     IEN_side[24,n] = IEN[24,n]
+                    #     IEN_side[25,n] = IEN[25,n]
+                    #     IEN_side[26,n] = IEN[26,n]
+                    #     IEN_side[27,n] = IEN[27,n]
+                    end
+                    n = n + 1
+                end
+            end
+        end
+    elseif FunctionClass == "Q3"
+        nNodes = 3*ne+1
+        NodeList = zeros(Float64,ndim,(nNodes)^ndim)
+        IEN = zeros(Int64,4^ndim,ne^ndim) # IEN for the 3D mesh
+        IEN_top = zeros(Int64,4^(ndim-1),ne^(ndim-1)) # IEN for the top surface
+        IEN_bottom = zeros(Int64,4^(ndim-1),ne^(ndim-1)) # IEN for the bottom surface
+        IEN_side = zeros(Int64,4^(ndim-1),ne^(ndim-1)) # IEN for the side surfaces
+        ID = zeros(Int64,ndim,(nNodes)^ndim)
+
+        x = collect(Float64, range(-lx/2, lx/2, length=nNodes))
+        y = collect(Float64, range(-ly/2, ly/2, length=nNodes))
+        z = collect(Float64, range(0, lz, length=nNodes))
+
+        m = 1
+        for k in 1:nNodes
+            for j in 1:nNodes
+                for i in 1:nNodes
+                    NodeList[1,m] = x[i]
+                    NodeList[2,m] = y[j]
+                    NodeList[3,m] = z[k]
+                    for l in 1:ndim
+                        ID[l,m] = ndim*(m-1) + l
+                    end
+                    if (i == 1 || i == nNodes || j == 1 || j == nNodes)
+                        push!(BorderNodes,m) # populate the BorderNodes with the nodes on the boundaries (excluding the top and bottom surfaces)
+                    elseif k == 1
+                        push!(BottomBorderNodes,m) # populate the BorderNodes with the nodes on the top and bottom surfaces
+                    elseif k == nNodes
+                        push!(TopBorderNodes,m) # populate the BorderNodes with the nodes on the top and bottom surfaces
+                    end
+                    m = m + 1
+                end
+            end
+        end
+        
+        n = 1       # element number on 3D mesh
+        nt = 1      # element number on 2D mesh of top surface
+        nb = 1      # element number on 2D mesh of bottom surface
+        for k in 1:ne
+            for j in 1:ne
+                for i in 1:ne
+                    # idx = 1
+                    # for kk in 0:3
+                    #     for jj in 0:3
+                    #         for ii in 0:3
+                    #             IEN[idx, n] = (3*(k-1)+kk)*(nNodes^2) + (3*(j-1)+jj)*nNodes + (3*i-2)+ii
+                    #             idx += 1
+                    #         end
+                    #     end
+                    # end
+                    IEN[1,n] = 3*(k-1)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i - 2
+                    IEN[2,n] = 3*(k-1)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i + 1
+                    IEN[3,n] = 3*(k-1)*(nNodes)^2 + 3*j*(nNodes) + 3*i + 1
+                    IEN[4,n] = 3*(k-1)*(nNodes)^2 + 3*j*(nNodes) + 3*i - 2
+                    
+                    IEN[5,n] = 3*k*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i - 2
+                    IEN[6,n] = 3*k*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i + 1
+                    IEN[7,n] = 3*k*(nNodes)^2 + 3*j*(nNodes) + 3*i + 1
+                    IEN[8,n] = 3*k*(nNodes)^2 + 3*j*(nNodes) + 3*i - 2
+
+                    IEN[9,n] = 3*(k-1)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i - 2 
+                    IEN[10,n] = 3*(k-1)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i + 1
+                    IEN[11,n] = 3*(k-1)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i + 1
+                    IEN[12,n] = 3*(k-1)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i - 2
+
+                    IEN[13,n] = 3*k*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i - 2 
+                    IEN[14,n] = 3*k*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i + 1
+                    IEN[15,n] = 3*k*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i + 1
+                    IEN[16,n] = 3*k*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i - 2 
+
+                    IEN[17,n] = 3*(k-1)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i - 1
+                    IEN[18,n] = 3*(k-1)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i
+                    IEN[19,n] = 3*(k-1)*(nNodes)^2 + 3*j*(nNodes) + 3*i
+                    IEN[20,n] = 3*(k-1)*(nNodes)^2 + 3*j*(nNodes) + 3*i - 1
+
+                    IEN[21,n] = 3*k*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i - 1
+                    IEN[22,n] = 3*k*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i
+                    IEN[23,n] = 3*k*(nNodes)^2 + 3*j*(nNodes) + 3*i
+                    IEN[24,n] = 3*k*(nNodes)^2 + 3*j*(nNodes) + 3*i - 1
+ 
+                    IEN[25,n] = (3*k-2)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i - 2
+                    IEN[26,n] = (3*k-2)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i + 1
+                    IEN[27,n] = (3*k-2)*(nNodes)^2 + 3*j*(nNodes) + 3*i + 1
+                    IEN[28,n] = (3*k-2)*(nNodes)^2 + 3*j*(nNodes) + 3*i - 2
+                    
+                    IEN[29,n] = (3*k-1)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i - 2
+                    IEN[30,n] = (3*k-1)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i + 1
+                    IEN[31,n] = (3*k-1)*(nNodes)^2 + 3*j*(nNodes) + 3*i + 1
+                    IEN[32,n] = (3*k-1)*(nNodes)^2 + 3*j*(nNodes) + 3*i - 2
+
+                    IEN[33,n] = (3*k-2)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i - 2 
+                    IEN[34,n] = (3*k-2)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i + 1
+                    IEN[35,n] = (3*k-2)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i + 1
+                    IEN[36,n] = (3*k-2)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i - 2
+
+                    IEN[37,n] = (3*k-1)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i - 2 
+                    IEN[38,n] = (3*k-1)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i + 1
+                    IEN[39,n] = (3*k-1)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i + 1
+                    IEN[40,n] = (3*k-1)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i - 2 
+
+                    IEN[41,n] = (3*k-2)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i - 1
+                    IEN[42,n] = (3*k-2)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i
+                    IEN[43,n] = (3*k-2)*(nNodes)^2 + 3*j*(nNodes) + 3*i
+                    IEN[44,n] = (3*k-2)*(nNodes)^2 + 3*j*(nNodes) + 3*i - 1
+
+                    IEN[45,n] = (3*k-1)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i - 1
+                    IEN[46,n] = (3*k-1)*(nNodes)^2 + 3*(j-1)*(nNodes) + 3*i
+                    IEN[47,n] = (3*k-1)*(nNodes)^2 + 3*j*(nNodes) + 3*i
+                    IEN[48,n] = (3*k-1)*(nNodes)^2 + 3*j*(nNodes) + 3*i - 1
+
+                    IEN[49,n] = 3*(k-1)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i - 1
+                    IEN[50,n] = 3*(k-1)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i
+                    IEN[51,n] = 3*(k-1)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i 
+                    IEN[52,n] = 3*(k-1)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i - 1
+
+                    IEN[53,n] = 3*k*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i - 1
+                    IEN[54,n] = 3*k*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i
+                    IEN[55,n] = 3*k*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i 
+                    IEN[56,n] = 3*k*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i - 1
+
+                    IEN[57,n] = (3*k-2)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i - 1
+                    IEN[58,n] = (3*k-2)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i
+                    IEN[59,n] = (3*k-2)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i
+                    IEN[60,n] = (3*k-2)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i - 1
+
+                    IEN[61,n] = (3*k-1)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i - 1 
+                    IEN[62,n] = (3*k-1)*(nNodes)^2 + (3*j-2)*(nNodes) + 3*i
+                    IEN[63,n] = (3*k-1)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i
+                    IEN[64,n] = (3*k-1)*(nNodes)^2 + (3*j-1)*(nNodes) + 3*i - 1
+
+                    if k == 1
+                        IEN_bottom[1,nb] = IEN[1,n]
+                        IEN_bottom[2,nb] = IEN[2,n]
+                        IEN_bottom[3,nb] = IEN[3,n]
+                        IEN_bottom[4,nb] = IEN[4,n]
+                        IEN_bottom[5,nb] = IEN[9,n]
+                        IEN_bottom[6,nb] = IEN[10,n]
+                        IEN_bottom[7,nb] = IEN[11,n]
+                        IEN_bottom[8,nb] = IEN[12,n]
+                        IEN_bottom[9,nb] = IEN[17,n]
+                        IEN_bottom[10,nb] = IEN[18,n]
+                        IEN_bottom[11,nb] = IEN[19,n]
+                        IEN_bottom[12,nb] = IEN[20,n]
+                        IEN_bottom[13,nb] = IEN[33,n]
+                        IEN_bottom[14,nb] = IEN[34,n]
+                        IEN_bottom[15,nb] = IEN[35,n]
+                        IEN_bottom[16,nb] = IEN[36,n]
+                        
+                        nb = nb + 1
+                    elseif k == ne
+                        IEN_top[1,nt] = IEN[5,n]
+                        IEN_top[2,nt] = IEN[6,n]
+                        IEN_top[3,nt] = IEN[7,n]
+                        IEN_top[4,nt] = IEN[8,n]
+                        IEN_top[5,nt] = IEN[13,n]
+                        IEN_top[6,nt] = IEN[14,n]
+                        IEN_top[7,nt] = IEN[15,n]
+                        IEN_top[8,nt] = IEN[16,n]
+                        IEN_top[9,nt] = IEN[21,n]
+                        IEN_top[10,nt] = IEN[22,n]
+                        IEN_top[11,nt] = IEN[23,n]
+                        IEN_top[12,nt] = IEN[24,n]
+                        IEN_top[13,nt] = IEN[37,n]
+                        IEN_top[14,nt] = IEN[38,n]
+                        IEN_top[15,nt] = IEN[39,n]
+                        IEN_top[16,nt] = IEN[40,n]
+
                         nt = nt + 1
                     # elseif j == 1 || j == ne || i == 1 || i == ne # populate the IEN for the side surfaces
                     #     IEN_side[1,n] = IEN[1,n]
@@ -752,15 +957,15 @@ function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", fi
         @info "Representing fields / geometry using $FunctionClass NURBS"
         
         if ne == 2
-            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_1.h5"),"sim")
+            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm, IEN_vis, C_vis = read_h5(string(filePath,"/cylinder_1.h5"),"sim")
         elseif ne == 4
-            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_2.h5"),"sim")
+            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm, IEN_vis, C_vis = read_h5(string(filePath,"/cylinder_2.h5"),"sim")
         elseif ne == 8
-            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_3.h5"),"sim")
+            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm, IEN_vis, C_vis = read_h5(string(filePath,"/cylinder_3.h5"),"sim")
         elseif ne == 16
-            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_4.h5"),"sim")
+            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm, IEN_vis, C_vis = read_h5(string(filePath,"/cylinder_4.h5"),"sim")
         elseif ne == 16
-            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm = read_h5(string(filePath,"/cylinder_5.h5"),"sim")
+            CPointList, W, C, IEN, IEN_cp, IEN_top, C_top, IEN_btm, C_btm, IEN_vis, C_vis = read_h5(string(filePath,"/cylinder_5.h5"),"sim")
         else
             throw(ArgumentError("No mesh file found for ne=$ne"))
         end
@@ -778,8 +983,8 @@ function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", fi
             end
         end 
         
-        mesh = MeshgridCylinder(r=r, h=h, NodeList=CPointList, IEN=IEN, IEN_cp=IEN_cp, IEN_top=IEN_top, IEN_bottom=IEN_btm, ID=ID, FunctionClass=FunctionClass,
-            C_vol=C, C_top=C_top, C_btm=C_btm, W=W, nNodes=nNodes, ne=ne)
+        mesh = MeshgridCylinder(r=r, h=h, NodeList=CPointList, IEN=IEN, IEN_cp=IEN_cp, IEN_vis= IEN_vis, IEN_top=IEN_top, IEN_bottom=IEN_btm, ID=ID, FunctionClass=FunctionClass,
+            C_vol=C, C_top=C_top, C_btm=C_btm, C_vol_vis=C_vis, W=W, nNodes=nNodes, ne=ne)
     elseif string(FunctionClass[1]) == "Q"  
         @info "Representing fields / geometry using $FunctionClass basis functions"         
         NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
