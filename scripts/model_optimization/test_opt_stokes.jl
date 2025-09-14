@@ -624,16 +624,16 @@ function main()
 
     WRITE_GT = true
     for viscosity_type in viscosity_type_list
-        for FunctionClass_x_gt in FunctionClass_x_gt_list
-            run_id = 1
-            for β_gt in β_gt_list
-                for η_gt in η_gt_list
-    
-                    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/$control/model_validation/$viscosity_type/$(FunctionClass_x_gt)_$(ne_gt)/$run_id")
-                    filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$(FunctionClass_x_gt)_$(ne_gt)/$run_id")
+        for ref in refine_list
+            ne = ne_exp^ref
+            for FunctionClass_x_gt in FunctionClass_x_gt_list
+                run_id = 1
+                for β_gt in β_gt_list
+                    for η_gt in η_gt_list
+
+                        filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/$control/model_validation/$viscosity_type/$(FunctionClass_x_gt)_$(ne_gt)/$run_id")
+                        filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$(FunctionClass_x_gt)_$(ne_gt)/$run_id")
                     
-                    for ref in refine_list
-                        ne = ne_exp^ref
                         @info "Running optimization with ne = $ne"
                         for FunctionClass_x in FunctionClass_x_List
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
