@@ -3,7 +3,9 @@ using LaTeXStrings
 using StatsPlots
 using ProgressMeter
 using ArgCheck
+using Base.Filesystem
 
+#TODO redo the file paths to work adaptively
 """
     PlotGrid(IEN, NodeList)
 
