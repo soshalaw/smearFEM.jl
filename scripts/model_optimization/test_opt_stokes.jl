@@ -482,7 +482,7 @@ function test_opt_const(exp_params::Dict)
         Plots.plot!(plt_η, t_windows, model_gt.η, label="Ground truth η(t)", dpi=400, lw=2)
         Plots.plot!(plt_η, t_windows, est_ηpList, label="Estimated η(t)", lw=2)
         for t in t_windows
-            Plots.vline!(plt_η, [t], color=:gray, lw=1, linestyle=:dash, label=false, lw=2)
+            Plots.vline!(plt_η, [t], color=:gray, lw=2, linestyle=:dash, label=false)
         end
         Plots.xlabel!("Time (s)")
         Plots.ylabel!("η(t)")
