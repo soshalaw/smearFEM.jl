@@ -772,7 +772,7 @@ function main()
     η_mat = zeros(30, exp_size)
     β_mat = zeros(30, exp_size)
 
-    WRITE_GT = false
+    WRITE_GT = true
     for viscosity_type in viscosity_type_list
         for FunctionClass_x_gt in FunctionClass_x_gt_list
             run_id = 1
