@@ -445,7 +445,7 @@ function test_opt_const(exp_params::Dict)
         est_ηpList = Vector{Float64}(undef,gt_time_frame)
         est_βpList = Vector{Float64}(undef,gt_time_frame)
 
-        println("Number of time windows: $windows")
+        println("Number of time windows: $window")
 
         windows = collect(range(start=0, stop=gt_time_frame, step=window))
         titer::Int = 1
