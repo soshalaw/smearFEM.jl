@@ -753,7 +753,7 @@ function plot_results()
 end
 
 function main()
-    ne_gt::Int = 8 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 4 # number of elements in the mesh for the ground truth
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     # β_gt_list = [5, 10, 50, 100.0, 200.0, 500.0, 1000.0, 10000.0]
     # η_gt_list = [40.0]
@@ -762,7 +762,7 @@ function main()
     η_gt_list = [60.0]
     FunctionClass_x_List = ["Q2", "S2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2, 3] # refinement levels, ne = ne_exp^refine
+    refine_list = [2] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
 
     viscosity_type_list = ["bulk_viscosity"]
