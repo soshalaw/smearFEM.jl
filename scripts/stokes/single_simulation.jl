@@ -10,8 +10,8 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
   control::String = "force"            # "force" or "velocity"
   viscosity_type::String = "constant"  # "constant" or "bulk_viscosity"
 
-  sim_time::Float64 = 5.0           # simulation time in seconds
-  steps::Float64 = 50.0              # number of time steps
+  sim_time::Float64 = 10.0           # simulation time in seconds
+  steps::Float64 = 24.0              # number of time steps
   t_steps::Float64 = sim_time/steps
 
   gt_β = 100.0
@@ -46,7 +46,7 @@ function main()
   ne::Int = 4 # number of elements in the mesh for the ground truth
 
   camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-  camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
+  camera_pose = scale*[0 -0.5 3]'   # camera position in mm
 
   const_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, ne, camera_matrix, camera_pose)
   # bulk_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, ne, camera_matrix, camera_pose)

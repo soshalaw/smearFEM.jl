@@ -447,9 +447,9 @@ function test_opt_const(exp_params::Dict)
 
         println("Number of time windows: $window")
 
-        windows = collect(range(start=0, stop=gt_time_frame, step=window))
+        windows = collect(range(start=1, stop=gt_time_frame, step=window))
         titer::Int = 1
-        for ti::Int in windows
+        for ti::Int in 1:window
 
             range = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer))+1)
             range_ = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer)))
@@ -481,7 +481,7 @@ function test_opt_const(exp_params::Dict)
         t_windows = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
         Plots.plot!(plt_η, t_windows, model_gt.η, label="Ground truth η(t)", dpi=400, lw=2)
         Plots.plot!(plt_η, t_windows, est_ηpList, label="Estimated η(t)", lw=2)
-        for t in t_windows
+        for t in windows
             Plots.vline!(plt_η, [t], color=:gray, lw=2, linestyle=:dash, label=false)
         end
         Plots.xlabel!("Time (s)")
@@ -529,8 +529,15 @@ function plot_(filepath)
     
     run_filepath = readdir(string(filepath,"/runs/"))
 
-    for exp_path in run_filepath
+    for exp_path_ in run_filepath
+        exp_path = string(filepath,"/runs/",exp_path_)
         sim_params = read_json(string(exp_path,"/Results/data/sim_params.json")) 
+
+        sim_time = 10.0 # simulation time in seconds 
+        steps = 25.0 # number of time steps
+        t_steps = sim_time/steps
+
+        time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
 
         viscosity_type = sim_params["viscosity_type"]
 
@@ -573,14 +580,14 @@ function plot_(filepath)
             Plots.hline!([η_gt], label="Ground truth η", lw=2)
             Plots.xlabel!("Time (s)")
             Plots.ylabel!("η")
-            Plots.savefig(string(exp_path,"/plots/η.pdf"))
+            Plots.savefig(string(exp_path,"/Results/plots/η.pdf"))
 
             set_plot(22)
             Plots.plot!(est_β, label="Estimated η", dpi=400, lw=2)
             Plots.hline!([β_gt], label="Ground truth β", lw=2)
             Plots.xlabel!("Time (s)")
             Plots.ylabel!("β")
-            Plots.savefig(string(exp_path,"/plots/β.pdf"))
+            Plots.savefig(string(exp_path,"/Results/plots/β.pdf"))
 
             # Plot the cost function with iterations
             set_plot(22)
@@ -711,7 +718,7 @@ function plot_results()
     η_gt_list = [60.0]
     FunctionClass_x_List = ["Q2", "S2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2, 3] # refinement levels, ne = ne_exp^refine
+    refine_list = [2] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
 
     viscosity_type_list = ["constant", "bulk_viscosity"]
@@ -733,8 +740,8 @@ function plot_results()
                         filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/$control/model_validation/$viscosity_type/$(FunctionClass_x_gt)_$(ne_gt)/$run_id")
                         filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/ground_truth/fem/Stokes/$control/$viscosity_type/$(FunctionClass_x_gt)_$(ne_gt)/$run_id")
                     
-                        # @info "Running optimization with ne = $ne"
-                        # for FunctionClass_x in FunctionClass_x_List
+                        @info "reading optimization with ne = $ne"
+                        for FunctionClass_x in FunctionClass_x_List
                         #     @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
     
                         #     exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => ne_gt, "ne_exp" => ne, 
@@ -745,6 +752,7 @@ function plot_results()
                         #     WRITE_GT = true
                         # end
                         plot_(filepath)
+                        end
                     end
                     # post_analysis(filepath_gt, filepath)
                     run_id = run_id + 1
@@ -805,4 +813,4 @@ function main()
         end
     end
 end
-main()
+plot_results()
