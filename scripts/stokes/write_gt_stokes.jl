@@ -59,7 +59,7 @@ function write_data(exp_params::Dict)
     ne_gt::Int = 16 # number of elements in the mesh for the ground truth
 
     β_gt_list = [10.0, 50.0, 100.0, 1e3]
-    η_gt_list = [60.0]
+    η_gt_list = [100.0]
 
     refine_list = [2] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
