@@ -302,3 +302,20 @@ function read_h5(filename::String, mode::String="sim")
 
     return CPointList, W, C_new, IEN, IEN_cp, IEN_top, C_top_new, IEN_btm, C_btm_new, IEN_vis, C_vis_new
 end
+
+function read_perception_data(filepath::String)
+    if !isfile(filepath)
+        throw(SystemError("Trying to read from $filepath, the directory does not exist."))
+    end
+    # Read the JSON file
+    h5file = h5open(filepath, "r")
+    pose = read(h5file, "poses")
+
+    pose_new = permutedims(pose,[2,1,3])
+
+
+    println(size(pose))
+
+    return pose_new
+end
+

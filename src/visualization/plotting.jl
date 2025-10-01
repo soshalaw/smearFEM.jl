@@ -5,7 +5,7 @@ using ProgressMeter
 using ArgCheck
 using Base.Filesystem
 
-#TODO redo the file paths to work adaptively
+#TODO redo the file paths to work adaptively;
 """
     PlotGrid(IEN, NodeList)
 
@@ -106,13 +106,13 @@ Function to animate the fields as a gif
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing)
+function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing)
     set_file(filepath) # create the directory to store the VTK files
     if isnothing(Nodes) && isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(IEN) && isnothing(p) && isnothing(q)
         AssertionError("No fields provided")
         return
     elseif isnothing(Nodes) && isnothing(SurfaceNodes3D)
-        animate2D(BorderNodes2D=BorderNodes2D, fields2D=fields2D, p=p, q=q, pObs=pObs, qObs=qObs, filepath=filepath)
+        animate2D(BorderNodes2D=BorderNodes2D, fields2D=fields2D, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
         return
     elseif isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(p) && isnothing(q)
         animate3D(fields=Nodes, IEN=IEN, filepath=filepath)
@@ -138,7 +138,7 @@ Function to animate the 2D fields as a gif
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, filepath="images/2D_grid.gif")
+function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, filepath="images/2D_grid.gif")
     
     if isnothing(BorderNodes2D) && isnothing(fields2D) && isnothing(p) && isnothing(pObs)
         AssertionError("No fields provided")
@@ -165,25 +165,33 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
             
             plt = set_plot(22)
 
-            if !isnothing(p)   
+            if !isnothing(pObs) && !isnothing(p) && !isnothing(pgt)    
+                Plots.plot!(p[i],q[i], labels="Lagrange basis", aspect_ratio = :equal, dpi=:400, lw=2)
+                Plots.plot!(pObs[i],qObs[i], labels="NURBS basis", aspect_ratio = :equal, dpi=:400, lw=2)
+                Plots.plot!(pgt[i],qgt[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2)
+            else
+                if !isnothing(p)   
                 Plots.plot!(p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=3) #, marker = :circle, markersize = 2)
-            end
-            if !isnothing(pObs)
-                Plots.plot!(pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2)
-            end
-            if !isnothing(fields2D)
-                Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
-                                dpi=:400)
-            end
-            if !isnothing(BorderNodes2D)
-                Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:6, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
-                                dpi=:400)
+                end
+                if !isnothing(pObs)
+                    Plots.plot!(pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2)
+                end
+
+                if !isnothing(fields2D)
+                    Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
+                                    dpi=:400)
+                end
+                if !isnothing(BorderNodes2D)
+                    Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:6, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
+                                    dpi=:400)
+                end
             end
 
             Plots.xlabel!(L"x")
             Plots.ylabel!(L"y")
             Plots.xlims!(0,2048)
             Plots.ylims!(0,1536)
+            Plots.yflip!(true)  # if needed to match image coords
             next!(pr)
         end
         gif(animation2, string(filepath,"/2D_grid.gif"), fps=10)
@@ -236,6 +244,7 @@ function animate_2D_comp(;borders=nothing, filepath="images/2D_grid.gif")
             Plots.ylabel!(L"y")
             Plots.xlims!(0,2048)
             Plots.ylims!(0,1536)
+            Plots.yflip!(true)  # if needed to match image coords
             next!(pr)
         end
         gif(animation2, string(filepath,"2D_grid.gif"), fps=10)
@@ -404,4 +413,70 @@ function set_plot(fs::Int)
                             
                             label="")
     return plt
+end
+
+"""
+    normalize(q, IEN)
+
+Function normalize the solution vector for plotting
+    
+# Arguments:
+- `q`: solution vector
+- `IEN::Matrix{Float64}{nElem, nNodes}`: IEN array
+
+# Returns:
+- `qList`: normalized list of solutions 
+"""
+function noramlize(q, IEN)
+
+    qList = zeros(size(IEN))
+    max = maximum(q)
+    min = minimum(q)
+    iter = 1:size(IEN,1)
+    for e in iter
+        for n in 1:4
+            qList[e,n] = (q[IEN[e,n]] - min) / (max - min)
+        end
+    end
+    return qList
+end
+
+"""
+    truncate_colormap(minval=0.0, maxval=1.0, n=100)
+
+Function to truncate a colormap
+    
+# Arguments:
+- `minval::Integer`: minimum value of the colormap
+- `maxval::Integer`: maximum value of the colormap
+- `n::Integer`: number of colors
+
+# Returns:
+- `new_cmap`: truncated colormap
+"""
+function truncate_colormap(minval=0.0, maxval=1.0, n=100)
+    new_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("mycmap", get_cmap("jet")(collect(range(maxval, minval, n))))
+    return new_cmap
+end
+
+function plot_covariance(η_list::Vector{Float64}, β_list::Vector{Float64}, filepath::String)
+    set_file(filepath)
+
+    mean_η = mean(η_list)
+    mean_β = mean(β_list)
+
+    cov_η = cov(η_list)
+    cov_β = cov(β_list)
+    cov_ηβ = cov(η_list, β_list)
+
+    cov_mat = [cov_η cov_ηβ; cov_ηβ cov_β]
+    mean_vec = [mean_η; mean_β]
+
+    # Plot the covariance matrix
+    StatsPlots.covellipse(mean_vec, cov_mat, label="Covariance", color=:red, alpha=0.5, linewidth=2)
+    # scatter!(η_list, β_list, label="Data", color=:blue, alpha=0.5)
+    xlabel!("η")
+    ylabel!("β")    
+    title!("Covariance")
+    Plots.savefig(string(filepath,"covariance.svg"))
 end

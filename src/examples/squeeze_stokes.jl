@@ -1126,7 +1126,7 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
         plt = set_plot(22)
         Plots.xlabel!(plt, "Time")
         Plots.ylabel!(plt, "η(t)")
-        display(Plots.plot!(time,η))
+        display(Plots.plot!(time,η, lw=3))
     else
         η = [η_0]
     end 

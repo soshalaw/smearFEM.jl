@@ -11,16 +11,16 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
   viscosity_type::String = "constant"  # "constant" or "bulk_viscosity"
 
   sim_time::Float64 = 10.0           # simulation time in seconds
-  steps::Float64 = 24.0              # number of time steps
+  steps::Float64 = 25.0              # number of time steps
   t_steps::Float64 = sim_time/steps
 
-  gt_β = 100.0
-  gt_η = 40.0
+  gt_β = 10.0
+  gt_η = 50000e-3  # viscosity in (kg/(mm⋅s))
 
   if gt_β <= 1.0
     F_ext::Float64 = 1500.0
   else  
-    F_ext = 1500.0*3*gt_β
+    F_ext = 19.6133e3 # force applied to the cylinder in kg.mm/s^2 (N)
   end
   F::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
 
@@ -33,9 +33,8 @@ end
 
 function main()
 
-  scale = 50
-  r::Float64 = 0.5*scale    # radius of the cylinder in mm
-  h::Float64 = 1*scale     # height of the cylinder in mm
+  r::Float64 = 25   # radius of the cylinder in mm
+  h::Float64 = 40     # height of the cylinder in mm
   ndim::Int = 3
   FunctionClass_x::String = "Q2"
   FunctionClass_u::String = "Q2"
@@ -46,7 +45,7 @@ function main()
   ne::Int = 4 # number of elements in the mesh for the ground truth
 
   camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-  camera_pose = scale*[0 -0.5 3]'   # camera position in mm
+  camera_pose = Float64.([-1.0 0.0 0.0 0.0; 0.0 0.0 -1.0 20.0; 0.0 -1.0 0.0 150; 0.0 0.0 0.0 1.0])
 
   const_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, ne, camera_matrix, camera_pose)
   # bulk_vel(r, h, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, ne, camera_matrix, camera_pose)

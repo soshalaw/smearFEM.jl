@@ -7,6 +7,7 @@ using Distributions
 using Parameters
 using Statistics
 using StatsPlots
+
 """ 
     Extract_borders(NodeList::Matrix{Float64}, camera_matrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, nNodes::Int64, GRAD::Bool=false, dqdθ::AbstractMatrix{Float64}=zeros(2,2), SIDES::Bool=false)
 
@@ -224,29 +225,32 @@ Project the 3D mesh to 2D image plane
 - `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
 - `dπdx::Array{Float64, nNodes}`{nNodes×2×nParams}: ∇π(x)
 """
-function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, dxdθ::AbstractArray{Float64})
+function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_trans::AbstractMatrix{Float64}, dxdθ::AbstractArray{Float64})
     
     nx = size(x,2)
     nθ = size(dxdθ,3)
     xNorm = zeros(3,nx)
     xProj = zeros(3,nx)
     dudθ = zeros(3,nx,nθ)
+    R = obj_trans[1:3,1:3]    # rotation matrix from object frame to camera frame
 
     # transform point cloud wrt to camera frame 
-    R = [1 0 0; 0 0 1; 0 -1 0]     # rotation matrix
+    pad = ones(1,size(x,2))
+    x_trans_padded = vcat(x, pad)
+    x_trans_mat = obj_trans*x_trans_padded
 
-    xTrans = R*x .+ camera_pose
+    x_trans = x_trans_mat[1:3,:]
 
     iter = 1:nx
     iterθ = 1:nθ
     for j in iter
-        xNorm[1,j] = xTrans[1,j]/xTrans[3,j]
-        xNorm[2,j] = xTrans[2,j]/xTrans[3,j]
-        xNorm[3,j] = xTrans[3,j]/xTrans[3,j]
+        xNorm[1,j] = x_trans[1,j]/x_trans[3,j]
+        xNorm[2,j] = x_trans[2,j]/x_trans[3,j]
+        xNorm[3,j] = x_trans[3,j]/x_trans[3,j]
 
         xProj[:,j] = camera_matrix*xNorm[:,j]
 
-        dπdx = ∇π(xTrans[:,j],camera_matrix)
+        dπdx = ∇π(x_trans[:,j],camera_matrix)
 
         # iterate over the model parameters
         for i in iterθ
@@ -262,14 +266,21 @@ function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{
     return x2D, dudθ2D
 end 
 
-function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64})
-                
-    # transform point cloud wrt to camera frame 
-    R = [1 0 0; 0 0 1; 0 -1 0]     # rotation matrix
+function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_trans::AbstractMatrix{Float64})
 
-    xTrans = R*x .+ camera_pose
+    pad = ones(1,size(x,2))
+    x_trans_padded = vcat(x, pad)
+    x_trans_mat = obj_trans*x_trans_padded
+
+    x_trans = x_trans_mat[1:3,:]
+
+    p = Plots.scatter3d(x_trans[1,:], x_trans[2,:], x_trans[3,:]; markersize=1, label="Transformed Points")
+    xlabel!(p, "X (mm)")
+    ylabel!(p, "Y (mm)")
+    zlabel!(p, "Z (mm)")
+    display(p)
     
-    xProj = project_to(xTrans, camera_matrix)
+    xProj = project_to(x_trans, camera_matrix)
 
     x2D = xProj[1:2,:]            # extract x and y coordinates
 
@@ -300,6 +311,281 @@ function ∇π(x::Array{Float64},camera_matrix::AbstractMatrix{Float64})
 
     return dπdx
 end
+
+function closest_point_contour(contour1::AbstractMatrix{Float64}, contour2::AbstractMatrix{Float64})
+    """
+    Compute robust distance between two contours using multiple metrics
+    Returns: (hausdorff_distance, average_distance, chamfer_distance)
+    """
+    
+    # Ensure contours have same number of points or interpolate
+    n1, n2 = size(contour1, 2), size(contour2, 2)
+    
+    if n1 != n2
+        # Interpolate to same number of points
+        n_target = min(n1, n2)
+        t1 = range(0, 1, length=n1)
+        t2 = range(0, 1, length=n2)
+        t_target = range(0, 1, length=n_target)
+        
+        # Simple linear interpolation for each coordinate
+        x1_interp = [LinearInterpolation(t1, contour1[1,:])(t) for t in t_target]
+        y1_interp = [LinearInterpolation(t1, contour1[2,:])(t) for t in t_target]
+        x2_interp = [LinearInterpolation(t2, contour2[1,:])(t) for t in t_target]
+        y2_interp = [LinearInterpolation(t2, contour2[2,:])(t) for t in t_target]
+        
+        contour1_norm = hcat(x1_interp, y1_interp)'
+        contour2_norm = hcat(x2_interp, y2_interp)'
+    else
+        contour1_norm = contour1
+        contour2_norm = contour2
+    end
+    
+    # Compute point-wise distances
+    distances = [norm(contour1_norm[:,i] - contour2_norm[:,i]) for i in 1:size(contour1_norm,2)]
+    
+    # Multiple distance metrics
+    hausdorff_dist = maximum(distances)
+    average_dist = mean(distances)
+    chamfer_dist = sqrt(mean(distances.^2))  # RMS distance
+    
+    return [hausdorff_dist], [average_dist, chamfer_dist]
+end
+
+function filter_frames(contour_list::AbstractArray; 
+                     distance_threshold=0.05,
+                     area_change_threshold=0.15,
+                     perimeter_change_threshold=0.10,
+                     centroid_shift_threshold=0.08,
+                     shape_deformation_threshold=0.12,
+                     consistency_window=3,
+                     neighbor_window=4,
+                     neighbor_weight=7.0,
+                     display_plots=true)
+
+    frame_len = length(contour_list)
+    pos_calib_frames = Vector{Int64}()
+    compression_frames = Vector{Int64}()
+
+    # Pre-compute geometric features for all contours
+    areas = Float64[]
+    perimeters = Float64[]
+    centroids = Vector{Vector{Float64}}()
+    
+    for contour in contour_list
+        # Area using shoelace formula
+        area = 0.5 * abs(sum(contour[1,i] * contour[2,i+1] - contour[1,i+1] * contour[2,i] 
+                            for i in 1:(size(contour,2)-1)))
+        push!(areas, area)
+        
+        # Perimeter
+        perimeter = sum(norm([contour[1,i+1] - contour[1,i], contour[2,i+1] - contour[2,i]]) 
+                       for i in 1:(size(contour,2)-1))
+        push!(perimeters, perimeter)
+        
+        # Centroid
+        centroid = [mean(contour[1,:]), mean(contour[2,:])]
+        push!(centroids, centroid)
+    end
+
+    # First pass: compute raw scores for all frames
+    raw_scores = Float64[]
+    frame_iter = 4:frame_len
+    
+    for i in frame_iter
+        contour_curr = contour_list[i]
+        contour_prev = contour_list[i-3]
+
+        # Feature 1: Point-wise distance (your original metric)
+        diff_t, _ = closest_point([contour_curr], [contour_prev])
+        distance_score = diff_t[1] > distance_threshold ? 1.0 : 0.0
+
+        # Feature 2: Area change
+        area_change = abs(areas[i] - areas[i-3]) / max(areas[i-3], 1e-10)
+        area_score = area_change > area_change_threshold ? 1.0 : 0.0
+
+        # Feature 3: Perimeter change
+        perimeter_change = abs(perimeters[i] - perimeters[i-3]) / max(perimeters[i-3], 1e-10)
+        perimeter_score = perimeter_change > perimeter_change_threshold ? 1.0 : 0.0
+
+        # Feature 4: Centroid shift
+        centroid_shift = norm(centroids[i] - centroids[i-3])
+        centroid_score = centroid_shift > centroid_shift_threshold ? 1.0 : 0.0
+
+        # Feature 5: Shape deformation (Hausdorff-like distance)
+        max_displacement = maximum([norm([contour_curr[1,j] - contour_prev[1,j], 
+                                         contour_curr[2,j] - contour_prev[2,j]]) 
+                                   for j in 1:min(size(contour_curr,2), size(contour_prev,2))])
+        shape_score = max_displacement > shape_deformation_threshold ? 1.0 : 0.0
+
+        # Raw compression score (before neighbor influence)
+        raw_compression_score = 0.3 * distance_score + 
+                               0.25 * area_score + 
+                               0.2 * perimeter_score + 
+                               0.15 * centroid_score + 
+                               0.1 * shape_score
+        
+        push!(raw_scores, raw_compression_score)
+    end
+
+    # Second pass: apply neighbor-aware decision making
+    decisions = String[]
+    final_scores = Float64[]
+    
+    for (idx, i) in enumerate(frame_iter)
+        # Get current frame's raw score
+        current_raw_score = raw_scores[idx]
+        
+        # Collect neighbor scores within the window
+        neighbor_scores = Float64[]
+        
+        # Look at previous frames
+        for offset in 1:neighbor_window
+            neighbor_frame = i - offset
+            if neighbor_frame >= 4  # Ensure we have valid frame indices
+                neighbor_idx = neighbor_frame - 3  # Convert to raw_scores index
+                if neighbor_idx >= 1 && neighbor_idx <= length(raw_scores)
+                    push!(neighbor_scores, raw_scores[neighbor_idx])
+                end
+            end
+        end
+        
+        # Look at future frames
+        for offset in 1:neighbor_window
+            neighbor_frame = i + offset
+            if neighbor_frame <= frame_len
+                neighbor_idx = neighbor_frame - 3  # Convert to raw_scores index
+                if neighbor_idx >= 1 && neighbor_idx <= length(raw_scores)
+                    push!(neighbor_scores, raw_scores[neighbor_idx])
+                end
+            end
+        end
+        
+        # Calculate neighbor influence
+        neighbor_influence = 0.0
+        if !isempty(neighbor_scores)
+            # Strong neighbor influence: if most neighbors are compression, bias toward compression
+            neighbor_compression_ratio = sum(s -> s > 0.5, neighbor_scores) / length(neighbor_scores)
+            
+            if neighbor_compression_ratio >= 0.7  # 70% of neighbors are compression
+                neighbor_influence = neighbor_weight
+            elseif neighbor_compression_ratio <= 0.3  # 70% of neighbors are position calibration
+                neighbor_influence = -neighbor_weight
+            else
+                # Moderate influence based on average neighbor score
+                avg_neighbor_score = mean(neighbor_scores)
+                neighbor_influence = neighbor_weight * (avg_neighbor_score - 0.5)
+            end
+        end
+        
+        # Apply neighbor influence to get final score
+        final_score = current_raw_score + neighbor_influence
+        final_score = clamp(final_score, 0.0, 1.0)  # Keep within [0,1] bounds
+        push!(final_scores, final_score)
+        
+        # Make decision based on final score
+        current_decision = final_score > 0.5 ? "compression" : "position_calibration"
+        push!(decisions, current_decision)
+        
+        # Apply consistency filter (optional additional smoothing)
+        if length(decisions) >= consistency_window
+            recent_decisions = decisions[end-consistency_window+1:end]
+            compression_votes = count(d -> d == "compression", recent_decisions)
+            
+            # Majority vote for final classification
+            if compression_votes > consistency_window ÷ 2
+                status = "compression"
+                push!(compression_frames, i)
+            else
+                status = "position_calibration"
+                push!(pos_calib_frames, i)
+            end
+        else
+            # For initial frames, use direct decision
+            status = current_decision
+            if status == "compression"
+                push!(compression_frames, i)
+            else
+                push!(pos_calib_frames, i)
+            end
+        end
+
+        # Optional visualization
+        if display_plots
+            contour_curr = contour_list[i]
+            plt = Plots.plot(contour_curr[1,:], contour_curr[2,:], 
+                           title="Frame $i: $status\nRaw=$(round(current_raw_score, digits=2)) Final=$(round(final_score, digits=2))", 
+                           legend=false)
+            xlims!(plt, 0, 2048)
+            ylims!(plt, 0, 1536)
+            yflip!(plt, true)
+            display(plt)
+            sleep(0.5)
+        end
+        
+        # Enhanced logging with neighbor information
+        neighbor_info = isempty(neighbor_scores) ? "no_neighbors" : 
+                       "$(round(mean(neighbor_scores), digits=2))($(length(neighbor_scores)))"
+        
+        println("Frame $i: $status " *
+                "(raw=$(round(current_raw_score, digits=3)), " *
+                "neighbors=$neighbor_info, " *
+                "influence=$(round(neighbor_influence, digits=3)), " *
+                "final=$(round(final_score, digits=3)))")
+    end
+
+    return pos_calib_frames, compression_frames
+end
+
+function get_pose(frames::AbstractArray)
+    pose_mat = zeros(Float64, 4,4)
+    frame_len = size(frames,3)
+
+    println("Number of frames: ", frame_len)
+    iter = 1:frame_len
+    for i in iter
+        pose_mat = pose_mat + frames[:,:,i]
+    end
+    obj_pose = pose_mat/frame_len
+    return obj_pose
+end
+"""
+filter_points(border, centerx)
+
+Select the nodes on the right side of the centerline and sort them
+
+# Arguments:
+- `border::Matrix{Float64}{2,nbNodes}`: 2D coordinates of the border nodes
+- `centerx::Float64`: x-coordinate of the centerline
+
+# Returns:
+- `newBorderxSrt::Vector{Float64}`: x coordinates of the sorted border nodes
+- `newBorderySrt::Vector{Float64}`: y coordinates of the sorted border nodes
+"""
+function filter_points(border, centerx)
+
+    # half_border = ElasticArray{Float64}(undef, 2, size(border,2))
+    new_borderx = Array{Float64}(undef, 0)
+    new_bordery = Array{Float64}(undef, 0)
+    
+    iter = 1:size(border,2)
+    for i in iter
+        if border[1,i] ≥ centerx
+            # append!(half_border, border[:,i])
+            push!(new_borderx, border[1,i])
+            push!(new_bordery, border[2,i])
+        end
+    end
+    ids = sortperm(new_bordery)
+
+    newBorderxSrt = new_borderx[ids]
+    newBorderySrt = new_bordery[ids]
+
+    out = vcat(newBorderxSrt', newBorderySrt')
+    
+    return newBorderxSrt, newBorderySrt
+end
+
 """
     fit_curve(; border, borderx, bordery)
 
@@ -365,43 +651,6 @@ function fit_curve_2D(x,y, n)
 end
 
 """
-    filter_points(border, centerx)
-
-Select the nodes on the right side of the centerline and sort them
-
-# Arguments:
-- `border::Matrix{Float64}{2,nbNodes}`: 2D coordinates of the border nodes
-- `centerx::Float64`: x-coordinate of the centerline
-
-# Returns:
-- `newBorderxSrt::Vector{Float64}`: x coordinates of the sorted border nodes
-- `newBorderySrt::Vector{Float64}`: y coordinates of the sorted border nodes
-"""
-function filter_points(border, centerx)
-
-    # half_border = ElasticArray{Float64}(undef, 2, size(border,2))
-    new_borderx = Array{Float64}(undef, 0)
-    new_bordery = Array{Float64}(undef, 0)
-    
-    iter = 1:size(border,2)
-    for i in iter
-        if border[1,i] ≥ centerx
-            # append!(half_border, border[:,i])
-            push!(new_borderx, border[1,i])
-            push!(new_bordery, border[2,i])
-        end
-    end
-    ids = sortperm(new_bordery)
-
-    newBorderxSrt = new_borderx[ids]
-    newBorderySrt = new_bordery[ids]
-
-    out = vcat(newBorderxSrt', newBorderySrt')
-    
-    return newBorderxSrt, newBorderySrt
-end
-
-"""
     rearrange(q, ne, ndim, IEN, FunctionClass)
 
 Rearrange the connectivity vector to be visualised in paraview when langrangian basis functions are used.
@@ -452,50 +701,6 @@ function rearrange(ndim, IEN)
     return IEN_new
 end
 
-"""
-    noramlize(q, IEN)
-
-Function normalize the solution vector for plotting
-    
-# Arguments:
-- `q`: solution vector
-- `IEN::Matrix{Float64}{nElem, nNodes}`: IEN array
-
-# Returns:
-- `qList`: normalized list of solutions 
-"""
-function noramlize(q, IEN)
-
-    qList = zeros(size(IEN))
-    max = maximum(q)
-    min = minimum(q)
-    iter = 1:size(IEN,1)
-    for e in iter
-        for n in 1:4
-            qList[e,n] = (q[IEN[e,n]] - min) / (max - min)
-        end
-    end
-    return qList
-end
-
-"""
-    truncate_colormap(minval=0.0, maxval=1.0, n=100)
-
-Function to truncate a colormap
-    
-# Arguments:
-- `minval::Integer`: minimum value of the colormap
-- `maxval::Integer`: maximum value of the colormap
-- `n::Integer`: number of colors
-
-# Returns:
-- `new_cmap`: truncated colormap
-"""
-function truncate_colormap(minval=0.0, maxval=1.0, n=100)
-    new_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("mycmap", get_cmap("jet")(collect(range(maxval, minval, n))))
-    return new_cmap
-end
-
 function add_noise(obsScene; nFactor=0)
 
     nScene = AbstractArray[]      
@@ -527,28 +732,6 @@ function get_height(μ_tp::Vector{Float64}, H_0::Float64)
         end
     end
     return h
-end
-
-function plot_covariance(η_list::Vector{Float64}, β_list::Vector{Float64}, filepath::String)
-    set_file(filepath)
-
-    mean_η = mean(η_list)
-    mean_β = mean(β_list)
-
-    cov_η = cov(η_list)
-    cov_β = cov(β_list)
-    cov_ηβ = cov(η_list, β_list)
-
-    cov_mat = [cov_η cov_ηβ; cov_ηβ cov_β]
-    mean_vec = [mean_η; mean_β]
-
-    # Plot the covariance matrix
-    StatsPlots.covellipse(mean_vec, cov_mat, label="Covariance", color=:red, alpha=0.5, linewidth=2)
-    # scatter!(η_list, β_list, label="Data", color=:blue, alpha=0.5)
-    xlabel!("η")
-    ylabel!("β")    
-    title!("Covariance")
-    Plots.savefig(string(filepath,"covariance.svg"))
 end
 
 function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)

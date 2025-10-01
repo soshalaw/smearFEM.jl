@@ -2,19 +2,19 @@ using LinearAlgebra
 using Plots
 using ArgCheck
 
-function match_points(pSim::AbstractMatrix{Float64},pObs::AbstractMatrix{Float64})
+function match_points(p_sim::AbstractMatrix{Float64},p_obs::AbstractMatrix{Float64})
 
-    simSize = size(pSim,2)
-    obsSize = size(pObs,2)
-    pairs = zeros(Int64,size(pSim,2),2)
-    pSim, qSim = pSim[1,:], pSim[2,:]
-    pObs, qObs = pObs[1,:], pObs[2,:]
+    simSize = size(p_sim,2)
+    obsSize = size(p_obs,2)
+    pairs = zeros(Int64,size(p_sim,2),2)
+    p_sim, qSim = p_sim[1,:], p_sim[2,:]
+    p_obs, qObs = p_obs[1,:], p_obs[2,:]
 
     for simCounter in 1:simSize
         cost = 1e18
         closestPointIdx = 0
         for obsCounter in 1:obsSize
-            error = (pSim[simCounter] - pObs[obsCounter])^2 + (qSim[simCounter] - qObs[obsCounter])^2
+            error = (p_sim[simCounter] - p_obs[obsCounter])^2 + (qSim[simCounter] - qObs[obsCounter])^2
             if error < cost
                 cost = error
                 closestPointIdx = obsCounter
@@ -25,14 +25,14 @@ function match_points(pSim::AbstractMatrix{Float64},pObs::AbstractMatrix{Float64
     return pairs
 end
 
-function closest_point(simScene::AbstractArray, obsScene::AbstractArray)
+function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray)
     # Define the cost function
     cost_list = Float64[]
     norm_cost_list = Float64[]
     pairsList = []
     
-    @argcheck length(simScene) == length(obsScene) "Size of the simulation and observation scenes should be the same"
-    for (obs_t, sim_t) in zip(obsScene, simScene) # iterate over the scenes
+    @argcheck length(sim_frames) == length(obs_frames) "Size of the simulation and observation scenes should be the same"
+    for (obs_t, sim_t) in zip(obs_frames, sim_frames) # iterate over the scenes
         tcost = 0
         pairs = match_points(sim_t, obs_t) # match the points using the first border
         
@@ -54,16 +54,16 @@ function closest_point(simScene::AbstractArray, obsScene::AbstractArray)
     return cost_list, [pairsList, norm_cost_list]
 end
 
-function closest_point(simScene::AbstractArray, obsScene::AbstractArray, dudθ::AbstractArray)
+function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dudθ::AbstractArray)
     # Define the cost function 
     cost_list = Float64[]
     dcost_list = []
     dcost2List = []
     pairsList = []
-    @argcheck length(simScene) == length(obsScene) "Size of the simulation and observation scenes should be the same"
-    @argcheck length(simScene) == length(dudθ) "Size of the simulation and observation scenes should be the same"
+    @argcheck length(sim_frames) == length(obs_frames) "Size of the simulation and observation scenes should be the same"
+    @argcheck length(sim_frames) == length(dudθ) "Size of the simulation and observation scenes should be the same"
 
-    for (obs_t, sim_t, du_tdθ) in zip(obsScene, simScene, dudθ) # iterate over the scenes
+    for (obs_t, sim_t, du_tdθ) in zip(obs_frames, sim_frames, dudθ) # iterate over the scenes
         @argcheck size(sim_t,2) == size(du_tdθ,2) "Number of the border points and the gradient points should be the same"
 
         mat_nan_inf_check(du_tdθ[:,:,1])
@@ -283,16 +283,16 @@ function val_check(v::Vector{Float64})
 end
 
 
-function height_sample(simScene::Vector{AbstractArray}, obsScene::Vector{AbstractArray})
+function height_sample(sim_frames::Vector{AbstractArray}, obs_frames::Vector{AbstractArray})
 
     xSimintlst = AbstractArray[]
     ySimintlst = AbstractArray[]
     xObsintlst = AbstractArray[]
     cost_list = Float64[]
-    for (obsData, simData) in zip(obsScene, simScene) # iterate over the scenes
+    for (obs_data, sim_data) in zip(obs_frames, sim_frames) # iterate over the scenes
 
-        xSim, ySim = filter_points(simData, 2048/2)
-        xObs, yObs = filter_points(obsData, 2048/2)
+        xSim, ySim = filter_points(sim_data, 2048/2)
+        xObs, yObs = filter_points(obs_data, 2048/2)
 
         xObsint = fit_curve(borderx=xObs, bordery=yObs, samples=ySim)
 
