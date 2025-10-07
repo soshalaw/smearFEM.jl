@@ -22,7 +22,7 @@ function run(noiseLevelLst, file_path)
     nDof_p::Int = 1  # number of degree of freedom per node
 
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-    camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
+    obj_pose = scale*[0 -0.5 2.75]'   # camera position in mm
 
     dev::Float64 = 0.3
 
@@ -58,7 +58,7 @@ function run(noiseLevelLst, file_path)
             printstyled("Ground truth η : $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
             model_gt, scene_gt = def_problem(r, h, gt_ne, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
             filepath_gt = string(filepath,"/experiment_$(η_gt)_$(β_gt)/ground_truth")
-            write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepath_gt)
+            write_sim_data(model_gt, scene_gt, camera_matrix, obj_pose, filepath_gt)
             
             gt_h = readdlm(string(filepath_gt,"/Results/data/h.csv"), ',', Float64, '\n', header=false)
             # Write the ground truth
@@ -76,7 +76,7 @@ function run(noiseLevelLst, file_path)
                     
                     for sides::Bool in sideList
                         filepathi = string(filepath,"/experiment_$(η_gt)_$(β_gt)/trials/noise_$(noiseLevel)")
-                        conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose, SIDES=sides, filepath=filepathi, ANIMATE=false)
+                        conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=sides, filepath=filepathi, ANIMATE=false)
 
                         θ::Vector{Float64} = [ηStart, βStart]
                         stats = fit_model(model, scene, conditions, obsBorderPts, θ)

@@ -26,7 +26,7 @@ Project the 3D mesh to 2D image plane and extract the border nodes (left and rig
 - `NodeList::Matrix{Float64}{ndim,nbNodes}`: 2D coordinates of the border nodes
 - `BorderNodes::Vector{Int}`: Indexes of the border nodes
 """
-function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, n_nodes::Int64; BorderNodesList::Vector{Int64}=zeros(Int64,0),GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
+function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractMatrix{Float64}, n_nodes::Int64; BorderNodesList::Vector{Int64}=zeros(Int64,0),GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
 
     if length(BorderNodesList) != 0
         surface_nodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
@@ -36,9 +36,9 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
     
     if GRAD
         ∇surface_nodes = dqdθ[:,BorderNodesList,:] 
-        surface_pts_2d, ∇surface_pts_2d = back_project(surface_nodes, camera_matrix, camera_pose, ∇surface_nodes) 
+        surface_pts_2d, ∇surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose, ∇surface_nodes) 
     else
-        surface_pts_2d = back_project(surface_nodes, camera_matrix, camera_pose) 
+        surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose) 
     end
 
     left_border_pts = zeros(Float64,2,(n_nodes))        # vector to store indexes of the border nodes
@@ -120,7 +120,7 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
     end 
 end
 
-function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
+function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractMatrix{Float64}; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
     
     if length(BorderNodesList) != 0
         surface_nodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
@@ -130,9 +130,9 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
 
     if GRAD
         ∇surface_nodes = dqdθ[:,BorderNodesList,:] 
-        surface_pts_2d, ∇surface_pts_2d = back_project(surface_nodes, camera_matrix, camera_pose, ∇surface_nodes) 
+        surface_pts_2d, ∇surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose, ∇surface_nodes) 
     else
-        surface_pts_2d = back_project(surface_nodes, camera_matrix, camera_pose) 
+        surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose) 
     end
 
     p = Array{Vector{Float64}}(undef,0)
@@ -274,11 +274,11 @@ function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{
 
     x_trans = x_trans_mat[1:3,:]
 
-    p = Plots.scatter3d(x_trans[1,:], x_trans[2,:], x_trans[3,:]; markersize=1, label="Transformed Points")
-    xlabel!(p, "X (mm)")
-    ylabel!(p, "Y (mm)")
-    zlabel!(p, "Z (mm)")
-    display(p)
+    # p = Plots.scatter3d(x_trans[1,:], x_trans[2,:], x_trans[3,:]; markersize=1, label="Transformed Points")
+    # xlabel!(p, "X (mm)")
+    # ylabel!(p, "Y (mm)")
+    # zlabel!(p, "Z (mm)")
+    # display(p)
     
     xProj = project_to(x_trans, camera_matrix)
 
@@ -352,21 +352,17 @@ function closest_point_contour(contour1::AbstractMatrix{Float64}, contour2::Abst
     return [hausdorff_dist], [average_dist, chamfer_dist]
 end
 
-function filter_frames(contour_list::AbstractArray; 
-                     distance_threshold=0.05,
-                     area_change_threshold=0.15,
-                     perimeter_change_threshold=0.10,
-                     centroid_shift_threshold=0.08,
-                     shape_deformation_threshold=0.12,
-                     consistency_window=3,
-                     neighbor_window=4,
-                     neighbor_weight=7.0,
-                     display_plots=true)
+function detect_outlier_observations(contour_list::AbstractArray; 
+                                   area_outlier_threshold=3e5,
+                                   centroid_outlier_threshold=2.5,
+                                   perimeter_outlier_threshold=3.0,
+                                   rolling_window=20,
+                                   min_valid_neighbors=3)
 
     frame_len = length(contour_list)
-    pos_calib_frames = Vector{Int64}()
-    compression_frames = Vector{Int64}()
-
+    valid_frames = Vector{Int64}()
+    outlier_frames = Vector{Int64}()
+    
     # Pre-compute geometric features for all contours
     areas = Float64[]
     perimeters = Float64[]
@@ -387,161 +383,95 @@ function filter_frames(contour_list::AbstractArray;
         centroid = [mean(contour[1,:]), mean(contour[2,:])]
         push!(centroids, centroid)
     end
-
-    # First pass: compute raw scores for all frames
-    raw_scores = Float64[]
-    frame_iter = 4:frame_len
     
-    for i in frame_iter
-        contour_curr = contour_list[i]
-        contour_prev = contour_list[i-3]
-
-        # Feature 1: Point-wise distance (your original metric)
-        diff_t, _ = closest_point([contour_curr], [contour_prev])
-        distance_score = diff_t[1] > distance_threshold ? 1.0 : 0.0
-
-        # Feature 2: Area change
-        area_change = abs(areas[i] - areas[i-3]) / max(areas[i-3], 1e-10)
-        area_score = area_change > area_change_threshold ? 1.0 : 0.0
-
-        # Feature 3: Perimeter change
-        perimeter_change = abs(perimeters[i] - perimeters[i-3]) / max(perimeters[i-3], 1e-10)
-        perimeter_score = perimeter_change > perimeter_change_threshold ? 1.0 : 0.0
-
-        # Feature 4: Centroid shift
-        centroid_shift = norm(centroids[i] - centroids[i-3])
-        centroid_score = centroid_shift > centroid_shift_threshold ? 1.0 : 0.0
-
-        # Feature 5: Shape deformation (Hausdorff-like distance)
-        max_displacement = maximum([norm([contour_curr[1,j] - contour_prev[1,j], 
-                                         contour_curr[2,j] - contour_prev[2,j]]) 
-                                   for j in 1:min(size(contour_curr,2), size(contour_prev,2))])
-        shape_score = max_displacement > shape_deformation_threshold ? 1.0 : 0.0
-
-        # Raw compression score (before neighbor influence)
-        raw_compression_score = 0.3 * distance_score + 
-                               0.25 * area_score + 
-                               0.2 * perimeter_score + 
-                               0.15 * centroid_score + 
-                               0.1 * shape_score
-        
-        push!(raw_scores, raw_compression_score)
-    end
-
-    # Second pass: apply neighbor-aware decision making
-    decisions = String[]
-    final_scores = Float64[]
+    # Convert centroids to matrix for easier processing
+    centroid_x = [c[1] for c in centroids]
+    centroid_y = [c[2] for c in centroids]
     
-    for (idx, i) in enumerate(frame_iter)
-        # Get current frame's raw score
-        current_raw_score = raw_scores[idx]
+    outlier_details = Dict{Int, Dict{String, Any}}()
+    
+    # Analyze each frame for outliers
+    for i in 1:frame_len
+        is_outlier = false
+        outlier_reasons = String[]
         
-        # Collect neighbor scores within the window
-        neighbor_scores = Float64[]
+        # Define analysis window around current frame
+        window_start = max(1, i - rolling_window÷2)
+        window_end = min(frame_len, i + rolling_window÷2)
         
-        # Look at previous frames
-        for offset in 1:neighbor_window
-            neighbor_frame = i - offset
-            if neighbor_frame >= 4  # Ensure we have valid frame indices
-                neighbor_idx = neighbor_frame - 3  # Convert to raw_scores index
-                if neighbor_idx >= 1 && neighbor_idx <= length(raw_scores)
-                    push!(neighbor_scores, raw_scores[neighbor_idx])
-                end
-            end
-        end
+        # Exclude current frame from statistics to avoid self-influence
+        window_indices = [j for j in window_start:window_end if j != i]
         
-        # Look at future frames
-        for offset in 1:neighbor_window
-            neighbor_frame = i + offset
-            if neighbor_frame <= frame_len
-                neighbor_idx = neighbor_frame - 3  # Convert to raw_scores index
-                if neighbor_idx >= 1 && neighbor_idx <= length(raw_scores)
-                    push!(neighbor_scores, raw_scores[neighbor_idx])
-                end
-            end
-        end
-        
-        # Calculate neighbor influence
-        neighbor_influence = 0.0
-        if !isempty(neighbor_scores)
-            # Strong neighbor influence: if most neighbors are compression, bias toward compression
-            neighbor_compression_ratio = sum(s -> s > 0.5, neighbor_scores) / length(neighbor_scores)
+        if length(window_indices) >= min_valid_neighbors
+            # Local statistics for area
+            local_areas = areas[window_indices]
+            area_mean = mean(local_areas)
+            area_std = std(local_areas)
+            area_z_score = abs(areas[i] - area_mean)
             
-            if neighbor_compression_ratio >= 0.7  # 70% of neighbors are compression
-                neighbor_influence = neighbor_weight
-            elseif neighbor_compression_ratio <= 0.3  # 70% of neighbors are position calibration
-                neighbor_influence = -neighbor_weight
-            else
-                # Moderate influence based on average neighbor score
-                avg_neighbor_score = mean(neighbor_scores)
-                neighbor_influence = neighbor_weight * (avg_neighbor_score - 0.5)
+            # Local statistics for centroid
+            local_centroid_x = centroid_x[window_indices]
+            centroid_x_mean = mean(local_centroid_x)
+            centroid_x_std = std(local_centroid_x)
+            
+            local_centroid_y = centroid_y[window_indices]
+            centroid_y_mean = mean(local_centroid_y)
+            centroid_y_std = std(local_centroid_y)
+            
+            # Combined centroid displacement
+            centroid_displacement = sqrt((centroid_x[i] - centroid_x_mean)^2 + (centroid_y[i] - centroid_y_mean)^2)
+            expected_centroid_std = sqrt(centroid_x_std^2 + centroid_y_std^2)
+            centroid_combined_z_score = centroid_displacement / (expected_centroid_std + 1e-10)
+            
+            # Local statistics for perimeter
+            local_perimeters = perimeters[window_indices]
+            perimeter_mean = mean(local_perimeters)
+            perimeter_std = std(local_perimeters)
+            perimeter_z_score = abs(perimeters[i] - perimeter_mean) / (perimeter_std + 1e-10)
+            
+            # Check for outliers
+            if area_z_score > area_outlier_threshold
+                is_outlier = true
+            end
+            
+            # if centroid_combined_z_score > centroid_outlier_threshold
+            #     is_outlier = true
+            # end
+            
+            # if perimeter_z_score > perimeter_outlier_threshold
+            #     is_outlier = true
+            # end
+            
+            # Additional checks for extreme cases
+            if areas[i] <= 0 || size(contour_list[i], 2) < 3
+                is_outlier = true
             end
         end
-        
-        # Apply neighbor influence to get final score
-        final_score = current_raw_score + neighbor_influence
-        final_score = clamp(final_score, 0.0, 1.0)  # Keep within [0,1] bounds
-        push!(final_scores, final_score)
-        
-        # Make decision based on final score
-        current_decision = final_score > 0.5 ? "compression" : "position_calibration"
-        push!(decisions, current_decision)
-        
-        # Apply consistency filter (optional additional smoothing)
-        if length(decisions) >= consistency_window
-            recent_decisions = decisions[end-consistency_window+1:end]
-            compression_votes = count(d -> d == "compression", recent_decisions)
-            
-            # Majority vote for final classification
-            if compression_votes > consistency_window ÷ 2
-                status = "compression"
-                push!(compression_frames, i)
-            else
-                status = "position_calibration"
-                push!(pos_calib_frames, i)
-            end
+
+        # Classify frame
+        if is_outlier
+            push!(outlier_frames, i)
         else
-            # For initial frames, use direct decision
-            status = current_decision
-            if status == "compression"
-                push!(compression_frames, i)
-            else
-                push!(pos_calib_frames, i)
-            end
+            push!(valid_frames, i)
+            # p = Plots.Plots.scatter(contour_list[i][1,:], contour_list[i][2,:]; color=:green, label="Valid Frame $i, Area score: $(round(area_z_score,digits=2))")
+            # xlabel!(p, "X (pixels)")
+            # ylabel!(p, "Y (pixels)")
+            # xlims!(p, 0, 2048)
+            # ylims!(p, 0, 1536)
+            # yflip!(p, true)  # if needed to match image coords
+            # display(p)
+            # sleep(0.5)  # Pause to ensure plot updates
         end
-
-        # Optional visualization
-        if display_plots
-            contour_curr = contour_list[i]
-            plt = Plots.plot(contour_curr[1,:], contour_curr[2,:], 
-                           title="Frame $i: $status\nRaw=$(round(current_raw_score, digits=2)) Final=$(round(final_score, digits=2))", 
-                           legend=false)
-            xlims!(plt, 0, 2048)
-            ylims!(plt, 0, 1536)
-            yflip!(plt, true)
-            display(plt)
-            sleep(0.5)
-        end
-        
-        # Enhanced logging with neighbor information
-        neighbor_info = isempty(neighbor_scores) ? "no_neighbors" : 
-                       "$(round(mean(neighbor_scores), digits=2))($(length(neighbor_scores)))"
-        
-        println("Frame $i: $status " *
-                "(raw=$(round(current_raw_score, digits=3)), " *
-                "neighbors=$neighbor_info, " *
-                "influence=$(round(neighbor_influence, digits=3)), " *
-                "final=$(round(final_score, digits=3)))")
     end
-
-    return pos_calib_frames, compression_frames
+    
+    return valid_frames, outlier_frames
 end
 
 function get_pose(frames::AbstractArray)
+    @info "Computing specimen pose from $(size(frames,3)) frames"
     pose_mat = zeros(Float64, 4,4)
     frame_len = size(frames,3)
 
-    println("Number of frames: ", frame_len)
     iter = 1:frame_len
     for i in iter
         pose_mat = pose_mat + frames[:,:,i]

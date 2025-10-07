@@ -25,14 +25,18 @@ function match_points(p_sim::AbstractMatrix{Float64},p_obs::AbstractMatrix{Float
     return pairs
 end
 
-function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray)
+function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; outliers::AbstractArray=[])
     # Define the cost function
     cost_list = Float64[]
     norm_cost_list = Float64[]
     pairsList = []
-    
+
+    # frame_counter = 1
     @argcheck length(sim_frames) == length(obs_frames) "Size of the simulation and observation scenes should be the same"
-    for (obs_t, sim_t) in zip(obs_frames, sim_frames) # iterate over the scenes
+    for (frame_idx, (obs_t, sim_t)) in enumerate(zip(obs_frames, sim_frames)) # iterate over the scenes
+        if frame_idx in outliers
+            continue
+        end
         tcost = 0
         pairs = match_points(sim_t, obs_t) # match the points using the first border
         
@@ -54,7 +58,7 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray)
     return cost_list, [pairsList, norm_cost_list]
 end
 
-function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dudθ::AbstractArray)
+function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dudθ::AbstractArray; outliers::AbstractArray=[])
     # Define the cost function 
     cost_list = Float64[]
     dcost_list = []
@@ -186,7 +190,7 @@ function init_cylinder()
     end
 end
 
-function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64})
+function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64}; outliers::Vector{Int}=Int[])
     reset_model!(model)
     model.η = [θ[1]]
     scene.β = [θ[2]]
@@ -238,7 +242,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
 
         # get the cost, gradient and hessian values
-        d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
+        d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
 
         totd = sum(d)/len_d
         c_grad = abs(totdinit - totd)

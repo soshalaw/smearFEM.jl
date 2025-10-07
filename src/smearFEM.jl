@@ -10,11 +10,11 @@ export EnvConditions, Conditions # types.jl
 
 export meshgrid_line, meshgrid_square, meshgrid_cube, inflate_cylinder, meshgrid_ring, meshgrid_cylinder # Meshes.jl
 export gaussian_quadrature, basis_function # fem.jl
-export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, plot_covariance, eval_on_cylinder, get_lagrange_proj, get_lagrange_pts, get_nurbs_2_lagrange_proj, filter_frames, get_pose # PostProcess.jl
+export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, plot_covariance, eval_on_cylinder, get_lagrange_proj, get_lagrange_pts, get_nurbs_2_lagrange_proj, detect_outlier_observations, get_pose # PostProcess.jl
 export closest_point, height_sample, match_points, fit_model # smearOptimize.jl
 export reset_model!, update_model! # models.jl
 
-export simulate, write_sim_data, test, simulate_single_tstep, compare, readData, initialize_mesh
+export simulate, write_sim_data, test, simulate_single_tstep, compare, readData, initialize_mesh, write_data
 export simulate_single_tstep_stokes, simulate_stokes, test_stokes, write_sim_data_stokes
 export set_boundary_conditions, simulate, set_file, assemble_system, set_slip_conditions, get_cMat, get_volume
 export set_boundary_conditions_dense, assemble_system_dense, set_slip_conditions_dense

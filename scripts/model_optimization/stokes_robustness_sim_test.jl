@@ -33,7 +33,7 @@ function run(noiseLevelLst, file_path)
         η_gt = params["η"]
         β_gt = params["β"]
         camera_matrix = params["camera_matrix"]
-        camera_pose = params["camera_pose"]
+        obj_pose = params["obj_pose"]
         control = params["control_type"]
         viscosity_type = params["viscosity_type"]
         F = params["cParam"]
@@ -66,7 +66,7 @@ function run(noiseLevelLst, file_path)
                 
                 for sides::Bool in sideList
                     filepathi = string(filepath_gt,"/trials/noise_$(noiseLevel)")
-                    conditions = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose, SIDES=sides, filepath=filepathi, ANIMATE=false)
+                    conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=sides, filepath=filepathi, ANIMATE=false)
 
                     θ::Vector{Float64} = [ηStart, βStart]
                     stats = fit_model(model, scene, conditions, obsBorderPts, θ)

@@ -1239,9 +1239,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     @unpack nNodes = mdl.mesh_p
     nNodes_p_cached::Int = nNodes
 
-    @unpack camera_matrix, camera_pose, SIDES = conditions    
+    @unpack camera_matrix, obj_pose, SIDES = conditions    
     camera_matrix_cached::Matrix{Float64} = camera_matrix
-    camera_pose_cached::Matrix{Float64} = camera_pose
+    obj_pose_cached::Matrix{Float64} = obj_pose
     SIDES_cached::Bool = SIDES
     
     NodeList_cached::Matrix{Float64} = NodeList_u_cached
@@ -1270,7 +1270,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     
     NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
             
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, nNodes_u_cached, BorderNodesList=side_node_list_cached)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, nNodes_u_cached, BorderNodesList=side_node_list_cached)
     pi, qi = fit_curve(border=BorderPts2D)
     
     dqdη = zeros(Float64, size(q_d_cached_top))
@@ -1425,7 +1425,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             
             dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
 
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
 
             mat_nan_inf_check(dudθ[:,:,1])
@@ -1517,7 +1517,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             
             dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
         
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, camera_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
 
             mat_nan_inf_check(dudθ[:,:,1])

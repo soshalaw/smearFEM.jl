@@ -202,7 +202,64 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
         return q_out, mdl
     end
 end
+"""
+    write_data(exp_params::Dict)
+Writes simulation data to files based on the provided experiment parameters.
 
+# Arguments
+- `exp_params::Dict`: A dictionary containing experiment parameters such as mesh size, material properties, file paths, and simulation settings.
+
+# Returns
+None.
+"""
+
+function write_data(exp_params::Dict)
+
+    ndim::Int = 3
+    FunctionClass_u::String = exp_params["FunctionClass_u"]
+    FunctionClass_p::String = exp_params["FunctionClass_p"]    
+    FunctionClass_x::String = exp_params["FunctionClass_x"]
+    nDof_u::Int = ndim  # number of degree of freedom per node
+    nDof_p::Int = 1  # number of degree of freedom per node
+
+    # simulation parameters for the ground truth
+    r::Float64 = exp_params["r"]  # radius of the cylinder in mm
+    h::Float64 = exp_params["h"]  # height of the cylinder in mm
+
+    control::String = exp_params["control"]
+    viscosity_type::String = exp_params["viscosity_type"] # "constant" or "bulk_viscosity"
+    filepath_gt::String = exp_params["filepath_gt"]
+    obj_pose::AbstractArray = exp_params["obj_pose_gt"]
+    camera_matrix::AbstractArray = exp_params["camera_matrix"]
+
+    sim_time_gt::Float64 = exp_params["sim_time_gt"]
+    steps_gt::Float64 = exp_params["steps_gt"]
+    t_steps_gt::Float64 = sim_time_gt/steps_gt
+
+    β_gt::Float64 = exp_params["β_gt"]
+    η_gt::Float64 = exp_params["η_gt"]
+    ne_gt::Int = exp_params["ne_gt"] # number of elements in the mesh for the ground truth
+
+    F_ext::Float64 = exp_params["F_ext"]
+
+    if viscosity_type == "bulk_viscosity"
+        F_ext = 1500.0*3*β_gt # force applied to the cylinder in N
+        sim_time_gt = 40.0 # simulation time in seconds
+        steps_gt = 100.0 # number of time steps
+        t_steps_gt = sim_time_gt/steps_gt
+    end
+
+    F = -F_ext*ones(Float64, round(Int, (sim_time_gt/t_steps_gt))) # force applied to the cylinder in N
+
+    # Write the ground truth
+    printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
+    model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+                    sim_time_gt, t_steps_gt)
+
+    @info "Writing ground truth gt data to with $ne_gt elements to $filepath_gt"
+    write_sim_data(model_gt, scene_gt, camera_matrix, obj_pose, filepath_gt)
+
+  end
 
 """
     write_sim_data(r, h, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, filename; mode="lame")
@@ -231,7 +288,7 @@ Initializes the simulation and writes the data to a file.
 # Returns
 None.
 """
-function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64}, 
+function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractMatrix{Float64}, 
                         filepath::String="nothing"; ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true)
 
     # copy the model and scene to avoid modifying the original objects
@@ -239,7 +296,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     scene::AbstractScenario = deepcopy(_scene)
     
     # set the model parameters
-    conditions = Conditions(ANIMATE=ANIMATE, WRITECONTOUR=WRITECONTOUR, RENDER=RENDER, WRITEVTK=WRITEVTK, camera_matrix=camera_matrix, camera_pose=camera_pose, filepath=filepath)
+    conditions = Conditions(ANIMATE=ANIMATE, WRITECONTOUR=WRITECONTOUR, RENDER=RENDER, WRITEVTK=WRITEVTK, camera_matrix=camera_matrix, obj_pose=obj_pose, filepath=filepath)
     
     # remove the previous results folder if it exists
     if isdir(string(filepath))
@@ -252,7 +309,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     
     h = get_height(h_, model.mesh_u.h) # get the mesh height with time
     display(scene.cParam)
-    params = Dict("r"=>model.mesh_u.r, "h"=>model.mesh_u.h, "η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "camera_pose" => conditions.camera_pose, 
+    params = Dict("r"=>model.mesh_u.r, "h"=>model.mesh_u.h, "η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "obj_pose" => conditions.obj_pose, 
                     "control_type"=>scene.control, "cParam"=>scene.cParam, "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps, 
                     "viscosity_type"=>scene.viscosity_type)
 
@@ -409,7 +466,7 @@ Initializes the mesh and writes the data to a file.
 - `splinep::Vector{Vector{Float64}}`: x coordinates of the border observation at each timestep interpolated.
 - `splineq::Vector{Vector{Float64}}`: y coordinates of the border observation at each timestep interpolated.
 """
-function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String, camera_matrix::AbstractMatrix{Float64}, camera_pose::AbstractMatrix{Float64},filepath::String="nothing", 
+function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractMatrix{Float64},filepath::String="nothing", 
                             SIDES::Bool=false)
 
     isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
@@ -417,7 +474,7 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String,
     
     mesh = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)
 
-    BorderPts2D, SurfacePts2D = extract_borders(mesh.NodeList, camera_matrix, camera_pose, mesh.nNodes, BorderNodesList= mesh.side_nodes)
+    BorderPts2D, SurfacePts2D = extract_borders(mesh.NodeList, camera_matrix, obj_pose, mesh.nNodes, BorderNodesList= mesh.side_nodes)
     pi, qi = fit_curve(border=BorderPts2D)
         
                                                # store the solution fields of the border nodes in 2D 

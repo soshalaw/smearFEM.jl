@@ -9,7 +9,7 @@ mutable struct Conditions <: EnvConditions
     RENDER::Bool
     filepath::String
     camera_matrix::AbstractMatrix{Float64}
-    camera_pose::AbstractMatrix{Float64}
+    obj_pose::AbstractMatrix{Float64}
 
     # Constructor with keyword arguments and default values
     function Conditions(; 
@@ -20,8 +20,8 @@ mutable struct Conditions <: EnvConditions
         SIDES::Bool = false,
         filepath::String = "",
         camera_matrix::AbstractMatrix{Float64} = Matrix{Float64}(undef, 4, 4),
-        camera_pose::AbstractMatrix{Float64} = Matrix{Float64}(undef, 3, 1)
+        obj_pose::AbstractMatrix{Float64} = Matrix{Float64}(undef, 3, 1)
     )
-        return new(ANIMATE, WRITEVTK, SIDES, WRITECONTOUR, RENDER, filepath, camera_matrix, camera_pose)
+        return new(ANIMATE, WRITEVTK, SIDES, WRITECONTOUR, RENDER, filepath, camera_matrix, obj_pose)
     end
 end

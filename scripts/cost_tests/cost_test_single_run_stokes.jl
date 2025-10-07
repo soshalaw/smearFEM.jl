@@ -53,7 +53,7 @@ function run_exp(exp_params::Dict)
     F = -F_ext*ones(Float64, round(Int, (sim_time_gt/t_steps_gt))) # force applied to the cylinder in N
 
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-    camera_pose = scale*[0 -0.5 4]'   # camera position in mm
+    obj_pose = scale*[0 -0.5 4]'   # camera position in mm
 
     # Write the ground truth
     printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
@@ -61,14 +61,14 @@ function run_exp(exp_params::Dict)
                     sim_time_gt, t_steps_gt)
 
     @info "Writing ground truth gt data to with $ne_gt elements to $filepath"
-    write_sim_data(model_gt, scene_gt, camera_matrix, camera_pose, filepath)
+    write_sim_data(model_gt, scene_gt, camera_matrix, obj_pose, filepath)
 
     ObsDataList, splinexObs, splineyObs = read_csv(string(filepath,"/data/sim_data/contour_data"))  
     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
     #sim data
     model_iga, scene_iga = def_problem(r, h, ne_gt, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
                 sim_time_gt, t_steps_gt)
-    conditions_iga = Conditions(camera_matrix=camera_matrix, camera_pose=camera_pose, SIDES=SIDES, filepath=exp_path, ANIMATE=false)
+    conditions_iga = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=SIDES, filepath=exp_path, ANIMATE=false)
 
     est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model_iga, scene_iga, conditions_iga)
     d, ∂d, ∂2d, pairs = closest_point(borderPts2DList, obsBorderPts, gradList)
