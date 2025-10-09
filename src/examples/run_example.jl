@@ -213,7 +213,7 @@ Writes simulation data to files based on the provided experiment parameters.
 None.
 """
 
-function write_data(exp_params::Dict)
+function write_gt_data(exp_params::Dict)
 
     ndim::Int = 3
     FunctionClass_u::String = exp_params["FunctionClass_u"]

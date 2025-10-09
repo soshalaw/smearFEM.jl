@@ -52,7 +52,7 @@ function main()
                                 "η_gt" => η_gt, "filepath_gt"=>filepath_gt, "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
                                 "F_ext" => F_ext, "sim_time_gt" => sim_time_gt, "steps_gt" => steps_gt, "r" => r, "h" => h, "camera_matrix" => camera_matrix)
 
-                    write_data(exp_params)
+                    write_gt_data(exp_params)
                     run_id = run_id + 1
                 end
             end

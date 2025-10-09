@@ -64,7 +64,7 @@ function optimize(exp_params::Dict)
 
         if WRITE_GT == true # write the ground truth data
             @info "Writing ground truth gt data to with $ne_gt elements to $filepath_res"
-            write_data(exp_params)
+            write_gt_data(exp_params)
         end
 
         params = read_json(string(filepath_gt,"/data/sim_params.json"))
