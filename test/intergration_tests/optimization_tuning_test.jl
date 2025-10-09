@@ -128,7 +128,7 @@ function optimize(exp_params::Dict)
         error("data_type should be either simulated or physical")
     end
 
-    exp_path = string("$filepath_res/data_type/$FunctionClass_x","_","$ne_exp")
+    exp_path = string("$filepath_res/$data_type/$FunctionClass_x","_","$ne_exp")
     set_file(exp_path)
     write_json(string(exp_path,"/Results/data/experiment_parameters"), exp_params)
 
@@ -333,8 +333,7 @@ function optimize(exp_params::Dict)
         windows = collect(range(start=1, stop=sim_time_gt, length=window))
         titer::Int = 1
         set_file(string(exp_path,"/Results/plots"))
-        # for ti::Int in 1:window
-            ti = 1
+        for ti::Int in 1:window
             data_range = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer))+1)
             data_range_ = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer)))
 
@@ -364,6 +363,8 @@ function optimize(exp_params::Dict)
       
             iterList = stats["iterList"]
             costList = stats["cost_list"]
+            ηpList = stats["ηList"]
+            βpList = stats["βList"]
     
             # Plot the cost function with iterations
             set_plot(fs)
@@ -371,15 +372,29 @@ function optimize(exp_params::Dict)
             Plots.xlabel!("Iterations")
             Plots.ylabel!("Cost (px)")
             Plots.xticks!(minimum(iterList):2:maximum(iterList))
-            Plots.savefig(string(exp_path,"/Results/plots/cost_steps.pdf"))
+            Plots.savefig(string(exp_path,"/Results/plots/cost_steps_$iter.pdf"))
     
             # Plot the cost function with iterations
             set_plot(fs)
-            Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xscale=:log10, lw=3)
+            Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
             Plots.xlabel!("Iterations")
             Plots.ylabel!("Cost (px)")
-            Plots.savefig(string(exp_path,"/Results/plots/cost_steps_log.pdf"))
-        # end
+            Plots.savefig(string(exp_path,"/Results/plots/cost_steps_log_$iter.pdf"))
+
+            # Plot the cost function with iterations
+            set_plot(fs)
+            Plots.plot!(iterList, ηpList, label="Cost", marker=2, dpi=400, yscale=:log10, xscale=:log10, lw=3)
+            Plots.xlabel!("Iterations")
+            Plots.ylabel!("Cost (px)")
+            Plots.savefig(string(exp_path,"/Results/plots/eta_steps_$iter.pdf"))
+
+            set_plot(fs)
+            Plots.plot!(iterList, βpList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
+            Plots.xlabel!("Iterations")
+            Plots.ylabel!("Cost (px)")
+            Plots.xticks!(minimum(iterList):2:maximum(iterList))
+            Plots.savefig(string(exp_path,"/Results/plots/beta_steps_$iter.pdf"))
+        end
 
         plt_η = set_plot(fs)
         t_windows = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
@@ -454,12 +469,12 @@ function optimize_real()
     # sim_time_exp::Float64 = 5.0 # simulation time in seconds
     F_ext::Float64 = 1*9.812*1e3 # force applied to the cylinder in N
 
-    sim_time_list = [0.7, 0.5, 0.2, 0.1] # simulation time in seconds
+    sim_time_list = [1.0] # simulation time in seconds
     for sim_time_exp in sim_time_list
         println("Simulation time: $sim_time_exp seconds")
         file_id = 5
         filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data/$file_id")
-        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/physical_data/integration_tests/single_window/$sim_time_exp")
+        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/physical_data/integration_tests/multi_window/$sim_time_exp")
         
         for ref in refine_list
             ne = ne_exp^ref
