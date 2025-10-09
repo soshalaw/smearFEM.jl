@@ -339,6 +339,7 @@ function optimize(exp_params::Dict)
             data_range_ = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer)))
 
             obsBorderPts_t = obsBorderPts[data_range] # align the observation points with the simulation time
+            println(size(obsBorderPts_t))
 
             println("Time frame : $data_range")
             printstyled("Time window: $(ti)\n"; color = :green)
@@ -453,7 +454,7 @@ function optimize_real()
     # sim_time_exp::Float64 = 5.0 # simulation time in seconds
     F_ext::Float64 = 1*9.812*1e3 # force applied to the cylinder in N
 
-    sim_time_list = [1.0, 0.75, 0.5, 0.25, 0.1] # simulation time in seconds
+    sim_time_list = [0.7, 0.5, 0.2, 0.1] # simulation time in seconds
     for sim_time_exp in sim_time_list
         println("Simulation time: $sim_time_exp seconds")
         file_id = 5

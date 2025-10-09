@@ -1118,8 +1118,10 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
                     nDof_p::Int64, FunctionClass_x::String, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
     n::Float64 = 0.9
     K::Float64 = 100.0
+    println("Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(sim_time/t_steps)")
     len_t::Int = round(Int,(sim_time/t_steps)) # number of time steps
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
+    println("Number of time steps: $len_t, Length of time array: $(length(time))")
 
     if viscosity_type == "bulk_viscosity"
         η = get_η.(time, -cParam, r, h, η_0, n, K)
