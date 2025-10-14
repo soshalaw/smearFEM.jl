@@ -1414,16 +1414,16 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             motion_y = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # extract the motion of the mesh grid
             dmdη_out_y = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'*t_steps_cached
             dmdβ_out_y = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'*t_steps_cached
-            
-            motion =  motion_y*T_# extract the motion of the mesh grid
-            
+
+            motion =  motion_y # extract the motion of the mesh grid
+
             NodeList_cached = NodeList_cached + motion # update the mesh grid
             mdl.mesh_x.NodeList = NodeList_cached     # update the mesh grid
 
-            NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
-            dmdη_out_proj = dmdη_out_y*T_*T
-            dmdβ_out_proj = dmdβ_out_y*T_*T
-            motion_proj = motion*T
+            NodeList_proj = NodeList_cached # project the motion on the geometry mesh grid
+            dmdη_out_proj = dmdη_out_y
+            dmdβ_out_proj = dmdβ_out_y
+            motion_proj = motion
             
             dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
 

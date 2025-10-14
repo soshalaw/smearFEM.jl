@@ -108,7 +108,7 @@ Function to animate the fields as a gif
 """
 function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing)
     set_file(filepath) # create the directory to store the VTK files
-    if isnothing(Nodes) && isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(IEN) && isnothing(p) && isnothing(q)
+    if isnothing(Nodes) && isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(IEN) && isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
         AssertionError("No fields provided")
         return
     elseif isnothing(Nodes) && isnothing(SurfaceNodes3D)
@@ -144,39 +144,33 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
         AssertionError("No fields provided")
         return
     else
-        if isnothing(fields2D) && isnothing(p)
+        if !isnothing(BorderNodes2D)
             sz = length(BorderNodes2D)
-        elseif isnothing(BorderNodes2D) && isnothing(fields2D)
+        elseif !isnothing(p)
             sz = length(p)
-        elseif isnothing(BorderNodes2D) && isnothing(p)
+        elseif !isnothing(fields2D)
             sz = length(fields2D)
-        elseif isnothing(fields2D) && isnothing(p)    
-            sz = length(BorderNodes2D)
-        elseif isnothing(BorderNodes2D) && isnothing(fields2D) && isnothing(p)
-            sz = length(pObs)
         elseif !isnothing(pObs)
             sz = length(pObs)
-        else
-            sz = length(fields2D)
+        elseif !isnothing(pgt)
+            sz = length(pgt)
         end
         pr = Progress(sz; desc="Animating 2D fields...",showspeed=true)
         iter = 1:sz
         animation2 = @animate for i in iter
             
             plt = set_plot(22)
-
             if !isnothing(pObs) && !isnothing(p) && !isnothing(pgt)    
                 Plots.plot!(p[i],q[i], labels="Lagrange basis", aspect_ratio = :equal, dpi=:400, lw=2)
                 Plots.plot!(pObs[i],qObs[i], labels="NURBS basis", aspect_ratio = :equal, dpi=:400, lw=2)
                 Plots.plot!(pgt[i],qgt[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2)
             else
                 if !isnothing(p)   
-                Plots.plot!(p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=3) #, marker = :circle, markersize = 2)
+                    Plots.plot!(p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=3) #, marker = :circle, markersize = 2)
                 end
                 if !isnothing(pObs)
                     Plots.plot!(pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2)
                 end
-
                 if !isnothing(fields2D)
                     Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
                                     dpi=:400)

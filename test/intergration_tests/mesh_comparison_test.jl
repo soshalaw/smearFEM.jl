@@ -15,7 +15,7 @@ function initialize_meshes()
     frame_height = meta_data["frame_height"]
     compression_frames = meta_data["compressed_frames"]
 
-    sim_time_exp = 10.0  # seconds
+    sim_time_exp = 20.0  # seconds
     steps_exp = sim_time_exp * frame_rate
     println("steps exp: $steps_exp")
     t_steps_exp = 1/frame_rate
@@ -36,8 +36,8 @@ function initialize_meshes()
     FunctionClass_x = "Q2"
     control = "force"            # "force" or "velocity"
     gt_viscosity_type = "constant"  # "constant" or "bulk_viscosity"
-    β_start::Float64 = 2.0       # initial guess for the inverse of permeability
-    η_start::Float64 = 1.0     # initial guess for the viscosity
+    β_start::Float64 = 1.1741121081394392     # initial guess for the inverse of permeability
+    η_start::Float64 = 3.5571092268810744    # initial guess for the viscosity
 
     camera_matrix = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     obj_pose = Float64.(t_obs)
@@ -62,22 +62,21 @@ function initialize_meshes()
     println("Outlier frames: ", length(outlier_frames))
 
     # borderPts2DList, pos2D, splinep, splineq = initialize_mesh(r, h, ne_exp, FunctionClass_u, camera_matrix, obj_pose, filepath, SIDES)
-    model, scene = def_problem(r, h, ne_exp, η_start, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_start, F, control, gt_viscosity_type, 
-                        sim_time_exp, t_steps_exp)
+    # model, scene = def_problem(r, h, ne_exp, η_start, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_start, F, control, gt_viscosity_type, 
+    #                     sim_time_exp, t_steps_exp)
     conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=SIDES, filepath=filepath, ANIMATE=false)
-    output, gradList, borderPts2DList, splinep, splineq, mdl, pos2D = simulate(model, scene, conditions) # run the simulation
+    # output, gradList, borderPts2DList, splinep, splineq, mdl, pos2D = simulate(model, scene, conditions) # run the simulation
 
-    animate_fields(filepath = string(conditions.filepath,"/Results/images/"), BorderNodes2D=borderPts2DList, pObs=splinexObs[1:(round(Int,steps_exp)+1)], qObs=splineyObs[1:(round(Int,steps_exp)+1)])
+    animate_fields(filepath = string(conditions.filepath,"/Results/images/"), pObs=splinexObs, qObs=splineyObs)
 
     img = load(string(gt_path, "/Results/contour_detection/00000.png"))
 
     # Plotting the meshes
     p = plot(img; axis=nothing, legend=false)
 
-    display(borderPts2DList[1])
     # Overlay curves
     plot!(p, splinexObs[1], splineyObs[1], label="", lw=2, color=:blue)
-    plot!(p, borderPts2DList[1][1,:], borderPts2DList[1][2,:], label="", lw=2, color=:black)
+    # plot!(p, borderPts2DList[1][1,:], borderPts2DList[1][2,:], label="", lw=2, color=:black)
 
     xlims!(p, 0, 2048)
     ylims!(p, 0, 1536)

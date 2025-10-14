@@ -181,7 +181,7 @@ function init_cylinder()
         println("iteration $iter: steps : $p, Error = $totd, Error gradient : $c_grad")
         println(" ... ")
 
-        if c_grad < 0.005
+        if c_grad < 0.05
             break
         elseif iter ≥ 100
             break
@@ -201,7 +201,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
     iterList = Vector{Float64}(undef,0)
     
     μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-    d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList)
+    d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     totdinit::Float64 = sum(d)/length(d)
     
     push!(ηpList,θ[1])
@@ -211,14 +211,14 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
 
     iter::Int = 1
     c_grad::Float64 = 1.0
-    println("Initial Error: ", totdinit)
+    printstyled("Initial error = $totdinit\n", color=:yellow)
     while true
 
         reset_model!(model)
         t∂2d = zeros(size(∂2d[1]))
         t∂d = zeros(size(∂d[1]))
-        
-        println("η: ", θ[1], " β: ", θ[2])
+
+        printstyled("η: $(θ[1]), β: $(θ[2])\n", color=:yellow)
 
         len_d = length(d)
         szd = 1:len_d
