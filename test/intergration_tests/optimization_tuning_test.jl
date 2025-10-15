@@ -459,7 +459,9 @@ function optimize(exp_params::Dict)
                 est_βpList[data_range_] .= stats["β"]
                 titer = titer + 1
 
-                θ[1] = stats["η"]*100
+                if ti == 1
+                    θ[1] = stats["η"]*100
+                end
                 θ[2] = stats["β"]
 
                 
@@ -479,42 +481,40 @@ function optimize(exp_params::Dict)
                 
                 model.η = [θ[1]]
                 scene.β = [θ[2]]
-                if ti > 2
-                    break
-                end
-                # iterList = stats["iterList"]
-                # costList = stats["cost_list"]
-                # ηpList = stats["ηList"]
-                # βpList = stats["βList"]
-        
-                # # Plot the cost function with iterations
-                # set_plot(fs)
-                # Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
-                # Plots.xlabel!("Iterations")
-                # Plots.ylabel!("Cost (px)")
-                # Plots.xticks!(minimum(iterList):2:maximum(iterList))
-                # Plots.savefig(string(exp_path,"/Results/plots/cost_steps.pdf"))
-        
-                # # Plot the cost function with iterations
-                # set_plot(fs)
-                # Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
-                # Plots.xlabel!("Iterations")
-                # Plots.ylabel!("Cost (px)")
-                # Plots.savefig(string(exp_path,"/Results/plots/cost_steps_log.pdf"))
 
-                # # Plot the cost function with iterations
-                # set_plot(fs)
-                # Plots.plot!(iterList, ηpList, label="Cost", marker=2, dpi=400, yscale=:log10, xscale=:log10, lw=3)
-                # Plots.xlabel!("Iterations")
-                # Plots.ylabel!("Cost (px)")
-                # Plots.savefig(string(exp_path,"/Results/plots/eta_steps.pdf"))
+                iterList = stats["iterList"]
+                costList = stats["cost_list"]
+                ηpList = stats["ηList"]
+                βpList = stats["βList"]
+        
+                # Plot the cost function with iterations
+                set_plot(fs)
+                Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
+                Plots.xlabel!("Iterations")
+                Plots.ylabel!("Cost (px)")
+                Plots.xticks!(minimum(iterList):2:maximum(iterList))
+                Plots.savefig(string(exp_path,"/Results/plots/cost_steps.pdf"))
+        
+                # Plot the cost function with iterations
+                set_plot(fs)
+                Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
+                Plots.xlabel!("Iterations")
+                Plots.ylabel!("Cost (px)")
+                Plots.savefig(string(exp_path,"/Results/plots/cost_steps_log.pdf"))
 
-                # set_plot(fs)
-                # Plots.plot!(iterList, βpList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
-                # Plots.xlabel!("Iterations")
-                # Plots.ylabel!("Cost (px)")
-                # Plots.xticks!(minimum(iterList):2:maximum(iterList))
-                # Plots.savefig(string(exp_path,"/Results/plots/beta_steps.pdf"))
+                # Plot the cost function with iterations
+                set_plot(fs)
+                Plots.plot!(iterList, ηpList, label="Cost", marker=2, dpi=400, yscale=:log10, xscale=:log10, lw=3)
+                Plots.xlabel!("Iterations")
+                Plots.ylabel!("Cost (px)")
+                Plots.savefig(string(exp_path,"/Results/plots/eta_steps.pdf"))
+
+                set_plot(fs)
+                Plots.plot!(iterList, βpList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
+                Plots.xlabel!("Iterations")
+                Plots.ylabel!("Cost (px)")
+                Plots.xticks!(minimum(iterList):2:maximum(iterList))
+                Plots.savefig(string(exp_path,"/Results/plots/beta_steps.pdf"))
             end
             viscosity_type = "constant"
             est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
@@ -599,7 +599,7 @@ function optimize_real()
         filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/physical_data/integration_tests/single_window/$sim_time_exp")
         
         for ref in refine_list
-            ne = 6
+            ne = 4
             @info "Running optimization with ne = $ne"
             for FunctionClass_x in FunctionClass_x_List
                 @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
@@ -626,30 +626,28 @@ function set_time_window(step_len::Float64, data::AbstractArray)
     t_window_prev::Float64 = 0.0
     t_window::Float64 = round(0.5*exp(3*(iter-1)), digits=1)
     end_point::Int = round(Int,t_window*step_len)+1
-
+    END_FLAG::Bool = false
     while true
         if end_point > size(data, 1)
-            end_point = size(data, 1)
-            data_range_ = start_point:(end_point-1)
             t_window = round((size(data, 1)-start_point)/step_len, digits=1)
-            # println("Last window time frame : $t_window_prev:$t_window")
-            t_window_size = round(t_window - t_window_prev, digits=1)
-            # println("Time frame : $start_point:$(size(data, 1))")
-            push!(windows, data[start_point:end_point])
-            push!(data_ranges, data_range_)
-            push!(time_windows, t_window_size)
-            break
+            end_point = round(Int,t_window*step_len)
+            END_FLAG = true
         end
+
         data_range = start_point:end_point
-        # println("Time frame : $data_range")
         data_range_ = start_point:(end_point-1)
-        # println("Data frame : $data_range_")
-        # println("time frame : $t_window_prev:$t_window")
+        println("Data frame : $data_range_")
+        println("time windows from : $t_window_prev to $t_window")
+        println("time window size : $(t_window - t_window_prev) seconds")
+        println("----------")
         t_window_size = round(t_window - t_window_prev, digits=1)
         push!(time_windows, t_window_size)
         push!(windows, data[data_range])
         push!(data_ranges, data_range_)
 
+        if END_FLAG == true
+            break
+        end
         iter = iter + 1
         start_point = end_point
         t_window_prev = t_window
