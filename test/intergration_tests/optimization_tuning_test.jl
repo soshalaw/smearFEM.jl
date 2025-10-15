@@ -476,7 +476,7 @@ function optimize(exp_params::Dict)
                 update_model!(model)
                 
                 est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
-                animate_fields(filepath=string(exp_path,"/Results/plots/next"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti+1], qObs=splineyObs_win[ti+1])
+                # animate_fields(filepath=string(exp_path,"/Results/plots/next"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti+1], qObs=splineyObs_win[ti+1])
                 reset_model!(model)
                 
                 model.η = [θ[1]]
