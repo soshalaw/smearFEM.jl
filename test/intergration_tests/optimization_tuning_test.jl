@@ -331,9 +331,6 @@ function optimize(exp_params::Dict)
         est_ηpList = Vector{Float64}(undef,gt_time_frame)
         est_βpList = Vector{Float64}(undef,gt_time_frame)
 
-        # println("Number of time windows: $window")
-
-        # windows = collect(range(start=1, stop=sim_time_gt, length=window))
         titer::Int = 1
         set_file(string(exp_path,"/Results/plots"))
 
@@ -410,11 +407,11 @@ function optimize(exp_params::Dict)
             animate_fields(filepath=string(exp_path,"/Results/plots"), BorderNodes2D=borderPts2DList, pObs=splinexObs[data_range], qObs=splineyObs[data_range])
                             
             plt_η = set_plot(fs)
-            t_windows = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
+            t = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
             if data_type != "physical"
-                Plots.plot!(plt_η, t_windows, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
+                Plots.plot!(plt_η, t, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
             end
-            Plots.plot!(plt_η, t_windows[data_range], est_ηpList[data_range], label="Estimated η(t)", lw=3)
+            Plots.plot!(plt_η, t[data_range], est_ηpList[data_range], label="Estimated η(t)", lw=3)
             # for t in windows
             #     Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
             # end
@@ -422,9 +419,9 @@ function optimize(exp_params::Dict)
             Plots.ylabel!("η(t)")
             Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
         else
-            time_windows, windows, data_ranges_ = set_time_window(frame_rate, obsBorderPts)
-            _, splinexObs_win, _ = set_time_window(frame_rate, splinexObs)
-            _, splineyObs_win, _ = set_time_window(frame_rate, splineyObs)
+            time_windows, windows, data_ranges_, t_windows = set_time_window(frame_rate, obsBorderPts)
+            _, splinexObs_win, _, _ = set_time_window(frame_rate, splinexObs)
+            _, splineyObs_win, _, _ = set_time_window(frame_rate, splineyObs)
 
             println(size(windows),size(data_ranges_))
             
@@ -475,9 +472,11 @@ function optimize(exp_params::Dict)
                 
                 update_model!(model)
                 
-                est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
-                # animate_fields(filepath=string(exp_path,"/Results/plots/next"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti+1], qObs=splineyObs_win[ti+1])
-                reset_model!(model)
+                # if ti < length(windows)
+                #     est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+                #     animate_fields(filepath=string(exp_path,"/Results/plots/next"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti+1], qObs=splineyObs_win[ti+1])
+                #     reset_model!(model)
+                # end
                 
                 model.η = [θ[1]]
                 scene.β = [θ[2]]
@@ -526,14 +525,14 @@ function optimize(exp_params::Dict)
             animate_fields(filepath=string(exp_path,"/Results/plots"), BorderNodes2D=borderPts2DList, pObs=splinexObs, qObs=splineyObs)
 
             plt_η = set_plot(fs)
-            t_windows = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
+            t = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
             if data_type != "physical"
-                Plots.plot!(plt_η, t_windows, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
+                Plots.plot!(plt_η, t, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
             end
-            Plots.plot!(plt_η, t_windows, est_ηpList, label="Estimated η(t)", lw=3)
-            # for t in windows
-            #     Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
-            # end
+            Plots.plot!(plt_η, t, est_ηpList, label="Estimated η(t)", lw=3)
+            for t in t_windows
+                Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
+            end
             Plots.xlabel!("Time (s)")
             Plots.ylabel!("η(t)")
             Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
@@ -620,12 +619,14 @@ function set_time_window(step_len::Float64, data::AbstractArray)
     windows::Vector{AbstractArray} = Vector{AbstractArray}()
     time_windows::Vector{Float64} = Vector{Float64}()
     data_ranges::Vector{AbstractArray} = Vector{AbstractArray}()
+    t_windows::Vector{Float64} = Vector{Float64}()
 
     iter::Int = 1
     start_point::Int = 1
     t_window_prev::Float64 = 0.0
     t_window::Float64 = round(0.5*exp(3*(iter-1)), digits=1)
     end_point::Int = round(Int,t_window*step_len)+1
+    
     END_FLAG::Bool = false
     while true
         if end_point > size(data, 1)
@@ -644,6 +645,7 @@ function set_time_window(step_len::Float64, data::AbstractArray)
         push!(time_windows, t_window_size)
         push!(windows, data[data_range])
         push!(data_ranges, data_range_)
+        push!(t_windows, t_window)
 
         if END_FLAG == true
             break
@@ -654,7 +656,7 @@ function set_time_window(step_len::Float64, data::AbstractArray)
         t_window = round(0.5*exp(3*(iter-1)), digits=1)
         end_point = round(Int,t_window*step_len)+1
     end
-    return time_windows, windows, data_ranges
+    return time_windows, windows, data_ranges, t_windows
 end
 # main()
 optimize_real()
