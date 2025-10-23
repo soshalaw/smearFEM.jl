@@ -32,65 +32,73 @@ function optimize(exp_params::Dict)
     FunctionClass_x::String = exp_params["FunctionClass_x"]
     
     # simulation parameters for the ground truth
-    r::Float64 = exp_params["r"]  # radius of the cylinder in mm
-    h::Float64 = exp_params["h"]  # height of the cylinder in mm
     
-    control::String = exp_params["control"]
-    gt_viscosity_type::String = exp_params["viscosity_type"] # "constant" or "bulk_viscosity"
     filepath_gt::String = exp_params["filepath_gt"]
     filepath_res::String = exp_params["filepath_res"]
-
+    
     obj_pose::AbstractArray = zeros(Float64, 4,4) # initial pose of the object
     camera_matrix::AbstractArray = exp_params["camera_matrix"]
-
+    
     sim_time_exp::Float64 = exp_params["sim_time_exp"]
     if haskey(exp_params, "steps_exp")
         steps_exp = exp_params["steps_exp"]
     else
-        steps_exp = sim_time_exp*30.0 # assuming 30 fps for the experiments
+        steps_exp = sim_time_exp*10.0 # assuming 30 fps for the experiments
     end
     t_steps_exp::Float64 = sim_time_exp/steps_exp
-
+    
     ne_exp::Int = exp_params["ne_exp"] # number of elements in the mesh for the experiment
-
+    
     data_type ::String = exp_params["data_type"] # "simulated" or "physical" or "real"
     noiseLevel::Float64 = 0
     SIDES::Bool = false
     
     if data_type == "simulated" || data_type == "synthetic"
-
+        
         WRITE_GT = exp_params["WRITE_GT"] 
         outlier_frames = Int[]
-
+        
         if WRITE_GT == true # write the ground truth data
             @info "Writing ground truth gt data to with $ne_gt elements to $filepath_res"
             write_gt_data(exp_params)
         end
-
+        
         params = read_json(string(filepath_gt,"/data/sim_params.json"))
         
         r = params["r"]
         h = params["h"]
-
+        
         η_gt = params["η"][1]
         β_gt = params["β"][1]
         gt_viscosity_type = params["viscosity_type"]
-        F = params["cParam"]
-
+        F = Array(params["cParam"])
+        
         sim_time_gt = params["simulation_time"]
         t_steps_gt = params["time_steps"]
-
+        
         camera_matrix = reshape(Array(params["camera_matrix"]), 3, 3)
-        obj_pose = reshape(Array(params["obj_pose"])*1.0,3,1)
+        obj_pose = reshape(Array(params["obj_pose"])*1.0,4,4)
+        
         control = params["control_type"]
         
-        model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
-                                        sim_time_gt, t_steps_gt)
-
-        ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/data/sim_data/contour_data"))  
+        model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, gt_viscosity_type, 
+        sim_time_gt, t_steps_gt)
+        
+        if data_type == "synthetic"
+            ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/data/img_data/contour_data"))  
+        elseif data_type == "simulated"
+            ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/data/sim_data/contour_data"))  
+        end
+        
         printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
-
+        
     elseif data_type == "physical"
+        r::Float64 = exp_params["r"]  # radius of the cylinder in mm
+        h::Float64 = exp_params["h"]  # height of the cylinder in mm
+        
+        control::String = exp_params["control"]
+        gt_viscosity_type::String = exp_params["viscosity_type"] # "constant" or "bulk_viscosity"
+        
         t_obs = read_perception_data(string(filepath_gt, "/Results/sequence.hdf5"))
 
         _ObsDataList, _splinexObs, _splineyObs = read_csv(string(filepath_gt, "/data/sim_data/contour_data"))
@@ -160,12 +168,12 @@ function optimize(exp_params::Dict)
         # obsBorderPts = obsBorderPts[1:(round(Int,sim_time/t_steps)+1)] # align the observation points with the simulation time
 
         model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, gt_viscosity_type, 
-                        sim_time, t_steps_exp)
+                        sim_time_exp, t_steps_exp)
         conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=SIDES, filepath=exp_path, ANIMATE=false)
 
         stats = fit_model(model, scene, conditions, obsBorderPts, θ, outliers=outlier_frames)
 
-        time = collect(Float64, range(start=0, stop=sim_time, step=t_steps_exp))
+        time = collect(Float64, range(start=0, stop=sim_time_exp, step=t_steps_exp))
 
         iterList::Vector{Float64} = stats["iterList"]
         costList::Vector{Float64} = stats["cost_list"]
@@ -193,7 +201,7 @@ function optimize(exp_params::Dict)
 
         est_h = get_height(est_μ_list, h)
         gt_h_ = readdlm(string(filepath_gt,"/data/h.csv"), ',', Float64)
-        gt_h = gt_h_[1:(round(Int,sim_time/t_steps_exp)+1)]
+        gt_h = gt_h_[1:(round(Int,sim_time_exp/t_steps_exp)+1)]
 
         set_file(string(exp_path,"/Results/plots"))
         set_plot(fs)
@@ -260,21 +268,21 @@ function optimize(exp_params::Dict)
         η_iter = 1:size(ηList,1)
         β_iter = 1:size(βList,1)
 
-        for i::Int in η_iter
-            η = ηList[i]
-            for j::Int in β_iter
-                β = βList[j]
-                reset_model!(model)
-                model.η = [η]
-                scene.β = [β]
-                μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+        # for i::Int in η_iter
+        #     η = ηList[i]
+        #     for j::Int in β_iter
+        #         β = βList[j]
+        #         reset_model!(model)
+        #         model.η = [η]
+        #         scene.β = [β]
+        #         μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
                 
-                # test the closest point function
-                d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+        #         # test the closest point function
+        #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
                 
-                CostMat[i,j] = sum(d_cp)/length(d_cp)
-            end
-        end
+        #         CostMat[i,j] = sum(d_cp)/length(d_cp)
+        #     end
+        # end
         
         # Plot the cost function surface
         set_plot(fs)
@@ -545,7 +553,6 @@ function compare_stats(filepath,filepath_gt)
 
         x = []
         y = []
-
 
         plot_η = set_plot(fs)
         plot_β = set_plot(fs)
@@ -1053,7 +1060,6 @@ function optimize_sim()
 
                     filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$(FunctionClass_x_gt)_$(ne_gt)/$run_id")
                     filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/$run_id")
-                    
                     for ref in refine_list
                         ne = ne_exp^ref
                         @info "Running optimization with ne = $ne"
@@ -1120,26 +1126,31 @@ end
 function optimize_syn()
 
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
-
-    FunctionClass_x_List = ["Q2", "S2"]
+    FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2] # refinement levels, ne = ne_exp^refine
+    refine_list = [4, 6] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["bulk_viscosity"]
-    
+    η_start = 5.0
+    β_start = 1.0
+    viscosity_type_list = ["constant"]
+
+    r::Float64 = 25.0  # radius of the cylinder in mm
+    h::Float64 = 40.0  # height of the cylinder in mm
+    camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
+    sim_time_exp::Float64 = 20.0 # simulation time in seconds
+
     for viscosity_type in viscosity_type_list
-        file_id = 1
-        filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/real_data/Stokes/$control/$viscosity_type/$file_id")
-        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/real_data/optimization/Stokes/$control/$viscosity_type/$file_id")
-        for ref in refine_list
-            ne = ne_exp^ref
+        file_id = 2
+        filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/$file_id")
+        for ne in refine_list
+            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/Q2_$ne")
+            # ne = ne_exp^ref
             @info "Running optimization with ne = $ne"
             for FunctionClass_x in FunctionClass_x_List
                 @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
-                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne,
-                            "filepath" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "viscosity_type"=>viscosity_type, "r" => r, "h" => h,
-                            "camera_matrix" => camera_matrix)
+                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
+                "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false)
 
                 optimize(exp_params)
             end
@@ -1150,4 +1161,4 @@ function optimize_syn()
 end
 
 # main()
-optimize_real()
+optimize_syn()

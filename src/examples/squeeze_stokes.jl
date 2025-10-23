@@ -1227,7 +1227,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     ndim_cached::Int = ndim
 
     @unpack β, viscosity_type, q_d, C_uc, t_steps, sim_time, control = scene
-    β_cached::Float64 = β[1]
+    β_cached::Any = β
     viscosity_type_cached::String = viscosity_type
     q_d_cached::Dict{Symbol, Matrix{Float64}} = q_d
     q_d_cached_top::SparseMatrixCSC{Bool, Int64} = q_d_cached[:top]
@@ -1331,9 +1331,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
             
             if viscosity_type_cached == "bulk_viscosity"
-                A .= η_cached[iter]*A_bar + β_cached*b
+                if length(β_cached) == 1
+                    A = η_cached[iter]*A_bar + β_cached[1]*b
+                else
+                    A = η_cached[iter]*A_bar + β_cached[iter]*b
+                end
             else
-                A .= η_cached[1]*A_bar + β_cached*b
+                A .= η_cached[1]*A_bar + β_cached[1]*b
             end
         
             dAdη .= A_bar
@@ -1458,9 +1462,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             q_d = (μu_btm*q_d_cached_btm + scene.cParam[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
         
             if viscosity_type_cached == "bulk_viscosity"
-                A = η_cached[iter]*A_bar + β_cached*b
+                if length(β_cached) == 1
+                    A = η_cached[iter]*A_bar + β_cached[1]*b
+                else
+                    A = η_cached[iter]*A_bar + β_cached[iter]*b
+                end
             else
-                A = η_cached[1]*A_bar + β_cached*b
+                A = η_cached[1]*A_bar + β_cached[1]*b
             end
 
             dAdη = A_bar
