@@ -98,7 +98,7 @@ function optimize(exp_params::Dict)
         
         control::String = exp_params["control"]
         gt_viscosity_type::String = exp_params["viscosity_type"] # "constant" or "bulk_viscosity"
-        
+
         t_obs = read_perception_data(string(filepath_gt, "/Results/sequence.hdf5"))
 
         _ObsDataList, _splinexObs, _splineyObs = read_csv(string(filepath_gt, "/data/sim_data/contour_data"))
@@ -207,7 +207,7 @@ function optimize(exp_params::Dict)
         set_plot(fs)
         Plots.plot!(time, est_h, label="Estimated height", dpi=400, lw=3)
         Plots.plot!(time, gt_h, label="Ground truth height", dpi=400, lw=3)
-        Plots.xticks!(0:1:round(Int,sim_time))
+        Plots.xticks!(0:1:round(Int,sim_time_exp))
         Plots.xlabel!("Time (s)")
         Plots.ylabel!("Height (mm)")
         Plots.savefig(string(exp_path,"/Results/plots/h_est.pdf"))
@@ -216,7 +216,7 @@ function optimize(exp_params::Dict)
         Plots.plot!(time, abs.(est_h-gt_h), label="Height estimation error", dpi=400, lw=3)
         Plots.xlabel!("Time (s)")
         Plots.ylabel!("Height Error (mm)")
-        Plots.xticks!(0:1:round(Int,sim_time))
+        Plots.xticks!(0:1:round(Int,sim_time_exp))
         Plots.savefig(string(exp_path,"/Results/plots/h_est_error.pdf"))
 
         # Plot the cost function with iterations
