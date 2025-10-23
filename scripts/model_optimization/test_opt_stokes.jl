@@ -1138,7 +1138,7 @@ function optimize_syn()
     h::Float64 = 40.0  # height of the cylinder in mm
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     sim_time_exp::Float64 = 20.0 # simulation time in seconds
-
+    filepath_res::String = ""
     for viscosity_type in viscosity_type_list
         file_id = 2
         filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/$file_id")
@@ -1155,7 +1155,7 @@ function optimize_syn()
                 optimize(exp_params)
             end
         end
-        post_analysis(filepath_gt, filepath_res)
+        # post_analysis(filepath_gt, filepath_res)
         file_id = file_id + 1
     end
 end
