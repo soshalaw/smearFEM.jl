@@ -428,6 +428,7 @@ function compare_stats(filepath,filepath_gt)
     path_1 = []
     path_2 = []
     path_3 = []
+    path_4 = []
     run_filepath = readdir(string(filepath,"/runs/"))
 
     for exp_path_ in run_filepath
@@ -438,8 +439,10 @@ function compare_stats(filepath,filepath_gt)
             push!(path_1,exp_path_)
         elseif ne == '4'
             push!(path_2,exp_path_)
-        elseif ne == '8'
+        elseif ne == '6'
             push!(path_3,exp_path_)
+        elseif ne == '8'
+            push!(path_4,exp_path_)
         end
     end
 
@@ -680,6 +683,107 @@ function compare_stats(filepath,filepath_gt)
         time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
 
         for file in path_3
+            exp_path = string(filepath,"/runs/",file)
+            sim_params = read_json(string(exp_path,"/Results/data/sim_params.json")) 
+
+            viscosity_type = sim_params["viscosity_type"]
+
+            if viscosity_type == "constant"
+                η_gt = sim_params["η_gt"]
+                β_gt = sim_params["β_gt"]
+
+                est_η = readdlm(string(exp_path,"/Results/data/η.csv"), ',', Float64)
+                est_β = readdlm(string(exp_path,"/Results/data/β.csv"), ',', Float64)
+                est_h = readdlm(string(exp_path,"/Results/data/est_h.csv"), ',', Float64)
+                gt_h = readdlm(string(exp_path,"/Results/data/gt_h.csv"), ',', Float64)
+
+                h_error = abs.(est_h-gt_h)
+
+                stats = read_json(string(exp_path,"/Results/data/stats.json")) 
+
+                costList = stats["cost_list"]
+                iterList = stats["iterList"]
+
+                label = " "
+                if file[1:2] == "Q2"
+                    label = "Lagrange basis"
+                elseif file[1:2] == "S2"
+                    label = "NURBS basis"
+                end
+                plot!(plot_η, iterList, est_η, label=label, dpi=400, lw=3)
+                xlabel!(plot_η, "Iterations")
+                ylabel!(plot_η, L"\eta")
+
+                plot!(plot_β, iterList, est_β, label=label, dpi=400, lw=3)
+                xlabel!(plot_β, "Iterations")
+                ylabel!(plot_β, L"\beta")
+
+                plot!(plot_cost, iterList, costList, label=label, dpi=400, lw=3)
+                xlabel!(plot_cost, "Iterations")
+                ylabel!(plot_cost, "Cost (px)")
+
+                plot!(plot_cost_log, iterList, costList, label=label, dpi=400, lw=3, yscale=:log10)
+                xlabel!(plot_cost_log, "Iterations")
+                ylabel!(plot_cost_log, "Cost (px)")
+
+                plot!(plot_error, time, h_error, label=label, dpi=400, lw=3)
+                xlabel!(plot_error, "Time (s)")
+                ylabel!(plot_error, "Height Error (mm)")
+
+                plot!(plot_h, time, est_h, label=label, dpi=400, lw=3)
+                xlabel!(plot_h, "Time (s)")
+                ylabel!(plot_h, "Height (mm)")
+
+                push!(cost_list_list,costList)
+                push!(est_η_list,est_η)
+                push!(est_β_list,est_β)
+                push!(h_error_list,h_error)
+                push!(iter_list,iterList)
+            end
+        end
+
+        res_path = string(filepath,"/runs/post_analysis/ne_8")
+        set_file(res_path)
+
+        Plots.hline!(plot_η, [η_gt], label="Ground truth η", lw=3)
+        savefig(plot_η, string(res_path,"/eta.pdf"))
+
+        Plots.hline!(plot_β, [β_gt], label="Ground truth β", lw=3)
+        savefig(plot_β, string(res_path,"/beta.pdf"))
+
+        savefig(plot_cost, string(res_path,"/convergence.pdf"))
+        savefig(plot_cost_log, string(res_path,"/convergence_log.pdf"))
+        savefig(plot_error, string(res_path,"/error.pdf"))
+
+        plot!(plot_h, time, gt_h, label="Ground truth height", dpi=400, lw=3)
+        savefig(plot_h, string(res_path,"/h.pdf"))
+
+    end
+
+    if length(path_4) != 0
+        cost_list_list = []
+        est_η_list = []
+        est_β_list = []
+        h_error_list = []
+        iter_list = []
+        η_gt = 0
+        β_gt = 0
+        gt_h = 0
+
+        plot_η = set_plot(fs)
+        plot_β = set_plot(fs)
+        plot_cost = set_plot(fs)
+        plot_cost_log = set_plot(fs)
+        plot_error = set_plot(fs)
+        plot_h = set_plot(fs)
+
+        sim_time = 10.0 # simulation time in seconds 
+        steps = 25.0 # number of time steps
+        t_steps = sim_time/steps
+
+        time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
+
+        for file in path_4
             exp_path = string(filepath,"/runs/",file)
             sim_params = read_json(string(exp_path,"/Results/data/sim_params.json")) 
 
@@ -1128,7 +1232,7 @@ function optimize_syn()
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [4, 6] # refinement levels, ne = ne_exp^refine
+    refine_list = [4, 6, 8] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     η_start = 5.0
     β_start = 1.0
@@ -1140,7 +1244,7 @@ function optimize_syn()
     sim_time_exp::Float64 = 20.0 # simulation time in seconds
     filepath_res::String = ""
     for viscosity_type in viscosity_type_list
-        file_id = 2
+        file_id = 1
         filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/$file_id")
         for ne in refine_list
             filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/Q2_$ne")
