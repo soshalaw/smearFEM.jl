@@ -614,7 +614,7 @@ function compare_stats(filepath,filepath_gt)
                 ylabel!(plot_β,L"\beta\;\mathrm{mm^{-1}}")
 
                 plot!(plot_cost, iterList, costList, label=label, dpi=400, lw=3)
-                xlabel!(plot_cost, LL"\mathrm{Iterations}")
+                xlabel!(plot_cost, L"\mathrm{Iterations}")
                 ylabel!(plot_cost, L"\mathrm{Cost\;(px)}")
 
                 plot!(plot_cost_log, iterList, costList, label=label, dpi=400, lw=3, yscale=:log10)
@@ -623,7 +623,7 @@ function compare_stats(filepath,filepath_gt)
 
                 plot!(plot_error, time, h_error, label=label, dpi=400, lw=3)
                 xlabel!(plot_error, L"\mathrm{Time\;(s)}")
-                ylabel!(plot_error, "Height Error (mm)")
+                ylabel!(plot_error, L"\mathrm{Height\;Error\;(mm)}")
 
                 plot!(plot_h, time, est_h, label=label, dpi=400, lw=3)
                 xlabel!(plot_h, L"\mathrm{Time\;(s)}")
