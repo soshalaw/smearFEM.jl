@@ -1304,4 +1304,4 @@ end
 
 # main()
 # plot_syn()e
-optimize_syn
+optimize_syn()
