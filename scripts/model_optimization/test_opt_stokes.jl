@@ -866,18 +866,18 @@ function plot_(filepath, filepath_gt)
     
     run_filepath = readdir(string(filepath))
 
+    
     sim_params = read_json(string(filepath_gt,"/data/sim_params.json")) 
+    
+    sim_time = sim_params["simulation_time"]    
+    t_steps = sim_params["time_steps"]
     for exp_path_ in run_filepath
         if exp_path_ == "post_analysis"
             continue
         end
-
+        
         exp_path = string(filepath, exp_path_)
-
-        sim_time = 10.0 # simulation time in seconds 
-        steps = 25.0 # number of time steps
-        t_steps = sim_time/steps
-
+        println("Comparing experiments in: $exp_path")
         time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
 
         viscosity_type = sim_params["viscosity_type"]
@@ -1042,8 +1042,8 @@ function post_analysis(filepath_gt::String, filepath::String)
     η_gt_list = η_gt[1]*ones(30,1)
     β_gt_list = β_gt[1]*ones(30,1)
 
-    run_filepath = readdir(string(filepath,"/runs/"))
-
+    run_filepath = readdir(filepath)
+    println("Processing results in: ", filepath)
     fig1 = Plots.plot(η_gt_list, label="Ground truth η", dpi=400)
     Plots.xlabel!(fig1,L"\mathrm{Iterations}")
     Plots.ylabel!(fig1,L"\eta\;\mathrm{(KPa\cdot s)}")
@@ -1059,9 +1059,9 @@ function post_analysis(filepath_gt::String, filepath::String)
         if run_folder_ == "post_analysis"
             continue
         end
-        run_folder = string(filepath,"/runs/",run_folder_)
+        run_folder = string(filepath,run_folder_)
         println("Processing folder: ", run_folder)
-        params = read_json(string(run_folder,"/Results/data/sim_params.json"))
+        params = read_json(string(run_folder,"/Results/data/experiment_parameters.json"))
 
         FunctionClass_x = params["FunctionClass_x"]
         ne = params["ne_exp"]
@@ -1232,19 +1232,15 @@ function optimize_syn()
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [4, 6, 8] # refinement levels, ne = ne_exp^refine
+    refine_list = [4, 6, 8, 16] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    η_start = 5.0
-    β_start = 1.0
     viscosity_type_list = ["constant"]
 
-    r::Float64 = 25.0  # radius of the cylinder in mm
-    h::Float64 = 40.0  # height of the cylinder in mm
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     sim_time_exp::Float64 = 20.0 # simulation time in seconds
     filepath_res::String = ""
+    file_id = 1
     for viscosity_type in viscosity_type_list
-        file_id = 2
         filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/$file_id")
         for ne in refine_list
             filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/Q2_$ne")
@@ -1281,27 +1277,15 @@ function plot_syn()
     sim_time_exp::Float64 = 20.0 # simulation time in seconds
     filepath_res::String = ""
     for viscosity_type in viscosity_type_list
-        file_id = 2
+        file_id = 1
         filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/$file_id")
-        for ne in refine_list
-            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/Q2_$ne/")
-            # ne = ne_exp^ref
-            @info "Running optimization with ne = $ne"
-            for FunctionClass_x in FunctionClass_x_List
-                @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
-
-                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
-                "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false)
-
-                # optimize(exp_params)
-                plot_(filepath_res, filepath_gt)
-            end
-        end
-        # post_analysis(filepath_gt, filepath_res)
+        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/")
+        plot_(filepath_res, filepath_gt)
+        post_analysis(filepath_gt, filepath_res)
         file_id = file_id + 1
     end
 end
 
 # main()
-# plot_syn()e
+# plot_syn()
 optimize_syn()
