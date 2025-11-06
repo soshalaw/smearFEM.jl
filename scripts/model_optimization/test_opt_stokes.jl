@@ -865,7 +865,6 @@ end
 function plot_(filepath, filepath_gt)
     
     run_filepath = readdir(string(filepath))
-
     
     sim_params = read_json(string(filepath_gt,"/data/sim_params.json")) 
     
@@ -1153,7 +1152,7 @@ function optimize_sim()
         for viscosity_type in viscosity_type_list
             filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/$file_id")
             for ne in refine_list
-                filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/Q2_$ne")
+                filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/Q2_$ne")
                 # ne = ne_exp^ref
                 @info "Running optimization with ne = $ne"
                 for FunctionClass_x in FunctionClass_x_List
