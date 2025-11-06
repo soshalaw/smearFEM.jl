@@ -1140,7 +1140,7 @@ function optimize_sim()
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2] # refinement levels, ne = ne_exp^refine
+    refine_list = [4, 6, 8, 16] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0 0.5 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
@@ -1276,6 +1276,5 @@ function plot_syn()
 end
 
 # main()
-# plot_syn()
 optimize_sim()
 # optimize_syn()
