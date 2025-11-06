@@ -10,7 +10,7 @@ function main()
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Int = 16 # number of elements in the mesh for the ground truth
 
-    β_gt_list = [10.0, 50.0, 100.0, 1e3]
+    β_gt_list = [10.0, 50.0, 100.0, 500, 1e3]
     η_gt_list = [100.0]
 
     refine_list = [2] # refinement levels, ne = ne_exp^refine
@@ -19,9 +19,9 @@ function main()
     viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
 
-    F_ext_::Float64 = 0.15*9.812*1e3 # force applied to the cylinder in N
-    sim_time_gt::Float64 = 20.0 # simulation time in seconds
-    steps_gt::Float64 = 200.0 # number of time steps
+    F_ext_::Float64 = 0.2*9.812*1e3 # force applied to the cylinder in N
+    sim_time_gt::Float64 = 30.0 # simulation time in seconds
+    steps_gt::Float64 = 30.0 # number of time steps
 
     obj_pose = zeros(Float64, 4,4)
     obj_pose[1,1] = -1.0

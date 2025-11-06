@@ -209,7 +209,7 @@ function optimize(exp_params::Dict)
         set_plot(fs)
         Plots.plot!(time, abs.(est_h-gt_h), label="Height estimation error", dpi=400, lw=3)
         Plots.xlabel!(L"\mathrm{Time\;(s)}")
-        Plots.ylabel!("Height Error (mm)")
+        Plots.ylabel!(L"\mathrm{Height\;Error\;(mm)}")
         Plots.xticks!(0:1:round(Int,sim_time))
         Plots.savefig(string(exp_path,"/Results/plots/h_est_error.pdf"))
 
@@ -769,7 +769,7 @@ function plot_(exp_params::Dict)
         set_plot(fs)
         Plots.plot!(time, abs.(est_h-gt_h), label="Height estimation error", dpi=400, lw=3)
         Plots.xlabel!(L"\mathrm{Time\;(s)}")
-        Plots.ylabel!("Height Error (mm)")
+        Plots.ylabel!(L"\mathrm{Height\;Error\;(mm)}")
         Plots.xticks!(0:1:round(Int,sim_time))
         Plots.savefig(string(exp_path,"/Results/plots/h_est_error.pdf"))
 
@@ -1082,17 +1082,17 @@ function plot_(exp_params::Dict)
 
             # println("Estimated η: $(typeof(reshape(est_ηpList,size(est_ηpList,1)))), estimated β: $(typeof(est_βpList))")
             sim_time_gt = length(est_ηpList)/frame_rate
-            # println("Estimated simulation time: $sim_time_gt seconds")
-            # viscosity_type = "bulk_viscosity"
-            # F = -F_ext*ones(Float64, round(Int, sim_time_gt*frame_rate)) # force applied to the cylinder in N
-            # est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
-            #                     sim_time_gt, t_steps_exp)
-            # display(reshape(est_ηpList,size(est_ηpList,1)))
-            # est_model.η = reshape(est_ηpList,size(est_ηpList,1))
-            # est_scene.β = reshape(est_βpList,size(est_βpList,1))
-            # est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(est_model, est_scene, conditions)
+            println("Estimated simulation time: $sim_time_gt seconds")
+            viscosity_type = "bulk_viscosity"
+            F = -F_ext*ones(Float64, round(Int, sim_time_gt*frame_rate)) # force applied to the cylinder in N
+            est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+                                sim_time_gt, t_steps_exp)
+            display(reshape(est_ηpList,size(est_ηpList,1)))
+            est_model.η = reshape(est_ηpList,size(est_ηpList,1))
+            est_scene.β = reshape(est_βpList,size(est_βpList,1))
+            est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(est_model, est_scene, conditions)
 
-            # animate_fields(filepath=string(exp_path,"/Results/plots"), BorderNodes2D=borderPts2DList, pObs=splinexObs, qObs=splineyObs)
+            animate_fields(filepath=string(exp_path,"/Results/plots"), p = splinex, q= spliney, pObs=splinexObs, qObs=splineyObs)
 
             plt_η = set_plot(fs)
             t = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
@@ -1190,7 +1190,7 @@ function optimize_real()
                 "η_start" => η_start, "β_start" => β_start, "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "viscosity_type"=>viscosity_type, 
                 "data_type"=>"physical", "r" => r, "h" => h, "camera_matrix" => camera_matrix, "F_ext" => F_ext, "mode"=>"multi_window")
 
-                optimize(exp_params)
+                plot_(exp_params)
             end
         end
         # post_analysis(filepath_gt, filepath_res)

@@ -50,7 +50,7 @@ function optimize(exp_params::Dict)
     ne_exp::Int = exp_params["ne_exp"] # number of elements in the mesh for the experiment
     
     data_type ::String = exp_params["data_type"] # "simulated" or "physical" or "real"
-    noiseLevel::Float64 = 0
+    noiseLevel::Float64 = exp_params["noise_level"]
     SIDES::Bool = false
     
     if data_type == "simulated" || data_type == "synthetic"
@@ -268,21 +268,21 @@ function optimize(exp_params::Dict)
         η_iter = 1:size(ηList,1)
         β_iter = 1:size(βList,1)
 
-        # for i::Int in η_iter
-        #     η = ηList[i]
-        #     for j::Int in β_iter
-        #         β = βList[j]
-        #         reset_model!(model)
-        #         model.η = [η]
-        #         scene.β = [β]
-        #         μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+        for i::Int in η_iter
+            η = ηList[i]
+            for j::Int in β_iter
+                β = βList[j]
+                reset_model!(model)
+                model.η = [η]
+                scene.β = [β]
+                μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
                 
-        #         # test the closest point function
-        #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+                # test the closest point function
+                d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
                 
-        #         CostMat[i,j] = sum(d_cp)/length(d_cp)
-        #     end
-        # end
+                CostMat[i,j] = sum(d_cp)/length(d_cp)
+            end
+        end
         
         # Plot the cost function surface
         set_plot(fs)
@@ -904,7 +904,7 @@ function plot_(filepath, filepath_gt)
             set_plot(fs)
             Plots.plot!(time, est_h, label="Estimated height", dpi=400, lw=3)
             Plots.plot!(time, gt_h, label="Ground truth height", dpi=400, lw=3)
-            Plots.xticks!(0:1:round(Int,sim_time))
+            # Plots.xticks!(0:1:round(Int,sim_time))
             Plots.xlabel!(L"\mathrm{Time\;(s)}")
             Plots.ylabel!(L"\mathrm{Height\;(mm)}")
             Plots.savefig(string(exp_path,"/Results/plots/h_est.pdf"))
@@ -913,20 +913,20 @@ function plot_(filepath, filepath_gt)
             Plots.plot!(time, abs.(est_h-gt_h), label="Height estimation error", dpi=400, lw=3)
             Plots.xlabel!(L"\mathrm{Time\;(s)}")
             Plots.ylabel!("Height Error (mm)")
-            Plots.xticks!(0:1:round(Int,sim_time))
+            # Plots.xticks!(0:1:round(Int,sim_time))
             Plots.savefig(string(exp_path,"/Results/plots/h_est_error.pdf"))
 
             set_plot(fs)
             Plots.plot!(est_η, label="Estimated η", dpi=400, lw=3)
             Plots.hline!([η_gt], label="Ground truth η", lw=3)
-            Plots.xlabel!(L"\mathrm{Time\;(s)}")
+            Plots.xlabel!(L"\mathrm{Iterations}")
             Plots.ylabel!(L"\eta\;\mathrm{(KPa\cdot s)}")
             Plots.savefig(string(exp_path,"/Results/plots/η.pdf"))
 
             set_plot(fs)
-            Plots.plot!(est_β, label="Estimated η", dpi=400, lw=3)
+            Plots.plot!(est_β, label="Estimated β", dpi=400, lw=3)
             Plots.hline!([β_gt], label="Ground truth β", lw=3)
-            Plots.xlabel!(L"\mathrm{Time\;(s)}")
+            Plots.xlabel!(L"\mathrm{Iterations}")
             Plots.ylabel!(L"\beta\;\mathrm{mm^{-1}}")
             Plots.savefig(string(exp_path,"/Results/plots/β.pdf"))
 
@@ -935,7 +935,7 @@ function plot_(filepath, filepath_gt)
             Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
             Plots.xlabel!(L"\mathrm{Iterations}")
             Plots.ylabel!(L"\mathrm{Cost\;(px)}")
-            Plots.xticks!(minimum(iterList):2:maximum(iterList))
+            # Plots.xticks!(minimum(iterList):2:maximum(iterList))
             Plots.savefig(string(exp_path,"/Results/plots/cost_steps.pdf"))
 
             # Plot the cost function with iterations
@@ -989,7 +989,7 @@ function plot_(filepath, filepath_gt)
                 println(t)
                 Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
             end
-            Plots.xlabel!(L"\mathrm{Time\;(s)}")
+            Plots.xlabel!(L"\mathrm{Iterations}")
             Plots.ylabel!(L"\eta(\mathrm{t})\;\mathrm{(KPa\cdot s)}")
             Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
 
@@ -1000,7 +1000,7 @@ function plot_(filepath, filepath_gt)
             for t in windows
                 Plots.vline!(plt_η_gt, [t], color=:gray, lw=3, linestyle=:dash, label=false)
             end
-            Plots.xlabel!(L"\mathrm{Time\;(s)}")
+            Plots.xlabel!(L"\mathrm{Iterations}")
             Plots.ylabel!(L"\eta(\mathrm{t})\;\mathrm{(KPa\cdot s)}")
             Plots.savefig(plt_η_gt, string(exp_path,"/Results/plots/η_gt.pdf"))
 
@@ -1081,7 +1081,7 @@ function post_analysis(filepath_gt::String, filepath::String)
         end
     end
 
-    plot_path = string(filepath,"/Results/plots")
+    plot_path = string(filepath,"/post_analysis/plots")
     set_file(plot_path)
 
     @info "Saving plots to $plot_path"
@@ -1136,55 +1136,40 @@ function plot_results()
 end
 
 function optimize_sim()
-    ne_gt::Int = 4 # number of elements in the mesh for the ground truth
+
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
-    # β_gt_list = [5, 10, 50, 100.0, 200.0, 500.0, 1000.0, 10000.0]
-    # η_gt_list = [40.0]
-    β_gt_list = [10.0, 50.0, 100.0, 1e3]
-    # β_gt_list = [100.0]
-    η_gt_list = [60.0]
-    FunctionClass_x_List = ["Q2", "S2"]
+    FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [2] # refinement levels, ne = ne_exp^refine
+    noise_level_list = [0.0 0.5 1.0]
     control = "force" # "force" or "velocity"
+    viscosity_type_list = ["constant"]
 
-    viscosity_type_list = ["bulk_viscosity"]
-    FunctionClass_x_gt_list = ["S2", "Q2"] # Function space for the ground truth
+    camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
+    sim_time_exp::Float64 = 20.0 # simulation time in seconds
+    filepath_res::String = ""
+    file_id = 1
+    for noise_level in noise_level_list
+        for viscosity_type in viscosity_type_list
+            filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/$file_id")
+            for ne in refine_list
+                filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/Q2_$ne")
+                # ne = ne_exp^ref
+                @info "Running optimization with ne = $ne"
+                for FunctionClass_x in FunctionClass_x_List
+                    @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
-    exp_size = size(FunctionClass_x_List,1)*size(refine_list,1)
-    η_mat = zeros(30, exp_size)
-    β_mat = zeros(30, exp_size)
+                    exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
+                    "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"simulated", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
+                    "noise_level"=>noise_level)
 
-    WRITE_GT = true
-    for viscosity_type in viscosity_type_list
-        for FunctionClass_x_gt in FunctionClass_x_gt_list
-            run_id = 1
-            for β_gt in β_gt_list
-                for η_gt in η_gt_list
-
-                    filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$(FunctionClass_x_gt)_$(ne_gt)/$run_id")
-                    filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/$run_id")
-                    for ref in refine_list
-                        ne = ne_exp^ref
-                        @info "Running optimization with ne = $ne"
-                        for FunctionClass_x in FunctionClass_x_List
-                            @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
-    
-                            exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => ne_gt, "ne_exp" => ne, 
-                                        "β_gt" => β_gt, "η_gt" => η_gt, "WRITE_GT" => WRITE_GT, "filepath" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, 
-                                        "viscosity_type"=>viscosity_type, "FunctionClass_x_gt" => FunctionClass_x_gt)
-    
-                            optimize(exp_params)
-                            WRITE_GT = false
-                        end
-                    end
-                    WRITE_GT = true
-                    post_analysis(filepath_gt, filepath_res)
-                    run_id = run_id + 1
+                    optimize(exp_params)
                 end
             end
+            # post_analysis(filepath_gt, filepath_res)
         end
     end
+    file_id = file_id + 1
 end
 
 function optimize_real()
@@ -1233,6 +1218,7 @@ function optimize_syn()
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [4, 6, 8, 16] # refinement levels, ne = ne_exp^refine
+    noise_level_list = [0.0 0.5 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
 
@@ -1240,24 +1226,27 @@ function optimize_syn()
     sim_time_exp::Float64 = 20.0 # simulation time in seconds
     filepath_res::String = ""
     file_id = 1
-    for viscosity_type in viscosity_type_list
-        filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/$file_id")
-        for ne in refine_list
-            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/Q2_$ne")
-            # ne = ne_exp^ref
-            @info "Running optimization with ne = $ne"
-            for FunctionClass_x in FunctionClass_x_List
-                @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
+    for noise_level in noise_level_list
+        for viscosity_type in viscosity_type_list
+            filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/$file_id")
+            for ne in refine_list
+                filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/Q2_$ne")
+                # ne = ne_exp^ref
+                @info "Running optimization with ne = $ne"
+                for FunctionClass_x in FunctionClass_x_List
+                    @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
-                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
-                "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false)
+                    exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
+                    "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
+                    "noise_level"=>noise_level)
 
-                optimize(exp_params)
+                    optimize(exp_params)
+                end
             end
+            # post_analysis(filepath_gt, filepath_res)
         end
-        # post_analysis(filepath_gt, filepath_res)
-        file_id = file_id + 1
     end
+    file_id = file_id + 1
 end
 
 function plot_syn()
@@ -1288,4 +1277,5 @@ end
 
 # main()
 # plot_syn()
-optimize_syn()
+optimize_sim()
+# optimize_syn()
