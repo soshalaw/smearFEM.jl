@@ -207,7 +207,7 @@ function optimize(exp_params::Dict)
         set_plot(fs)
         Plots.plot!(time, est_h, label="Estimated height", dpi=400, lw=3)
         Plots.plot!(time, gt_h, label="Ground truth height", dpi=400, lw=3)
-        Plots.xticks!(0:1:round(Int,sim_time_exp))
+        # Plots.xticks!(0:1:round(Int,sim_time_exp))
         Plots.xlabel!(L"\mathrm{Time\;(s)}")
         Plots.ylabel!(L"\mathrm{Height\;(mm)}")
         Plots.savefig(string(exp_path,"/Results/plots/h_est.pdf"))
@@ -216,7 +216,7 @@ function optimize(exp_params::Dict)
         Plots.plot!(time, abs.(est_h-gt_h), label="Height estimation error", dpi=400, lw=3)
         Plots.xlabel!(L"\mathrm{Time\;(s)}")
         Plots.ylabel!("Height Error (mm)")
-        Plots.xticks!(0:1:round(Int,sim_time_exp))
+        # Plots.xticks!(0:1:round(Int,sim_time_exp))
         Plots.savefig(string(exp_path,"/Results/plots/h_est_error.pdf"))
 
         # Plot the cost function with iterations
@@ -224,7 +224,7 @@ function optimize(exp_params::Dict)
         Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
         Plots.xlabel!(L"\mathrm{Iterations}")
         Plots.ylabel!(L"\mathrm{Cost\;(px)}")
-        Plots.xticks!(minimum(iterList):2:maximum(iterList))
+        # Plots.xticks!(minimum(iterList):2:maximum(iterList))
         Plots.savefig(string(exp_path,"/Results/plots/cost_steps.pdf"))
 
         # Plot the cost function with iterations
@@ -1166,27 +1166,25 @@ function post_analysis(filepath_gt::String, filepath::String)
         FunctionClass_x = params["FunctionClass_x"]
         ne = params["ne_exp"]
 
-        if ne != 2
-            η = readdlm(string(run_folder,"/Results/data/η.csv"), ',', Float64)
-            β = readdlm(string(run_folder,"/Results/data/β.csv"), ',', Float64)
+        η = readdlm(string(run_folder,"/Results/data/η.csv"), ',', Float64)
+        β = readdlm(string(run_folder,"/Results/data/β.csv"), ',', Float64)
 
-            Plots.plot!(fig1, η, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3)
-            xlabel!(fig1, L"\mathrm{Iterations}")
-            ylabel!(fig1, L"\eta\;\mathrm{(KPa\cdot s)}")
+        Plots.plot!(fig1, η, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3)
+        xlabel!(fig1, L"\mathrm{Iterations}")
+        ylabel!(fig1, L"\eta\;\mathrm{(KPa\cdot s)}")
 
-            Plots.plot!(fig2, β, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3)
-            xlabel!(fig2, L"\mathrm{Iterations}")
-            ylabel!(fig2, L"\beta\;\mathrm{mm^{-1}}")
+        Plots.plot!(fig2, β, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3)
+        xlabel!(fig2, L"\mathrm{Iterations}")
+        ylabel!(fig2, L"\beta\;\mathrm{mm^{-1}}")
 
-        end
     end
 
     plot_path = string(filepath,"/post_analysis/plots")
     set_file(plot_path)
 
     @info "Saving plots to $plot_path"
-    Plots.savefig(fig1, string(plot_path,"/η_comp_zoomed.pdf"))
-    Plots.savefig(fig2, string(plot_path,"/β_comp_zoomed.pdf"))
+    Plots.savefig(fig1, string(plot_path,"/η.pdf"))
+    Plots.savefig(fig2, string(plot_path,"/β.pdf"))
 
 end
 
@@ -1384,5 +1382,5 @@ end
 
 # main()
 # plot_syn()
-optimize_sim()
-# optimize_syn()
+# optimize_sim()
+optimize_syn()
