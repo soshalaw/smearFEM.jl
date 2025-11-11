@@ -19,7 +19,7 @@ function main()
     viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
 
-    F_ext_::Float64 = 0.2*9.812*1e3 # force applied to the cylinder in N
+    F_ext::Float64 = 0.2*9.812*1e3 # force applied to the cylinder in N
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
     steps_gt::Float64 = 30.0 # number of time steps
 
@@ -36,13 +36,15 @@ function main()
             for β_gt in β_gt_list
                 for η_gt in η_gt_list
                     if β_gt <= 1.0
-                        F_ext::Float64 = 9.813e3
+                        F_ext = 9.813e3
                     elseif β_gt == 10.0
                         F_ext = 9.813e3*1.75 # force applied to the cylinder in kg.mm/s^2 (N)
                     elseif β_gt == 50.0
                         F_ext = 9.813e3*5.5 # force applied to the cylinder in kg.mm/s^2 (N)
                     elseif β_gt == 100.0
                         F_ext = 9.813e3*10 # force applied to the cylinder in kg.mm/s^2 (N)
+                    elseif β_gt == 500.0
+                        F_ext = 9.813e3*40 # force applied to the cylinder in kg.mm/s^2 (N)
                     elseif β_gt == 1e3
                         F_ext = 9.813e3*70 # force applied to the cylinder in kg.mm/s^2 (N)
                     end
