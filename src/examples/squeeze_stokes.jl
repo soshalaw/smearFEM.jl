@@ -1126,9 +1126,9 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
     if viscosity_type == "bulk_viscosity"
         η = get_η.(time, -cParam, r, h, η_0, n, K)
         plt = set_plot(22)
-        Plots.xlabel!(plt, "Time")
-        Plots.ylabel!(plt, "η(t)")
-        display(Plots.plot!(time,η, lw=3))
+        Plots.xlabel!(plt, L"\mathrm{Time\;(s)}")
+        Plots.ylabel!(plt, L"\eta(\mathrm{t})\;\mathrm{(KPa\cdot s)}")
+        savefig(plt, "shear_viscosity_time.pdf")
     else
         η = [η_0]
     end 

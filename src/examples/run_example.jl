@@ -242,13 +242,6 @@ function write_gt_data(exp_params::Dict)
 
     F_ext::Float64 = exp_params["F_ext"]
 
-    if viscosity_type == "bulk_viscosity"
-        F_ext = 1500.0*3*β_gt # force applied to the cylinder in N
-        sim_time_gt = 40.0 # simulation time in seconds
-        steps_gt = 100.0 # number of time steps
-        t_steps_gt = sim_time_gt/steps_gt
-    end
-
     F = -F_ext*ones(Float64, round(Int, (sim_time_gt/t_steps_gt))) # force applied to the cylinder in N
 
     # Write the ground truth
