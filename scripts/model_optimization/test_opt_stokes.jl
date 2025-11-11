@@ -258,7 +258,7 @@ function optimize(exp_params::Dict)
             β_start = β-dev_β
         end
 
-        sampleNo = 5
+        sampleNo = 10
         ηList = collect(range(η_start, stop=ηStop, length=sampleNo))
         βList = collect(range(β_start, stop=βStop, length=sampleNo))
         CostMat = zeros(size(ηList,1),size(βList,1))
@@ -1054,6 +1054,7 @@ function plot_(filepath, filepath_gt)
 
             set_plot(fs)
             Plots.contourf!(ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
+            Plots.plot!(est_η, est_β, label="Estimations", ms=:4, m=:x, color=:royalblue, lw=3)
             Plots.plot!([η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=:indianred2, lw=3)
             Plots.xlabel!(L"\eta\;\mathrm{(KPa\cdot s)}")
             Plots.ylabel!(L"\beta\;\mathrm{mm^{-1}}")
@@ -1278,7 +1279,7 @@ function optimize_syn()
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2, 4, 6, 8] #, 12, 16] # refinement levels, ne = ne_exp^refine
+    refine_list = [4, 6, 8] #, 12, 16] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0] # 0.5 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
@@ -1381,6 +1382,6 @@ function optimize_real()
 end
 
 # main()
-# plot_syn()
-optimize_sim()
+plot_syn()
+# optimize_sim()
 # optimize_syn()

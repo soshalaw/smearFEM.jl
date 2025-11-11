@@ -262,88 +262,112 @@ function test_model_accuracy()
 
     println("Running model accuracy tests...")
     FunctionClass_x_List = ["Q2"]
-    refine_list = [2, 4, 6, 8] #, 12, 16] # refinement levels, ne = ne_exp^refine
+    refine_list = [2, 4, 6, 8, 12] #, 12, 16] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0] # 0.5 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
-    data_type = "synthetic" # "synthetic" or "simulated"
+    data_type_list = ["synthetic", "simulated"] # "synthetic" or "simulated"
     
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     sim_time_exp::Float64 = 20.0 # simulation time in seconds
     filepath_res::String = ""
-    file_id = 1
-    for viscosity_type in viscosity_type_list
+
+    for data_type in data_type_list
+        @info "Running tests for data type: $data_type"
+        file_id = 1
+        for viscosity_type in viscosity_type_list
+            _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/")
+            dir_list = readdir(_filepath_gt)
+            for dir in dir_list
+                filepath_gt = string(_filepath_gt,"/",dir)
+                for noise_level in noise_level_list
+                    for ne in refine_list
+                        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/model_accuracy_tests/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/$data_type")
+                        # ne = ne_exp^ref
+                        @info "Running optimization with ne = $ne"
+                        for FunctionClass_x in FunctionClass_x_List
+                            @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
+
+                            exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
+                            "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>data_type, "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
+                            "noise_level"=>noise_level)
+
+                            compare(exp_params)
+                        end
+                    end
+                file_id = file_id + 1
+                end
+            end
+        end
+    end
+end
+
+function analyse()
+
+    FunctionClass_x_List = ["Q2"]
+    refine_list = [2, 4, 6, 8, 12] #, 12, 16] # refinement levels, ne = ne_exp^refine
+    noise_level_list = [0.0] # 0.5 1.0]
+    control = "force" # "force" or "velocity"
+    viscosity_type_list = ["constant"]
+    data_type = ["synthetic", "simulated"] # "synthetic" or "simulated"
+    
+    camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
+    sim_time_exp::Float64 = 20.0 # simulation time in seconds
+    filepath_res::String = ""
+
+   for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/")
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             filepath_gt = string(_filepath_gt,"/",dir)
             for noise_level in noise_level_list
                 for ne in refine_list
-                    filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/model_accuracy_tests/Stokes/$control/$viscosity_type/Q2_16/$dir/$data_type/Q2_$ne")
+                    filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/model_accuracy_tests/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/")
                     # ne = ne_exp^ref
                     @info "Running optimization with ne = $ne"
                     for FunctionClass_x in FunctionClass_x_List
                         @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
-                        exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
-                        "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>data_type, "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                        "noise_level"=>noise_level)
-
-                        compare(exp_params)
+                        post_analysis(filepath_res)
                     end
                 end
-            file_id = file_id + 1
             end
         end
     end
 
 end
 
-function post_analysis(filepath_gt::String, filepath::String)
-
-    params = read_json(string(filepath_gt,"/data/sim_params.json"))
-    η_gt = params["η"]
-    β_gt = params["β"]  
-
-    println("Ground truth η: ", η_gt[1])
-    η_gt_list = η_gt[1]*ones(40,1)
-    β_gt_list = β_gt[1]*ones(40,1)
+function post_analysis(filepath::String)
 
     run_filepath = readdir(filepath)
     println("Processing results in: ", filepath)
+
+    
     fig1 = set_plot(fs)
-    Plots.plot!(fig1, η_gt_list, label="Ground truth η", dpi=400, lw=3)
-    Plots.xlabel!(fig1,L"\mathrm{Iterations}")
-    Plots.ylabel!(fig1,L"\eta\;\mathrm{(KPa\cdot s)}")
     # Plots.ylims!(fig1, η_gt[1]*0.5, η_gt[1]*1.5)
-
+    
     fig2 = set_plot(fs)
-    Plots.plot!(fig2, β_gt_list, label="Ground truth β", dpi=400, lw=3)
-    Plots.xlabel!(fig2, L"\mathrm{Iterations}")
-    Plots.ylabel!(fig2, L"\beta\;\mathrm{mm^{-1}}")
     # Plots.ylims!(fig2, abs(β_gt[1]-30), β_gt[1]*1.05)
-
+    
     for run_folder_ in run_filepath
         if run_folder_ == "post_analysis"
             continue
         end
         run_folder = string(filepath,run_folder_)
+        error = readdlm(string(run_folder,"/Results/data/error.csv"), ',', Float64)
+
         println("Processing folder: ", run_folder)
         params = read_json(string(run_folder,"/Results/data/experiment_parameters.json"))
 
         FunctionClass_x = params["FunctionClass_x"]
         ne = params["ne_exp"]
 
-        η = readdlm(string(run_folder,"/Results/data/η.csv"), ',', Float64)
-        β = readdlm(string(run_folder,"/Results/data/β.csv"), ',', Float64)
+        # η = readdlm(string(run_folder,"/Results/data/η.csv"), ',', Float64)
+        # β = readdlm(string(run_folder,"/Results/data/β.csv"), ',', Float64)
 
-        Plots.plot!(fig1, η, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3)
-        xlabel!(fig1, L"\mathrm{Iterations}")
-        ylabel!(fig1, L"\eta\;\mathrm{(KPa\cdot s)}")
-
-        Plots.plot!(fig2, β, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3)
-        xlabel!(fig2, L"\mathrm{Iterations}")
-        ylabel!(fig2, L"\beta\;\mathrm{mm^{-1}}")
+        Plots.plot!(fig1, error, label=string("Data type - ",run_folder_), marker=2, dpi=400, lw=3)
+        xlabel!(fig1, L"\mathrm{Time\;(s)}")
+        ylabel!(fig1, L"error\;(px)")
 
     end
 
@@ -351,9 +375,9 @@ function post_analysis(filepath_gt::String, filepath::String)
     set_file(plot_path)
 
     @info "Saving plots to $plot_path"
-    Plots.savefig(fig1, string(plot_path,"/η.pdf"))
-    Plots.savefig(fig2, string(plot_path,"/β.pdf"))
+    Plots.savefig(fig1, string(plot_path,"/error.pdf"))
 
 end
 
 test_model_accuracy()
+analyse()
