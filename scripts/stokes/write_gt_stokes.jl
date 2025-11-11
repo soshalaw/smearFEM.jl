@@ -21,7 +21,7 @@ function main()
 
     F_ext::Float64 = 0.2*9.812*1e3 # force applied to the cylinder in N
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
-    steps_gt::Float64 = 30.0 # number of time steps
+    steps_gt::Float64 = 300.0 # number of time steps
 
     obj_pose = zeros(Float64, 4,4)
     obj_pose[1,1] = -1.0

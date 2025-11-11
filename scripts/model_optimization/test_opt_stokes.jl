@@ -1662,7 +1662,7 @@ function optimize_sim()
     filepath_res::String = ""
     file_id = 1
     for viscosity_type in viscosity_type_list
-        _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/")
+        _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             filepath_gt = string(_filepath_gt,"/",dir)
