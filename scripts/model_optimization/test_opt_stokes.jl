@@ -11,6 +11,8 @@ using LaTeXStrings
 using DelimitedFiles
 
 using ArgCheck
+using Base.Threads
+using Random
 
 # Note: GLMakie / Makie support was removed from automated paths; this script
 # now prefers PlotlyJS for saved interactive HTML output and keeps Plots for
@@ -1686,6 +1688,52 @@ function plot_results()
     end
 end
 
+# helper: run a vector of parameter Dicts with limited concurrent workers
+function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed::Int=12345)
+
+    nparams = length(params_list)
+    if nparams == 0
+        return
+    end
+
+    workers = max(1, min(Threads.nthreads(), max_workers))
+    @info "Running $nparams experiments with $workers workers (Threads.nthreads()=$(Threads.nthreads()))"
+
+    ch = Channel{Int}(nparams)
+    @sync begin
+        # enqueue indices
+        for i in 1:nparams
+            put!(ch, i)
+        end
+
+        tasks = Vector{Task}(undef, workers)
+        for w in 1:workers
+            tasks[w] = Threads.@spawn begin
+                while true
+                    idx = try
+                        take!(ch)
+                    catch
+                        break
+                    end
+                    params = params_list[idx]
+                    try
+                        # avoid BLAS oversubscription inside worker
+                        LinearAlgebra.BLAS.set_num_threads(1)
+                        # per-task RNG (optional): rng = MersenneTwister(base_seed + Threads.threadid() + idx)
+                        optimize(params)
+                    catch err
+                        @error "optimize failed for params index $idx: $err"
+                    end
+                end
+            end
+        end
+
+        for t in tasks
+            wait(t)
+        end
+    end
+end
+
 function optimize_sim()
 
     FunctionClass_x_List = ["Q2"]
@@ -1703,23 +1751,27 @@ function optimize_sim()
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             filepath_gt = string(_filepath_gt,"/",dir)
+            # collect experiments for this directory
+            param_list = Vector{Dict}(undef, 0)
             for noise_level in noise_level_list # may be not do the noise test here
                 for ne in refine_list
                     filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne")
                     # ne = ne_exp^ref
-                    @info "Running optimization with ne = $ne"
+                    @info "Preparing optimization with ne = $ne"
                     for FunctionClass_x in FunctionClass_x_List
-                        @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
+                        @info "Prepared optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
-                        exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
+                        exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp,
                         "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"simulated", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
                         "noise_level"=>noise_level)
 
-                        optimize(exp_params)
+                        push!(param_list, exp_params)
                     end
                 end
                 # post_analysis(filepath_gt, filepath_res)
             end
+            # run per-directory experiments with a cap of 8 workers
+            run_param_list(param_list; max_workers=8)
         end
     end
 end
@@ -1728,7 +1780,7 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2, 4, 6, 8] # refinement levels, ne = ne_exp^refine
+    refine_list = [6] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0] # 0.5 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
@@ -1737,6 +1789,7 @@ function optimize_syn()
     sim_time_exp::Float64 = 20.0 # simulation time in seconds
     sim_time_exp_list = [10.0, 20.0, 30.0]
     filepath_res::String = ""
+    param_list = Vector{Dict}(undef, 0)
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -1756,9 +1809,11 @@ function optimize_syn()
                                 "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
                                 "noise_level"=>noise_level)
 
-                                optimize(exp_params)
+                                # optimize(exp_params)
+                                push!(param_list, exp_params)
                             end
                         end
+                        run_param_list(param_list; max_workers=3)
                     end
                 end
             end
@@ -1804,19 +1859,22 @@ function optimize_real()
         filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data/$file_id")
         filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/physical_data/optimization/Stokes/$control/$viscosity_type/$file_id")
         
+        # collect experiments for this filepath and run with limited parallelism
+        param_list = Vector{Dict}(undef, 0)
         for ref in refine_list
             ne = ne_exp^ref
-            @info "Running optimization with ne = $ne"
+            @info "Preparing optimization with ne = $ne"
             for FunctionClass_x in FunctionClass_x_List
-                @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
+                @info "Prepared optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
-                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
-                "η_start" => η_start, "β_start" => β_start, "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "viscosity_type"=>viscosity_type, 
+                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp,
+                "η_start" => η_start, "β_start" => β_start, "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "viscosity_type"=>viscosity_type,
                 "data_type"=>"physical", "r" => r, "h" => h, "camera_matrix" => camera_matrix, "F_ext" => F_ext)
 
-                optimize(exp_params)
+                push!(param_list, exp_params)
             end
         end
+        run_param_list(param_list; max_workers=8)
         post_analysis(filepath_gt, filepath_res)
         file_id = file_id + 1
     end
