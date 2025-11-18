@@ -314,6 +314,12 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_data(string(filepath,"/data/sim_data/displacement_fields"), fields)
     write_data(string(filepath,"/data/sim_data/2D_border_points"), borderPts2DList)
 
+    plt = set_plot(22)
+    
+    Plots.xlabel!(plt, L"\mathrm{Time\;(s)}")
+    Plots.ylabel!(plt, L"\eta(\mathrm{t})\;\mathrm{(KPa\cdot s)}")
+    savefig(plt, "shear_viscosity_time.pdf")
+
     @info "Data written to $filepath"
 
 end

@@ -87,14 +87,17 @@ if xargs --help 2>&1 | grep -q "-P"; then
     if [ "$ALL_PAGES" -eq 1 ]; then
       out_pattern="$dir/${name}-page%03d.png"; first_out=$(printf "$dir/${name}-page%03d.png" 0);
       if [ -f "$first_out" ]; then
-        echo "Skipping (already exists): $pdf -> $first_out"; exit 0;
+        echo "Replacing existing files for: $pdf -> ${name}-pageNNN.png"
+        # remove any existing page files so ImageMagick will write fresh ones
+        rm -f "$dir/${name}-page"*.png || true
       fi
       echo "Converting all pages: $pdf -> ${name}-pageNNN.png (density=$DENSITY, quality=$QUALITY)"
       "${IM_CMD[@]}" -density "$DENSITY" "$pdf" $( [ -n "$RESIZE" ] && printf '%s ' -resize "$RESIZE" ) -quality "$QUALITY" "$out_pattern"
     else
       out="$dir/${name}.png"
       if [ -f "$out" ]; then
-        echo "Skipping (already exists): $pdf -> $out"; exit 0;
+        echo "Replacing existing file: $out"
+        rm -f "$out" || true
       fi
       echo "Converting: $pdf -> $out (density=$DENSITY, quality=$QUALITY)"
       "${IM_CMD[@]}" -density "$DENSITY" "$pdf[0]" $( [ -n "$RESIZE" ] && printf '%s ' -resize "$RESIZE" ) -quality "$QUALITY" "$out"
@@ -111,8 +114,8 @@ else
       out_pattern="$dir/${name}-page%03d.png"
       first_out=$(printf "$dir/${name}-page%03d.png" 0)
       if [ -f "$first_out" ]; then
-        echo "Skipping (already exists): $pdf -> $first_out"
-        continue
+        echo "Replacing existing files for: $pdf -> ${name}-pageNNN.png"
+        rm -f "$dir/${name}-page"*.png || true
       fi
       echo "Converting all pages: $pdf -> ${name}-pageNNN.png (density=$DENSITY, quality=$QUALITY)"
       cmd=("${IM_CMD[@]}" -density "$DENSITY" "$pdf")
@@ -124,8 +127,8 @@ else
     else
       out="$dir/${name}.png"
       if [ -f "$out" ]; then
-        echo "Skipping (already exists): $pdf -> $out"
-        continue
+        echo "Replacing existing file: $out"
+        rm -f "$out" || true
       fi
       echo "Converting: $pdf -> $out (density=$DENSITY, quality=$QUALITY)"
       cmd=("${IM_CMD[@]}" -density "$DENSITY" "$pdf[0]")
