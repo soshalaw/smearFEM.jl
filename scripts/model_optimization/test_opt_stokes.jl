@@ -1743,7 +1743,7 @@ function optimize_syn()
         for dir in dir_list
             filepath_gt = string(_filepath_gt,"/",dir)
             for noise_level in noise_level_list
-                if dir == "2" || dir == "1"
+                if dir == "1"
                     for ne in refine_list
                         for sim_time_exp::Float16 in sim_time_exp_list
                             filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)")
