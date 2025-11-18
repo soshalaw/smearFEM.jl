@@ -524,7 +524,7 @@ function optimize(exp_params::Dict)
 
     if gt_viscosity_type == "constant"
         _range = 1:(round(Int,sim_time_exp/t_steps_exp)+1)
-        @info "Considering from frame $(first(range)) to frame $(last(range)) in the observations"
+        @info "Considering from frame $(first(_range)) to frame $(last(_range)) in the observations"
         obsBorderPts = obsBorderPts[_range] # align the observation points with the simulation time
 
         model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, gt_viscosity_type, 
