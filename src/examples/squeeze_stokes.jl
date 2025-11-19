@@ -1452,18 +1452,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,string(t," seconds"))])
-            try
-                yield()
-            catch
-            end
-            try
-                yield()
-            catch
-            end
-            try
-                yield()
-            catch
-            end
         end
     elseif control_cached == "velocity"
         for t in time
@@ -1560,10 +1548,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,string(t," seconds"))])
-            try
-                yield()
-            catch
-            end
         end
     else
             throw(ArgumentError("Control type not unknown"))

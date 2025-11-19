@@ -1696,76 +1696,21 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed
         return
     end
 
-    workers = max(1, min(Threads.nthreads(), max_workers))
-    @info "Running $nparams experiments with $workers workers (Threads.nthreads()=$(Threads.nthreads()))"
-
-    ch = Channel{Int}(nparams)
-    @sync begin
-        # enqueue indices
-        for i in 1:nparams
-            put!(ch, i)
-        end
-
-        tasks = Vector{Task}(undef, workers)
-        for w in 1:workers
-            tasks[w] = Threads.@spawn begin
-                    # initialize a per-thread progress line (total = nparams so we can increment)
-                    try
-                        tid = Threads.threadid()
-                        smearFEM.prog_init(Symbol("thread_" * string(tid)); total=nparams, desc="thread-" * string(tid))
-                    catch
-                        # ignore if prog_init isn't available
-                    end
-                while true
-                    idx = try
-                        take!(ch)
-                    catch
-                        break
-                    end
-                    params = params_list[idx]
-                    try
-                        # avoid BLAS oversubscription inside worker
-                        LinearAlgebra.BLAS.set_num_threads(1)
-                        # per-task RNG (optional): rng = MersenneTwister(base_seed + Threads.threadid() + idx)
-                        optimize(params)
-                        # increment the thread's progress by 1
-                        try
-                            tid = Threads.threadid()
-                            smearFEM.prog_inc(Symbol("thread_" * string(tid)), 1)
-                        catch
-                        end
-                    catch err
-                        # route errors through the progress channel so they don't interleave
-                        try
-                            tid = Threads.threadid()
-                            smearFEM.log_via_channel("optimize failed for params index $idx: $err"; id=Symbol("thread_" * string(tid)))
-                        catch
-                            @error "optimize failed for params index $idx: $err"
-                        end
-                    end
-                end
-                # mark thread done
-                try
-                    tid = Threads.threadid()
-                    smearFEM.prog_done(Symbol("thread_" * string(tid)))
-                catch
-                end
-            end
-        end
-
-        for t in tasks
-            wait(t)
-        end
-
-        # signal completion for this batch of parameters so the progress
-        # manager (or any attached logger) can display a final message.
+    @info "Running $nparams experiments sequentially"
+    # Sequential execution (multithreading removed)
+    for idx in 1:nparams
+        params = params_list[idx]
         try
-            smearFEM.log_via_channel("All experiments in this run_param_list completed.")
-        catch
-            # fallback to stdout if the channel/logger isn't available
-            println("All experiments in this run_param_list completed.")
+            # avoid BLAS oversubscription
+            LinearAlgebra.BLAS.set_num_threads(1)
+            optimize(params)
+        catch err
+            @error "optimize failed for params index $idx: $err"
         end
     end
+
+    # signal completion for this batch
+    println("All experiments in this run_param_list completed.")
 end
 
 function optimize_sim()
@@ -1918,64 +1863,3 @@ end
 # plot_syn()
 # optimize_sim()
 optimize_syn()
-
-# Start the package progress manager so multi-threaded output is rendered
-# cleanly. If the package already configures logging at module load this is
-# harmless; keep in a try/catch to avoid breaking script execution.
-# manager_task = nothing
-# try
-#     global manager_task = smearFEM.start_progress_manager()
-# catch e
-#     @warn "Failed to start progress manager: $e"
-# end
-
-# # Run the main work inside a try/catch that handles InterruptException so
-# # Ctrl-C can trigger a graceful shutdown: close the progress channel and
-# # wait for the manager to exit, then propagate the interrupt with a proper
-# # exit code.
-# try
-#     optimize_syn()
-# catch e
-#     if e isa InterruptException
-#         # user requested interrupt (Ctrl-C) — attempt graceful shutdown
-#         try
-#             println("Interrupted: shutting down progress manager...")
-#         catch
-#         end
-#         try
-#             close(smearFEM.PROG_CH)
-#         catch
-#         end
-#         try
-#             if manager_task !== nothing
-#                 wait(manager_task)
-#             end
-#         catch
-#         end
-#         # exit with conventional SIGINT code
-#         try
-#             Base.exit(130)
-#         catch
-#             exit(130)
-#         end
-#     else
-#         # rethrow other errors
-#         rethrow(e)
-#     end
-# end
-
-# # Shutdown the manager cleanly: close the channel and wait for the task to finish.
-# try
-#     if manager_task !== nothing
-#         try
-#             close(smearFEM.PROG_CH)
-#         catch
-#         end
-#         try
-#             wait(manager_task)
-#         catch
-#         end
-#     end
-# catch e
-#     @warn "Error while shutting down progress manager: $e"
-# end
