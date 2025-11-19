@@ -1,4 +1,3 @@
-using ProgressMeter
 using Logging
 
 function mat_nan_inf_check(v::AbstractArray)
@@ -14,55 +13,12 @@ function mat_nan_inf_check(v::AbstractArray)
     end
 end
 
-# --- Simplified single-threaded progress helpers
-# Remove channel/task-based manager; provide a small ProgressMeter-backed
-# helper set for sequential runs. This keeps the `prog_*` API but avoids
-# multithreading/channel plumbing.
+"""
+Configure a simple stderr-backed logger for the package.
+
+This replaces the previous prog_* API. Call this from scripts/tests that
+want logging routed to stderr.
+"""
 function setup_stderr_logger()
     Logging.global_logger(Logging.ConsoleLogger(stderr))
-end
-
-const _PROG_TASKS = Dict{Any, Progress}()
-
-function prog_init(id; total::Integer=1, desc::AbstractString="")
-    try
-        _PROG_TASKS[id] = Progress(total; desc=string(desc))
-    catch
-        # ignore if ProgressMeter not available or construction fails
-    end
-end
-
-function prog_inc(id, n::Integer=1)
-    try
-        if haskey(_PROG_TASKS, id)
-            next!(_PROG_TASKS[id], n)
-        else
-            # fallback: print a simple progress increment to stderr
-            println(stderr, "[PROG_INC] ", string(id), ": +", string(n))
-        end
-    catch
-    end
-end
-
-function prog_done(id)
-    try
-        if haskey(_PROG_TASKS, id)
-            finish!(_PROG_TASKS[id])
-            delete!(_PROG_TASKS, id)
-        else
-            println(stderr, "[PROG_DONE] ", string(id))
-        end
-    catch
-    end
-end
-
-function log_via_channel(text; id=nothing)
-    try
-        if id === nothing
-            println(stderr, string(text))
-        else
-            println(stderr, "(" * string(id) * ") " * string(text))
-        end
-    catch
-    end
 end

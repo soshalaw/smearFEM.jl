@@ -1,18 +1,19 @@
-# Minimal single-threaded test for the simplified progress helpers.
+# Minimal single-threaded test: the prog_* API was removed. Use logging or
+# plain prints instead.
 include("../src/utils.jl")
 
-# route Julia logging to stderr (optional for this test)
+# route Julia logging to stderr
 setup_stderr_logger()
 
 id = :test_worker
-prog_init(id, total=20, desc="worker-test")
+@info "Starting test" id
 for i in 1:20
     sleep(0.01 + 0.02*rand())
-    prog_inc(id, 1)
+    @info "progress" id id progress=i total=20
     if rand() < 0.15
-        log_via_channel("logged at step $i"; id=id)
+        @info "logged at step $i" id
     end
 end
-prog_done(id)
 
+@info "Completed test" id
 println("thread_progress_test done")
