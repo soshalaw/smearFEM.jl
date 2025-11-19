@@ -630,21 +630,21 @@ function optimize(exp_params::Dict)
         η_iter = 1:size(ηList,1)
         β_iter = 1:size(βList,1)
 
-        for i::Int in η_iter
-            η = ηList[i]
-            for j::Int in β_iter
-                β = βList[j]
-                reset_model!(model)
-                model.η = [η]
-                scene.β = [β]
-                μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+        # for i::Int in η_iter
+        #     η = ηList[i]
+        #     for j::Int in β_iter
+        #         β = βList[j]
+        #         reset_model!(model)
+        #         model.η = [η]
+        #         scene.β = [β]
+        #         μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
                 
-                # test the closest point function
-                d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
+        #         # test the closest point function
+        #         d_cp, pairs = closest_point(simBorderPts, obsBorderPts) 
                 
-                CostMat[i,j] = sum(d_cp)/length(d_cp)
-            end
-        end
+        #         CostMat[i,j] = sum(d_cp)/length(d_cp)
+        #     end
+        # end
         
         # Plot the cost function surface (interactive GLMakie)
         set_plot(fs)
@@ -1918,6 +1918,7 @@ end
 # plot_syn()
 # optimize_sim()
 optimize_syn()
+
 # Start the package progress manager so multi-threaded output is rendered
 # cleanly. If the package already configures logging at module load this is
 # harmless; keep in a try/catch to avoid breaking script execution.
