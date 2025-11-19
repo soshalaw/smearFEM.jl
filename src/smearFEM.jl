@@ -47,4 +47,14 @@ include("examples/run_example.jl")
 
 include("utils.jl")
 
+# Automatically route package logging to stderr so progress output on stdout
+# (sent via the package progress manager) isn't clobbered by Julia log lines.
+# This runs when the module is loaded. If you prefer manual control, remove
+# or comment out this call.
+try
+	setup_stderr_logger()
+catch e
+	# swallow any error to avoid breaking module load; it's safe to ignore
+end
+
 end # module smearFem

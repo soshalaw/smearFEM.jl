@@ -1709,6 +1709,13 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed
         tasks = Vector{Task}(undef, workers)
         for w in 1:workers
             tasks[w] = Threads.@spawn begin
+                    # initialize a per-thread progress line (total = nparams so we can increment)
+                    try
+                        tid = Threads.threadid()
+                        smearFEM.prog_init(Symbol("thread_" * string(tid)); total=nparams, desc="thread-" * string(tid))
+                    catch
+                        # ignore if prog_init isn't available
+                    end
                 while true
                     idx = try
                         take!(ch)
@@ -1721,15 +1728,42 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed
                         LinearAlgebra.BLAS.set_num_threads(1)
                         # per-task RNG (optional): rng = MersenneTwister(base_seed + Threads.threadid() + idx)
                         optimize(params)
+                        # increment the thread's progress by 1
+                        try
+                            tid = Threads.threadid()
+                            smearFEM.prog_inc(Symbol("thread_" * string(tid)), 1)
+                        catch
+                        end
                     catch err
-                        @error "optimize failed for params index $idx: $err"
+                        # route errors through the progress channel so they don't interleave
+                        try
+                            tid = Threads.threadid()
+                            smearFEM.log_via_channel("optimize failed for params index $idx: $err"; id=Symbol("thread_" * string(tid)))
+                        catch
+                            @error "optimize failed for params index $idx: $err"
+                        end
                     end
+                end
+                # mark thread done
+                try
+                    tid = Threads.threadid()
+                    smearFEM.prog_done(Symbol("thread_" * string(tid)))
+                catch
                 end
             end
         end
 
         for t in tasks
             wait(t)
+        end
+
+        # signal completion for this batch of parameters so the progress
+        # manager (or any attached logger) can display a final message.
+        try
+            smearFEM.log_via_channel("All experiments in this run_param_list completed.")
+        catch
+            # fallback to stdout if the channel/logger isn't available
+            println("All experiments in this run_param_list completed.")
         end
     end
 end
@@ -1780,7 +1814,7 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [6] # refinement levels, ne = ne_exp^refine
+    refine_list = [2] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0] # 0.5 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
@@ -1796,7 +1830,7 @@ function optimize_syn()
         for dir in dir_list
             filepath_gt = string(_filepath_gt,"/",dir)
             for noise_level in noise_level_list
-                if dir == "1"
+                if dir == "2" || dir == "5"
                     for ne in refine_list
                         for sim_time_exp::Float16 in sim_time_exp_list
                             filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)")
@@ -1883,4 +1917,31 @@ end
 # main()
 # plot_syn()
 # optimize_sim()
+
+# Start the package progress manager so multi-threaded output is rendered
+# cleanly. If the package already configures logging at module load this is
+# harmless; keep in a try/catch to avoid breaking script execution.
+global manager_task = nothing
+try
+    global manager_task = smearFEM.start_progress_manager()
+catch e
+    @warn "Failed to start progress manager: $e"
+end
+
 optimize_syn()
+
+# Shutdown the manager cleanly: close the channel and wait for the task to finish.
+try
+    if manager_task !== nothing
+        try
+            close(smearFEM.PROG_CH)
+        catch
+        end
+        try
+            wait(manager_task)
+        catch
+        end
+    end
+catch e
+    @warn "Error while shutting down progress manager: $e"
+end
