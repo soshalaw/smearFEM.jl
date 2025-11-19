@@ -205,21 +205,45 @@ function start_progress_manager(ch::Channel{Any}=PROG_CH; bar_width::Integer=30,
                     if desc != ""
                         tasks[id][:desc] = string(desc)
                     end
-                    redraw_overlay()
+                    # Render overlay when we have a TTY, otherwise print a concise
+                    # textual progress line so server/non-interactive runs still
+                    # show progress in logs.
+                    if is_tty
+                        redraw_overlay()
+                    else
+                        info = tasks[id]
+                        try
+                            println(stderr, "[PROGRESS] ", string(info[:desc]), " (", string(id), "): ", string(info[:curr]), "/", string(info[:total]))
+                            flush(stderr)
+                        catch
+                        end
+                    end
 
                 elseif typ == :done
                     id = msg[:id]
                     if haskey(tasks, id)
                         tasks[id][:curr] = tasks[id][:total]
-                        redraw_overlay()
-                        # remove the finished worker after showing final state
-                        delete!(tasks, id)
-                        deleteat!(order, findfirst(==(id), order))
-                        # reindex
-                        for (i, k) in enumerate(order)
-                            tasks[k][:index] = i
+                        if is_tty
+                            redraw_overlay()
+                            # remove the finished worker after showing final state
+                            delete!(tasks, id)
+                            deleteat!(order, findfirst(==(id), order))
+                            # reindex
+                            for (i, k) in enumerate(order)
+                                tasks[k][:index] = i
+                            end
+                            redraw_overlay()
+                        else
+                            # non-interactive: print concise done line
+                            info = tasks[id]
+                            try
+                                println(stderr, "[DONE] ", string(info[:desc]), " (", string(id), "): ", string(info[:curr]), "/", string(info[:total]))
+                                flush(stderr)
+                            catch
+                            end
+                            delete!(tasks, id)
+                            deleteat!(order, findfirst(==(id), order))
                         end
-                        redraw_overlay()
                     end
 
                 elseif typ == :log
@@ -228,7 +252,16 @@ function start_progress_manager(ch::Channel{Any}=PROG_CH; bar_width::Integer=30,
                     if lid !== nothing && haskey(tasks, lid)
                         # attach the last log to the worker's overlay line
                         tasks[lid][:lastlog] = string(text)
-                        redraw_overlay()
+                        if is_tty
+                            redraw_overlay()
+                        else
+                            # non-interactive: print worker-attached log to stderr
+                            try
+                                println(stderr, "[LOG] (", string(lid), ") ", string(text))
+                                flush(stderr)
+                            catch
+                            end
+                        end
                     else
                         # print general logs below overlay
                         if is_tty
