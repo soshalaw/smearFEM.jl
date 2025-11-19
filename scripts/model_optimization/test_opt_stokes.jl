@@ -497,6 +497,10 @@ function optimize(exp_params::Dict)
         error("data_type should be either simulated or physical")
     end
 
+    if sim_time_gt < sim_time_exp
+        @info "Ground truth simulation time $sim_time_gt is less than experimental simulation time $sim_time_exp , switching to ground truth simulation time"
+        sim_time_exp = sim_time_gt
+    end
     exp_path = string(filepath_res)
     set_file(exp_path)
     write_json(string(exp_path,"/Results/data/experiment_parameters"), exp_params)
