@@ -187,6 +187,10 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
             Plots.ylims!(0,1536)
             Plots.yflip!(true)  # if needed to match image coords
             next!(pr)
+            try
+                yield()
+            catch
+            end
         end
         gif(animation2, string(filepath,"/2D_grid.gif"), fps=10)
     end
@@ -240,6 +244,10 @@ function animate_2D_comp(;borders=nothing, filepath="images/2D_grid.gif")
             Plots.ylims!(0,1536)
             Plots.yflip!(true)  # if needed to match image coords
             next!(pr)
+            try
+                yield()
+            catch
+            end
         end
         gif(animation2, string(filepath,"2D_grid.gif"), fps=10)
     end
@@ -330,6 +338,10 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
             Plots.scatter3d!(surface_pts[i][1,:], surface_pts[i][2,:], surface_pts[i][3,:], mc=:indianred2, markersize=4, label=:"", dpi=:400)
         end
         next!(pr)
+        try
+            yield()
+        catch
+        end
     end
 
     gif(animation, string(filepath,"3D_grid.gif"), fps=10)
@@ -358,6 +370,10 @@ function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath::St
         Plots.ylabel!(L"y")
         Plots.title!("Point Correspondence")
         next!(pr)
+        try
+            yield()
+        catch
+        end
     end
     gif(animation, string(filepath,"/matches.gif"), fps=10)
 end
@@ -383,6 +399,10 @@ function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String
         Plots.ylabel!(L"y")
         Plots.title!("Point Correspondence")
         next!(pr)
+        try
+            yield()
+        catch
+        end
     end
     gif(animation, string(filepath,"/matches_h.gif"), fps=10)
 end

@@ -1921,14 +1921,47 @@ end
 # Start the package progress manager so multi-threaded output is rendered
 # cleanly. If the package already configures logging at module load this is
 # harmless; keep in a try/catch to avoid breaking script execution.
-global manager_task = nothing
+manager_task = nothing
 try
     global manager_task = smearFEM.start_progress_manager()
 catch e
     @warn "Failed to start progress manager: $e"
 end
 
-optimize_syn()
+# Run the main work inside a try/catch that handles InterruptException so
+# Ctrl-C can trigger a graceful shutdown: close the progress channel and
+# wait for the manager to exit, then propagate the interrupt with a proper
+# exit code.
+try
+    optimize_syn()
+catch e
+    if e isa InterruptException
+        # user requested interrupt (Ctrl-C) — attempt graceful shutdown
+        try
+            println("Interrupted: shutting down progress manager...")
+        catch
+        end
+        try
+            close(smearFEM.PROG_CH)
+        catch
+        end
+        try
+            if manager_task !== nothing
+                wait(manager_task)
+            end
+        catch
+        end
+        # exit with conventional SIGINT code
+        try
+            Base.exit(130)
+        catch
+            exit(130)
+        end
+    else
+        # rethrow other errors
+        rethrow(e)
+    end
+end
 
 # Shutdown the manager cleanly: close the channel and wait for the task to finish.
 try

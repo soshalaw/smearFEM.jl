@@ -71,6 +71,10 @@ function test_stokes()
         cond_num_β = condition_number_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β)
         push!(condition_number_lst_β, cond_num_β)
         next!(pr, showvalues = [(:iterations,j)])
+        try
+            yield()
+        catch
+        end
         j += 1
     end
     
@@ -87,6 +91,10 @@ function test_stokes()
         i += 1
         push!(condition_number_lst_ne, cond_num_ne)
         next!(pr, showvalues = [(:iterations,i)])
+        try
+            yield()
+        catch
+        end
     end
 
     Plots.plot(ne_lst, condition_number_lst_ne, yscale=:log10, xscale=:log10,label="Condition number vs Elements", xlabel="Elements", ylabel="Condition number", title="Condition number vs Elements")

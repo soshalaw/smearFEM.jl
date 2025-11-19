@@ -977,6 +977,10 @@ function simulate(r::Number, h::Number, ne::Int64, θ1::Number, θ2::Number, ndi
 
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
+            try
+                yield()
+            catch
+            end
         end
     elseif Control == "displacement"
         for t in time
@@ -1030,6 +1034,10 @@ function simulate(r::Number, h::Number, ne::Int64, θ1::Number, θ2::Number, ndi
 
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
+            try
+                yield()
+            catch
+            end
         end
     end
 
