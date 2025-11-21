@@ -14,7 +14,7 @@ using ArgCheck
 using Base.Threads
 using Random
 
-using JLD2
+# using JLD2
 using Plots.PlotMeasures
 
 # Note: GLMakie / Makie support was removed from automated paths; this script
@@ -715,7 +715,7 @@ function optimize(exp_params::Dict)
         write_data(string(exp_path,"/Results/data/sim_data/motion_fields "), fields)
         write_data(string(exp_path,"/Results/data/sim_data/2D_border_points"), borderPts2DList)
 
-        @save string(exp_path,"/Results/data/sim_data/Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
+        # @save string(exp_path,"/Results/data/sim_data/Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
 
     elseif gt_viscosity_type == "bulk_viscosity"
 
