@@ -914,7 +914,7 @@ function simulate(r::Number, h::Number, ne::Int64, θ1::Number, θ2::Number, ndi
     dqdβ = zeros(size(q_tp))
 
     iter = 1
-    pr = Progress(length(time); desc= "Simulating with prescribed $Control ...", showspeed=true)
+    pr = progress_guard(length(time); desc= "Simulating with prescribed $Control ...", showspeed=true)
     if Control == "force"
         for t in time
 

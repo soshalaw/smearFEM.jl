@@ -66,7 +66,7 @@ function test_stokes()
     β = 100
 
     j = 1
-    pr = Progress(stepsβ; desc="Convergance analysis with β ...", showspeed=true)
+    pr = progress_guard(stepsβ; desc="Convergance analysis with β ...", showspeed=true)
     for β in β_lst
         cond_num_β = condition_number_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β)
         push!(condition_number_lst_β, cond_num_β)
@@ -85,7 +85,7 @@ function test_stokes()
     stepsne = (length(ne_lst))
 
     i = 1
-    pr = Progress(stepsne; desc="Convergance analysis with mesh size ...", showspeed=true)
+    pr = progress_guard(stepsne; desc="Convergance analysis with mesh size ...", showspeed=true)
     for ne in ne_lst
         cond_num_ne = condition_number_stokes(x0, x1, y0, y1, z0, z1, ne, ν, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β)
         i += 1

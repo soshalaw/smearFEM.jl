@@ -57,4 +57,13 @@ catch e
 	# swallow any error to avoid breaking module load; it's safe to ignore
 end
 
+# Provide a safe alias to Base.isatty so external code that references
+# `smearFEM.isatty` (incorrectly) will still work. If Base.isatty is not
+# available in this Julia build, fall back to a safe no-op that returns false.
+if isdefined(Base, :isatty)
+	const isatty = Base.isatty
+else
+	const isatty = (io->false)
+end
+
 end # module smearFem

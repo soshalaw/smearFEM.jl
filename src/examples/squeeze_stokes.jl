@@ -1294,7 +1294,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     writeborderList = [vcat(pi', qi')]
 
     iter::Int = 1
-    pr = Progress(len_t; desc= "Simulating with prescribed $(control_cached) ...", showspeed=true)
+    pr = progress_guard(len_t; desc= "Simulating with prescribed $(control_cached) ...", showspeed=true)
     if control_cached == "force"
 
         A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached)  # initialize the stiffness matrix
