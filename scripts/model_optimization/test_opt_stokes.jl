@@ -2025,7 +2025,7 @@ function optimize_syn()
                 if dir == "3" || dir == "4"
                     for ne in refine_list
                         for sim_time_exp::Float16 in sim_time_exp_list
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)")
+                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)/noise_$(noise_level)")
                             # ne = ne_exp^ref
                             @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                             for FunctionClass_x in FunctionClass_x_List
