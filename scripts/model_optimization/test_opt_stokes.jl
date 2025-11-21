@@ -2039,10 +2039,10 @@ function optimize_syn()
                                 push!(param_list, exp_params)
                             end
                         end
-                        run_param_list(param_list; max_workers=3)
                     end
                 end
             end
+            run_param_list(param_list; max_workers=3)
         end
     end
 end
