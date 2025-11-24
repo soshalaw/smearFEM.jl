@@ -2127,8 +2127,8 @@ function optimize_syn()
                                 "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
                                 "noise_level"=>noise_level)
 
-                                optimize(exp_params)
-                                # push!(param_list, exp_params)
+                                # optimize(exp_params)
+                                push!(param_list, exp_params)
                             end
                         end
                     end
