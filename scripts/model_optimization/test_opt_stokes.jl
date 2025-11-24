@@ -2134,8 +2134,8 @@ function optimize_syn()
                     end
                 end
             end
-            run_param_list(param_list; max_workers=4)
         end
+        run_param_list(param_list; max_workers=6)
     end
 end
 
