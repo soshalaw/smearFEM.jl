@@ -648,22 +648,22 @@ function optimize(exp_params::Dict)
             η_iter = 1:size(ηList,1)
             β_iter = 1:size(βList,1)
 
-            # for i::Int in η_iter
-            #     η = ηList[i]
-            #     for j::Int in β_iter
-            #         β = βList[j]
-            #         reset_model!(model)
-            #         model.η = [η]
-            #         scene.β = [β]
-            #         μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+            for i::Int in η_iter
+                η = ηList[i]
+                for j::Int in β_iter
+                    β = βList[j]
+                    reset_model!(model)
+                    model.η = [η]
+                    scene.β = [β]
+                    μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
                     
-            #         # test the closest point function
-            #         d, pairs = closest_point(simBorderPts, obsBorderPts)
+                    # test the closest point function
+                    d, pairs = closest_point(simBorderPts, obsBorderPts)
                     
-            #         CostMat[i,j] = sum(d)/length(d)
+                    CostMat[i,j] = sum(d)/length(d)
 
-            #     end
-            # end
+                end
+            end
             
             # Plot the cost function surface (interactive GLMakie)
             set_plot(fs)
@@ -2127,12 +2127,11 @@ function optimize_syn()
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [2, 4, 6] # refinement levels, ne = ne_exp^refine
-    noise_level_list = [0.0]
+    noise_level_list = [0.0, 0.5, 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
-    sim_time_exp_list = [30.0] # simulation time in seconds
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
     for viscosity_type in viscosity_type_list
@@ -2140,23 +2139,26 @@ function optimize_syn()
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             filepath_gt = string(_filepath_gt,"/",dir)
-            if dir == "1"
-                for noise_level in noise_level_list
-                    for ne in refine_list
-                        for sim_time_exp::Float16 in sim_time_exp_list
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)/noise_$(noise_level)")
-                            # ne = ne_exp^ref
-                            @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
-                            for FunctionClass_x in FunctionClass_x_List
-                                @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
+            for noise_level in noise_level_list
+                if noise_level == 0.0
+                    sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
+                else
+                    sim_time_exp_list = [30.0] # simulation time in seconds
+                end
+                for ne in refine_list
+                    for sim_time_exp::Float16 in sim_time_exp_list
+                        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)/noise_$(noise_level)")
+                        # ne = ne_exp^ref
+                        @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
+                        for FunctionClass_x in FunctionClass_x_List
+                            @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
-                                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
-                                "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                                "noise_level"=>noise_level)
+                            exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
+                            "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
+                            "noise_level"=>noise_level)
 
-                                # optimize(exp_params)
-                                push!(param_list, exp_params)
-                            end
+                            # optimize(exp_params)
+                            push!(param_list, exp_params)
                         end
                     end
                 end
