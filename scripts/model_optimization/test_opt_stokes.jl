@@ -648,22 +648,22 @@ function optimize(exp_params::Dict)
             η_iter = 1:size(ηList,1)
             β_iter = 1:size(βList,1)
 
-            for i::Int in η_iter
-                η = ηList[i]
-                for j::Int in β_iter
-                    β = βList[j]
-                    reset_model!(model)
-                    model.η = [η]
-                    scene.β = [β]
-                    μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+            # for i::Int in η_iter
+            #     η = ηList[i]
+            #     for j::Int in β_iter
+            #         β = βList[j]
+            #         reset_model!(model)
+            #         model.η = [η]
+            #         scene.β = [β]
+            #         μ_list, gradList, simBorderPts, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
                     
-                    # test the closest point function
-                    d, pairs = closest_point(simBorderPts, obsBorderPts)
+            #         # test the closest point function
+            #         d, pairs = closest_point(simBorderPts, obsBorderPts)
                     
-                    CostMat[i,j] = sum(d)/length(d)
+            #         CostMat[i,j] = sum(d)/length(d)
 
-                end
-            end
+            #     end
+            # end
             
             # Plot the cost function surface (interactive GLMakie)
             set_plot(fs)
@@ -2132,7 +2132,7 @@ function optimize_syn()
     viscosity_type_list = ["constant"]
 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
-    sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
+    sim_time_exp_list = [30.0] # simulation time in seconds
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
     for viscosity_type in viscosity_type_list
