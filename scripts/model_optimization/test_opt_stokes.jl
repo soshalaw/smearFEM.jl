@@ -1475,7 +1475,7 @@ function plot_(filepath, filepath_gt)
 
         # Iterate over simulation time folders
         for sim_time_folder in sim_time_folders
-            if sim_time_folder == "post_analysis_time" || sim_time_folder == "Results"
+            if sim_time_folder == "post_analysis_time"
                 continue
             end
 
@@ -1613,32 +1613,55 @@ function plot_(filepath, filepath_gt)
                     est_β = vec(Float64.(collect(est_β)))
 
                     @info "Post-process grid sizes: len(ηList)=$(length(ηList)), len(βList)=$(length(βList)), CostMat_size=$(size(CostMat))"
-                    plt_dirs = set_plot(fs)
-                    Plots.contour!(plt_dirs, ηList, βList, CostMat', color=:turbo, fill=false, levels=100, dpi=400)
-                    Plots.plot!(plt_dirs, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, lw=3)
-                    Plots.scatter!(plt_dirs, [η0], [β0], label="Minimum", ms=10, m=:star5, color=:black)
-                    Plots.plot!(plt_dirs, etas_steep, betas_steep, label = "Steepest dir", lw=3, color=:black)
-                    Plots.plot!(plt_dirs, etas_flat,  betas_flat,  label = "Flattest dir",  lw=3, color=:magenta)
+                    plt_dirs = set_plot(fs, sz=(1650, 1250))
+                    Plots.contour!(plt_dirs, ηList, βList, CostMat', color=:turbo, fill=false, levels=100, dpi=400, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.plot!(plt_dirs, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.plot!(plt_dirs, etas_steep, betas_steep, label = "Steepest dir", lw=3, color=:black, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.plot!(plt_dirs, etas_flat,  betas_flat,  label = "Flattest dir",  lw=3, color=:magenta, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.scatter!(plt_dirs, [η0], [β0], label="Minimum Cost", ms=15, m=:star5, color=:black, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.scatter!(plt_dirs, [η_gt], [β_gt], label="Ground truth", ms=:10, m=:circle, color=:indianred2, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
                     Plots.xlabel!(plt_dirs, L"\eta\;\mathrm{(KPa\cdot s)}")
                     Plots.ylabel!(plt_dirs, L"\beta\;\mathrm{(L/mm^{-1})}")
                     Plots.savefig(plt_dirs, string(exp_path, "/Results/plots/cost_surface_with_directions.pdf"))
+                    
+                    plt_cont = set_plot(fs, sz=(1650, 1250))
+                    Plots.contour!(plt_cont, ηList, βList, CostMat', color=:turbo, fill=false, levels=100, dpi=400, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.plot!(plt_cont, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.scatter!(plt_cont, [η0], [β0], label="Minimum Cost", ms=15, m=:star5, color=:black, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.scatter!(plt_cont, [η_gt], [β_gt], label="Ground truth", ms=:10, m=:circle, color=:indianred2, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.xlabel!(plt_cont, L"\eta\;\mathrm{(KPa\cdot s)}")
+                    Plots.ylabel!(plt_cont, L"\beta\;\mathrm{(L/mm^{-1})}")
+                    Plots.savefig(plt_cont, string(exp_path, "/Results/plots/cost_surface.pdf"))
+
+                    plt_cont = set_plot(fs, sz=(1650, 1250))
+                    Plots.contourf!(plt_cont, ηList, βList, CostMat', color=:turbo, fill=false, levels=100, dpi=400, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.plot!(plt_cont, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.scatter!(plt_cont, [η0], [β0], label="Minimum Cost", ms=15, m=:star5, color=:black, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.scatter!(plt_cont, [η_gt], [β_gt], label="Ground truth", ms=:10, m=:circle, color=:indianred2, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                    Plots.xlabel!(plt_cont, L"\eta\;\mathrm{(KPa\cdot s)}")
+                    Plots.ylabel!(plt_cont, L"\beta\;\mathrm{(L/mm^{-1})}")
+                    Plots.savefig(plt_cont, string(exp_path, "/Results/plots/cost_surface_iter.pdf"))
 
                     # 2D slices: cost vs distance along the two directions
-                    plt_slices = set_plot(fs)
+                    plt_slices = set_plot(fs, sz=(1650, 1250))
                     if length(t_steep) > 0 && length(zs_steep) == length(t_steep)
-                        Plots.plot!(plt_slices, t_steep, zs_steep, label = "Steepest direction", lw=3, color=:black)
+                        Plots.plot!(plt_slices, t_steep, zs_steep, label = "Steepest direction", lw=3, color=:black, legend=:outerbottom, legend_column=2, bottom_margin = -15mm)
                     else
                         @warn "Skipping steep slice plot: empty or mismatched lengths: $(length(t_steep)) vs $(length(zs_steep))"
                     end
                     if length(t_flat) > 0 && length(zs_flat) == length(t_flat)
-                        Plots.plot!(plt_slices, t_flat,  zs_flat,  label = "Flattest direction",  lw=3, color=:gray)
+                        Plots.plot!(plt_slices, t_flat,  zs_flat,  label = "Flattest direction",  lw=3, color=:gray, legend=:outerbottom, legend_column=2, bottom_margin = -15mm)
                     else
                         @warn "Skipping flat slice plot: empty or mismatched lengths: $(length(t_flat)) vs $(length(zs_flat))"
                     end
                     Plots.vline!(plt_slices, [0.0], color=:blue, linestyle=:dash, label="Minimum")
-                    Plots.xlabel!(plt_slices, "Distance from minimum (param units)")
-                    Plots.ylabel!(plt_slices, "Cost")
+                    Plots.xlabel!(plt_slices, L"\mathrm{Distance\;from\;minimum\;(px)}")
+                    Plots.ylabel!(plt_slices, L"\mathrm{Cost}")
                     Plots.savefig(plt_slices, string(exp_path, "/Results/plots/cost_slices_along_directions.pdf"))
+
+                    Plots.ylims!(plt_slices, 0, 10)
+                    Plots.savefig(plt_slices, string(exp_path, "/Results/plots/cost_slices_along_directions_zoomed.pdf"))
+            
 
                     # save analysis metadata
                     dir_info = Dict("η_min"=>η0, "β_min"=>β0, "Hessian"=>H, "evals"=>evals, "v_steep"=>v_steep, "v_flat"=>v_flat)
@@ -1712,42 +1735,43 @@ function plot_(filepath, filepath_gt)
 
                 # Plot the cost function surface: prefer PlotlyJS HTML export to avoid
                 # creating a GLMakie Figure (which may require a compatible WebIO setup).
-                set_plot(fs)
-                try
+                # set_plot(fs)
+                # try
 
-                    htmlpath = string(exp_path, "/Results/plots/cost_surface_interactive.html")
-                    # compute z for ground-truth on the provided grid
-                    Z_for_interp = CostMat'
-                    z_gt = interp_z_at(η_gt, β_gt, ηList, βList, Z_for_interp)
-                    saved = save_plotly_surface_html(htmlpath, ηList, βList, CostMat'; xs=Float64.(collect(est_η)), ys=Float64.(collect(est_β)), zs=Float64.(collect(cost_iter)), title="Cost surface", gt_x=η_gt, gt_y=β_gt, gt_z=z_gt, x_label = "\$\\eta\\;\\mathrm{(KPa\\cdot s)}\$", y_label = "\$\\beta\\;\\mathrm{(L/mm^{-1})}\$", font_size = fs, latex_labels=true)
-                    if saved
-                        @info "Saved interactive PlotlyJS HTML: $htmlpath"
-                    else
-                        @warn "PlotlyJS HTML not created; skipping interactive output. To enable interactive PNGs with GLMakie re-enable GLMakie manually."
-                    end
-                catch err
-                    @warn "PlotlyJS path failed; skipping interactive output. Error: $err"
-                end
+                #     htmlpath = string(exp_path, "/Results/plots/cost_surface_interactive.html")
+                #     # compute z for ground-truth on the provided grid
+                #     Z_for_interp = CostMat'
+                #     z_gt = interp_z_at(η_gt, β_gt, ηList, βList, Z_for_interp)
+                #     saved = save_plotly_surface_html(htmlpath, ηList, βList, CostMat'; xs=Float64.(collect(est_η)), ys=Float64.(collect(est_β)), zs=Float64.(collect(cost_iter)), title="Cost surface", gt_x=η_gt, gt_y=β_gt, gt_z=z_gt, x_label = "\$\\eta\\;\\mathrm{(KPa\\cdot s)}\$", y_label = "\$\\beta\\;\\mathrm{(L/mm^{-1})}\$", font_size = fs, latex_labels=true)
+                #     if saved
+                #         @info "Saved interactive PlotlyJS HTML: $htmlpath"
+                #     else
+                #         @warn "PlotlyJS HTML not created; skipping interactive output. To enable interactive PNGs with GLMakie re-enable GLMakie manually."
+                #     end
+                # catch err
+                #     @warn "PlotlyJS path failed; skipping interactive output. Error: $err"
+                # end
                 # Also preserve the static PDFs via Plots
-                try
-                    plt = set_plot(fs)
-                    Plots.contour!(plt, ηList, βList, CostMat', color=:turbo, fill=false, levels=100, dpi=400)
-                    Plots.plot!(plt, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, lw=3)
-                    Plots.plot!(plt, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=:indianred2, lw=3)
-                    Plots.xlabel!(plt, L"\eta\;\mathrm{(KPa\cdot s)}")
-                    Plots.ylabel!(plt, L"\beta\;\mathrm{mm^{-1}}")
-                    Plots.savefig(plt, string(exp_path,"/Results/plots/cost_surface_iter.pdf"))
+                # try
+                #     plt = set_plot(fs)
+                #     Plots.contour!(plt, ηList, βList, CostMat', color=:turbo, fill=false, levels=100, dpi=400, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                #     Plots.plot!(plt, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                #     Plots.scatter!(plt, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:circle, color=:indianred2, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                #     Plots.scatter!(plt_dirs, [η0], [β0], label="Minimum Cost", ms=15, m=:star5, color=:black, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                #     Plots.xlabel!(plt, L"\eta\;\mathrm{(KPa\cdot s)}")
+                #     Plots.ylabel!(plt, L"\beta\;\mathrm{mm^{-1}}")
+                #     Plots.savefig(plt, string(exp_path,"/Results/plots/cost_surface_iter.pdf"))
 
-                    plt2 = set_plot(fs)
-                    Plots.contourf!(plt2, ηList, βList, CostMat', color=:turbo, fill=false, levels=100, dpi=400)
-                    Plots.plot!(plt2, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, lw=3)
-                    Plots.plot!(plt2, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=:indianred2, lw=3)
-                    Plots.xlabel!(plt2, L"\eta\;\mathrm{(KPa\cdot s)}")
-                    Plots.ylabel!(plt2, L"\beta\;\mathrm{mm^{-1}}")
-                    Plots.savefig(plt2, string(exp_path,"/Results/plots/cost_surface.pdf"))
-                catch err
-                    @warn "Failed to produce static PDF contour outputs: $err"
-                end
+                #     plt2 = set_plot(fs)
+                #     Plots.contourf!(plt2, ηList, βList, CostMat', color=:turbo, fill=false, levels=100, dpi=400, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                #     Plots.plot!(plt2, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                #     Plots.scatter!(plt2, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:circle, color=:indianred2, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                #     Plots.xlabel!(plt2, L"\eta\;\mathrm{(KPa\cdot s)}")
+                #     Plots.ylabel!(plt2, L"\beta\;\mathrm{mm^{-1}}")
+                #     Plots.savefig(plt2, string(exp_path,"/Results/plots/cost_surface.pdf"))
+                # catch err
+                #     @warn "Failed to produce static PDF contour outputs: $err"
+                # end
             
             elseif viscosity_type == "bulk_viscosity"
                 sim_time_gt = 40.0 # simulation time in seconds
@@ -1850,6 +1874,7 @@ function post_analysis(filepath_gt::String, filepath::String)
             continue
         end
         elem_size_folder = string(filepath,elem_size_folder_)
+        println("Processing element size folder: ", elem_size_folder)  
         sim_time_folders = readdir(elem_size_folder)
 
         # figures for Simulation window vise camparison
@@ -1871,7 +1896,7 @@ function post_analysis(filepath_gt::String, filepath::String)
 
         for sim_time_folder_ in sim_time_folders
 
-            if sim_time_folder_ == "post_analysis_time" || sim_time_folder_ == "Results"
+            if sim_time_folder_ == "post_analysis_time" || sim_time_folder_ == "Results" 
                 continue
             end
 
@@ -1901,7 +1926,7 @@ function post_analysis(filepath_gt::String, filepath::String)
             Plots.xlabel!(fig4, L"\mathrm{Iterations}")
             Plots.ylabel!(fig4, L"\beta\;\mathrm{mm^{-1}}")
 
-            if sim_time == 30.0
+            if sim_time == 20.0
                 Plots.plot!(fig1, η, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
                 Plots.xlabel!(fig1, L"\mathrm{Iterations}")
                 Plots.ylabel!(fig1, L"\eta\;\mathrm{(KPa\cdot s)}")
@@ -1938,8 +1963,8 @@ function post_analysis(filepath_gt::String, filepath::String)
     set_file(plot_path_elems)
 
     @info "Saving plots to $plot_path_elems"
-    Plots.savefig(fig1, string(plot_path_elems,"/η.pdf"))
-    Plots.savefig(fig2, string(plot_path_elems,"/β.pdf"))
+    Plots.savefig(fig1, string(plot_path_elems,"/η_20.pdf"))
+    Plots.savefig(fig2, string(plot_path_elems,"/β_20.pdf"))
 end
 
 function plot_results()
@@ -2026,17 +2051,20 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed
                         bt = catch_backtrace()
                         formatted = sprint(io -> begin
                             try
+                                println("Error during optimize for params $params:")
                                 showerror(io, err, bt)
                             catch
                                 # fallback to simple show if showerror with bt fails
+                                println("Error during optimize for params $params:")
                                 showerror(io, err)
                             end
                             try
-                                println(io)
+                                println("Error during optimize for params $params:")
                                 Base.show_backtrace(io, bt)
                             catch
                             end
                         end)
+                        println("Error during optimize for params $params:")
                         @error "optimize failed for params index $idx:\n$formatted"
                     end
                 end
@@ -2087,7 +2115,6 @@ function optimize_sim()
                         push!(param_list, exp_params)
                     end
                 end
-                # post_analysis(filepath_gt, filepath_res)
             end
             # run per-directory experiments with a cap of 8 workers
             run_param_list(param_list; max_workers=8)
@@ -2099,13 +2126,13 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [4] # refinement levels, ne = ne_exp^refine
-    noise_level_list = [0.0, 0.5, 1.0]
+    refine_list = [2] # refinement levels, ne = ne_exp^refine
+    noise_level_list = [0.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
-    sim_time_exp_list = [30.0]
+    sim_time_exp_list = [20.0]
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
     for viscosity_type in viscosity_type_list
@@ -2113,7 +2140,7 @@ function optimize_syn()
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             filepath_gt = string(_filepath_gt,"/",dir)
-            if dir == "2" || dir == "3"
+            if dir == "1"
                 for noise_level in noise_level_list
                     for ne in refine_list
                         for sim_time_exp::Float16 in sim_time_exp_list
@@ -2149,7 +2176,7 @@ function plot_syn()
         file_id = 2
         filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16/$file_id")
         filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$file_id/")
-        # plot_(filepath_res, filepath_gt)
+        plot_(filepath_res, filepath_gt)
         post_analysis(filepath_gt, filepath_res)
         # file_id = file_id + 1
     end
@@ -2199,6 +2226,6 @@ function optimize_real()
 end
 
 # main()
-# plot_syn()
+plot_syn()
 # optimize_sim()
-optimize_syn()
+# optimize_syn()
