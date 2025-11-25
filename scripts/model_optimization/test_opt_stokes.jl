@@ -2126,13 +2126,13 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2] # refinement levels, ne = ne_exp^refine
+    refine_list = [2, 4, 6] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
-    sim_time_exp_list = [20.0]
+    sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
     for viscosity_type in viscosity_type_list
