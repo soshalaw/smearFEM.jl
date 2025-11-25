@@ -17,365 +17,6 @@ using Random
 # using JLD2
 using Plots.PlotMeasures
 
-# Note: GLMakie / Makie support was removed from automated paths; this script
-# now prefers PlotlyJS for saved interactive HTML output and keeps Plots for
-# static PDF output. If you need Makie-based interactive windows, re-enable
-# GLMakie imports and the helper function manually.
-
-# Helper: ensure xg, yg are Float64 vectors and Z is a dense Float64 matrix
-# shaped (ny, nx) where ny = length(yg), nx = length(xg). Returns (xg_arr, yg_arr, Zmat)
-function _ensure_grid_matrix(xg, yg, Z)
-    xg_arr = Float64.(collect(xg))
-    yg_arr = Float64.(collect(yg))
-    nx = length(xg_arr); ny = length(yg_arr)
-    Zmat = try
-        Array(Z) |> x -> Float64.(x)
-    catch err
-        error("_ensure_grid_matrix: Failed to coerce Z to dense Float64 matrix: $err")
-    end
-    if ndims(Zmat) == 1
-        if length(Zmat) == nx*ny
-            Zmat = reshape(Zmat, ny, nx)
-        else
-            error("_ensure_grid_matrix: Z is 1D with length=$(length(Zmat)) which is not nx*ny=$(nx*ny)")
-        end
-    elseif ndims(Zmat) == 2
-        if size(Zmat,1) == ny && size(Zmat,2) == nx
-            # ok
-        elseif size(Zmat,1) == nx && size(Zmat,2) == ny
-            Zmat = Zmat'
-        elseif prod(size(Zmat)) == nx*ny
-            Zmat = reshape(vec(Zmat), ny, nx)
-        else
-            @warn "_ensure_grid_matrix: Z matrix shape $(size(Zmat)) does not match (ny,nx)=($(ny),$(nx)). Attempting to continue but result may be wrong."
-        end
-    else
-        error("_ensure_grid_matrix: Z has unexpected dims: $(ndims(Zmat))")
-    end
-    return xg_arr, yg_arr, Zmat
-end
-
-# PlotlyJS exporter: create a Plotly surface and optional scatter overlays,
-# then save as a self-contained HTML file.
-function save_plotly_surface_html(filename::AbstractString, xg, yg, Z; xs=AbstractVector[], ys=AbstractVector[], zs=AbstractVector[],
-                                  title="", colormap="Viridis",
-                                  surface_label::AbstractString = "Cost surface",
-                                  path_label::AbstractString = "Estimations",
-                                  gt_label::AbstractString = "Ground truth",
-                                  path_color::AbstractString = "red",
-                                  gt_color::AbstractString = "indianred2",
-                                  path_marker_size::Int = 14,
-                                  gt_marker_size::Int = 18,
-                                  gt_x = nothing, gt_y = nothing, gt_z = nothing,
-                                  x_label::AbstractString = "",
-                                  y_label::AbstractString = "",
-                                  font_size::Int = 14,
-                                  latex_labels::Bool = false,
-                                  z_offset::Real = 0.0,
-                                  surface_opacity::Real = 1.0)
-    try
-        @eval using PlotlyJS
-    catch err
-        @warn "PlotlyJS not available; cannot save interactive HTML: $err"
-        return false
-    end
-    try
-        xg_arr, yg_arr, Zmat = _ensure_grid_matrix(xg, yg, Z)
-    # Plotly expects z as 2D array with rows corresponding to y
-    # Surface trace: do NOT include the surface in the legend so the HTML
-    # matches the PDF (PDF legend only shows Estimations and Ground truth).
-    # Set transparency so overlay lines/markers remain visible. Use a lower
-    # opacity to reduce occlusion of the estimation path.
-    surf_trace = PlotlyJS.surface(x = xg_arr, y = yg_arr, z = Zmat, colorscale = colormap,
-                      name = surface_label, showlegend = false, opacity = surface_opacity, showscale = true)
-    # compute a tiny z offset (if z_offset==0.0 we pick a conservative
-    # default proportional to the Z range) so overlays sit slightly above
-    # the surface and avoid z-fighting/occlusion in the browser.
-    zrange = maximum(Zmat) - minimum(Zmat)
-    # use a slightly larger default offset so overlay traces are visible
-    # in WebGL renderers; user can override via z_offset kwarg
-    eff_offset = Float64(z_offset == 0.0 ? 1e-3 * (zrange + eps(Float64)) : z_offset)
-
-    # Build traces list and create Plot without relying on add_traces! helper
-        traces = [surf_trace]
-        # add overlays if provided
-        if length(xs) > 0 && length(ys) > 0
-            xsv = Float64.(collect(xs))
-            ysv = Float64.(collect(ys))
-            # If zs not provided or wrong length, try to compute via interpolation
-            if length(zs) == length(xs)
-                zsv = Float64.(collect(zs))
-            else
-                try
-                    zsv = Float64.(interp_z_at(xsv, ysv, xg_arr, yg_arr, Zmat))
-                catch err
-                    @warn "Estimator zs length mismatch and interpolation failed: $err; skipping estimation trace"
-                    zsv = Float64[]
-                end
-            end
-            if length(zsv) == length(xsv) && length(zsv) > 0
-                @info "Adding estimation trace: $(length(xsv)) points"
-                # Plot estimation path as line+markers so the trajectory is visible.
-                # Use a star marker and strong black outline so it stands out above the surface.
-                # lift the points slightly above the surface to avoid z-fighting
-                zsv = zsv .+ eff_offset
-                scatter_trace = PlotlyJS.scatter3d(x = xsv, y = ysv, z = zsv, mode = "lines+markers",
-                                                   name = path_label,
-                                                   marker = PlotlyJS.attr(size = path_marker_size, color = path_color, opacity = 1.0, symbol = "star", line = Dict(:width => 1.5, :color => "black")),
-                                                   line = PlotlyJS.attr(width = 6, color = path_color))
-                push!(traces, scatter_trace)
-                # Add a non-legend projected overlay slightly above the surface
-                # as a visual aid so the path is always visible in the HTML viewer.
-                try
-                    proj_offset = 0.02 * (zrange + eps(Float64))
-                    zsv_proj = zsv .+ proj_offset
-                    proj_marker = PlotlyJS.attr(size = max(path_marker_size+6, 22), color = path_color, opacity = 1.0, symbol = "circle", line = Dict(:width => 2, :color => "black"))
-                    proj_trace = PlotlyJS.scatter3d(x = xsv, y = ysv, z = zsv_proj, mode = "markers",
-                                                    name = "", showlegend = false,
-                                                    marker = proj_marker)
-                    push!(traces, proj_trace)
-                catch err
-                    @warn "Failed to add projected overlay trace: $err"
-                end
-            else
-                @warn "Estimation trace not added: zs length $(length(zsv)) does not match xs length $(length(xsv))"
-            end
-        end
-        # Optional ground-truth point (single marker)
-        if gt_x !== nothing && gt_y !== nothing && gt_z !== nothing
-            gx = _ensure_scalar_float(gt_x)
-            gy = _ensure_scalar_float(gt_y)
-            gz = _ensure_scalar_float(gt_z)
-            # lift ground-truth marker slightly as well so it is visible above the surface
-            gz = gz + eff_offset
-            gt_trace = PlotlyJS.scatter3d(x = [gx], y = [gy], z = [gz], mode = "markers",
-                                          name = gt_label,
-                                          marker = PlotlyJS.attr(size = gt_marker_size, color = gt_color, symbol = "star"))
-            push!(traces, gt_trace)
-        end
-    # Construct the Plot from the traces vector (some PlotlyJS versions
-    # expect a single array argument rather than varargs).
-        # Utility: convert a small subset of LaTeX expressions to a plain
-        # unicode string for axis titles so they render correctly in Plotly's
-        # SVG text when MathJax cannot typeset SVG contents.
-        function _tex_to_plain(s::AbstractString)
-            mp = Dict("\\eta"=>"η", "\\beta"=>"β", "\\cdot"=>"·")
-            out = s
-            # unwrap \mathrm{...} -> inner text
-            out = replace(out, r"\\mathrm\{([^}]*)\}" => s"\1")
-            # replace common macros
-            for (k,v) in mp
-                out = replace(out, k => v)
-            end
-            # remove dollar signs and braces
-            out = replace(out, "\$" => "")
-            out = replace(out, '{' => "")
-            out = replace(out, '}' => "")
-            return out
-        end
-
-        # Layout: place legend inside the plotting area (top-left) so it does
-        # not overlap the surface colorbar on the right. Provide a translucent
-        # white background for readability and a thin border.
-        legend_cfg = Dict(:x => 0.02,
-                          :y => 0.98,
-                          :xanchor => "left",
-                          :yanchor => "top",
-                          :bgcolor => "rgba(255,255,255,0.85)",
-                          :bordercolor => "black",
-                          :borderwidth => 1,
-                          :font => Dict(:size => Int(round(font_size*0.6))))
-    # reasonable margins to accommodate colorbar and axes labels
-    margin_cfg = Dict(:l => 60, :r => 120, :t => 80, :b => 60)
-
-    # Axis label configs to align with PDF labels (2D axes). Use a smaller
-    # tick font so numbers don't appear oversized in the HTML.
-    tick_font_size = max(8, Int(round(font_size*0.36)))
-    xaxis_cfg = Dict(:title => x_label, :titlefont => Dict(:size => font_size), :tickfont => Dict(:size => tick_font_size))
-    yaxis_cfg = Dict(:title => y_label, :titlefont => Dict(:size => font_size), :tickfont => Dict(:size => tick_font_size))
-    # Scene (3D) axis labels — ensure 3D plot axes show the same titles.
-    # Use plain (unicode) versions for SVG rendering; MathJax may still
-    # typeset the LaTeX string if available.
-    plain_x = _tex_to_plain(x_label)
-    plain_y = _tex_to_plain(y_label)
-    scene_cfg = Dict(:xaxis => Dict(:title => plain_x, :titlefont => Dict(:size => font_size), :tickfont => Dict(:size => tick_font_size)),
-             :yaxis => Dict(:title => plain_y, :titlefont => Dict(:size => font_size), :tickfont => Dict(:size => tick_font_size)),
-             :zaxis => Dict(:title => "Cost", :titlefont => Dict(:size => font_size), :tickfont => Dict(:size => tick_font_size)))
-
-        # Try to construct the Plot with a Layout first; if the PlotlyJS
-        # version here doesn't accept that signature, fall back to creating
-        # the Plot and calling relayout!.
-        # Provide a default camera view that looks slightly down at the surface
-        # so overlaid paths are visible by default.
-        camera_cfg = Dict(:eye => Dict(:x => 1.2, :y => 1.2, :z => 0.9))
-        scene_with_camera = merge(scene_cfg, Dict(:camera => camera_cfg))
-
-        layout_obj = try
-            PlotlyJS.Layout(title = title, legend = legend_cfg, margin = margin_cfg, autosize = true,
-                            xaxis = xaxis_cfg, yaxis = yaxis_cfg, scene = scene_with_camera)
-        catch _
-          # Older versions may expect a Dict for layout
-            Dict(:title => title, :legend => legend_cfg, :margin => margin_cfg, :autosize => true,
-                 :xaxis => xaxis_cfg, :yaxis => yaxis_cfg, :scene => scene_with_camera)
-        end
-
-        plt = try
-            PlotlyJS.Plot(traces, layout_obj)
-        catch _
-            plt = PlotlyJS.Plot(traces)
-            try
-                PlotlyJS.relayout!(plt, layout_obj)
-            catch _
-                # If relayout also fails, at least set the title if available
-                if !isempty(title)
-                    try
-                        PlotlyJS.relayout!(plt, Dict(:title => title))
-                    catch _
-                    end
-                end
-            end
-        end
-        # Render the plot to a HTML string using the MIME show method which is
-        # available across PlotlyJS/PlotlyBase versions, then write the string.
-        html_str = sprint(io -> show(io, MIME("text/html"), plt))
-        # If LaTeX labels requested, inject MathJax into the HTML so TeX is rendered
-        if latex_labels
-            mj_cfg = raw"""<script>window.MathJax = {tex: {inlineMath: [['$','$'], ['\(','\)']]}};</script>""" * "\n"
-            mj_src = "<script src=\"https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js\"></script>\n"
-            mj_run = "<script>if(window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();</script>\n"
-            inject = mj_cfg * mj_src * mj_run
-            # Try to insert into <head> if present, else before <body>, else prepend
-            if occursin("</head>", html_str)
-                html_str = replace(html_str, "</head>" => inject * "</head>")
-            elseif occursin("<body>", html_str)
-                html_str = replace(html_str, "<body>" => "<head>" * inject * "</head><body>")
-            else
-                html_str = inject * html_str
-            end
-        end
-        open(filename, "w") do io
-            write(io, html_str)
-        end
-        return true
-    catch err
-        @warn "Failed to create/save PlotlyJS HTML: $err"
-        return false
-    end
-end
-
-# GLMakie helper removed: this project now uses PlotlyJS for saved
-# interactive HTML output. If you previously relied on the Makie helper,
-# use `save_plotly_surface_html` above to write interactive HTML files.
-
-## Bilinear interpolation helper: given vectors xg (length nx), yg (length ny)
-## and a Z matrix of size (ny, nx) (rows->y, cols->x), return interpolated
-## z value at (x, y). Values outside the grid are clamped to the edges.
-function interp_z_at(x::Real, y::Real, xg::AbstractVector, yg::AbstractVector, Z::AbstractMatrix)
-    # Coerce grid vectors and Z to concrete Float64 arrays/matrix and
-    # normalize shapes. This avoids errors when Z is an Adjoint, 1D Vec,
-    # or contains Union element types (JSON-backed arrays).
-    xg_arr = Float64.(collect(xg))
-    yg_arr = Float64.(collect(yg))
-    nx = length(xg_arr); ny = length(yg_arr)
-
-    Zmat = try
-        Array(Z) |> x -> Float64.(x)
-    catch err
-        error("Failed to coerce Z for interpolation: $err")
-    end
-
-    # If Zmat ended up 1D (or different shape), try to reshape/transpose to
-    # match (ny, nx) where rows -> y and cols -> x.
-    if ndims(Zmat) == 1
-        if length(Zmat) == nx*ny
-            Zmat = reshape(Zmat, ny, nx)
-        else
-            error("interp_z_at: Z is 1D with length=$(length(Zmat)) which is not nx*ny=$(nx*ny)")
-        end
-    elseif ndims(Zmat) == 2
-        if size(Zmat,1) == ny && size(Zmat,2) == nx
-            # ok
-        elseif size(Zmat,1) == nx && size(Zmat,2) == ny
-            Zmat = Zmat'
-        elseif prod(size(Zmat)) == nx*ny
-            Zmat = reshape(vec(Zmat), ny, nx)
-        else
-            @warn "interp_z_at: Z matrix shape $(size(Zmat)) does not match (ny,nx)=($(ny),$(nx)). Attempting to continue but interpolation may be wrong."
-        end
-    else
-        error("interp_z_at: Z has unexpected number of dimensions: $(ndims(Zmat))")
-    end
-
-    # clamp x,y to grid extents
-    xcl = clamp(x, first(xg_arr), last(xg_arr))
-    ycl = clamp(y, first(yg_arr), last(yg_arr))
-
-    # find surrounding indices
-    ix = searchsortedfirst(xg_arr, xcl)
-    if ix == 1
-        i0 = 1; i1 = 1; tx = 0.0
-    elseif ix > nx
-        i0 = nx; i1 = nx; tx = 0.0
-    else
-        i1 = ix; i0 = max(1, ix-1)
-        x0 = xg_arr[i0]; x1 = xg_arr[i1]
-        tx = x1==x0 ? 0.0 : (xcl - x0)/(x1 - x0)
-    end
-
-    iy = searchsortedfirst(yg, ycl)
-    if iy == 1
-        j0 = 1; j1 = 1; ty = 0.0
-    elseif iy > ny
-        j0 = ny; j1 = ny; ty = 0.0
-    else
-        j1 = iy; j0 = max(1, iy-1)
-        y0 = yg_arr[j0]; y1 = yg_arr[j1]
-        ty = y1==y0 ? 0.0 : (ycl - y0)/(y1 - y0)
-    end
-
-    # values at corners: note Z rows->y (j index), cols->x (i index)
-    z00 = float(Zmat[j0, i0]); z10 = float(Zmat[j0, i1])
-    z01 = float(Zmat[j1, i0]); z11 = float(Zmat[j1, i1])
-
-    # bilinear interpolation
-    z0 = (1-tx)*z00 + tx*z10
-    z1 = (1-tx)*z01 + tx*z11
-    z = (1-ty)*z0 + ty*z1
-    return z
-end
-
-# Overload to accept vector inputs (single-element vectors or paired vectors)
-function interp_z_at(xs::AbstractVector{<:Real}, ys::AbstractVector{<:Real}, xg::AbstractVector, yg::AbstractVector, Z::AbstractMatrix)
-    # If single-element vectors, delegate to scalar version
-    if length(xs) == 1 && length(ys) == 1
-        return interp_z_at(xs[1], ys[1], xg, yg, Z)
-    end
-    # If paired vectors, compute element-wise
-    if length(xs) == length(ys)
-        return [interp_z_at(xi, yi, xg, yg, Z) for (xi, yi) in zip(xs, ys)]
-    end
-    error("interp_z_at: expecting scalar x,y or vectors of equal length")
-end
-
-# Ensure a numeric scalar Float64 is returned for numbers or single-element containers
-function _ensure_scalar_float(x)
-    if isa(x, Number)
-        return Float64(x)
-    end
-    # otherwise try to collect and take the first element
-    try
-        c = collect(x)
-        if length(c) >= 1
-            return Float64(c[1])
-        else
-            error("_ensure_scalar_float: container is empty")
-        end
-    catch err
-        error("_ensure_scalar_float: cannot convert input to scalar Float64: $err")
-    end
-end
-
-
 global fs = 32  # font size for plots
 
 function optimize(exp_params::Dict)
@@ -913,7 +554,6 @@ function optimize(exp_params::Dict)
         write_data(string(exp_path,"/Results/data/sim_data/3D_points"), pos3D)
         write_data(string(exp_path,"/Results/data/sim_data/motion_fields "), fields)
         write_data(string(exp_path,"/Results/data/sim_data/2D_border_points"), borderPts2DList)
-
     end
 end
 
@@ -1967,6 +1607,364 @@ function post_analysis(filepath_gt::String, filepath::String)
     Plots.savefig(fig2, string(plot_path_elems,"/β_20.pdf"))
 end
 
+# Note: GLMakie / Makie support was removed from automated paths; this script
+# now prefers PlotlyJS for saved interactive HTML output and keeps Plots for
+# static PDF output. If you need Makie-based interactive windows, re-enable
+# GLMakie imports and the helper function manually.
+
+# Helper: ensure xg, yg are Float64 vectors and Z is a dense Float64 matrix
+# shaped (ny, nx) where ny = length(yg), nx = length(xg). Returns (xg_arr, yg_arr, Zmat)
+function _ensure_grid_matrix(xg, yg, Z)
+    xg_arr = Float64.(collect(xg))
+    yg_arr = Float64.(collect(yg))
+    nx = length(xg_arr); ny = length(yg_arr)
+    Zmat = try
+        Array(Z) |> x -> Float64.(x)
+    catch err
+        error("_ensure_grid_matrix: Failed to coerce Z to dense Float64 matrix: $err")
+    end
+    if ndims(Zmat) == 1
+        if length(Zmat) == nx*ny
+            Zmat = reshape(Zmat, ny, nx)
+        else
+            error("_ensure_grid_matrix: Z is 1D with length=$(length(Zmat)) which is not nx*ny=$(nx*ny)")
+        end
+    elseif ndims(Zmat) == 2
+        if size(Zmat,1) == ny && size(Zmat,2) == nx
+            # ok
+        elseif size(Zmat,1) == nx && size(Zmat,2) == ny
+            Zmat = Zmat'
+        elseif prod(size(Zmat)) == nx*ny
+            Zmat = reshape(vec(Zmat), ny, nx)
+        else
+            @warn "_ensure_grid_matrix: Z matrix shape $(size(Zmat)) does not match (ny,nx)=($(ny),$(nx)). Attempting to continue but result may be wrong."
+        end
+    else
+        error("_ensure_grid_matrix: Z has unexpected dims: $(ndims(Zmat))")
+    end
+    return xg_arr, yg_arr, Zmat
+end
+
+# PlotlyJS exporter: create a Plotly surface and optional scatter overlays,
+# then save as a self-contained HTML file.
+function save_plotly_surface_html(filename::AbstractString, xg, yg, Z; xs=AbstractVector[], ys=AbstractVector[], zs=AbstractVector[],
+                                  title="", colormap="Viridis",
+                                  surface_label::AbstractString = "Cost surface",
+                                  path_label::AbstractString = "Estimations",
+                                  gt_label::AbstractString = "Ground truth",
+                                  path_color::AbstractString = "red",
+                                  gt_color::AbstractString = "indianred2",
+                                  path_marker_size::Int = 14,
+                                  gt_marker_size::Int = 18,
+                                  gt_x = nothing, gt_y = nothing, gt_z = nothing,
+                                  x_label::AbstractString = "",
+                                  y_label::AbstractString = "",
+                                  font_size::Int = 14,
+                                  latex_labels::Bool = false,
+                                  z_offset::Real = 0.0,
+                                  surface_opacity::Real = 1.0)
+    try
+        @eval using PlotlyJS
+    catch err
+        @warn "PlotlyJS not available; cannot save interactive HTML: $err"
+        return false
+    end
+    try
+        xg_arr, yg_arr, Zmat = _ensure_grid_matrix(xg, yg, Z)
+    # Plotly expects z as 2D array with rows corresponding to y
+    # Surface trace: do NOT include the surface in the legend so the HTML
+    # matches the PDF (PDF legend only shows Estimations and Ground truth).
+    # Set transparency so overlay lines/markers remain visible. Use a lower
+    # opacity to reduce occlusion of the estimation path.
+    surf_trace = PlotlyJS.surface(x = xg_arr, y = yg_arr, z = Zmat, colorscale = colormap,
+                      name = surface_label, showlegend = false, opacity = surface_opacity, showscale = true)
+    # compute a tiny z offset (if z_offset==0.0 we pick a conservative
+    # default proportional to the Z range) so overlays sit slightly above
+    # the surface and avoid z-fighting/occlusion in the browser.
+    zrange = maximum(Zmat) - minimum(Zmat)
+    # use a slightly larger default offset so overlay traces are visible
+    # in WebGL renderers; user can override via z_offset kwarg
+    eff_offset = Float64(z_offset == 0.0 ? 1e-3 * (zrange + eps(Float64)) : z_offset)
+
+    # Build traces list and create Plot without relying on add_traces! helper
+        traces = [surf_trace]
+        # add overlays if provided
+        if length(xs) > 0 && length(ys) > 0
+            xsv = Float64.(collect(xs))
+            ysv = Float64.(collect(ys))
+            # If zs not provided or wrong length, try to compute via interpolation
+            if length(zs) == length(xs)
+                zsv = Float64.(collect(zs))
+            else
+                try
+                    zsv = Float64.(interp_z_at(xsv, ysv, xg_arr, yg_arr, Zmat))
+                catch err
+                    @warn "Estimator zs length mismatch and interpolation failed: $err; skipping estimation trace"
+                    zsv = Float64[]
+                end
+            end
+            if length(zsv) == length(xsv) && length(zsv) > 0
+                @info "Adding estimation trace: $(length(xsv)) points"
+                # Plot estimation path as line+markers so the trajectory is visible.
+                # Use a star marker and strong black outline so it stands out above the surface.
+                # lift the points slightly above the surface to avoid z-fighting
+                zsv = zsv .+ eff_offset
+                scatter_trace = PlotlyJS.scatter3d(x = xsv, y = ysv, z = zsv, mode = "lines+markers",
+                                                   name = path_label,
+                                                   marker = PlotlyJS.attr(size = path_marker_size, color = path_color, opacity = 1.0, symbol = "star", line = Dict(:width => 1.5, :color => "black")),
+                                                   line = PlotlyJS.attr(width = 6, color = path_color))
+                push!(traces, scatter_trace)
+                # Add a non-legend projected overlay slightly above the surface
+                # as a visual aid so the path is always visible in the HTML viewer.
+                try
+                    proj_offset = 0.02 * (zrange + eps(Float64))
+                    zsv_proj = zsv .+ proj_offset
+                    proj_marker = PlotlyJS.attr(size = max(path_marker_size+6, 22), color = path_color, opacity = 1.0, symbol = "circle", line = Dict(:width => 2, :color => "black"))
+                    proj_trace = PlotlyJS.scatter3d(x = xsv, y = ysv, z = zsv_proj, mode = "markers",
+                                                    name = "", showlegend = false,
+                                                    marker = proj_marker)
+                    push!(traces, proj_trace)
+                catch err
+                    @warn "Failed to add projected overlay trace: $err"
+                end
+            else
+                @warn "Estimation trace not added: zs length $(length(zsv)) does not match xs length $(length(xsv))"
+            end
+        end
+        # Optional ground-truth point (single marker)
+        if gt_x !== nothing && gt_y !== nothing && gt_z !== nothing
+            gx = _ensure_scalar_float(gt_x)
+            gy = _ensure_scalar_float(gt_y)
+            gz = _ensure_scalar_float(gt_z)
+            # lift ground-truth marker slightly as well so it is visible above the surface
+            gz = gz + eff_offset
+            gt_trace = PlotlyJS.scatter3d(x = [gx], y = [gy], z = [gz], mode = "markers",
+                                          name = gt_label,
+                                          marker = PlotlyJS.attr(size = gt_marker_size, color = gt_color, symbol = "star"))
+            push!(traces, gt_trace)
+        end
+    # Construct the Plot from the traces vector (some PlotlyJS versions
+    # expect a single array argument rather than varargs).
+        # Utility: convert a small subset of LaTeX expressions to a plain
+        # unicode string for axis titles so they render correctly in Plotly's
+        # SVG text when MathJax cannot typeset SVG contents.
+        function _tex_to_plain(s::AbstractString)
+            mp = Dict("\\eta"=>"η", "\\beta"=>"β", "\\cdot"=>"·")
+            out = s
+            # unwrap \mathrm{...} -> inner text
+            out = replace(out, r"\\mathrm\{([^}]*)\}" => s"\1")
+            # replace common macros
+            for (k,v) in mp
+                out = replace(out, k => v)
+            end
+            # remove dollar signs and braces
+            out = replace(out, "\$" => "")
+            out = replace(out, '{' => "")
+            out = replace(out, '}' => "")
+            return out
+        end
+
+        # Layout: place legend inside the plotting area (top-left) so it does
+        # not overlap the surface colorbar on the right. Provide a translucent
+        # white background for readability and a thin border.
+        legend_cfg = Dict(:x => 0.02,
+                          :y => 0.98,
+                          :xanchor => "left",
+                          :yanchor => "top",
+                          :bgcolor => "rgba(255,255,255,0.85)",
+                          :bordercolor => "black",
+                          :borderwidth => 1,
+                          :font => Dict(:size => Int(round(font_size*0.6))))
+    # reasonable margins to accommodate colorbar and axes labels
+    margin_cfg = Dict(:l => 60, :r => 120, :t => 80, :b => 60)
+
+    # Axis label configs to align with PDF labels (2D axes). Use a smaller
+    # tick font so numbers don't appear oversized in the HTML.
+    tick_font_size = max(8, Int(round(font_size*0.36)))
+    xaxis_cfg = Dict(:title => x_label, :titlefont => Dict(:size => font_size), :tickfont => Dict(:size => tick_font_size))
+    yaxis_cfg = Dict(:title => y_label, :titlefont => Dict(:size => font_size), :tickfont => Dict(:size => tick_font_size))
+    # Scene (3D) axis labels — ensure 3D plot axes show the same titles.
+    # Use plain (unicode) versions for SVG rendering; MathJax may still
+    # typeset the LaTeX string if available.
+    plain_x = _tex_to_plain(x_label)
+    plain_y = _tex_to_plain(y_label)
+    scene_cfg = Dict(:xaxis => Dict(:title => plain_x, :titlefont => Dict(:size => font_size), :tickfont => Dict(:size => tick_font_size)),
+             :yaxis => Dict(:title => plain_y, :titlefont => Dict(:size => font_size), :tickfont => Dict(:size => tick_font_size)),
+             :zaxis => Dict(:title => "Cost", :titlefont => Dict(:size => font_size), :tickfont => Dict(:size => tick_font_size)))
+
+        # Try to construct the Plot with a Layout first; if the PlotlyJS
+        # version here doesn't accept that signature, fall back to creating
+        # the Plot and calling relayout!.
+        # Provide a default camera view that looks slightly down at the surface
+        # so overlaid paths are visible by default.
+        camera_cfg = Dict(:eye => Dict(:x => 1.2, :y => 1.2, :z => 0.9))
+        scene_with_camera = merge(scene_cfg, Dict(:camera => camera_cfg))
+
+        layout_obj = try
+            PlotlyJS.Layout(title = title, legend = legend_cfg, margin = margin_cfg, autosize = true,
+                            xaxis = xaxis_cfg, yaxis = yaxis_cfg, scene = scene_with_camera)
+        catch _
+          # Older versions may expect a Dict for layout
+            Dict(:title => title, :legend => legend_cfg, :margin => margin_cfg, :autosize => true,
+                 :xaxis => xaxis_cfg, :yaxis => yaxis_cfg, :scene => scene_with_camera)
+        end
+
+        plt = try
+            PlotlyJS.Plot(traces, layout_obj)
+        catch _
+            plt = PlotlyJS.Plot(traces)
+            try
+                PlotlyJS.relayout!(plt, layout_obj)
+            catch _
+                # If relayout also fails, at least set the title if available
+                if !isempty(title)
+                    try
+                        PlotlyJS.relayout!(plt, Dict(:title => title))
+                    catch _
+                    end
+                end
+            end
+        end
+        # Render the plot to a HTML string using the MIME show method which is
+        # available across PlotlyJS/PlotlyBase versions, then write the string.
+        html_str = sprint(io -> show(io, MIME("text/html"), plt))
+        # If LaTeX labels requested, inject MathJax into the HTML so TeX is rendered
+        if latex_labels
+            mj_cfg = raw"""<script>window.MathJax = {tex: {inlineMath: [['$','$'], ['\(','\)']]}};</script>""" * "\n"
+            mj_src = "<script src=\"https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js\"></script>\n"
+            mj_run = "<script>if(window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise();</script>\n"
+            inject = mj_cfg * mj_src * mj_run
+            # Try to insert into <head> if present, else before <body>, else prepend
+            if occursin("</head>", html_str)
+                html_str = replace(html_str, "</head>" => inject * "</head>")
+            elseif occursin("<body>", html_str)
+                html_str = replace(html_str, "<body>" => "<head>" * inject * "</head><body>")
+            else
+                html_str = inject * html_str
+            end
+        end
+        open(filename, "w") do io
+            write(io, html_str)
+        end
+        return true
+    catch err
+        @warn "Failed to create/save PlotlyJS HTML: $err"
+        return false
+    end
+end
+
+# GLMakie helper removed: this project now uses PlotlyJS for saved
+# interactive HTML output. If you previously relied on the Makie helper,
+# use `save_plotly_surface_html` above to write interactive HTML files.
+
+## Bilinear interpolation helper: given vectors xg (length nx), yg (length ny)
+## and a Z matrix of size (ny, nx) (rows->y, cols->x), return interpolated
+## z value at (x, y). Values outside the grid are clamped to the edges.
+function interp_z_at(x::Real, y::Real, xg::AbstractVector, yg::AbstractVector, Z::AbstractMatrix)
+    # Coerce grid vectors and Z to concrete Float64 arrays/matrix and
+    # normalize shapes. This avoids errors when Z is an Adjoint, 1D Vec,
+    # or contains Union element types (JSON-backed arrays).
+    xg_arr = Float64.(collect(xg))
+    yg_arr = Float64.(collect(yg))
+    nx = length(xg_arr); ny = length(yg_arr)
+
+    Zmat = try
+        Array(Z) |> x -> Float64.(x)
+    catch err
+        error("Failed to coerce Z for interpolation: $err")
+    end
+
+    # If Zmat ended up 1D (or different shape), try to reshape/transpose to
+    # match (ny, nx) where rows -> y and cols -> x.
+    if ndims(Zmat) == 1
+        if length(Zmat) == nx*ny
+            Zmat = reshape(Zmat, ny, nx)
+        else
+            error("interp_z_at: Z is 1D with length=$(length(Zmat)) which is not nx*ny=$(nx*ny)")
+        end
+    elseif ndims(Zmat) == 2
+        if size(Zmat,1) == ny && size(Zmat,2) == nx
+            # ok
+        elseif size(Zmat,1) == nx && size(Zmat,2) == ny
+            Zmat = Zmat'
+        elseif prod(size(Zmat)) == nx*ny
+            Zmat = reshape(vec(Zmat), ny, nx)
+        else
+            @warn "interp_z_at: Z matrix shape $(size(Zmat)) does not match (ny,nx)=($(ny),$(nx)). Attempting to continue but interpolation may be wrong."
+        end
+    else
+        error("interp_z_at: Z has unexpected number of dimensions: $(ndims(Zmat))")
+    end
+
+    # clamp x,y to grid extents
+    xcl = clamp(x, first(xg_arr), last(xg_arr))
+    ycl = clamp(y, first(yg_arr), last(yg_arr))
+
+    # find surrounding indices
+    ix = searchsortedfirst(xg_arr, xcl)
+    if ix == 1
+        i0 = 1; i1 = 1; tx = 0.0
+    elseif ix > nx
+        i0 = nx; i1 = nx; tx = 0.0
+    else
+        i1 = ix; i0 = max(1, ix-1)
+        x0 = xg_arr[i0]; x1 = xg_arr[i1]
+        tx = x1==x0 ? 0.0 : (xcl - x0)/(x1 - x0)
+    end
+
+    iy = searchsortedfirst(yg, ycl)
+    if iy == 1
+        j0 = 1; j1 = 1; ty = 0.0
+    elseif iy > ny
+        j0 = ny; j1 = ny; ty = 0.0
+    else
+        j1 = iy; j0 = max(1, iy-1)
+        y0 = yg_arr[j0]; y1 = yg_arr[j1]
+        ty = y1==y0 ? 0.0 : (ycl - y0)/(y1 - y0)
+    end
+
+    # values at corners: note Z rows->y (j index), cols->x (i index)
+    z00 = float(Zmat[j0, i0]); z10 = float(Zmat[j0, i1])
+    z01 = float(Zmat[j1, i0]); z11 = float(Zmat[j1, i1])
+
+    # bilinear interpolation
+    z0 = (1-tx)*z00 + tx*z10
+    z1 = (1-tx)*z01 + tx*z11
+    z = (1-ty)*z0 + ty*z1
+    return z
+end
+
+# Overload to accept vector inputs (single-element vectors or paired vectors)
+function interp_z_at(xs::AbstractVector{<:Real}, ys::AbstractVector{<:Real}, xg::AbstractVector, yg::AbstractVector, Z::AbstractMatrix)
+    # If single-element vectors, delegate to scalar version
+    if length(xs) == 1 && length(ys) == 1
+        return interp_z_at(xs[1], ys[1], xg, yg, Z)
+    end
+    # If paired vectors, compute element-wise
+    if length(xs) == length(ys)
+        return [interp_z_at(xi, yi, xg, yg, Z) for (xi, yi) in zip(xs, ys)]
+    end
+    error("interp_z_at: expecting scalar x,y or vectors of equal length")
+end
+
+# Ensure a numeric scalar Float64 is returned for numbers or single-element containers
+function _ensure_scalar_float(x)
+    if isa(x, Number)
+        return Float64(x)
+    end
+    # otherwise try to collect and take the first element
+    try
+        c = collect(x)
+        if length(c) >= 1
+            return Float64(c[1])
+        else
+            error("_ensure_scalar_float: container is empty")
+        end
+    catch err
+        error("_ensure_scalar_float: cannot convert input to scalar Float64: $err")
+    end
+end
+
 function plot_results()
     ne_gt::Int = 8 # number of elements in the mesh for the ground truth
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
@@ -2129,7 +2127,7 @@ function optimize_sim()
                 end
             end
             # run per-directory experiments with a cap of 8 workers
-            run_param_list(param_list; max_workers=8)
+            run_param_list(param_list; max_workers=11)
         end
     end
 end
@@ -2158,7 +2156,7 @@ function optimize_syn()
                     noise_level_list = [0.0]
                 end
                 for noise_level in noise_level_list
-                    if noise_level == 0.0
+                    if noise_level == 0.0 
                         sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
@@ -2174,14 +2172,14 @@ function optimize_syn()
                                 "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
                                 "noise_level"=>noise_level)
 
-                                # optimize(exp_params)
-                                push!(param_list, exp_params)
+                                optimize(exp_params)
+                                # push!(param_list, exp_params)
                             end
                         end
                     end
                 end
         end
-        run_param_list(param_list; max_workers=11)
+        # run_param_list(param_list; max_workers=11)
     end
 end
 
