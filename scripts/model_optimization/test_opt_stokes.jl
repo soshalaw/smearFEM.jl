@@ -2066,6 +2066,18 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed
                         end)
                         println("Error during optimize for params $params:")
                         @error "optimize failed for params index $idx:\n$formatted"
+                        # Attempt to write a detailed error log next to the experiment results
+                        try
+                            dest_dir = "."
+                            if isa(params, AbstractDict) && haskey(params, "filepath_res")
+                                dest_dir = string(params["filepath_res"], "/Results/logs")
+                            else
+                                dest_dir = "./logs"
+                            end
+                            write_error_log(err, bt; params=params, dest_dir=dest_dir)
+                        catch ewrite
+                            @error "Failed to write error log: $ewrite"
+                        end
                     end
                 end
             end
@@ -2139,30 +2151,30 @@ function optimize_syn()
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             filepath_gt = string(_filepath_gt,"/",dir)
-            for noise_level in noise_level_list
-                if noise_level == 0.0
-                    sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
-                else
-                    sim_time_exp_list = [30.0] # simulation time in seconds
-                end
-                for ne in refine_list
-                    for sim_time_exp::Float16 in sim_time_exp_list
-                        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)/noise_$(noise_level)")
-                        # ne = ne_exp^ref
-                        @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
-                        for FunctionClass_x in FunctionClass_x_List
-                            @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
+                for noise_level in noise_level_list
+                    if noise_level == 0.0
+                        sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
+                    else
+                        sim_time_exp_list = [30.0] # simulation time in seconds
+                    end
+                    for ne in refine_list
+                        for sim_time_exp::Float16 in sim_time_exp_list
+                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)/noise_$(noise_level)")
+                            # ne = ne_exp^ref
+                            @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
+                            for FunctionClass_x in FunctionClass_x_List
+                                @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
-                            exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
-                            "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                            "noise_level"=>noise_level)
+                                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
+                                "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
+                                "noise_level"=>noise_level)
 
-                            # optimize(exp_params)
-                            push!(param_list, exp_params)
+                                # optimize(exp_params)
+                                push!(param_list, exp_params)
+                            end
                         end
                     end
                 end
-            end
         end
         run_param_list(param_list; max_workers=6)
     end
