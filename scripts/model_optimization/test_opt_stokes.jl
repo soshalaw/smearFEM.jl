@@ -2151,13 +2151,18 @@ function optimize_syn()
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             filepath_gt = string(_filepath_gt,"/",dir)
+            for ne in refine_list
+                if ne == 6
+                    noise_level_list = [0.0, 0.5, 1.0]
+                else
+                    noise_level_list = [0.0]
+                end
                 for noise_level in noise_level_list
                     if noise_level == 0.0
                         sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
-                    for ne in refine_list
                         for sim_time_exp::Float16 in sim_time_exp_list
                             filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)/noise_$(noise_level)")
                             # ne = ne_exp^ref
@@ -2176,7 +2181,7 @@ function optimize_syn()
                     end
                 end
         end
-        run_param_list(param_list; max_workers=6)
+        run_param_list(param_list; max_workers=11)
     end
 end
 
