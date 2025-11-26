@@ -101,3 +101,22 @@ function progress_guard(total; kwargs...)
         return NonTtyProgress(0, Int(total), interval_ns, time_ns(), desc)
     end
 end
+
+# logging Functions
+
+function write_time_log(start_time::Dates.DateTime, end_time::Dates.DateTime, params::Dict; dest_dir::String)
+    log_filepath = string(dest_dir, "/time_log.txt")
+    if !isdir(dest_dir)
+        mkpath(dest_dir)
+    end
+    open(log_filepath, "a") do io
+        println(io, "Start Time: ", Dates.format(start_time, "yyyy-mm-dd HH:MM:SS"))
+        println(io, "End Time: ", Dates.format(end_time, "yyyy-mm-dd HH:MM:SS"))
+        println(io, "Elapsed Time (seconds): ", canonicalize(end_time - start_time))
+        println(io, "Parameters: ")
+        for (k,v) in params
+            println(io, "    ", k, " => ", v)
+        end
+        println(io, "----------------------------------------")
+    end
+end

@@ -14,6 +14,7 @@ using ArgCheck
 using Base.Threads
 using Random
 
+using Dates
 # using JLD2
 using Plots.PlotMeasures
 
@@ -2162,10 +2163,12 @@ function optimize_syn()
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
                     for sim_time_exp::Float16 in sim_time_exp_list
-                        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)/noise_$(noise_level)")
                         # ne = ne_exp^ref
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
+
+                            start_time = Dates.now()
+                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)")
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
@@ -2173,7 +2176,9 @@ function optimize_syn()
                             "noise_level"=>noise_level)
 
                             optimize(exp_params)
-                            # push!(param_list, exp_params)
+
+                            end_time = Dates.now()
+                            write_time_log(start_time, end_time, exp_params; dest_dir=string(filepath_res,"/Results/logs"))
                         end
                     end
                 end
@@ -2183,6 +2188,9 @@ function optimize_syn()
     end
 end
 
+function ()
+    
+end
 function plot_syn()
 
     control = "force" # "force" or "velocity"
