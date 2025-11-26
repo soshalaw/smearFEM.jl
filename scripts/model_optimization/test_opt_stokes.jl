@@ -2136,7 +2136,7 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2] # refinement levels, ne = ne_exp^refine
+    refine_list = [4] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0, 0.5, 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
