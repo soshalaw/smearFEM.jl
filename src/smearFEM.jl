@@ -25,7 +25,7 @@ export read_csv, write_vtk, write_scene, write_csv, write_json, write_data, read
 export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h, set_plot # plotting.jl
 export plot_noise_covariance, plot_height_vs_slip, plot_field_at_height, arrow0!, get_norm, plot_data # analysis_plots.jl
 
-export mat_nan_inf_check
+export mat_nan_inf_check, write_time_log
 
 include("fem/models.jl")
 include("fem/fem.jl")
