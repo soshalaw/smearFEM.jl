@@ -2136,7 +2136,7 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2, 4, 6] # refinement levels, ne = ne_exp^refine
+    refine_list = [2] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0, 0.5, 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
@@ -2161,23 +2161,23 @@ function optimize_syn()
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
-                        for sim_time_exp::Float16 in sim_time_exp_list
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)/noise_$(noise_level)")
-                            # ne = ne_exp^ref
-                            @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
-                            for FunctionClass_x in FunctionClass_x_List
-                                @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
+                    for sim_time_exp::Float16 in sim_time_exp_list
+                        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/Q2_$ne/simtime_$(sim_time_exp)/noise_$(noise_level)")
+                        # ne = ne_exp^ref
+                        @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
+                        for FunctionClass_x in FunctionClass_x_List
+                            @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
-                                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
-                                "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                                "noise_level"=>noise_level)
+                            exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
+                            "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
+                            "noise_level"=>noise_level)
 
-                                optimize(exp_params)
-                                # push!(param_list, exp_params)
-                            end
+                            optimize(exp_params)
+                            # push!(param_list, exp_params)
                         end
                     end
                 end
+            end
         end
         # run_param_list(param_list; max_workers=11)
     end
