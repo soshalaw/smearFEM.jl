@@ -1079,7 +1079,7 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
 end
 
 """
-    get_η(t::Float64, F::Float64, R_0::Float64, H_0::Float64, η_0::Float64, n::Float64, K::Float64)
+    get_η_power_law(t::Float64, F::Float64, R_0::Float64, H_0::Float64, η_0::Float64, n::Float64, K::Float64)
 Calculate the shear viscosity of the fluid.
 # Arguments:
 - `t` : time
@@ -1093,7 +1093,7 @@ Calculate the shear viscosity of the fluid.
 # Returns:
 - `η::Float64` : shear viscosity
 """
-function get_η(t::T, F::U, R_0::V, H_0::W, η_0::X, n::Y, K::Z) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
+function get_η_power_law(t::T, F::U, R_0::V, H_0::W, η_0::X, n::Y, K::Z) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
 
     H(t) = H_0*(1+8*H_0^2*F*t/(3*π*η_0*R_0^4))^(-1/4) # height with time
     
@@ -1108,6 +1108,13 @@ function get_η(t::T, F::U, R_0::V, H_0::W, η_0::X, n::Y, K::Z) where {T<:Numbe
     return η(t)
 end
 
+function get_η_carraeu(H::T, H_dot::T, F::U, R::V) where {T<:Number,U<:Number,V<:Number}
+
+    η = 8/3*F*H^3/(π*R^4*H_dot)
+
+    return η
+end
+
 """
 function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
                     nDof_p::Int64, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
@@ -1115,7 +1122,7 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
 Define the conditions and the parameters of the squueze flow problem considered.
 """
 function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                    nDof_p::Int64, FunctionClass_x::String, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
+                    nDof_p::Int64, FunctionClass_x::String, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X; viscosity_model::String="power_law") where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
     n::Float64 = 0.9
     K::Float64 = 100.0
     println("Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(sim_time/t_steps)")
@@ -1123,12 +1130,23 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
     println("Number of time steps: $len_t, Length of time array: $(length(time))")
 
+    if length(cParam) != length(time)
+        @warn "Length of cParam ($(length(cParam))) is different from length of time array ($(length(time))). Adjusting cParam length to match time array length."
+        if length(cParam) < length(time)
+            cParam = vcat(cParam, fill(cParam[end], length(time) - length(cParam)))
+        else
+            cParam = cParam[1:length(time)]
+        end
+    end
+
     if viscosity_type == "bulk_viscosity"
-        η = get_η.(time, -cParam, r, h, η_0, n, K)
-        plt = set_plot(22)
-        Plots.xlabel!(plt, L"\mathrm{Time\;(s)}")
-        Plots.ylabel!(plt, L"\eta(\mathrm{t})\;\mathrm{(KPa\cdot s)}")
-        savefig(plt, "shear_viscosity_time.pdf")
+        if viscosity_model == "power_law"
+            @info "Using power law viscosity model"
+            η = get_η_power_law.(time, -cParam, r, h, η_0, n, K)
+        elseif viscosity_model == "carreau"
+            @info "Using Carreau viscosity model reading data from file"
+            η = get_η_carraeu.(h, -cParam, r)
+        end
     else
         η = [η_0]
     end 
@@ -1429,13 +1447,14 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dmdβ_out_proj = dmdβ_out_y
             motion_proj = motion
             
+            mat_nan_inf_check(dmdη_out_y)
+            mat_nan_inf_check(dmdβ_out_y)
+            
             dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
 
             BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
 
-            mat_nan_inf_check(dudθ[:,:,1])
-            mat_nan_inf_check(dudθ[:,:,2])
 
             push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(displacement, motion_proj)

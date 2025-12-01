@@ -35,6 +35,7 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; out
     @argcheck length(sim_frames) == length(obs_frames) "Size of the simulation and observation scenes should be the same"
     for (frame_idx, (obs_t, sim_t)) in enumerate(zip(obs_frames, sim_frames)) # iterate over the scenes
         if frame_idx in outliers
+            @info "Skipping frame $frame_idx as it is marked as an outlier."
             continue
         end
         tcost = 0
@@ -203,7 +204,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
     μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
     d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     totdinit::Float64 = sum(d)/length(d)
-    
+
     push!(ηpList,θ[1])
     push!(βpList,θ[2])
     push!(cost_list,totdinit)

@@ -987,94 +987,94 @@ function plot_(exp_params::Dict)
             
             println("Number of time windows: $(length(windows))")
             
-            # for ti::Int in 1:length(windows)
-            #     data_range_ = data_ranges_[ti]
-            #     scene.sim_time = time_windows[ti]
-            #     F = -F_ext*ones(Float64, round(Int, scene.sim_time*frame_rate)) # force applied to the cylinder in N
-            #     scene.cParam = F
-            #     printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
+            for ti::Int in 1:length(windows)
+                data_range_ = data_ranges_[ti]
+                scene.sim_time = time_windows[ti]
+                F = -F_ext*ones(Float64, round(Int, scene.sim_time*frame_rate)) # force applied to the cylinder in N
+                scene.cParam = F
+                printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
 
-            #     # data_range = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer))+1)
-            #     # data_range_ = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer)))
-            #     est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
-            #     animate_fields(filepath=string(exp_path,"/Results/plots/init"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti], qObs=splineyObs_win[ti])
+                # data_range = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer))+1)
+                # data_range_ = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer)))
+                est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+                animate_fields(filepath=string(exp_path,"/Results/plots/init"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti], qObs=splineyObs_win[ti])
                 
 
-            #     obsBorderPts_t = windows[ti] # align the observation points with the simulation time
-            #     println("observation size: $(size(obsBorderPts_t))")
+                obsBorderPts_t = windows[ti] # align the observation points with the simulation time
+                println("observation size: $(size(obsBorderPts_t))")
 
-            #     if data_type != "physical"
-            #         η_gt_ = model_gt.η[data_range_]
-            #         av_η = mean(η_gt_)
+                if data_type != "physical"
+                    η_gt_ = model_gt.η[data_range_]
+                    av_η = mean(η_gt_)
 
-            #         printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
-            #     end
+                    printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
+                end
 
-            #     stats = fit_model(model, scene, conditions, obsBorderPts_t, θ, outliers=outlier_frames)
+                stats = fit_model(model, scene, conditions, obsBorderPts_t, θ, outliers=outlier_frames)
 
-            #     est_ηpList[data_range_] .= stats["η"]
-            #     est_βpList[data_range_] .= stats["β"]
-            #     titer = titer + 1
+                est_ηpList[data_range_] .= stats["η"]
+                est_βpList[data_range_] .= stats["β"]
+                titer = titer + 1
 
-            #     if ti == 1
-            #         θ[1] = stats["η"]*100
-            #     end
-            #     θ[2] = stats["β"]
+                if ti == 1
+                    θ[1] = stats["η"]*100
+                end
+                θ[2] = stats["β"]
 
                 
-            #     # est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
-            #     #     time_windows[ti], t_steps_exp)
-            #     # est_model.η = est_ηpList[data_range_] 
-            #     # est_scene.β = est_βpList[data_range_]
-            #     reset_model!(model)
-            #     est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
-            #     animate_fields(filepath=string(exp_path,"/Results/plots"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti], qObs=splineyObs_win[ti])
+                # est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+                #     time_windows[ti], t_steps_exp)
+                # est_model.η = est_ηpList[data_range_] 
+                # est_scene.β = est_βpList[data_range_]
+                reset_model!(model)
+                est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+                animate_fields(filepath=string(exp_path,"/Results/plots"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti], qObs=splineyObs_win[ti])
                 
-            #     update_model!(model)
+                update_model!(model)
                 
-            #     # if ti < length(windows)
-            #     #     est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
-            #     #     animate_fields(filepath=string(exp_path,"/Results/plots/next"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti+1], qObs=splineyObs_win[ti+1])
-            #     #     reset_model!(model)
-            #     # end
+                # if ti < length(windows)
+                #     est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+                #     animate_fields(filepath=string(exp_path,"/Results/plots/next"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti+1], qObs=splineyObs_win[ti+1])
+                #     reset_model!(model)
+                # end
                 
-            #     model.η = [θ[1]]
-            #     scene.β = [θ[2]]
+                model.η = [θ[1]]
+                scene.β = [θ[2]]
 
-            #     iterList = stats["iterList"]
-            #     costList = stats["cost_list"]
-            #     ηpList = stats["ηList"]
-            #     βpList = stats["βList"]
+                iterList = stats["iterList"]
+                costList = stats["cost_list"]
+                ηpList = stats["ηList"]
+                βpList = stats["βList"]
         
-            #     # Plot the cost function with iterations
-            #     set_plot(fs)
-            #     Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
-            #     Plots.xlabel!(L"\mathrm{Iterations}")
-            #     Plots.ylabel!(L"\mathrm{Cost\;(px)}")
-            #     Plots.xticks!(minimum(iterList):2:maximum(iterList))
-            #     Plots.savefig(string(exp_path,"/Results/plots/cost_steps.pdf"))
+                # Plot the cost function with iterations
+                set_plot(fs)
+                Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
+                Plots.xlabel!(L"\mathrm{Iterations}")
+                Plots.ylabel!(L"\mathrm{Cost\;(px)}")
+                Plots.xticks!(minimum(iterList):2:maximum(iterList))
+                Plots.savefig(string(exp_path,"/Results/plots/cost_steps.pdf"))
         
-            #     # Plot the cost function with iterations
-            #     set_plot(fs)
-            #     Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
-            #     Plots.xlabel!(L"\mathrm{Iterations}")
-            #     Plots.ylabel!(L"\mathrm{Cost\;(px)}")
-            #     Plots.savefig(string(exp_path,"/Results/plots/cost_steps_log.pdf"))
+                # Plot the cost function with iterations
+                set_plot(fs)
+                Plots.plot!(iterList, costList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
+                Plots.xlabel!(L"\mathrm{Iterations}")
+                Plots.ylabel!(L"\mathrm{Cost\;(px)}")
+                Plots.savefig(string(exp_path,"/Results/plots/cost_steps_log.pdf"))
 
-            #     # Plot the cost function with iterations
-            #     set_plot(fs)
-            #     Plots.plot!(iterList, ηpList, label="Cost", marker=2, dpi=400, yscale=:log10, xscale=:log10, lw=3)
-            #     Plots.xlabel!(L"\mathrm{Iterations}")
-            #     Plots.ylabel!(L"\mathrm{Cost\;(px)}")
-            #     Plots.savefig(string(exp_path,"/Results/plots/eta_steps.pdf"))
+                # Plot the cost function with iterations
+                set_plot(fs)
+                Plots.plot!(iterList, ηpList, label="Cost", marker=2, dpi=400, yscale=:log10, xscale=:log10, lw=3)
+                Plots.xlabel!(L"\mathrm{Iterations}")
+                Plots.ylabel!(L"\mathrm{Cost\;(px)}")
+                Plots.savefig(string(exp_path,"/Results/plots/eta_steps.pdf"))
 
-            #     set_plot(fs)
-            #     Plots.plot!(iterList, βpList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
-            #     Plots.xlabel!(L"\mathrm{Iterations}")
-            #     Plots.ylabel!(L"\mathrm{Cost\;(px)}")
-            #     Plots.xticks!(minimum(iterList):2:maximum(iterList))
-            #     Plots.savefig(string(exp_path,"/Results/plots/beta_steps.pdf"))
-            # end
+                set_plot(fs)
+                Plots.plot!(iterList, βpList, label="Cost", marker=2, dpi=400, yscale=:log10, xminorgrid = :false, lw=3)
+                Plots.xlabel!(L"\mathrm{Iterations}")
+                Plots.ylabel!(L"\mathrm{Cost\;(px)}")
+                Plots.xticks!(minimum(iterList):2:maximum(iterList))
+                Plots.savefig(string(exp_path,"/Results/plots/beta_steps.pdf"))
+            end
             
 
             est_ηpList = readdlm(string(exp_path,"/Results/data/est_η.csv"), ',', Float64)
@@ -1198,7 +1198,7 @@ function optimize_real()
     end
 end
 
-function set_time_window(step_len::Float64, data::AbstractArray)
+function set_time_window(step_len::Float64, data::AbstractArray, method::String="fixed", window_size::Float64=2.0)
     windows::Vector{AbstractArray} = Vector{AbstractArray}()
     time_windows::Vector{Float64} = Vector{Float64}()
     data_ranges::Vector{AbstractArray} = Vector{AbstractArray}()
@@ -1207,8 +1207,20 @@ function set_time_window(step_len::Float64, data::AbstractArray)
     iter::Int = 1
     start_point::Int = 1
     t_window_prev::Float64 = 0.0
-    t_window::Float64 = round(0.5*exp(3*(iter-1)), digits=1)
+    # t_window::Float64 = round(0.5*exp(3*(iter-1)), digits=1) 
+    t_window::Float64 = get_t_window_fixed(window_size, iter, method)
     end_point::Int = round(Int,t_window*step_len)+1
+
+    function get_t_window_fixed(window_size::Float64, iter::Int, method::String)::Float64
+        t_window::Float64 = 0.0
+        if method == "fixed"
+            t_window = round(window_size*iter, digits=1)
+        elseif method == "exponential   "
+            t_window = round(window_size*exp(3*(iter-1)), digits=1)
+        end
+        
+        return t_window
+    end
     
     END_FLAG::Bool = false
     while true
