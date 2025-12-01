@@ -2378,7 +2378,7 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2] # refinement levels, ne = ne_exp^refine
+    refine_list = [6] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0, 0.5, 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"] #,"bulk_viscosity"]
@@ -2399,17 +2399,19 @@ function optimize_syn()
             filepath_gt = string(_filepath_gt,"/",dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
-                    noise_level_list = [0.0, 0.5, 1.0]
+                    noise_level_list = [0.5, 1.0]
                 else
-                    noise_level_list = [0.5]
+                    noise_level_list = [0.0]
                 end
                 for noise_level in noise_level_list 
                     if noise_level == 0.0 && viscosity_type == "constant"
                         sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
+                    elseif noise_level != 0.0 && viscosity_type == "constant" && ne == 6
+                        sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
                         sim_time_exp_list = [5.0] # simulation time in seconds
                     else
-                        sim_time_exp_list = [10.0] # simulation time in seconds
+                        sim_time_exp_list = [30.0] # simulation time in seconds
                     end
                     for sim_time_exp::Float16 in sim_time_exp_list
                         # ne = ne_exp^ref
