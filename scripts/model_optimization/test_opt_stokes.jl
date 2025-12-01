@@ -428,8 +428,8 @@ function optimize(exp_params::Dict)
                 write_csv(string(exp_path,"/Results/data/border/run_$n"), obsBorderPts)
             end
 
-            write_csv(string(exp_path,"/Results/data/η_est"), η_pred)
-            write_csv(string(exp_path,"/Results/data/β_est"), β_pred)
+            write_csv(string(exp_path,"/Results/data/eta_est"), η_pred)
+            write_csv(string(exp_path,"/Results/data/beta_est"), β_pred)
             write_csv(string(exp_path,"/Results/data/h_est"), est_h_list)
 
             plot_covariance(η_pred, β_pred, string(exp_path,"/Results/plots/"))
@@ -564,9 +564,9 @@ function optimize(exp_params::Dict)
             Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
         else
 
-            time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts)
-            _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs)
-            _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs)
+            time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts, method="fixed", window_size=sim_time_exp)
+            _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="fixed", window_size=sim_time_exp)
+            _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="fixed", window_size=sim_time_exp)
 
             println(size(windows),size(data_ranges_))
             
@@ -2178,7 +2178,7 @@ function plot_results()
     end
 end
 
-function set_time_window(step_len::Float64, data::AbstractArray, method::String="fixed", window_size::Float64=10.0)
+function set_time_window(step_len::Float64, data::AbstractArray; method::String="fixed", window_size::Float64=10.0)
     windows::Vector{AbstractArray} = Vector{AbstractArray}()
     time_windows::Vector{Float64} = Vector{Float64}()
     data_ranges::Vector{AbstractArray} = Vector{AbstractArray}()
@@ -2387,7 +2387,7 @@ function optimize_syn()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = []
+    avoid_dirs = ["1"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
