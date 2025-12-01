@@ -487,10 +487,11 @@ function plot_covariance(η_list::Vector{Float64}, β_list::Vector{Float64}, fil
     mean_vec = [mean_η; mean_β]
 
     # Plot the covariance matrix
-    StatsPlots.covellipse(mean_vec, cov_mat, label="Covariance", color=:red, alpha=0.5, linewidth=2)
-    # scatter!(η_list, β_list, label="Data", color=:blue, alpha=0.5)
-    xlabel!("η")
-    ylabel!("β")    
-    title!("Covariance")
-    Plots.savefig(string(filepath,"covariance.svg"))
+    plt = set_plot(22, sz=(1650, 1250))
+    StatsPlots.covellipse!(plt, mean_vec, cov_mat, label="Covariance", color=:red, alpha=0.5, linewidth=2)
+    scatter!(η_list, β_list, label="Data", color=:blue, alpha=0.5)
+    xlabel!(plt, "η")
+    ylabel!(plt, "β")    
+    title!(plt, "Covariance")
+    Plots.savefig(plt, string(filepath,"covariance.svg"))
 end
