@@ -368,7 +368,7 @@ function optimize(exp_params::Dict)
 
         # @save string(exp_path,"/Results/data/sim_data/Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
         else
-            n_samples = 10
+            n_samples = 3
             η_pred = zeros(Float64, n_samples)
             β_pred = zeros(Float64, n_samples)
             costnList = Vector{Vector{Float64}}(undef, n_samples)
@@ -435,7 +435,7 @@ function optimize(exp_params::Dict)
             write_csv(string(exp_path,"/Results/data/beta_est"), β_pred)
             write_csv(string(exp_path,"/Results/data/h_est"), est_h_list)
 
-            plot_covariance(η_pred, β_pred, string(exp_path,"/Results/plots/"))
+            # plot_covariance(η_pred, β_pred, string(exp_path,"/Results/plots/"))
             
             set_file(string(exp_path,"/Results/plots"))
 
@@ -2378,7 +2378,7 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [6] # refinement levels, ne = ne_exp^refine
+    refine_list = [2] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0, 0.5, 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"] #,"bulk_viscosity"]
@@ -2401,7 +2401,7 @@ function optimize_syn()
                 if ne == 6 && viscosity_type == "constant"
                     noise_level_list = [0.5, 1.0]
                 else
-                    noise_level_list = [0.0]
+                    noise_level_list = [0.5]
                 end
                 for noise_level in noise_level_list 
                     if noise_level == 0.0 && viscosity_type == "constant"
