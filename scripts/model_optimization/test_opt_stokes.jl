@@ -376,6 +376,7 @@ function optimize(exp_params::Dict)
             est_h_list = Matrix{Float64}(undef, n_samples, round(Int,sim_time_exp/t_steps_exp)+1)
             ANIMATED = false
 
+            set_file(string(exp_path,"/Results/plots"))
             for n::Int in 1:n_samples
                 obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
 
@@ -437,7 +438,7 @@ function optimize(exp_params::Dict)
 
             # plot_covariance(η_pred, β_pred, string(exp_path,"/Results/plots/"))
             
-            set_file(string(exp_path,"/Results/plots"))
+            
 
             plt_error = set_plot(fs, sz=(1650, 1250))
             StatsPlots.errorline!(est_h_list, label="Estimated height", dpi=400)
