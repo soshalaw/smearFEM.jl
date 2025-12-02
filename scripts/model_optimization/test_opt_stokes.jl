@@ -578,16 +578,17 @@ function optimize(exp_params::Dict)
             println("Number of time windows: $(length(windows))")
 
             for ti::Int in 1:length(windows)
+                data_range_ = data_ranges_[ti]
+                scene.sim_time = time_windows[ti]
+                scene.cParam = F[data_range_]
+                obsBorderPts_t = windows[ti] # align the observation points with the simulation time
+                
                 println("Data frame : $(data_range_)")
                 println("Time frame : $(scene.sim_time)")
                 @info "Time window $(time_windows[ti])"
                 printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
                 println("observation window size: $(size(obsBorderPts_t,1))")
 
-                data_range_ = data_ranges_[ti]
-                scene.sim_time = time_windows[ti]
-                scene.cParam = F[data_range_]
-                obsBorderPts_t = windows[ti] # align the observation points with the simulation time
 
                 if data_type != "physical"
                     η_gt_ = model_gt.η[data_range_]
