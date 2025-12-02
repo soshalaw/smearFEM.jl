@@ -197,7 +197,6 @@ function optimize(exp_params::Dict)
             obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
             stats = fit_model(model, scene, conditions, obsBorderPts, θ, outliers=outlier_frames)
 
-
             iterList = stats["iterList"]
             costList = stats["cost_list"]
             ηpList = stats["ηList"]
@@ -474,19 +473,32 @@ function optimize(exp_params::Dict)
         
         set_file(string(exp_path,"/Results/plots"))
         println("Number of time windows: $window")
-
-        windows = collect(range(start=1, stop=sim_time_gt, length=window))
-        titer::Int = 1
+        
+        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts, method="fixed", window_size=sim_time_exp)
+        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="fixed", window_size=sim_time_exp)
+        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="fixed", window_size=sim_time_exp)
 
         if mode == "single_window"
             ti = 1
-            data_range = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer))+1)
-            data_range_ = (round(Int,sim_time_frame*(titer-1))+1):(round(Int,sim_time_frame*(titer)))
+            data_range_ = data_ranges_[ti]
+            scene.sim_time = time_windows[ti]
+            scene.cParam = F[data_range_]
+            @info "Time window $(time_windows[ti])"
 
-            obsBorderPts_t = obsBorderPts[data_range] # align the observation points with the simulation time
-            println(size(obsBorderPts_t))
+            println("Data frame : $(data_range_)")
+            println("Time frame : $(scene.sim_time)")
 
-            println("Time frame : $data_range")
+            printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
+
+            # est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
+            # println("Simulation completed for time window $(size(borderPts2DList))")
+            # animate_fields(filepath=string(exp_path,"/Results/plots/init"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti], qObs=splineyObs_win[ti])
+
+            obsBorderPts_t = windows[ti] # align the observation points with the simulation time
+
+            println("observation window size: $(size(obsBorderPts_t,1))")
+
+            println("Time frame : $data_range_")
             printstyled("Time window: $(ti)\n"; color = :green)
 
             if data_type != "physical"
@@ -500,7 +512,6 @@ function optimize(exp_params::Dict)
 
             est_ηpList[data_range_] .= stats["η"]
             est_βpList[data_range_] .= stats["β"]
-            titer = titer + 1
 
             θ[1] = stats["η"]
             θ[2] = stats["β"]
@@ -541,38 +552,31 @@ function optimize(exp_params::Dict)
             Plots.xticks!(minimum(iterList):2:maximum(iterList))
             Plots.savefig(string(exp_path,"/Results/plots/beta_steps.pdf"))
 
-            viscosity_type = "constant"
-            est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+            viscosity_type = "bulk_viscosity"
+            est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F[data_range_], control, viscosity_type, 
                                 sim_time_exp, t_steps_exp)
             est_model.η = est_ηpList[data_range_] 
             est_scene.β = est_βpList[data_range_]
             est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(est_model, est_scene, conditions)
 
-            animate_fields(filepath=string(exp_path,"/Results/plots"), BorderNodes2D=borderPts2DList, pObs=splinexObs[data_range], qObs=splineyObs[data_range])
-                            
+            animate_fields(filepath=string(exp_path,"/Results/plots"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti], qObs=splineyObs_win[ti])
+            est_h_list = get_height(est_μ_list, h)
+
             plt_η = set_plot(fs, sz=(1650, 1250))
             t = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
             if data_type != "physical"
                 Plots.plot!(plt_η, t, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
             end
-            Plots.plot!(plt_η, t[data_range], est_ηpList[data_range], label="Estimated η(t)", lw=3)
-            # for t in windows
-            #     Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
-            # end
+            Plots.plot!(plt_η, t[data_range_], est_ηpList[data_range_], label="Estimated η(t)", lw=3)
+            for t in t_windows
+                Plots.vline!(plt_β, [t], color=:gray, lw=3, linestyle=:dash, label=false)
+            end
             Plots.xlabel!(L"\mathrm{Time\;(s)}")
             Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
             Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
         else
-
-            time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts, method="fixed", window_size=sim_time_exp)
-            _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="fixed", window_size=sim_time_exp)
-            _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="fixed", window_size=sim_time_exp)
-
-            println(size(windows),size(data_ranges_))
-            
             println("Number of time windows: $(length(windows))")
 
-            println("Size F", size(F))
             for ti::Int in 1:length(windows)
                 data_range_ = data_ranges_[ti]
                 scene.sim_time = time_windows[ti]
@@ -584,26 +588,20 @@ function optimize(exp_params::Dict)
 
                 printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
 
-                est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model, scene, conditions)
-                println("Simulation completed for time window $(size(borderPts2DList))")
-                # animate_fields(filepath=string(exp_path,"/Results/plots/init"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti], qObs=splineyObs_win[ti])
-
                 obsBorderPts_t = windows[ti] # align the observation points with the simulation time
-                println("observation size window: $(size(obsBorderPts_t,1))")
+                println("observation window size: $(size(obsBorderPts_t,1))")
 
                 if data_type != "physical"
                     η_gt_ = model_gt.η[data_range_]
                     av_η = mean(η_gt_)
-
                     printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
                 end
 
-                d, ∂d, ∂2d, pairs = closest_point(borderPts2DList, obsBorderPts_t, gradList, outliers=outlier_frames)
+                @info "Fitting model in time window $(ti)..."
                 stats = fit_model(model, scene, conditions, obsBorderPts_t, θ, outliers=outlier_frames)
 
                 est_ηpList[data_range_] .= stats["η"]
                 est_βpList[data_range_] .= stats["β"]
-                titer = titer + 1
 
                 if ti == 1 && data_type == "physical"
                     θ[1] = stats["η"]*100
@@ -612,14 +610,6 @@ function optimize(exp_params::Dict)
                 end
                 θ[2] = stats["β"]
 
-                
-                # est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
-                #     time_windows[ti], t_steps_exp)
-                # est_model.η = est_ηpList[data_range_] 
-                # est_scene.β = est_βpList[data_range_]
-                # reset_model!(model)
-                # animate_fields(filepath=string(exp_path,"/Results/plots"), BorderNodes2D=borderPts2DList, pObs=splinexObs_win[ti], qObs=splineyObs_win[ti])
-                
                 update_model!(model)
             end
 
@@ -2337,7 +2327,7 @@ function optimize_sim()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [6] # refinement levels, ne = ne_exp^refine
+    refine_list = [4] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0, 0.5, 1.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["bulk_viscosity"]
@@ -2346,7 +2336,7 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise"]
+    avoid_dirs = ["3_less_noise", "1"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -2355,6 +2345,7 @@ function optimize_sim()
                 continue
                 println("Skipping dir $dir")
             end
+            @info "Processing ground truth directory: $dir for $viscosity_type"
             filepath_gt = string(_filepath_gt,"/",dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
@@ -2374,11 +2365,11 @@ function optimize_sim()
                     end
                     for sim_time_exp::Float16 in sim_time_exp_list
                         # ne = ne_exp^ref
-                        @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
+                        @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level."
                         for FunctionClass_x in FunctionClass_x_List
 
                             start_time = Dates.now()
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)")
+                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/multi_window")
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
@@ -2402,16 +2393,16 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [6] # refinement levels, ne = ne_exp^refine
+    refine_list = [4] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0, 0.5, 1.0]
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"] #,"bulk_viscosity"]
+    viscosity_type_list = ["bulk_viscosity"]
 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "1", "2"]
+    avoid_dirs = ["3_less_noise", "1"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -2421,6 +2412,7 @@ function optimize_syn()
                 println("Skipping dir $dir")
             end
             filepath_gt = string(_filepath_gt,"/",dir)
+            @info "Processing ground truth directory: $filepath_gt for $viscosity_type"
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
                     noise_level_list = [0.0]
@@ -2443,12 +2435,11 @@ function optimize_syn()
                         for FunctionClass_x in FunctionClass_x_List
 
                             start_time = Dates.now()
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)")
-                            @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
+                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/single_window")
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
                             "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                            "noise_level"=>noise_level, "mode"=>"multi_window")
+                            "noise_level"=>noise_level, "mode"=>"single_window")
 
                             optimize(exp_params)
 

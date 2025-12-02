@@ -201,6 +201,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
     cost_list = Vector{Float64}(undef,0)
     iterList = Vector{Float64}(undef,0)
     
+    @info "Initializing simulation with η: $(θ[1]), β: $(θ[2])"
     μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
     d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     totdinit::Float64 = sum(d)/length(d)
@@ -219,7 +220,11 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         t∂2d = zeros(size(∂2d[1]))
         t∂d = zeros(size(∂d[1]))
 
-        printstyled("η: $(θ[1]), β: $(θ[2])\n", color=:yellow)
+        if iter == 1
+            printstyled("Starting optimization with η: $(θ[1]), β: $(θ[2])\n", color=:yellow)
+        else
+            printstyled("η: $(θ[1]), β: $(θ[2])\n", color=:yellow)
+        end
 
         len_d = length(d)
         szd = 1:len_d
