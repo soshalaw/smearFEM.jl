@@ -454,6 +454,7 @@ function optimize(exp_params::Dict)
 
     elseif gt_viscosity_type == "bulk_viscosity"
 
+        obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
         mode::String = exp_params["mode"] # "single_window" or "multiple_window" or "full_time"
         
         viscosity_type = "constant"
@@ -2345,7 +2346,7 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "1", "2"]
+    avoid_dirs = ["3_less_noise"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
