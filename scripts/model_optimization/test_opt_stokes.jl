@@ -475,7 +475,7 @@ function optimize(exp_params::Dict)
         _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="fixed", window_size=sim_time_exp)
 
         println("Time windows: $(time_windows)")
-        obs_time = time_windows[end]
+        obs_time = sum(time_windows)
 
         if obs_time < sim_time_gt
             @warn "Observation time frame $obs_time is less than preset ground truth time frame $sim_time_gt, switching to observation time frame"
