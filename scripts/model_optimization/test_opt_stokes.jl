@@ -647,11 +647,15 @@ function optimize(exp_params::Dict)
             plt_β = set_plot(fs, sz=(1650, 1250))
             println(size(scene_gt.β))
             if data_type != "physical"
-                Plots.hline!(plt_β, t, scene_gt.β, label="Ground truth β(t)", dpi=400, lw=3, xscale=:log10, yscale=:log10)
+                Plots.hline!(plt_β, scene_gt.β, label="Ground truth β(t)", dpi=400, lw=3)
             end
-            Plots.plot!(plt_β, t, est_βpList, label="Estimated β(t)", lw=3, xscale=:log10, yscale=:log10)
             for t in t_windows
-                Plots.vline!(plt_β, [t], color=:gray, lw=3, linestyle=:dash, label=false, xscale=:log10, yscale=:log10)
+                t = t_windows[ti]
+                Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
+                data_range_ = data_ranges_[ti]
+                window = t_windows[ti]
+                t_win = collect(range(start=window[1], stop=window[end], step=t_steps_gt))
+                Plots.plot!(plt_η, t_win, est_βpList[data_range_], label="Estimated β(t)", lw=3)
             end
             Plots.xlabel!(L"\mathrm{Time\;(s)}")
             Plots.ylabel!(L"\beta\mathrm{(t)\;(mm^{-1})}")
