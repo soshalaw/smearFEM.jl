@@ -578,18 +578,16 @@ function optimize(exp_params::Dict)
             println("Number of time windows: $(length(windows))")
 
             for ti::Int in 1:length(windows)
+                println("Data frame : $(data_range_)")
+                println("Time frame : $(scene.sim_time)")
+                @info "Time window $(time_windows[ti])"
+                printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
+                println("observation window size: $(size(obsBorderPts_t,1))")
+
                 data_range_ = data_ranges_[ti]
                 scene.sim_time = time_windows[ti]
                 scene.cParam = F[data_range_]
-                @info "Time window $(time_windows[ti])"
-
-                println("Data frame : $(data_range_)")
-                println("Time frame : $(scene.sim_time)")
-
-                printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
-
                 obsBorderPts_t = windows[ti] # align the observation points with the simulation time
-                println("observation window size: $(size(obsBorderPts_t,1))")
 
                 if data_type != "physical"
                     η_gt_ = model_gt.η[data_range_]
@@ -614,8 +612,6 @@ function optimize(exp_params::Dict)
             end
 
             @info "Completed all time windows."
-            println("Estimated η(t): ", est_ηpList)
-            println("Estimated β(t): ", est_βpList)
 
             plt_η = set_plot(fs, sz=(1650, 1250))
             t = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
@@ -2212,7 +2208,7 @@ function set_time_window(step_len::Float64, data::AbstractArray; method::String=
 
         data_range = start_point:end_point
         if end_clause == "same"
-            data_range_ = data_range
+            data_range_ = data_range-1
         else
             data_range_ = start_point:(end_point-1)
         end
