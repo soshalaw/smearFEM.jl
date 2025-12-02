@@ -569,7 +569,7 @@ function optimize(exp_params::Dict)
             end
             Plots.plot!(plt_η, t[data_range_], est_ηpList[data_range_], label="Estimated η(t)", lw=3)
             for t in t_windows
-                Plots.vline!(plt_β, [t], color=:gray, lw=3, linestyle=:dash, label=false)
+                Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
             end
             Plots.xlabel!(L"\mathrm{Time\;(s)}")
             Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
