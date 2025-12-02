@@ -2195,7 +2195,6 @@ function set_time_window(step_len::Float64, data::AbstractArray; method::String=
             if end_point >= size(data, 1)
                 if end_point == size(data, 1)
                     @info "Reached end of data at point $end_point."
-                    end_clause = "same"
                 else
                     requested_end = end_point
                     # adjust the time window end to the last available sample
@@ -2207,11 +2206,7 @@ function set_time_window(step_len::Float64, data::AbstractArray; method::String=
             end
 
         data_range = start_point:end_point
-        if end_clause == "same"
-            data_range_ = data_range-1
-        else
-            data_range_ = start_point:(end_point-1)
-        end
+        data_range_ = start_point:(end_point-1)
         
         println("Data frame : $data_range_")
         println("time windows from : $t_window_prev to $t_window_end")
