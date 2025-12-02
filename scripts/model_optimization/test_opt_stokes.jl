@@ -452,7 +452,8 @@ function optimize(exp_params::Dict)
         end
 
     elseif gt_viscosity_type == "bulk_viscosity"
-
+        
+        av_η::Float64 = 0.0
         obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
         mode::String = exp_params["mode"] # "single_window" or "multiple_window" or "full_time"
         
@@ -466,11 +467,6 @@ function optimize(exp_params::Dict)
         sim_time_frame::Int = round(Int,sim_time_exp/t_steps_exp)
         window::Int = round(Int,gt_time_frame/sim_time_frame)
         
-        est_ηpList = Vector{Float64}(undef,gt_time_frame)
-        est_βpList = Vector{Float64}(undef,gt_time_frame)
-
-        println(size(est_ηpList))
-        
         set_file(string(exp_path,"/Results/plots"))
         println("Number of time windows: $window")
         
@@ -478,7 +474,19 @@ function optimize(exp_params::Dict)
         _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="fixed", window_size=sim_time_exp)
         _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="fixed", window_size=sim_time_exp)
 
+        obs_time = time_windows[end]
+
+        if obs_time < sim_time_gt
+            @warn "Observation time frame $obs_time is less than preset ground truth time frame $sim_time_gt, switching to observation time frame"
+            gt_time_frame = obs_time
+        end
+        
+        est_ηpList = Vector{Float64}(undef,gt_time_frame)
+        avg_ηList = Vector{Float64}(undef,gt_time_frame)
+        est_βpList = Vector{Float64}(undef,gt_time_frame)
+
         if mode == "single_window"
+            @info "Optimizing over a single time window"
             ti = 1
             data_range_ = data_ranges_[ti]
             scene.sim_time = time_windows[ti]
@@ -504,7 +512,7 @@ function optimize(exp_params::Dict)
             if data_type != "physical"
                 η_gt_ = model_gt.η[data_range_]
                 av_η = mean(η_gt_)
-
+                avg_ηList[data_range_] .= av_η
                 printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
             end
 
@@ -566,6 +574,7 @@ function optimize(exp_params::Dict)
             t = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
             if data_type != "physical"
                 Plots.plot!(plt_η, t, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
+                Plots.plot!(plt_η, t[data_range_], avg_ηList[data_range_], label="Average GT η in window", lw=3)
             end
             Plots.plot!(plt_η, t[data_range_], est_ηpList[data_range_], label="Estimated η(t)", lw=3)
             for t in t_windows
@@ -582,17 +591,17 @@ function optimize(exp_params::Dict)
                 scene.sim_time = time_windows[ti]
                 scene.cParam = F[data_range_]
                 obsBorderPts_t = windows[ti] # align the observation points with the simulation time
-                
+
                 println("Data frame : $(data_range_)")
                 println("Time frame : $(scene.sim_time)")
                 @info "Time window $(time_windows[ti])"
                 printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
                 println("observation window size: $(size(obsBorderPts_t,1))")
 
-
                 if data_type != "physical"
                     η_gt_ = model_gt.η[data_range_]
                     av_η = mean(η_gt_)
+                    avg_ηList[data_range_] .= av_η
                     printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
                 end
 
@@ -620,8 +629,13 @@ function optimize(exp_params::Dict)
                 Plots.plot!(plt_η, t, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
             end
             Plots.plot!(plt_η, t, est_ηpList, label="Estimated η(t)", lw=3)
-            for t in t_windows
+            Plots.plot!(plt_η, t, avg_ηList, color=:black, lw=3, label="Average GT η in windows")
+            for ti::Int in 1:length(windows)
+                t = t_windows[ti]
                 Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
+                data_range_ = data_ranges_[ti]
+                Plots.plot!(plt_η, t, est_ηpList[data_range_], label="Estimated η(t)", lw=3)
+                Plots.plot!(plt_η, t, avg_ηList[data_range_], color=:black, lw=3, label="Average GT η in windows")
             end
             Plots.xlabel!(L"\mathrm{Time\;(s)}")
             Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
@@ -678,6 +692,7 @@ function optimize(exp_params::Dict)
         write_csv(string(exp_path,"/Results/data/est_η"), est_ηpList)
         write_csv(string(exp_path,"/Results/data/est_β"), est_βpList)
         write_csv(string(exp_path,"/Results/data/est_h"), est_h_list)
+        write_csv(string(exp_path,"/Results/data/est_η"), avg_ηList)
 
         write_data(string(exp_path,"/Results/data/sim_data/2D_surface_points"), pos2D)
         write_data(string(exp_path,"/Results/data/sim_data/3D_points"), pos3D)
@@ -2361,12 +2376,12 @@ function optimize_sim()
                         for FunctionClass_x in FunctionClass_x_List
 
                             start_time = Dates.now()
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/multi_window")
+                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/single_window")
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
                             "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"simulated", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                            "noise_level"=>noise_level, "mode"=>"multi_window")
+                            "noise_level"=>noise_level, "mode"=>"single_window")
 
                             optimize(exp_params)
 
@@ -2417,7 +2432,7 @@ function optimize_syn()
                     elseif noise_level != 0.0 && viscosity_type == "constant" && ne == 6
                         sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
-                        sim_time_exp_list = [5.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0, 10.0, 15.0] # simulation time in seconds
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
@@ -2508,5 +2523,5 @@ end
 
 # main()
 # plot_syn()
-optimize_sim()
-# optimize_syn()
+# optimize_sim()
+optimize_syn()
