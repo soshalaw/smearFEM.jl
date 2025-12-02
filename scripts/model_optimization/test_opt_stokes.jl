@@ -649,7 +649,7 @@ function optimize(exp_params::Dict)
             if data_type != "physical"
                 Plots.hline!(plt_β, scene_gt.β, label="Ground truth β(t)", dpi=400, lw=3)
             end
-            for t in t_windows
+            for ti::Int in 1:length(windows)
                 t = t_windows[ti]
                 Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
                 data_range_ = data_ranges_[ti]
