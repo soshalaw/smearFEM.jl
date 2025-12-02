@@ -595,7 +595,7 @@ function optimize(exp_params::Dict)
 
                 println("Data frame : $(data_range_)")
                 println("Time frame : $(scene.sim_time)")
-                @info "Time window $(time_windows[ti])"
+                @info "Time window $(t_windows[ti])"
                 printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
                 println("observation window size: $(size(obsBorderPts_t,1))")
 
@@ -625,18 +625,20 @@ function optimize(exp_params::Dict)
             @info "Completed all time windows."
 
             plt_η = set_plot(fs, sz=(1650, 1250))
-            t = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
+            t_full = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
             if data_type != "physical"
-                Plots.plot!(plt_η, t, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
+                Plots.plot!(plt_η, t_full, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
             end
-            Plots.plot!(plt_η, t, est_ηpList, label="Estimated η(t)", lw=3)
-            Plots.plot!(plt_η, t, avg_ηList, color=:black, lw=3, label="Average GT η in windows")
             for ti::Int in 1:length(windows)
                 t = t_windows[ti]
                 Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
                 data_range_ = data_ranges_[ti]
-                Plots.plot!(plt_η, t, est_ηpList[data_range_], label="Estimated η(t)", lw=3)
-                Plots.plot!(plt_η, t, avg_ηList[data_range_], label="Average GT η in window", lw=3)
+                window = t_windows[ti]
+                t_win = collect(range(start=window[1], stop=window[end], step=t_steps_gt))
+                Plots.plot!(plt_η, t_win, est_ηpList[data_range_], label="Estimated η(t)", lw=3)
+                if data_type != "physical"
+                    Plots.plot!(plt_η, t_win, avg_ηList[data_range_], label="Average GT η in window", lw=3)
+                end
             end
             Plots.xlabel!(L"\mathrm{Time\;(s)}")
             Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
