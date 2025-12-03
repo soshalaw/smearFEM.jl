@@ -635,7 +635,7 @@ function optimize(exp_params::Dict)
             end
             Plots.xlabel!(L"\mathrm{Time\;(s)}")
             Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
-            Plots.savefig(plt_η, string(win_exp_path,"/Results/plots/η_gt.pdf"))
+            Plots.savefig(plt_η, string(exp_path,"/Results/plots/η_gt.pdf"))
             t_prev = 0.1
             for ti::Int in 1:size(data_ranges_, 1)
                 t = t_windows[ti]
@@ -654,7 +654,7 @@ function optimize(exp_params::Dict)
                 end
                 t_prev = t+t_steps_gt
             end
-            Plots.savefig(plt_η, string(win_exp_path,"/Results/plots/η.pdf"))
+            Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
             
             plt_β = set_plot(fs, sz=(1650, 1250))
             if data_type != "physical"
@@ -675,7 +675,7 @@ function optimize(exp_params::Dict)
             end
             Plots.xlabel!(L"\mathrm{Time\;(s)}")
             Plots.ylabel!(L"\beta\mathrm{(t)\;(mm^{-1})}")
-            Plots.savefig(plt_β, string(win_exp_path,"/Results/plots/β.pdf"))
+            Plots.savefig(plt_β, string(exp_path,"/Results/plots/β.pdf"))
             
             viscosity_type = "bulk_viscosity"
             est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
@@ -2647,5 +2647,5 @@ end
 
 # main()
 # plot_syn()
-optimize_sim()
-# optimize_syn()
+# optimize_sim()
+optimize_syn()
