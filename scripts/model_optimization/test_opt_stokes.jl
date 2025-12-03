@@ -658,7 +658,7 @@ function optimize(exp_params::Dict)
             
             plt_β = set_plot(fs, sz=(1650, 1250))
             if data_type != "physical"
-                Plots.hline!(plt_β, model_gt.β, label="Ground truth β(t)", dpi=400, lw=3)
+                Plots.hline!(plt_β, [β_gt], label="Ground truth β(t)", dpi=400, lw=3)
             end
             t_prev = 0.1
             for ti::Int in 1:length(data_ranges_)
