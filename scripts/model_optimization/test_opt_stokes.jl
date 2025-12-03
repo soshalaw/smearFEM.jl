@@ -2521,7 +2521,7 @@ function optimize_syn()
     refine_list = [4] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0, 0.5, 1.0]
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"]
+    viscosity_type_list = ["bulk_viscosity"]
 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
@@ -2560,11 +2560,11 @@ function optimize_syn()
                         for FunctionClass_x in FunctionClass_x_List
 
                             start_time = Dates.now()
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/single_window")
+                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/multi_window")
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
                             "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                            "noise_level"=>noise_level, "mode"=>"single_window")
+                            "noise_level"=>noise_level, "mode"=>"multi_window")
 
                             optimize(exp_params)
 
@@ -2647,5 +2647,5 @@ end
 
 # main()
 # plot_syn()
-optimize_sim()
-# optimize_syn()
+# optimize_sim()
+optimize_syn()
