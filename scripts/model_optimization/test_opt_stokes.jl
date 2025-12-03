@@ -637,9 +637,9 @@ function optimize(exp_params::Dict)
             Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
             Plots.savefig(plt_η, string(exp_path,"/Results/plots/η_gt.pdf"))
             t_prev = 0.1
-            for ti::Int in 1:size(data_ranges_, 1)
+            for ti::Int in 1:length(data_ranges_)
                 t = t_windows[ti]
-                data_range_ = data_ranges_[ti,:]
+                data_range_ = data_ranges_[ti]
                 t_win = collect(range(start=t_prev, stop=t, step=t_steps_gt))
                 if ti == 1
                     Plots.plot!(plt_η, t_win, est_ηpList[data_range_], label="Estimated η(t)", lw=3, color=:orange)
@@ -661,10 +661,10 @@ function optimize(exp_params::Dict)
                 Plots.hline!(plt_β, model_gt.β, label="Ground truth β(t)", dpi=400, lw=3)
             end
             t_prev = 0.1
-            for ti::Int in 1:size(data_ranges_, 1)
+            for ti::Int in 1:length(data_ranges_)
                 t = t_windows[ti]
                 Plots.vline!(plt_β, [t], color=:gray, lw=3, linestyle=:dash, label=false)
-                data_range_ = data_ranges_[ti,:]
+                data_range_ = data_ranges_[ti]
                 t_win = collect(range(start=t_prev, stop=t, step=t_steps_gt))
                 if ti == 1
                     Plots.plot!(plt_β, t_win, est_βpList[data_range_], label="Estimated β(t)", lw=3, color=:orange)
