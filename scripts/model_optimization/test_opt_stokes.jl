@@ -627,7 +627,7 @@ function optimize(exp_params::Dict)
             plt_η = set_plot(fs, sz=(1650, 1250))
             t_full = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
             if data_type != "physical"
-                Plots.plot!(plt_η, t_full, η_gt, label="Ground truth η(t)", dpi=400, lw=3)
+                Plots.plot!(plt_η, t_full, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
             end
             for ti::Int in 1:size(data_ranges_, 1)
                 t = t_windows[ti]
@@ -657,9 +657,8 @@ function optimize(exp_params::Dict)
             Plots.savefig(plt_η, string(win_exp_path,"/Results/plots/η.pdf"))
             
             plt_β = set_plot(fs, sz=(1650, 1250))
-            println(size(β_gt))
             if data_type != "physical"
-                Plots.hline!(plt_β, β_gt, label="Ground truth β(t)", dpi=400, lw=3)
+                Plots.hline!(plt_β, model_gt.β, label="Ground truth β(t)", dpi=400, lw=3)
             end
             t_prev = 0.1
             for ti::Int in 1:size(data_ranges_, 1)
