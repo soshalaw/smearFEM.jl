@@ -280,7 +280,7 @@ function compare()
 
     avoid_dirs = ["3_less_noise", "2", "3", "4", "5"]
     for viscosity_type in viscosity_type_list
-        _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/syn_data/Stokes/$control/$viscosity_type/Q2_16")
+        _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             if dir in avoid_dirs
