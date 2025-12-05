@@ -1753,148 +1753,216 @@ function plot_(filepath, filepath_gt)
     return 
 end
 
-function post_analysis(filepath_gt::String, filepath::String)
+function post_analysis(filepath_gt::String, filepath::String, avoid_list)
     # ηList = readdlm(string(filepath_gt,"/data/η.csv"), ',', Float64)
     # βList = readdlm(string(filepath_gt,"/data/β.csv"), ',', Float64)
 
-    params = read_json(string(filepath_gt,"/data/sim_params.json"))
-    η_gt = params["η"]
-    β_gt = params["β"]  
+    dir_list = readdir(filepath)
 
-    println("Ground truth η: ", η_gt[1])
-    η_gt_list = η_gt[1]*ones(40,1)
-    β_gt_list = β_gt[1]*ones(40,1)
+    # plot for convergence per slip case
+    plot_conv_10 = set_plot(fs, sz=(1650, 1250))
 
-    elem_size_folders = readdir(filepath)
-    println("Processing results in: ", filepath)
+    plot_conv_20 = set_plot(fs, sz=(1650, 1250))
 
-    # plots for element vise comparison
-    fig1 = set_plot(fs, sz=(1650, 1250))
-    # Plots.plot!(fig1, η_gt_list, label="Ground truth η", dpi=400, lw=3)
-    Plots.hline!(fig1, [η_gt[1]], label="Ground truth η", lw=3)
-    Plots.xlabel!(fig1,L"\mathrm{Iterations}")
-    Plots.ylabel!(fig1,L"\eta\;\mathrm{(KPa\cdot s)}")
+    plot_conv_30 = set_plot(fs, sz=(1650, 1250))
 
-    fig2 = set_plot(fs, sz=(1650, 1250))
-    # Plots.plot!(fig2, β_gt_list, label="Ground truth β", dpi=400, lw=3)
-    Plots.hline!(fig2, [β_gt[1]], label="Ground truth β", lw=3)
-    Plots.xlabel!(fig2, L"\mathrm{Iterations}")
-    Plots.ylabel!(fig2, L"\beta\;\mathrm{mm^{-1}}")
-    
-    for elem_size_folder_ in elem_size_folders
-        if elem_size_folder_ == "post_analysis"
+    plot_conv_log_10 = set_plot(fs, sz=(1650, 1250))
+
+    plot_conv_log_20 = set_plot(fs, sz=(1650, 1250))
+
+    plot_conv_log_30 = set_plot(fs, sz=(1650, 1250))
+
+    for dir in dir_list
+
+        if dir in avoid_list 
+            println("Skipping directory: ", dir)
             continue
         end
+        filepath_dir = string(filepath,"/",dir)
+        println("Processing folder ", filepath_dir)  
+        params = read_json(string(filepath_gt,"/data/sim_params.json"))
+        η_gt = params["η"]
+        β_gt = params["β"]  
 
-        elem_size_folder = string(filepath,elem_size_folder_)
-        println("Processing element size folder: ", elem_size_folder)  
-        sim_time_folders = readdir(elem_size_folder)
+        println("Ground truth η: ", η_gt[1])
+        η_gt_list = η_gt[1]*ones(40,1)
+        β_gt_list = β_gt[1]*ones(40,1)
 
-        # figures for Simulation window vise camparison
-        fig3 = set_plot(fs, sz=(1650, 1250))
-        Plots.plot!(fig3, η_gt_list, label="Ground truth η", dpi=400, lw=3)
-        Plots.xlabel!(fig3,L"\mathrm{Iterations}")
-        Plots.ylabel!(fig3,L"\eta\;\mathrm{(KPa\cdot s)}")
+        elem_size_folders = readdir(filepath_dir)
+        println("Processing results in: ", filepath_dir)
 
-        fig4 = set_plot(fs, sz=(1650, 1250))
-        Plots.plot!(fig4, β_gt_list, label="Ground truth β", dpi=400, lw=3)
-        Plots.xlabel!(fig4, L"\mathrm{Iterations}")
-        Plots.ylabel!(fig4, L"\beta\;\mathrm{mm^{-1}}")
+        # plots for element vise comparison
+        fig1 = set_plot(fs, sz=(1650, 1250))
+        # Plots.plot!(fig1, η_gt_list, label="Ground truth η", dpi=400, lw=3)
+        Plots.hline!(fig1, [η_gt[1]], label="Ground truth η", lw=3)
+        Plots.xlabel!(fig1,L"\mathrm{Iterations}")
+        Plots.ylabel!(fig1,L"\eta\;\mathrm{(KPa\cdot s)}")
 
-        plt_slices = set_plot(fs, sz=(1800, 750))
-        Plots.vline!(plt_slices, [0.0], color=:blue, linestyle=:dash, label="Minimum", bottom_margin = 15mm, left_margin=12mm, lw=3)
-        Plots.xlabel!(plt_slices, L"\mathrm{Distance\;from\;minimum\;(px)}")
-        Plots.ylabel!(plt_slices, L"\mathrm{Cost}")
-        Plots.ylims!(plt_slices, 0, 50)
-
-        for sim_time_folder_ in sim_time_folders
-
-            if sim_time_folder_ == "post_analysis_time" || sim_time_folder_ == "Results" 
+        fig2 = set_plot(fs, sz=(1650, 1250))
+        # Plots.plot!(fig2, β_gt_list, label="Ground truth β", dpi=400, lw=3)
+        Plots.hline!(fig2, [β_gt[1]], label="Ground truth β", lw=3)
+        Plots.xlabel!(fig2, L"\mathrm{Iterations}")
+        Plots.ylabel!(fig2, L"\beta\;\mathrm{mm^{-1}}")
+        
+        for elem_size_folder_ in elem_size_folders
+            if elem_size_folder_ == "post_analysis"
                 continue
             end
 
-            noise_folders = readdir(string(elem_size_folder,"/",sim_time_folder_))
+            elem_size_folder = string(filepath_dir,elem_size_folder_)
+            println("Processing element size folder: ", elem_size_folder)  
+            sim_time_folders = readdir(elem_size_folder)
 
-            for noise_folder_ in noise_folders
+            # figures for Simulation window vise camparison
+            fig3 = set_plot(fs, sz=(1650, 1250))
+            Plots.plot!(fig3, η_gt_list, label="Ground truth η", dpi=400, lw=3)
+            Plots.xlabel!(fig3,L"\mathrm{Iterations}")
+            Plots.ylabel!(fig3,L"\eta\;\mathrm{(KPa\cdot s)}")
 
-                if noise_folder_ == "post_analysis_noise" || noise_folder_ == "Results" 
+            fig4 = set_plot(fs, sz=(1650, 1250))
+            Plots.plot!(fig4, β_gt_list, label="Ground truth β", dpi=400, lw=3)
+            Plots.xlabel!(fig4, L"\mathrm{Iterations}")
+            Plots.ylabel!(fig4, L"\beta\;\mathrm{mm^{-1}}")
+
+            plt_slices = set_plot(fs, sz=(1800, 750))
+            Plots.vline!(plt_slices, [0.0], color=:blue, linestyle=:dash, label="Minimum", bottom_margin = 15mm, left_margin=12mm, lw=3)
+            Plots.xlabel!(plt_slices, L"\mathrm{Distance\;from\;minimum\;(px)}")
+            Plots.ylabel!(plt_slices, L"\mathrm{Cost}")
+            Plots.ylims!(plt_slices, 0, 50)
+
+            for sim_time_folder_ in sim_time_folders
+
+                if sim_time_folder_ == "post_analysis_time" || sim_time_folder_ == "Results" 
                     continue
                 end
 
-                exp_folder = string(filepath,elem_size_folder_,"/",sim_time_folder_,"/",noise_folder_)
+                noise_folders = readdir(string(elem_size_folder,"/",sim_time_folder_))
 
-                println("Processing folder: ", exp_folder)
-                params = read_json(string(exp_folder,"/Results/data/experiment_parameters.json"))
+                for noise_folder_ in noise_folders
 
-                noise_level = params["noise_level"]
-
-                FunctionClass_x = params["FunctionClass_x"]
-                ne = params["ne_exp"]
-                sim_time = params["sim_time_exp"]
-        
-                η = readdlm(string(exp_folder,"/Results/data/η.csv"), ',', Float64)
-                β = readdlm(string(exp_folder,"/Results/data/β.csv"), ',', Float64)
-        
-                Plots.plot!(fig3, η, label=string("Window size - $(sim_time)s"," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -15mm)
-                Plots.xlabel!(fig3, L"\mathrm{Iterations}")
-                Plots.ylabel!(fig3, L"\eta\;\mathrm{(KPa\cdot s)}")
-        
-                Plots.plot!(fig4, β, label=string("Window size - $(sim_time)s"," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
-                Plots.xlabel!(fig4, L"\mathrm{Iterations}")
-                Plots.ylabel!(fig4, L"\beta\;\mathrm{mm^{-1}}")
-
-                if sim_time == 30.0
-                    # Plots.plot!(fig1, η, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
-                    Plots.plot!(fig1, η, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
-                    Plots.xlabel!(fig1, L"\mathrm{Iterations}")
-                    Plots.ylabel!(fig1, L"\eta\;\mathrm{(KPa\cdot s)}")
-
-                    # Plots.plot!(fig2, β, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
-                    Plots.plot!(fig2, β, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
-                    Plots.xlabel!(fig2, L"\mathrm{Iterations}")
-                    Plots.ylabel!(fig2, L"\beta\;\mathrm{mm^{-1}}")
-                end
-
-                if noise_level == 0.0
-                    slice_data = read_json(string(exp_folder,"/Results/data/slice_data.json"))
-
-                    t_steep = Float64.(collect(slice_data["steep"]["t"]))
-                    zs_steep = Float64.(collect(slice_data["steep"]["zs"]))
-                    t_flat = Float64.(collect(slice_data["flat"]["t"]))
-                    zs_flat = Float64.(collect(slice_data["flat"]["zs"]))
-
-                    # 2D slices: cost vs distance along the two directions
-                    
-                    if length(t_steep) > 0 && length(zs_steep) == length(t_steep)
-                        Plots.plot!(plt_slices, t_steep, zs_steep, lw=3, legend = :outerright, label = "Steepest direction; window size = $(sim_time)s")
-                    else
-                        @warn "Skipping steep slice plot: empty or mismatched lengths: $(length(t_steep)) vs $(length(zs_steep))"
+                    if noise_folder_ == "post_analysis_noise" || noise_folder_ == "Results" 
+                        continue
                     end
 
-                    if length(t_flat) > 0 && length(zs_flat) == length(t_flat)
-                        Plots.plot!(plt_slices, t_flat,  zs_flat, lw=3, legend = :outerright, label = "Flattest direction; window size = $(sim_time)s", legendfontsize=20)
-                    else
-                        @warn "Skipping flat slice plot: empty or mismatched lengths: $(length(t_flat)) vs $(length(zs_flat))"
+                    exp_folder = string(filepath_dir,elem_size_folder_,"/",sim_time_folder_,"/",noise_folder_)
+
+                    println("Processing folder: ", exp_folder)
+                    params = read_json(string(exp_folder,"/Results/data/experiment_parameters.json"))
+
+                    noise_level = params["noise_level"]
+
+                    FunctionClass_x = params["FunctionClass_x"]
+                    ne = params["ne_exp"]
+                    sim_time = params["sim_time_exp"]
+            
+                    η = readdlm(string(exp_folder,"/Results/data/η.csv"), ',', Float64)
+                    β = readdlm(string(exp_folder,"/Results/data/β.csv"), ',', Float64)
+            
+                    Plots.plot!(fig3, η, label=string("Window size - $(sim_time)s"," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -15mm)
+                    Plots.xlabel!(fig3, L"\mathrm{Iterations}")
+                    Plots.ylabel!(fig3, L"\eta\;\mathrm{(KPa\cdot s)}")
+            
+                    Plots.plot!(fig4, β, label=string("Window size - $(sim_time)s"," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                    Plots.xlabel!(fig4, L"\mathrm{Iterations}")
+                    Plots.ylabel!(fig4, L"\beta\;\mathrm{mm^{-1}}")
+
+                    if sim_time == 30.0
+                        # Plots.plot!(fig1, η, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                        Plots.plot!(fig1, η, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                        Plots.xlabel!(fig1, L"\mathrm{Iterations}")
+                        Plots.ylabel!(fig1, L"\eta\;\mathrm{(KPa\cdot s)}")
+
+                        # Plots.plot!(fig2, β, label=string("Basis - ",FunctionClass_x," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                        Plots.plot!(fig2, β, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                        Plots.xlabel!(fig2, L"\mathrm{Iterations}")
+                        Plots.ylabel!(fig2, L"\beta\;\mathrm{mm^{-1}}")
+                    end
+
+                    if noise_level == 0.0
+                        cost_list = params["cost_list"]
+                        slice_data = read_json(string(exp_folder,"/Results/data/slice_data.json"))
+
+                        t_steep = Float64.(collect(slice_data["steep"]["t"]))
+                        zs_steep = Float64.(collect(slice_data["steep"]["zs"]))
+                        t_flat = Float64.(collect(slice_data["flat"]["t"]))
+                        zs_flat = Float64.(collect(slice_data["flat"]["zs"]))
+
+                        # 2D slices: cost vs distance along the two directions
+                        
+                        if length(t_steep) > 0 && length(zs_steep) == length(t_steep)
+                            Plots.plot!(plt_slices, t_steep, zs_steep, lw=3, legend = :outerright, label = "Steepest direction; window size = $(sim_time)s")
+                        else
+                            @warn "Skipping steep slice plot: empty or mismatched lengths: $(length(t_steep)) vs $(length(zs_steep))"
+                        end
+
+                        if length(t_flat) > 0 && length(zs_flat) == length(t_flat)
+                            Plots.plot!(plt_slices, t_flat,  zs_flat, lw=3, legend = :outerright, label = "Flattest direction; window size = $(sim_time)s", legendfontsize=20)
+                        else
+                            @warn "Skipping flat slice plot: empty or mismatched lengths: $(length(t_flat)) vs $(length(zs_flat))"
+                        end
+
+                        if sim_time == 10.0
+                            Plots.plot!(plot_conv_10, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                            Plots.xlabel!(plot_conv_10, L"\mathrm{Iterations}")
+                            Plots.ylabel!(plot_conv_10, L"mathrm{Cost\;(px)}")
+
+                            Plots.plot!(plot_conv_log_10, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm, xscale=:log10, yscale=:log10)
+                            Plots.xlabel!(plot_conv_log_10, L"\mathrm{Iterations}")
+                            Plots.ylabel!(plot_conv_log_10, L"mathrm{Cost\;(px)}")
+
+                        elseif sim_time == 20.0
+
+                            Plots.plot!(plot_conv_20, η, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                            Plots.xlabel!(plot_conv_10, L"\mathrm{Iterations}")
+                            Plots.ylabel!(plot_conv_10, L"mathrm{Cost\;(px)}")
+
+                            Plots.plot!(plot_conv_log_20, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm, xscale=:log10, yscale=:log10)
+                            Plots.xlabel!(plot_conv_log_20, L"\mathrm{Iterations}")
+                            Plots.ylabel!(plot_conv_log_20, L"mathrm{Cost\;(px)}")
+
+                        elseif sim_time == 30.0
+
+                            Plots.plot!(plot_conv_30, η, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                            Plots.xlabel!(plot_conv_30, L"\mathrm{Iterations}")
+                            Plots.ylabel!(plot_conv_30, L"mathrm{Cost\;(px)}")
+
+                            Plots.plot!(plot_conv_log_30, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm, xscale=:log10, yscale=:log10)
+                            Plots.xlabel!(plot_conv_log_30, L"\mathrm{Iterations}")
+                            Plots.ylabel!(plot_conv_log_30, L"mathrm{Cost\;(px)}")
+
+                        end
                     end
                 end
             end
+            
+            plot_path_sim_time = string(elem_size_folder,"/post_analysis_time/plots")
+            set_file(plot_path_sim_time)
+            
+            Plots.savefig(fig3, string(plot_path_sim_time,"/η.pdf"))
+            Plots.savefig(fig4, string(plot_path_sim_time,"/β.pdf"))
+            Plots.savefig(plt_slices, string(plot_path_sim_time,"/cost_slices_along_directions.pdf"))
         end
-        
-        plot_path_sim_time = string(elem_size_folder,"/post_analysis_time/plots")
-        set_file(plot_path_sim_time)
-        
-        Plots.savefig(fig3, string(plot_path_sim_time,"/η.pdf"))
-        Plots.savefig(fig4, string(plot_path_sim_time,"/β.pdf"))
-        
-        Plots.savefig(plt_slices, string(plot_path_sim_time,"/cost_slices_along_directions.pdf"))
+
+        plot_path_elems = string(filepath_dir,"post_analysis/plots")
+        set_file(plot_path_elems)
+
+        @info "Saving plots to $plot_path_elems"
+        Plots.savefig(fig1, string(plot_path_elems,"/η_20.pdf"))
+        Plots.savefig(fig2, string(plot_path_elems,"/β_20.pdf"))
     end
+    plot_path_global = string(filepath,"/post_analysis_glob/plots")
+    set_file(plot_path_global)
 
-    plot_path_elems = string(filepath,"post_analysis/plots")
-    set_file(plot_path_elems)
+    @info "Saving plots to $plot_path_global"
+    Plots.savefig(plot_conv_10, string(plot_path_elems,"/η_20.pdf"))
+    Plots.savefig(plot_conv_log_20, string(plot_path_elems,"/β_20.pdf"))
 
-    @info "Saving plots to $plot_path_elems"
-    Plots.savefig(fig1, string(plot_path_elems,"/η_20.pdf"))
-    Plots.savefig(fig2, string(plot_path_elems,"/β_20.pdf"))
+    Plots.savefig(plot_conv_20, string(plot_path_elems,"/η_20.pdf"))
+    Plots.savefig(plot_conv_log_20, string(plot_path_elems,"/β_20.pdf"))
+
+    Plots.savefig(plot_conv_30, string(plot_path_elems,"/η_20.pdf"))
+    Plots.savefig(plot_conv_log_30, string(plot_path_elems,"/β_20.pdf"))
+
 end
 
 # Note: GLMakie / Makie support was removed from automated paths; this script
