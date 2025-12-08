@@ -2610,14 +2610,14 @@ function optimize_syn()
             filepath_gt = string(_filepath_gt,"/",dir)
             @info "Processing ground truth directory: $filepath_gt for $viscosity_type"
             for ne in refine_list
-                if ne == 4 && viscosity_type == "constant"
+                if ne == 6 && viscosity_type == "constant"
                     noise_level_list = [0.0]
                 else
                     noise_level_list = [0.0]
                 end
                 for noise_level in noise_level_list 
                     if noise_level == 0.0 && viscosity_type == "constant"
-                        sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
+                        sim_time_exp_list = [30.0] # simulation time in seconds
                     elseif noise_level != 0.0 && viscosity_type == "constant" && ne == 6
                         sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
@@ -2718,5 +2718,5 @@ end
 
 # main()
 # plot_syn()
-# optimize_sim()
-optimize_syn()
+optimize_sim()
+# optimize_syn()
