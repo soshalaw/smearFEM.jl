@@ -46,6 +46,7 @@ function simulate_data(exp_params::Dict)
     
     filepath_gt::String = exp_params["filepath_gt"]
     filepath_res::String = exp_params["filepath_res"]
+    filepath_opt_res::String = exp_params["filepath_opt_res"]
     
     obj_pose::AbstractArray = zeros(Float64, 4,4) # initial pose of the object
     camera_matrix::AbstractArray = exp_params["camera_matrix"]
@@ -63,7 +64,7 @@ function simulate_data(exp_params::Dict)
     data_type ::String = exp_params["data_type"] # "simulated" or "physical" or "real"
     noiseLevel::Float64 = exp_params["noise_level"]
     SIDES::Bool = false
-    
+
     if data_type == "simulated" || data_type == "synthetic"
         
         WRITE_GT = exp_params["WRITE_GT"] 
@@ -97,6 +98,9 @@ function simulate_data(exp_params::Dict)
         
         model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, gt_viscosity_type, 
         sim_time_gt, t_steps_gt)
+
+        model_opt, scene_opt = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, gt_viscosity_type, 
+        sim_time_gt, t_steps_gt)
         
         if data_type == "synthetic"
             ObsDataList, splinexObs, splineyObs = read_csv(string(filepath_gt,"/data/img_data/contour_data"))  
@@ -122,33 +126,60 @@ function simulate_data(exp_params::Dict)
         @warn "time resolution of the ground truth $t_steps_gt is larger than the experimental $t_steps_exp, switching to ground truth resolution"
         t_steps_exp = t_steps_gt
     end
-
+    
     if gt_viscosity_type == "constant"
         
+        time = collect(Float64, range(start=0, stop=sim_time_exp, step=t_steps_exp))
+        opt_stats = read_json(string(filepath_opt_res,"/Results/data/stats.json"))
+
+        η_opt = opt_stats["η"]
+        β_opt = opt_stats["β"]
+
+        model_opt.η = [η_opt]
+        scene_gt.β = [β_opt]
+    
         _range = 1:(round(Int,sim_time_exp/t_steps_exp)+1)
         @info "Considering from frame $(first(_range)) to frame $(last(_range)) in the observations"
         ObsDataList = ObsDataList[_range] # align the observation points with the simulation time
 
         conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=SIDES, filepath=exp_path, ANIMATE=false)
 
-        time = collect(Float64, range(start=0, stop=sim_time_exp, step=t_steps_exp))
         if noiseLevel == 0.0
                 
             obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
 
             # simulate the gt model with the estimated parameters
-            est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model_gt, scene_gt, conditions)
-
+            μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model_gt, scene_gt, conditions)
+            d_gt, pairs = closest_point(borderPts2DList, obsBorderPts)
             animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinep, q=splineq, pObs=nSplinex, qObs=nSpliney)
 
+            ets_μ_list, gradList, ets_simBorderPts, ets_splinex, ets_spliney, ets_pos2D = simulate(model_opt, scene_opt, conditions)
+            d_opt, pairs = closest_point(ets_simBorderPts, obsBorderPts)
+            animate_fields(filepath=string(exp_path,"/Results/plots"), p=ets_splinex, q=ets_spliney, pObs=nSplinex, qObs=nSpliney)
+
+            d_comp, pairs = closest_point(borderPts2DList, ets_simBorderPts)
+
             # test the closest point function
-            d, pairs = closest_point(borderPts2DList, obsBorderPts)
 
-            write_csv(string(exp_path,"/Results/data/cost_iter"), costList)
+            write_csv(string(exp_path,"/Results/data/d_gt"), d_gt)
+            write_csv(string(exp_path,"/Results/data/d_opt"), d_opt)
 
-            plot_error = set_plot(fs, sz=(1650, 1250))
-            Plots.plot!(plot_error, time, d, label="Contour point error", dpi=400, lw=3)
-            Plots.savefig(plot_error, string(exp_path,"/Results/plots/contour_error.pdf"))
+            plot_error_gt = set_plot(fs, sz=(1650, 1250))
+            Plots.plot!(plot_error_gt, time, d_gt, label="Contour point error", dpi=400, lw=3)
+            Plots.savefig(plot_error_gt, string(exp_path,"/Results/plots/contour_error.pdf"))
+
+            plot_error_opt = set_plot(fs, sz=(1650, 1250))
+            Plots.plot!(plot_error_opt, time, d_opt, label="Contour point error", dpi=400, lw=3)
+            Plots.savefig(plot_error_opt, string(exp_path,"/Results/plots/contour_error_opt.pdf"))
+
+            plot_error_double = set_plot(fs, sz=(1650, 1250))
+            Plots.plot!(plot_error_double, time, d_gt, label="GT Contour point error", dpi=400, lw=3)
+            Plots.plot!(plot_error_double, time, d_opt, label="Opt Contour point error", dpi=400, lw=3)
+            Plots.savefig(plot_error_double, string(exp_path,"/Results/plots/contour_error_comparison.pdf"))
+
+            plot_error_comp = set_plot(fs, sz=(1650, 1250))
+            Plots.plot!(plot_error_comp, time, d_comp, label="Contour point error between GT and Opt", dpi=400, lw=3)
+            Plots.savefig(plot_error_comp, string(exp_path,"/Results/plots/contour_error_between_gt_opt.pdf"))
 
         # @save string(exp_path,"/Results/data/sim_data/Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
         else
@@ -176,90 +207,89 @@ function simulate_data(exp_params::Dict)
             end
             
             write_csv(string(exp_path,"/Results/data/error_list"), error_list)
-            plot_error = set_plot(fs, sz=(1650, 1250))
-            StatsPlots.errorline!(plot_error, error_list', label="Contour point error with noise level $(noiseLevel)", dpi=400, lw=3)
-            Plots.savefig(plot_error, string(exp_path,"/Results/plots/contour_error.pdf"))
+            plot_error_gt = set_plot(fs, sz=(1650, 1250))
+            StatsPlots.errorline!(plot_error_gt, error_list', label="Contour point error with noise level $(noiseLevel)", dpi=400, lw=3)
+            Plots.savefig(plot_error_gt, string(exp_path,"/Results/plots/contour_error.pdf"))
         end
 
     elseif gt_viscosity_type == "bulk_viscosity"
-        av_η::Float64 = 0.0
+
+        time = collect(Float64, range(start=0, stop=sim_time_gt, step=t_steps_exp))
         gt_time_frame::Int = round(Int,sim_time_gt/t_steps_gt,)
         error_list = Vector{Float64}(undef,gt_time_frame)
+
+        est_η = readdlm(string(filepath_opt_res,"/Results/data/est_η.csv"),',',Float64)
+        eta_β = readdlm(string(filepath_opt_res,"/Results/data/est_β.csv"),',',Float64)
+
         obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
         
-        viscosity_type = "constant"
-        
         conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
-        model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
-        sim_time_exp, t_steps_exp)
-        conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
-        
+
+        model_opt.η = reshape(est_η,(size(est_η,1),))
+        scene_opt.β = reshape(eta_β,(size(eta_β,1),))
+
+        μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model_gt, scene_gt, conditions)
+        d_gt, pairs = closest_point(borderPts2DList, obsBorderPts)
+
+        est_μ_list, gradList, ets_simBorderPts, est_fields, est_pos3D, est_pos2D, est_splinex, est_spliney = simulate(model_opt, scene_opt, conditions)
+        d_opt, pairs = closest_point(ets_simBorderPts, obsBorderPts)
+
+        d_comp, pairs = closest_point(borderPts2DList, ets_simBorderPts)
+
         set_file(string(exp_path,"/Results/plots"))
+        write_csv(string(exp_path,"/Results/data/d_gt"), d_gt)
+        write_csv(string(exp_path,"/Results/data/d_opt"), d_opt)
+
+        plot_error_gt = set_plot(fs, sz=(1650, 1250))
+        Plots.plot!(plot_error_gt, time, d_gt, label="Contour point error", dpi=400, lw=3)
+        Plots.savefig(plot_error_gt, string(exp_path,"/Results/plots/contour_error.pdf"))
+
+        plot_error_opt = set_plot(fs, sz=(1650, 1250))
+        Plots.plot!(plot_error_opt, time, d_opt, label="Contour point error", dpi=400, lw=3)
+        Plots.savefig(plot_error_opt, string(exp_path,"/Results/plots/contour_error_opt.pdf"))
+
+        plot_error_double = set_plot(fs, sz=(1650, 1250))
+        Plots.plot!(plot_error_double, time, d_gt, label="GT Contour point error", dpi=400, lw=3)
+        Plots.plot!(plot_error_double, time, d_opt, label="Opt Contour point error", dpi=400, lw=3)
+        Plots.savefig(plot_error_double, string(exp_path,"/Results/plots/contour_error_comparison.pdf"))
+
+        plot_error_comp = set_plot(fs, sz=(1650, 1250))
+        Plots.plot!(plot_error_comp, time, d_comp, label="Contour point error between GT and Opt", dpi=400, lw=3)
+        Plots.savefig(plot_error_comp, string(exp_path,"/Results/plots/contour_error_between_gt_opt.pdf"))
+
+        # println("Time windows: $(time_windows)")
+
+        # plt_error = set_plot(fs, sz=(1650, 1250))
+        # for ti::Int in 1:size(data_ranges_, 1)
+        #     t = t_windows[ti]
+        #     Plots.vline!(plt_error, [t], color=:gray, lw=3, linestyle=:dash, label=false)
+        # end
+        # Plots.xlabel!(L"\mathrm{Time\;(s)}")
+        # Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
+        # Plots.savefig(plt_error, string(exp_path,"/Results/plots/η_gt.pdf"))
+        # t_prev = 0.1
+        # for ti::Int in 1:length(data_ranges_)
+        #     t = t_windows[ti]
+        #     data_range_ = data_ranges_[ti]
+        #     t_win = collect(range(start=t_prev, stop=t, step=t_steps_gt))
+        #     if ti == 1
+        #         Plots.plot!(plt_error, t_win, error_list[data_range_], label="Estimated η(t)", lw=3, color=:orange)
+        #     else
+        #         Plots.plot!(plt_error, t_win, error_list[data_range_], lw=3, color=:orange, label=false)
+        #     end
+        #     t_prev = t+t_steps_gt
+        # end
+        # Plots.savefig(plt_error, string(exp_path,"/Results/plots/η.pdf"))
         
-        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts, method="fixed", window_size=sim_time_exp)
-        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="fixed", window_size=sim_time_exp)
-        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="fixed", window_size=sim_time_exp)
-
-        println("Time windows: $(time_windows)")
-
-        for ti::Int in 1:length(windows)
-            data_range_ = data_ranges_[ti]
-            scene_gt.sim_time = time_windows[ti]
-            scene_gt.cParam = F[data_range_]
-            obsBorderPts_t = windows[ti] # align the observation points with the simulation time
-            η_gt_ = model_gt.η[data_range_]
-            av_η = mean(η_gt_)
-
-            println("Data frame : $(data_range_)")
-            println("Time frame : $(scene.sim_time)")
-            @info "Time window $(t_windows[ti])"
-            printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
-            println("observation window size: $(size(obsBorderPts_t,1))")
-
-            obsBorderPts_t = windows[ti]
-
-            est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(model_gt, scene_gt, conditions)
-
-            error, pairs = closest_point(borderPts2DList, obsBorderPts)
-
-            error_list[data_range_] = error
-            
-            update_model!(model_gt)
-        end
-
-        @info "Completed all time windows."
-
-        plt_error = set_plot(fs, sz=(1650, 1250))
-        for ti::Int in 1:size(data_ranges_, 1)
-            t = t_windows[ti]
-            Plots.vline!(plt_error, [t], color=:gray, lw=3, linestyle=:dash, label=false)
-        end
-        Plots.xlabel!(L"\mathrm{Time\;(s)}")
-        Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
-        Plots.savefig(plt_error, string(exp_path,"/Results/plots/η_gt.pdf"))
-        t_prev = 0.1
-        for ti::Int in 1:length(data_ranges_)
-            t = t_windows[ti]
-            data_range_ = data_ranges_[ti]
-            t_win = collect(range(start=t_prev, stop=t, step=t_steps_gt))
-            if ti == 1
-                Plots.plot!(plt_error, t_win, error_list[data_range_], label="Estimated η(t)", lw=3, color=:orange)
-            else
-                Plots.plot!(plt_error, t_win, error_list[data_range_], lw=3, color=:orange, label=false)
-            end
-            t_prev = t+t_steps_gt
-        end
-        Plots.savefig(plt_error, string(exp_path,"/Results/plots/η.pdf"))
+        # viscosity_type = "bulk_viscosity"
+        # est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+        # sim_time_gt, t_steps_gt)
+        # est_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(est_model, est_scene, conditions)
         
-        viscosity_type = "bulk_viscosity"
-        est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
-        sim_time_gt, t_steps_gt)
-        est_μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(est_model, est_scene, conditions)
-        
-        error_glob, paris = closest_point(simBorderPts, obsBorderPts)
-        animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinex, q=spliney, pObs=splinexObs, qObs=splineyObs)
+        # error_glob, paris = closest_point(simBorderPts, obsBorderPts)
+        # animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinex, q=spliney, pObs=splinexObs, qObs=splineyObs)
 
-        write_csv(string(exp_path,"/Results/data/window_data/error_global"), error_glob)
+        # write_csv(string(exp_path,"/Results/data/window_data/error_global"), error_glob)
         
     end
 end
@@ -267,18 +297,19 @@ end
 function compare()
 
     FunctionClass_x_List = ["Q2"]
-    # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [4, 6, 8] # refinement levels, ne = ne_exp^refine
-    noise_level_list = [0.0, 0.5, 1.0]
+    noise_level_list = [0.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
-    sim_time_exp_list = [30.0]
+    sim_time_exp_list = []
 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "2", "3", "4", "5"]
+    data_type_list = ["simulated", "synthetic"]
+    avoid_dirs = ["3_less_noise"]
+
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -288,36 +319,44 @@ function compare()
                 println("Skipping dir $dir")
             end
             filepath_gt = string(_filepath_gt,"/",dir)
-            @info "Processing ground truth directory: $filepath_gt for $viscosity_type"
-            for noise_level in noise_level_list 
+            for data_type in data_type_list
+                if data_type == "simulated"
+                    location = "sim_data"
+                    sim_time_exp_list = [5.0]
+                elseif data_type == "synthetic"
+                    location = "syn_data"
+                    sim_time_exp_list = [5.0, 10.0]
+                end
+                @info "Processing ground truth directory: $filepath_gt for $viscosity_type"
                 for ne in refine_list
                     if ne == 4 && viscosity_type == "constant"
                         noise_level_list = [0.0]
                     else
                         noise_level_list = [0.0]
                     end
-                    for sim_time_exp::Float16 in sim_time_exp_list
-                        # ne = ne_exp^ref
-                        @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
-                        for FunctionClass_x in FunctionClass_x_List
+                    for noise_level in noise_level_list 
+                        for sim_time_exp::Float16 in sim_time_exp_list
+                            @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
+                            for FunctionClass_x in FunctionClass_x_List
 
-                            start_time = Dates.now()
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/mesh_comparisons/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/multi_window")
+                                start_time = Dates.now()
+                                filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/$location/mesh_comparisons/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)")
+                                filepath_opt_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/$location/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)")
 
-                            exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
-                            "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"simulated", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                            "noise_level"=>noise_level, "mode"=>"multi_window")
+                                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
+                                "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>data_type, "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
+                                "noise_level"=>noise_level, "mode"=>"multi_window", "filepath_opt_res"=>filepath_opt_res)
 
-                            simulate_data(exp_params)
+                                simulate_data(exp_params)
 
-                            end_time = Dates.now()
-                            write_time_log(start_time, end_time, exp_params; dest_dir=string(filepath_res,"/Results/logs"))
+                                end_time = Dates.now()
+                                write_time_log(start_time, end_time, exp_params; dest_dir=string(filepath_res,"/Results/logs"))
+                            end
                         end
                     end
                 end
             end
         end
-        # run_param_list(param_list; max_workers=11)
     end
 end
 

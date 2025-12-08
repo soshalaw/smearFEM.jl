@@ -1219,6 +1219,8 @@ Simulate the Stokes problem for a given mesh over a given time period.
 """
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
+    reset_model!(mdl)
+    
     @unpack FunctionClass, IEN, IEN_cp, ID, NodeList, C_vol, W = mdl.mesh_x
     FunctionClass_x_cached::String = FunctionClass
     NodeList_x_cached::Matrix{Float64} = NodeList
