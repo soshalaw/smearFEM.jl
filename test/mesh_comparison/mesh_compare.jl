@@ -307,7 +307,7 @@ function compare()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    data_type_list = ["simulated", "synthetic"]
+    data_type_list = ["synthetic", "simulated"]
     avoid_dirs = ["3_less_noise"]
 
     for viscosity_type in viscosity_type_list
@@ -322,10 +322,18 @@ function compare()
             for data_type in data_type_list
                 if data_type == "simulated"
                     location = "sim_data"
-                    sim_time_exp_list = [5.0]
+                    if viscosity_type == "constant"
+                        sim_time_exp_list = [30.0]
+                    elseif viscosity_type == "bulk_viscosity"
+                        sim_time_exp_list = [10.0]
+                    end
                 elseif data_type == "synthetic"
                     location = "syn_data"
-                    sim_time_exp_list = [5.0, 10.0]
+                    if viscosity_type == "constant"
+                        sim_time_exp_list = [30.0]
+                    elseif viscosity_type == "bulk_viscosity"
+                        sim_time_exp_list = [5.0, 10.0]
+                    end
                 end
                 @info "Processing ground truth directory: $filepath_gt for $viscosity_type"
                 for ne in refine_list

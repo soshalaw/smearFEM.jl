@@ -254,6 +254,18 @@ function optimize(exp_params::Dict)
             Plots.ylabel!(L"\mathrm{Cost\;(px)}")
             Plots.savefig(string(exp_path,"/Results/plots/cost_steps_log.pdf"))
 
+            write_json(string(exp_path,"/Results/data/stats"), stats)
+            write_csv(string(exp_path,"/Results/data/η"), ηpList)
+            write_csv(string(exp_path,"/Results/data/β"), βpList)
+            write_csv(string(exp_path,"/Results/data/est_h"), est_h)
+            write_csv(string(exp_path,"/Results/data/gt_h"), gt_h)
+            write_csv(string(exp_path,"/Results/data/cost_iter"), costList)
+
+            write_data(string(exp_path,"/Results/data/sim_data/2D_surface_points"), pos2D)
+            write_data(string(exp_path,"/Results/data/sim_data/3D_points"), pos3D)
+            write_data(string(exp_path,"/Results/data/sim_data/motion_fields "), fields)
+            write_data(string(exp_path,"/Results/data/sim_data/2D_border_points"), borderPts2DList)
+
             if maximum(ηpList) > η+dev_η
                 ηStop = maximum(ηpList)*1.1
             else
@@ -278,92 +290,81 @@ function optimize(exp_params::Dict)
                 β_start = β-dev_β
             end
 
-            sampleNo = 10
-            ηList = collect(range(η_start, stop=ηStop, length=sampleNo))
-            βList = collect(range(β_start, stop=βStop, length=sampleNo))
-            CostMat = zeros(size(ηList,1),size(βList,1))
-            ∂CostMat = zeros(2,size(ηList,1),size(βList,1))
-            ∂2CostMat = zeros(2,2,size(ηList,1),size(βList,1))
+            # sampleNo = 10
+            # ηList = collect(range(η_start, stop=ηStop, length=sampleNo))
+            # βList = collect(range(β_start, stop=βStop, length=sampleNo))
+            # CostMat = zeros(size(ηList,1),size(βList,1))
+            # ∂CostMat = zeros(2,size(ηList,1),size(βList,1))
+            # ∂2CostMat = zeros(2,2,size(ηList,1),size(βList,1))
 
-            costη = zeros(size(ηList,1))
-            costβ = zeros(size(βList,1))
+            # costη = zeros(size(ηList,1))
+            # costβ = zeros(size(βList,1))
 
-            η_iter = 1:size(ηList,1)
-            β_iter = 1:size(βList,1)
+            # η_iter = 1:size(ηList,1)
+            # β_iter = 1:size(βList,1)
 
-            for i::Int in η_iter
-                η = ηList[i]
-                for j::Int in β_iter
-                    β = βList[j]
-                    reset_model!(model)
-                    model.η = [η]
-                    scene.β = [β]
-                    μ_list, gradList, simBorderPts, fields_, pos3D_, pos2D_, splinex_, spliney_ = simulate(model, scene, conditions)
+            # for i::Int in η_iter
+            #     η = ηList[i]
+            #     for j::Int in β_iter
+            #         β = βList[j]
+            #         reset_model!(model)
+            #         model.η = [η]
+            #         scene.β = [β]
+            #         μ_list, gradList, simBorderPts, fields_, pos3D_, pos2D_, splinex_, spliney_ = simulate(model, scene, conditions)
                     
-                    # test the closest point function
-                    d, pairs = closest_point(simBorderPts, obsBorderPts)
+            #         # test the closest point function
+            #         d, pairs = closest_point(simBorderPts, obsBorderPts)
                     
-                    CostMat[i,j] = sum(d)/length(d)
-                end
-            end
+            #         CostMat[i,j] = sum(d)/length(d)
+            #     end
+            # end
             
-            # Plot the cost function surface (interactive GLMakie)
-            set_plot(fs, sz=(1650, 1250))
-            # CostMat is constructed as CostMat[i_eta, j_beta]; Makie expects Z with
-            # size (length(beta), length(eta)) => transpose CostMat for plotting.
-            # First attempt: save an interactive PlotlyJS HTML (avoids creating Makie figures)
-            try
-                htmlpath = string(exp_path, "/Results/plots/cost_surface_iter_interactive.html")
-                # compute overlay z-values for estimator path
-                Z_for_interp = CostMat'
-                zs_est = [interp_z_at(a, b, ηList, βList, Z_for_interp) for (a,b) in zip(ηpList, βpList)]
-                # compute ground-truth z for legend/marker overlay
-                z_gt = interp_z_at(η_gt, β_gt, ηList, βList, Z_for_interp)
-                saved = save_plotly_surface_html(htmlpath, ηList, βList, CostMat'; xs=ηpList, ys=βpList, zs=zs_est, title="Cost surface (iter)", gt_x=η_gt, gt_y=β_gt, gt_z=z_gt, x_label = "\$\\eta\\;\\mathrm{(KPa\\cdot s)}\$", y_label = "\$\\beta\\;\\mathrm{(L/mm^{-1})}\$", font_size = fs, latex_labels=true)
-                if saved
-                    @info "Saved interactive PlotlyJS HTML: $htmlpath"
-                else
-                    @warn "PlotlyJS HTML not created; skipping interactive output. To enable interactive PNGs with GLMakie re-enable GLMakie manually."
-                end
-            catch err
-                @warn "PlotlyJS path failed; skipping interactive output. Error: $err"
-            end
+            # # Plot the cost function surface (interactive GLMakie)
+            # set_plot(fs, sz=(1650, 1250))
+            # # CostMat is constructed as CostMat[i_eta, j_beta]; Makie expects Z with
+            # # size (length(beta), length(eta)) => transpose CostMat for plotting.
+            # # First attempt: save an interactive PlotlyJS HTML (avoids creating Makie figures)
+            # try
+            #     htmlpath = string(exp_path, "/Results/plots/cost_surface_iter_interactive.html")
+            #     # compute overlay z-values for estimator path
+            #     Z_for_interp = CostMat'
+            #     zs_est = [interp_z_at(a, b, ηList, βList, Z_for_interp) for (a,b) in zip(ηpList, βpList)]
+            #     # compute ground-truth z for legend/marker overlay
+            #     z_gt = interp_z_at(η_gt, β_gt, ηList, βList, Z_for_interp)
+            #     saved = save_plotly_surface_html(htmlpath, ηList, βList, CostMat'; xs=ηpList, ys=βpList, zs=zs_est, title="Cost surface (iter)", gt_x=η_gt, gt_y=β_gt, gt_z=z_gt, x_label = "\$\\eta\\;\\mathrm{(KPa\\cdot s)}\$", y_label = "\$\\beta\\;\\mathrm{(L/mm^{-1})}\$", font_size = fs, latex_labels=true)
+            #     if saved
+            #         @info "Saved interactive PlotlyJS HTML: $htmlpath"
+            #     else
+            #         @warn "PlotlyJS HTML not created; skipping interactive output. To enable interactive PNGs with GLMakie re-enable GLMakie manually."
+            #     end
+            # catch err
+            #     @warn "PlotlyJS path failed; skipping interactive output. Error: $err"
+            # end
 
-            # Also produce static PDF outputs with Plots (preserve previous behavior)
-            try
-                plt = set_plot(fs, sz=(1650, 1250))
-                Plots.contour!(plt, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
-                Plots.plot!(plt, ηpList, βpList, label="Estimations", ms=:4, m=:x, color=:red, lw=3)
-                Plots.plot!(plt, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=:indianred2, lw=3)
-                Plots.xlabel!(plt, L"\eta\;\mathrm{(KPa\cdot s)}")
-                Plots.ylabel!(plt, L"\beta\;\mathrm{(L/mm^{-1})}")
-                Plots.savefig(plt, string(exp_path,"/Results/plots/cost_surface_iter.pdf"))
+            # # Also produce static PDF outputs with Plots (preserve previous behavior)
+            # try
+            #     plt = set_plot(fs, sz=(1650, 1250))
+            #     Plots.contour!(plt, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
+            #     Plots.plot!(plt, ηpList, βpList, label="Estimations", ms=:4, m=:x, color=:red, lw=3)
+            #     Plots.plot!(plt, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=:indianred2, lw=3)
+            #     Plots.xlabel!(plt, L"\eta\;\mathrm{(KPa\cdot s)}")
+            #     Plots.ylabel!(plt, L"\beta\;\mathrm{(L/mm^{-1})}")
+            #     Plots.savefig(plt, string(exp_path,"/Results/plots/cost_surface_iter.pdf"))
 
-                plt2 = set_plot(fs, sz=(1650, 1250))
-                Plots.contourf!(plt2, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
-                Plots.plot!(plt2, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=:indianred2, lw=3)
-                Plots.xlabel!(plt2, L"\eta\;\mathrm{(KPa\cdot s)}")
-                Plots.ylabel!(plt2, L"\beta\;\mathrm{(L/mm^{-1})}")
-                Plots.savefig(plt2, string(exp_path,"/Results/plots/cost_surface.pdf"))
-            catch err
-                @warn "Failed to produce static PDF contour outputs: $err"
-            end
+            #     plt2 = set_plot(fs, sz=(1650, 1250))
+            #     Plots.contourf!(plt2, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
+            #     Plots.plot!(plt2, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=:indianred2, lw=3)
+            #     Plots.xlabel!(plt2, L"\eta\;\mathrm{(KPa\cdot s)}")
+            #     Plots.ylabel!(plt2, L"\beta\;\mathrm{(L/mm^{-1})}")
+            #     Plots.savefig(plt2, string(exp_path,"/Results/plots/cost_surface.pdf"))
+            # catch err
+            #     @warn "Failed to produce static PDF contour outputs: $err"
+            # end
 
-            # Write the results to files
-            contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
+            # # Write the results to files
+            # contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
 
-            write_json(string(exp_path,"/Results/data/stats"), stats)
-            write_json(string(exp_path,"/Results/data/contour_plot_params"), contour_plot_params)
-            write_csv(string(exp_path,"/Results/data/η"), ηpList)
-            write_csv(string(exp_path,"/Results/data/β"), βpList)
-            write_csv(string(exp_path,"/Results/data/est_h"), est_h)
-            write_csv(string(exp_path,"/Results/data/gt_h"), gt_h)
-            write_csv(string(exp_path,"/Results/data/cost_iter"), costList)
-
-            write_data(string(exp_path,"/Results/data/sim_data/2D_surface_points"), pos2D)
-            write_data(string(exp_path,"/Results/data/sim_data/3D_points"), pos3D)
-            write_data(string(exp_path,"/Results/data/sim_data/motion_fields "), fields)
-            write_data(string(exp_path,"/Results/data/sim_data/2D_border_points"), borderPts2DList)
+            # write_json(string(exp_path,"/Results/data/contour_plot_params"), contour_plot_params)
 
         # @save string(exp_path,"/Results/data/sim_data/Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
         else
