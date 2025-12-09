@@ -130,13 +130,13 @@ function simulate_data(exp_params::Dict)
     if gt_viscosity_type == "constant"
         
         time = collect(Float64, range(start=0, stop=sim_time_exp, step=t_steps_exp))
-        opt_stats = read_json(string(filepath_opt_res,"/Results/data/stats.json"))
+        # opt_stats = read_json(string(filepath_opt_res,"/Results/data/stats.json"))
 
-        η_opt = opt_stats["η"]
-        β_opt = opt_stats["β"]
+        # η_opt = opt_stats["η"]
+        # β_opt = opt_stats["β"]
 
-        model_opt.η = [η_opt]
-        scene_gt.β = [β_opt]
+        # model_opt.η = [η_opt]
+        # scene_opt.β = [β_opt]
     
         _range = 1:(round(Int,sim_time_exp/t_steps_exp)+1)
         @info "Considering from frame $(first(_range)) to frame $(last(_range)) in the observations"
@@ -149,37 +149,37 @@ function simulate_data(exp_params::Dict)
             obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
 
             # simulate the gt model with the estimated parameters
-            μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model_gt, scene_gt, conditions)
-            d_gt, pairs = closest_point(borderPts2DList, obsBorderPts)
+            μ_list, gradList, obsBorderPts_gt, fields, pos3D, pos2D, splinep, splineq = simulate(model_gt, scene_gt, conditions)
+            d_gt, pairs = closest_point(obsBorderPts_gt, obsBorderPts)
             animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinep, q=splineq, pObs=nSplinex, qObs=nSpliney)
 
-            ets_μ_list, gradList, ets_simBorderPts, ets_splinex, ets_spliney, ets_pos2D = simulate(model_opt, scene_opt, conditions)
-            d_opt, pairs = closest_point(ets_simBorderPts, obsBorderPts)
-            animate_fields(filepath=string(exp_path,"/Results/plots"), p=ets_splinex, q=ets_spliney, pObs=nSplinex, qObs=nSpliney)
+            # ets_μ_list, gradList, ets_simBorderPts, ets_pos2D, ets_splinex, ets_spliney = simulate(model_opt, scene_opt, conditions)
+            # d_opt, pairs = closest_point(ets_simBorderPts, obsBorderPts)
+            # animate_fields(filepath=string(exp_path,"/Results/plots"), p=ets_splinex, q=ets_spliney, pObs=nSplinex, qObs=nSpliney)
 
-            d_comp, pairs = closest_point(borderPts2DList, ets_simBorderPts)
+            # d_comp, pairs = closest_point(obsBorderPts_gt, ets_simBorderPts)
 
             # test the closest point function
 
             write_csv(string(exp_path,"/Results/data/d_gt"), d_gt)
-            write_csv(string(exp_path,"/Results/data/d_opt"), d_opt)
+            # write_csv(string(exp_path,"/Results/data/d_opt"), d_opt)
 
             plot_error_gt = set_plot(fs, sz=(1650, 1250))
             Plots.plot!(plot_error_gt, time, d_gt, label="Contour point error", dpi=400, lw=3)
             Plots.savefig(plot_error_gt, string(exp_path,"/Results/plots/contour_error.pdf"))
 
-            plot_error_opt = set_plot(fs, sz=(1650, 1250))
-            Plots.plot!(plot_error_opt, time, d_opt, label="Contour point error", dpi=400, lw=3)
-            Plots.savefig(plot_error_opt, string(exp_path,"/Results/plots/contour_error_opt.pdf"))
+            # plot_error_opt = set_plot(fs, sz=(1650, 1250))
+            # Plots.plot!(plot_error_opt, time, d_opt, label="Contour point error", dpi=400, lw=3)
+            # Plots.savefig(plot_error_opt, string(exp_path,"/Results/plots/contour_error_opt.pdf"))
 
-            plot_error_double = set_plot(fs, sz=(1650, 1250))
-            Plots.plot!(plot_error_double, time, d_gt, label="GT Contour point error", dpi=400, lw=3)
-            Plots.plot!(plot_error_double, time, d_opt, label="Opt Contour point error", dpi=400, lw=3)
-            Plots.savefig(plot_error_double, string(exp_path,"/Results/plots/contour_error_comparison.pdf"))
+            # plot_error_double = set_plot(fs, sz=(1650, 1250))
+            # Plots.plot!(plot_error_double, time, d_gt, label="GT Contour point error", dpi=400, lw=3)
+            # Plots.plot!(plot_error_double, time, d_opt, label="Opt Contour point error", dpi=400, lw=3)
+            # Plots.savefig(plot_error_double, string(exp_path,"/Results/plots/contour_error_comparison.pdf"))
 
-            plot_error_comp = set_plot(fs, sz=(1650, 1250))
-            Plots.plot!(plot_error_comp, time, d_comp, label="Contour point error between GT and Opt", dpi=400, lw=3)
-            Plots.savefig(plot_error_comp, string(exp_path,"/Results/plots/contour_error_between_gt_opt.pdf"))
+            # plot_error_comp = set_plot(fs, sz=(1650, 1250))
+            # Plots.plot!(plot_error_comp, time, d_comp, label="Contour point error between GT and Opt", dpi=400, lw=3)
+            # Plots.savefig(plot_error_comp, string(exp_path,"/Results/plots/contour_error_between_gt_opt.pdf"))
 
         # @save string(exp_path,"/Results/data/sim_data/Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
         else
@@ -297,7 +297,7 @@ end
 function compare()
 
     FunctionClass_x_List = ["Q2"]
-    refine_list = [4, 6, 8] # refinement levels, ne = ne_exp^refine
+    refine_list = [8] # refinement levels, ne = ne_exp^refine
     noise_level_list = [0.0]
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
@@ -307,7 +307,7 @@ function compare()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    data_type_list = ["synthetic", "simulated"]
+    data_type_list = ["synthetic"]
     avoid_dirs = ["3_less_noise"]
 
     for viscosity_type in viscosity_type_list

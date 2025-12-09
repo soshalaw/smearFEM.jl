@@ -161,15 +161,15 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
             
             plt = set_plot(22)
             if !isnothing(pObs) && !isnothing(p) && !isnothing(pgt)    
-                Plots.plot!(p[i],q[i], labels="Lagrange basis", aspect_ratio = :equal, dpi=:400, lw=2)
-                Plots.plot!(pObs[i],qObs[i], labels="NURBS basis", aspect_ratio = :equal, dpi=:400, lw=2)
-                Plots.plot!(pgt[i],qgt[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2)
+                Plots.plot!(p[i],q[i], labels="Lagrange basis", aspect_ratio = :equal, dpi=:400, lw=2, color=:darkorange)
+                Plots.plot!(pObs[i],qObs[i], labels="NURBS basis", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
+                Plots.plot!(pgt[i],qgt[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2, color=:green4)
             else
                 if !isnothing(p)   
-                    Plots.plot!(p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=3) #, marker = :circle, markersize = 2)
+                    Plots.plot!(p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=3, color=:darkorange) #, marker = :circle, markersize = 2)
                 end
                 if !isnothing(pObs)
-                    Plots.plot!(pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2)
+                    Plots.plot!(pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
                 end
                 if !isnothing(fields2D)
                     Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
