@@ -43,7 +43,7 @@ function optimize(exp_params::Dict)
     βpList::Vector{Float64} = Vector{Float64}()
     
     # simulation parameters for the ground truth
-    
+    start_time = Dates.now()
     filepath_gt::String = exp_params["filepath_gt"]
     filepath_res::String = exp_params["filepath_res"]
     
@@ -732,6 +732,8 @@ function optimize(exp_params::Dict)
         # write_data(string(exp_path,"/Results/data/sim_data/motion_fields "), fields)
         # write_data(string(exp_path,"/Results/data/sim_data/2D_border_points"), borderPts2DList)
     end
+    end_time = Dates.now()
+    write_time_log(start_time, end_time, exp_params; dest_dir=string(exp_path,"/Results/logs"))
 end
 
 function compare_stats(filepath,filepath_gt)
@@ -2503,7 +2505,7 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed
                     params = params_list[idx]
                     try
                         # Avoid BLAS thread oversubscription per worker
-                        LinearAlgebra.BLAS.set_num_threads(1)
+                        LinearAlgebra.BLAS.set_num_threads(max_workers)
                         optimize(params)
                     catch err
                         # capture backtrace and format similar to native Julia error output
@@ -2556,7 +2558,7 @@ function optimize_sim()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [6] # refinement levels, ne = ne_exp^refine
+    refine_list = [2] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
@@ -2564,7 +2566,7 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "2", "3", "4", "5"]
+    avoid_dirs = ["3_less_noise", "4", "5"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -2598,8 +2600,6 @@ function optimize_sim()
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-
-                            start_time = Dates.now()
                             filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
@@ -2607,16 +2607,14 @@ function optimize_sim()
                             "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"simulated", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
                             "noise_level"=>noise_level, "mode"=>"multi_window")
 
-                            optimize(exp_params)
-
-                            end_time = Dates.now()
-                            write_time_log(start_time, end_time, exp_params; dest_dir=string(filepath_res,"/Results/logs"))
+                            # optimize(exp_params)
+                            push!(param_list, exp_params)
                         end
                     end
                 end
             end
         end
-        # run_param_list(param_list; max_workers=11)
+        run_param_list(param_list; max_workers=3)
     end
 end
 
@@ -2667,17 +2665,12 @@ function optimize_syn()
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-
-                            start_time = Dates.now()
                             filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
                             "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
                             "noise_level"=>noise_level, "mode"=>"single_window")
                             optimize(exp_params)
-
-                            end_time = Dates.now()
-                            write_time_log(start_time, end_time, exp_params; dest_dir=string(filepath_res,"/Results/logs"))
                         end
                     end
                 end
