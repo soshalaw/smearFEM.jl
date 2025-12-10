@@ -646,28 +646,28 @@ function optimize(exp_params::Dict)
             end
             Plots.xlabel!(L"\mathrm{Time\;(s)}")
             Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
+            Plots.savefig(plt_η, string(exp_path,"/Results/plots/η_gt.pdf"))
+            t_prev = 0.1
+            for ti::Int in 1:length(data_ranges_)
+                t = t_windows[ti]
+                data_range_ = data_ranges_[ti]
+                t_win = collect(range(start=t_prev, stop=t, step=t_steps_gt))
+                if ti == 1
+                    Plots.plot!(plt_η, t_win, est_ηpList[data_range_], label="Estimated η(t)", lw=3, color=:orange)
+                    if data_type != "physical"
+                        Plots.plot!(plt_η, t_win, avg_ηList[data_range_], label="Average GT η in window", lw=3, color=:gray)
+                    end 
+                else
+                    Plots.plot!(plt_η, t_win, est_ηpList[data_range_], lw=3, color=:orange, label=false)
+                    if data_type != "physical"
+                        Plots.plot!(plt_η, t_win, avg_ηList[data_range_], lw=3, color=:gray, label=false)
+                    end 
+                end
+                t_prev = t+t_steps_gt
+            end
             display(plt_η)  
             readline() 
-            # Plots.savefig(plt_η, string(exp_path,"/Results/plots/η_gt.pdf"))
-            # t_prev = 0.1
-            # for ti::Int in 1:length(data_ranges_)
-            #     t = t_windows[ti]
-            #     data_range_ = data_ranges_[ti]
-            #     t_win = collect(range(start=t_prev, stop=t, step=t_steps_gt))
-            #     if ti == 1
-            #         Plots.plot!(plt_η, t_win, est_ηpList[data_range_], label="Estimated η(t)", lw=3, color=:orange)
-            #         if data_type != "physical"
-            #             Plots.plot!(plt_η, t_win, avg_ηList[data_range_], label="Average GT η in window", lw=3, color=:gray)
-            #         end 
-            #     else
-            #         Plots.plot!(plt_η, t_win, est_ηpList[data_range_], lw=3, color=:orange, label=false)
-            #         if data_type != "physical"
-            #             Plots.plot!(plt_η, t_win, avg_ηList[data_range_], lw=3, color=:gray, label=false)
-            #         end 
-            #     end
-            #     t_prev = t+t_steps_gt
-            # end
-            # Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
+            Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
             
             # plt_β = set_plot(fs, sz=(1650, 1250))
             # if data_type != "physical"
@@ -2675,7 +2675,7 @@ function optimize_syn()
                     elseif noise_level != 0.0 && viscosity_type == "constant" && ne == 6
                         sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
-                        sim_time_exp_list = [1.0] # simulation time in seconds
+                        sim_time_exp_list = [2.0] # simulation time in seconds
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
@@ -2730,7 +2730,7 @@ function optimize_real()
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2] # refinement levels, ne = ne_exp^refine
+    refine_list = [4] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     η_start = 1.0
     β_start = 1.0
@@ -2769,5 +2769,5 @@ end
 
 # main()
 # plot_syn()
-optimize_sim()
-# optimize_syn()
+# optimize_sim()
+optimize_syn()
