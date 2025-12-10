@@ -474,16 +474,16 @@ function optimize(exp_params::Dict)
         model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
         sim_time_exp, t_steps_exp)
         
-        gt_time_frame::Int = round(Int,sim_time_gt/t_steps_gt,)
+        gt_time_frame::Int = round(Int,sim_time_gt/t_steps_gt)
         sim_time_frame::Int = round(Int,sim_time_exp/t_steps_exp)
         window::Int = round(Int,gt_time_frame/sim_time_frame)
         
         set_file(string(exp_path,"/Results/plots"))
         println("Number of time windows: $window")
         
-        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts, method="fixed", window_size=sim_time_exp)
-        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="fixed", window_size=sim_time_exp)
-        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="fixed", window_size=sim_time_exp)
+        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts, method="exponential", window_size=sim_time_exp)
+        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="exponential", window_size=sim_time_exp)
+        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="exponential", window_size=sim_time_exp)
 
         println("Time windows: $(time_windows)")
         obs_time = sum(time_windows)
@@ -635,19 +635,19 @@ function optimize(exp_params::Dict)
 
             @info "Completed all time windows."
 
-            # plt_η = set_plot(fs, sz=(1650, 1250))
-            # t_full = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
-            # if data_type != "physical"
-            #     Plots.plot!(plt_η, t_full, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
-            # end
-            # for ti::Int in 1:size(data_ranges_, 1)
-            #     t = t_windows[ti]
-            #     Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
-            # end
-            # Plots.xlabel!(L"\mathrm{Time\;(s)}")
-            # Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
-            # display(plt_η)  
-            # readline() 
+            plt_η = set_plot(fs, sz=(1650, 1250))
+            t_full = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
+            if data_type != "physical"
+                Plots.plot!(plt_η, t_full, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
+            end
+            for ti::Int in 1:size(data_ranges_, 1)
+                t = t_windows[ti]
+                Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
+            end
+            Plots.xlabel!(L"\mathrm{Time\;(s)}")
+            Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
+            display(plt_η)  
+            readline() 
             # Plots.savefig(plt_η, string(exp_path,"/Results/plots/η_gt.pdf"))
             # t_prev = 0.1
             # for ti::Int in 1:length(data_ranges_)
@@ -690,15 +690,15 @@ function optimize(exp_params::Dict)
             # Plots.ylabel!(L"\beta\mathrm{(t)\;(mm^{-1})}")
             # Plots.savefig(plt_β, string(exp_path,"/Results/plots/β.pdf"))
             
-            viscosity_type = "bulk_viscosity"
-            est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
-            sim_time_gt, t_steps_gt)
-            est_model.η = est_ηpList
+            # viscosity_type = "bulk_viscosity"
+            # est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+            # sim_time_gt, t_steps_gt)
+            # est_model.η = est_ηpList
             
-            # animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinex, q=spliney, pObs=splinexObs, qObs=splineyObs)
+            # # animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinex, q=spliney, pObs=splinexObs, qObs=splineyObs)
             
-            gt_μ_list, gradList, borderPts2DList, fields_gt, pos3D_gt, pos2D_gt, splinex_gt, spliney_gt = simulate(model_gt, scene_gt, conditions)
-            est_μ_list, gradList, simBorderPts, fields_est, pos3D_est, pos2D_est, splinex_est, spliney_est = simulate(est_model, est_scene, conditions)
+            # gt_μ_list, gradList, borderPts2DList, fields_gt, pos3D_gt, pos2D_gt, splinex_gt, spliney_gt = simulate(model_gt, scene_gt, conditions)
+            # est_μ_list, gradList, simBorderPts, fields_est, pos3D_est, pos2D_est, splinex_est, spliney_est = simulate(est_model, est_scene, conditions)
 
 
             if data_type != "physical"
@@ -2417,7 +2417,7 @@ function plot_results()
     end
 end
 
-function set_time_window(step_len::Float64, data::AbstractArray; method::String="fixed", window_size::Float64=10.0)
+function set_time_window(time_step_len::Float64, data::AbstractArray; method::String="fixed", window_size::Float64=10.0)
     windows::Vector{AbstractArray} = Vector{AbstractArray}()
     time_windows::Vector{Float64} = Vector{Float64}()
     data_ranges::Vector{AbstractArray} = Vector{AbstractArray}()
@@ -2428,7 +2428,16 @@ function set_time_window(step_len::Float64, data::AbstractArray; method::String=
         if method == "fixed"
             t_window = round(window_size*iter, digits=1)
         elseif method == "exponential"
-            t_window = round(step_len*exp(3*(iter-1)), digits=1)
+            if iter == 1
+                t_window = round(window_size*exp(0.5*(iter-1)), digits=1)
+            else 
+                δt = window_size*exp(0.5*(iter-1))
+                if δt < window_size
+                    @warn "Computed time window increment $δt is less than minimum window size $window_size; using minimum."
+                    δt = window_size
+                end
+                t_window = round(window_size*(exp(0.5*(iter-2)) + δt), digits=1)
+            end
         end
         return t_window
     end
@@ -2437,8 +2446,8 @@ function set_time_window(step_len::Float64, data::AbstractArray; method::String=
     start_point::Int = 1
     t_window_prev::Float64 = 0.0
     # t_window::Float64 = round(0.5*exp(3*(iter-1)), digits=1) 
-    t_window_end::Float64 = get_t_window(window_size, step_len, iter, method)
-    end_point::Int = round(Int,t_window_end*step_len)+1
+    t_window_end::Float64 = get_t_window(window_size, time_step_len, iter, method)
+    end_point::Int = round(Int,t_window_end*time_step_len)+1
 
     END_FLAG::Bool = false
     end_clause::String = ""
@@ -2451,7 +2460,7 @@ function set_time_window(step_len::Float64, data::AbstractArray; method::String=
                 else
                     requested_end = end_point
                     # adjust the time window end to the last available sample
-                    t_window_end = round((size(data, 1)-1)/step_len, digits=1)
+                    t_window_end = round((size(data, 1)-1)/time_step_len, digits=1)
                     end_point = size(data, 1)
                     @warn "Requested end point $requested_end exceeds data size $(size(data,1)); adjusting to end of data (end_point=$end_point). Adjusted end time to $t_window_end seconds."
                 end
@@ -2478,8 +2487,8 @@ function set_time_window(step_len::Float64, data::AbstractArray; method::String=
         iter = iter + 1
         start_point = end_point
         t_window_prev = t_window_end
-        t_window_end = get_t_window(window_size, step_len, iter, method)
-        end_point = round(Int,t_window_end*step_len)+1
+        t_window_end = get_t_window(window_size, time_step_len, iter, method)
+        end_point = round(Int,t_window_end*time_step_len)+1
     end
     return time_windows, windows, data_ranges, t_windows
 end
@@ -2562,7 +2571,6 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed
             wait(t)
         end
     end
-
     # signal completion for this batch
     println("All experiments in this run_param_list completed.")
 end
@@ -2571,7 +2579,7 @@ function optimize_sim()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
+    refine_list = [4] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
@@ -2644,7 +2652,7 @@ function optimize_syn()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "1", "2", "4", "5"]
+    avoid_dirs = ["3_less_noise", "3", "2", "4", "5"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -2667,14 +2675,14 @@ function optimize_syn()
                     elseif noise_level != 0.0 && viscosity_type == "constant" && ne == 6
                         sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
-                        sim_time_exp_list = [5.0] # simulation time in seconds
+                        sim_time_exp_list = [1.0] # simulation time in seconds
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
                     for sim_time_exp::Float16 in sim_time_exp_list
                         # ne = ne_exp^ref
                         if viscosity_type == "constant"
-                            window = "single_window"
+                            window = ""
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
@@ -2682,7 +2690,7 @@ function optimize_syn()
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
                             "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                            "noise_level"=>noise_level, "mode"=>"single_window")
+                            "noise_level"=>noise_level, "mode"=>window)
                             optimize(exp_params)
                         end
                     end
@@ -2761,5 +2769,5 @@ end
 
 # main()
 # plot_syn()
-optimize_sim()
-# optimize_syn()
+# optimize_sim()
+optimize_syn()
