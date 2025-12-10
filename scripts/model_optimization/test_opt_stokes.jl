@@ -2626,7 +2626,7 @@ function optimize_sim()
                 end
             end
         end
-        run_param_list(param_list; max_workers=3)
+        run_param_list(param_list; max_workers=4)
     end
 end
 
