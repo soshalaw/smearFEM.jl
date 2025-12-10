@@ -219,7 +219,8 @@ function optimize(exp_params::Dict)
             # simulate the gt model with the estimated parameters
             est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)
 
-            animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinep, q=splineq, pObs=nSplinex, qObs=nSpliney)
+            # DISABLED: animate_fields causes segfault in multi-threaded context (not thread-safe)
+            # animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinep, q=splineq, pObs=nSplinex, qObs=nSpliney)
 
             est_h = get_height(est_μ_list, h)
 
