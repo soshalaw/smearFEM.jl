@@ -635,39 +635,39 @@ function optimize(exp_params::Dict)
 
             @info "Completed all time windows."
 
-            plt_η = set_plot(fs, sz=(1650, 1250))
-            t_full = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
-            if data_type != "physical"
-                Plots.plot!(plt_η, t_full, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
-            end
-            for ti::Int in 1:size(data_ranges_, 1)
-                t = t_windows[ti]
-                Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
-            end
-            Plots.xlabel!(L"\mathrm{Time\;(s)}")
-            Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
-            Plots.savefig(plt_η, string(exp_path,"/Results/plots/η_gt.pdf"))
-            t_prev = 0.1
-            for ti::Int in 1:length(data_ranges_)
-                t = t_windows[ti]
-                data_range_ = data_ranges_[ti]
-                t_win = collect(range(start=t_prev, stop=t, step=t_steps_gt))
-                if ti == 1
-                    Plots.plot!(plt_η, t_win, est_ηpList[data_range_], label="Estimated η(t)", lw=3, color=:orange)
-                    if data_type != "physical"
-                        Plots.plot!(plt_η, t_win, avg_ηList[data_range_], label="Average GT η in window", lw=3, color=:gray)
-                    end 
-                else
-                    Plots.plot!(plt_η, t_win, est_ηpList[data_range_], lw=3, color=:orange, label=false)
-                    if data_type != "physical"
-                        Plots.plot!(plt_η, t_win, avg_ηList[data_range_], lw=3, color=:gray, label=false)
-                    end 
-                end
-                t_prev = t+t_steps_gt
-            end
-            display(plt_η)  
-            readline() 
-            Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
+            # plt_η = set_plot(fs, sz=(1650, 1250))
+            # t_full = collect(range(start=t_steps_gt, stop=sim_time_gt, step=t_steps_gt))
+            # if data_type != "physical"
+            #     Plots.plot!(plt_η, t_full, model_gt.η, label="Ground truth η(t)", dpi=400, lw=3)
+            # end
+            # for ti::Int in 1:size(data_ranges_, 1)
+            #     t = t_windows[ti]
+            #     Plots.vline!(plt_η, [t], color=:gray, lw=3, linestyle=:dash, label=false)
+            # end
+            # Plots.xlabel!(L"\mathrm{Time\;(s)}")
+            # Plots.ylabel!(L"\eta\mathrm{(t)\;(KPa\cdot s)}")
+            # Plots.savefig(plt_η, string(exp_path,"/Results/plots/η_gt.pdf"))
+            # t_prev = 0.1
+            # for ti::Int in 1:length(data_ranges_)
+            #     t = t_windows[ti]
+            #     data_range_ = data_ranges_[ti]
+            #     t_win = collect(range(start=t_prev, stop=t, step=t_steps_gt))
+            #     if ti == 1
+            #         Plots.plot!(plt_η, t_win, est_ηpList[data_range_], label="Estimated η(t)", lw=3, color=:orange)
+            #         if data_type != "physical"
+            #             Plots.plot!(plt_η, t_win, avg_ηList[data_range_], label="Average GT η in window", lw=3, color=:gray)
+            #         end 
+            #     else
+            #         Plots.plot!(plt_η, t_win, est_ηpList[data_range_], lw=3, color=:orange, label=false)
+            #         if data_type != "physical"
+            #             Plots.plot!(plt_η, t_win, avg_ηList[data_range_], lw=3, color=:gray, label=false)
+            #         end 
+            #     end
+            #     t_prev = t+t_steps_gt
+            # end
+            # display(plt_η)  
+            # readline() 
+            # Plots.savefig(plt_η, string(exp_path,"/Results/plots/η.pdf"))
             
             # plt_β = set_plot(fs, sz=(1650, 1250))
             # if data_type != "physical"
