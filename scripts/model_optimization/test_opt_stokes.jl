@@ -481,9 +481,9 @@ function optimize(exp_params::Dict)
         set_file(string(exp_path,"/Results/plots"))
         println("Number of time windows: $window")
         
-        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts, method="exponential", window_size=sim_time_exp)
-        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="exponential", window_size=sim_time_exp)
-        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="exponential", window_size=sim_time_exp)
+        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts, method="fixed", window_size=sim_time_exp)
+        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="fixed", window_size=sim_time_exp)
+        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="fixed", window_size=sim_time_exp)
 
         println("Time windows: $(time_windows)")
         obs_time = sum(time_windows)
@@ -2587,7 +2587,7 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "1"]
+    avoid_dirs = ["3_less_noise"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -2602,13 +2602,13 @@ function optimize_sim()
                 if ne == 6 && viscosity_type == "constant"
                     noise_level_list = [0.0]
                 else
-                    noise_level_list = [0.0]
+                    noise_level_list = [0.5]
                 end
                 for noise_level in noise_level_list 
                     if noise_level == 0.0 && viscosity_type == "constant"
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     elseif viscosity_type == "constant" && ne == 6
-                        sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
+                        sim_time_exp_list = [30.0, 20.0, 10.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
                         sim_time_exp_list = [5.0] # simulation time in seconds
                     else
@@ -2643,8 +2643,7 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [8] # refinement levels, ne = ne_exp^refine
-    noise_level_list = [0.0, 0.5, 1.0]
+    refine_list = [6] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["bulk_viscosity"]
     window = "multi_window"
@@ -2665,7 +2664,7 @@ function optimize_syn()
             @info "Processing ground truth directory: $filepath_gt for $viscosity_type"
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
-                    noise_level_list = [0.0]
+                    noise_level_list = [0.5]
                 else
                     noise_level_list = [0.0]
                 end
@@ -2675,7 +2674,7 @@ function optimize_syn()
                     elseif noise_level != 0.0 && viscosity_type == "constant" && ne == 6
                         sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
-                        sim_time_exp_list = [2.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0, 10.0, 20.0] # simulation time in seconds
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
