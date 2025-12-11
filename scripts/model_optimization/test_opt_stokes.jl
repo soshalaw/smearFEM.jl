@@ -432,8 +432,12 @@ function optimize(exp_params::Dict)
 
                 write_json(string(exp_path,"/Results/data/stats/run_$n"), params)
 
-                write_csv(string(exp_path,"/Results/data/sim_data/cost_steps/run_$n"), costList)
-                write_csv(string(exp_path,"/Results/data/sim_data/cost_steps_iter/run_$n"), iterList)
+                write_csv(string(exp_path,"/Results/data/opt_data/cost_steps/run_$n"), costList)
+                write_csv(string(exp_path,"/Results/data/opt_data/eta_steps/run_$n"), ηpList)
+                write_csv(string(exp_path,"/Results/data/opt_data/beta_steps/run_$n"), βpList)
+                write_csv(string(exp_path,"/Results/data/opt_data/iter/run_$n"), iterList)
+                write_csv(string(exp_path,"/Results/data/opt_data/est_height/run_$n"), est_h)
+
                 write_csv(string(exp_path,"/Results/data/sim_data/border/run_$n"), borderPts2DList)
                 write_csv(string(exp_path,"/Results/data/sim_data/fields/run_$n"), fields)
                 write_csv(string(exp_path,"/Results/data/sim_data/3D_points/run_$n"), pos3D)
@@ -697,8 +701,8 @@ function optimize(exp_params::Dict)
             
             # # animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinex, q=spliney, pObs=splinexObs, qObs=splineyObs)
             
-            # gt_μ_list, gradList, borderPts2DList, fields_gt, pos3D_gt, pos2D_gt, splinex_gt, spliney_gt = simulate(model_gt, scene_gt, conditions)
-            # est_μ_list, gradList, simBorderPts, fields_est, pos3D_est, pos2D_est, splinex_est, spliney_est = simulate(est_model, est_scene, conditions)
+            gt_μ_list, gradList, borderPts2DList, fields_gt, pos3D_gt, pos2D_gt, splinex_gt, spliney_gt = simulate(model_gt, scene_gt, conditions)
+            est_μ_list, gradList, simBorderPts, fields_est, pos3D_est, pos2D_est, splinex_est, spliney_est = simulate(est_model, est_scene, conditions)
 
 
             if data_type != "physical"
