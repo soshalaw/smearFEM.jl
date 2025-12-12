@@ -478,12 +478,11 @@ function optimize(exp_params::Dict)
         model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
         sim_time_exp, t_steps_exp)
         
-        gt_time_frame::Int = round(Int,sim_time_gt/t_steps_gt)
-        sim_time_frame::Int = round(Int,sim_time_exp/t_steps_exp)
-        window::Int = round(Int,gt_time_frame/sim_time_frame)
+        # gt_time_frame::Int = round(Int,sim_time_gt/t_steps_gt)
+        # sim_time_frame::Int = round(Int,sim_time_exp/t_steps_exp)
+        # window::Int = round(Int,gt_time_frame/sim_time_frame)
         
         set_file(string(exp_path,"/Results/plots"))
-        println("Number of time windows: $window")
         
         time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts, method="fixed", window_size=sim_time_exp)
         _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="fixed", window_size=sim_time_exp)
@@ -492,14 +491,15 @@ function optimize(exp_params::Dict)
         println("Time windows: $(time_windows)")
         obs_time = sum(time_windows)
 
-        if obs_time < sim_time_gt
-            @warn "Observation time frame $obs_time is less than preset ground truth time frame $sim_time_gt, switching to observation time frame"
-            gt_time_frame = obs_time
-        end
+        # if obs_time < sim_time_gt
+        #     @warn "Observation time frame $obs_time is less than preset ground truth time frame $sim_time_gt, switching to observation time frame"
+        #     gt_time_frame = obs_time
+        # end
         
-        est_ηpList = Vector{Float64}(undef,gt_time_frame)
-        avg_ηList = Vector{Float64}(undef,gt_time_frame)
-        est_βpList = Vector{Float64}(undef,gt_time_frame)
+        data_pt_len = round(Int,sum(time_windows)/t_steps_exp)
+        est_ηpList = Vector{Float64}(undef,data_pt_len)
+        avg_ηList = Vector{Float64}(undef,data_pt_len)
+        est_βpList = Vector{Float64}(undef,data_pt_len)
 
         if mode == "single_window"
             @info "Optimizing over a single time window"
@@ -2736,7 +2736,7 @@ function optimize_syn()
             @info "Processing ground truth directory: $filepath_gt for $viscosity_type"
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
-                    noise_level_list = [0.5]
+                    noise_level_list = [0.0]
                 else
                     noise_level_list = [0.0]
                 end
