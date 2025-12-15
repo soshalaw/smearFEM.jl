@@ -18,7 +18,7 @@ using Dates
 # using JLD2
 using Plots.PlotMeasures
 
-global fs = 32  # font size for plots
+global fs = 40  # font size for plots
 
 function optimize(exp_params::Dict)
     η_gt::Float64 = 0.0
@@ -694,16 +694,16 @@ function optimize(exp_params::Dict)
             # Plots.ylabel!(L"\beta\mathrm{(t)\;(mm^{-1})}")
             # Plots.savefig(plt_β, string(exp_path,"/Results/plots/β.pdf"))
             
-            # viscosity_type = "bulk_viscosity"
-            # est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
-            # sim_time_gt, t_steps_gt)
-            # est_model.η = est_ηpList
+            viscosity_type = "bulk_viscosity"
+            est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+            sim_time_gt, t_steps_gt)
+            est_model.η = est_ηpList
+            est_scene.β = est_βpList
             
             # # animate_fields(filepath=string(exp_path,"/Results/plots"), p=splinex, q=spliney, pObs=splinexObs, qObs=splineyObs)
             
             gt_μ_list, gradList, borderPts2DList, fields_gt, pos3D_gt, pos2D_gt, splinex_gt, spliney_gt = simulate(model_gt, scene_gt, conditions)
             est_μ_list, gradList, simBorderPts, fields_est, pos3D_est, pos2D_est, splinex_est, spliney_est = simulate(est_model, est_scene, conditions)
-
 
             if data_type != "physical"
 
@@ -1829,45 +1829,63 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
 
     # plot for convergence per slip case
     plot_conv_10 = set_plot(fs, sz=(1650, 1250))
+    Plots.plot!(plot_conv_10, [],  left_margin=12mm, bottom_margin = -15mm, label=false)
+    Plots.xlabel!(plot_conv_10, L"\mathrm{Iterations}")
+    Plots.ylabel!(plot_conv_10, L"\mathrm{Cost\;(px)}")
 
     plot_conv_20 = set_plot(fs, sz=(1650, 1250))
+    Plots.plot!(plot_conv_20, [],  left_margin=12mm, bottom_margin = -15mm, label=false)
+    Plots.xlabel!(plot_conv_20, L"\mathrm{Iterations}")
+    Plots.ylabel!(plot_conv_20, L"\mathrm{Cost\;(px)}")
 
     plot_conv_30 = set_plot(fs, sz=(1650, 1250))
+    Plots.plot!(plot_conv_30, [],  left_margin=12mm, bottom_margin = -15mm, label=false)
+    Plots.xlabel!(plot_conv_30, L"\mathrm{Iterations}")
+    Plots.ylabel!(plot_conv_30, L"\mathrm{Cost\;(px)}")
 
     plot_conv_log_10 = set_plot(fs, sz=(1650, 1250))
+    Plots.plot!(plot_conv_log_10, [],  left_margin=12mm, bottom_margin = -15mm, label=false)
+    Plots.xlabel!(plot_conv_log_10, L"\mathrm{Iterations}")
+    Plots.ylabel!(plot_conv_log_10, L"\mathrm{Cost\;(px)}")
 
     plot_conv_log_20 = set_plot(fs, sz=(1650, 1250))
+    Plots.plot!(plot_conv_log_20, [],  left_margin=12mm, bottom_margin = -15mm, label=false)
+    Plots.xlabel!(plot_conv_log_20, L"\mathrm{Iterations}")
+    Plots.ylabel!(plot_conv_log_20, L"\mathrm{Cost\;(px)}")
 
     plot_conv_log_30 = set_plot(fs, sz=(1650, 1250))
+    Plots.plot!(plot_conv_log_30, [],  left_margin=12mm, bottom_margin = -15mm, label=false)
+    Plots.xlabel!(plot_conv_log_30, L"\mathrm{Iterations}")
+    Plots.ylabel!(plot_conv_log_30, L"\mathrm{Cost\;(px)}")
 
     # figures to compare convergence with slip levels
     η_norm_plot_10 = set_plot(fs, sz=(1650, 1250))
-    Plots.hline!(η_norm_plot_10, [1.0], label="Ground truth η", lw=3)
+    Plots.hline!(η_norm_plot_10, [1.0],  left_margin=12mm, bottom_margin = -15mm, linestyle=:dash, lw=3, label=false)
     Plots.xlabel!(η_norm_plot_10,L"\mathrm{Iterations}")
     Plots.ylabel!(η_norm_plot_10,L"\frac{\eta_{est}}{\eta_{gt}}")
 
     β_norm_plot_10 = set_plot(fs, sz=(1650, 1250))
-    Plots.hline!(β_norm_plot_10, [1.0], label="Ground truth β", lw=3)
+    Plots.hline!(β_norm_plot_10, [1.0],  left_margin=12mm, bottom_margin = -15mm, linestyle=:dash, lw=3, label=false)
     Plots.xlabel!(β_norm_plot_10, L"\mathrm{Iterations}")
     Plots.ylabel!(β_norm_plot_10, L"\frac{\beta_{est}}{\beta_{gt}}")
 
     η_norm_plot_20 = set_plot(fs, sz=(1650, 1250))
-    Plots.hline!(η_norm_plot_20, [1.0], label="Ground truth η", lw=3)
+    Plots.hline!(η_norm_plot_20, [1.0],  left_margin=12mm, bottom_margin = -15mm, linestyle=:dash, lw=3, label=false)
     Plots.xlabel!(η_norm_plot_20,L"\mathrm{Iterations}")
     Plots.ylabel!(η_norm_plot_20,L"\frac{\eta_{est}}{\eta_{gt}}")
 
     β_norm_plot_20 = set_plot(fs, sz=(1650, 1250))
-    Plots.hline!(β_norm_plot_20, [1.0], label="Ground truth β", lw=3)
+    Plots.hline!(β_norm_plot_20, [1.0],  left_margin=12mm, bottom_margin = -15mm, linestyle=:dash, lw=3, label=false)
     Plots.xlabel!(β_norm_plot_20, L"\mathrm{Iterations}")
     Plots.ylabel!(β_norm_plot_20, L"\frac{\beta_{est}}{\beta_{gt}}")
 
     η_norm_plot_30 = set_plot(fs, sz=(1650, 1250))
-    Plots.hline!(η_norm_plot_30, [1.0], label="Ground truth η", lw=3)
+    Plots.hline!(η_norm_plot_30, [1.0],  left_margin=12mm, bottom_margin = -15mm, linestyle=:dash, lw=3, label=false)
     Plots.xlabel!(η_norm_plot_30,L"\mathrm{Iterations}")
     Plots.ylabel!(η_norm_plot_30,L"\frac{\eta_{est}}{\eta_{gt}}")
 
     β_norm_plot_30 = set_plot(fs, sz=(1650, 1250))
-    Plots.hline!(β_norm_plot_30, [1.0], label="Ground truth β", lw=3)
+    Plots.hline!(β_norm_plot_30, [1.0],  left_margin=12mm, bottom_margin = -15mm, linestyle=:dash, lw=3, label=false)
     Plots.xlabel!(β_norm_plot_30, L"\mathrm{Iterations}")
     Plots.ylabel!(β_norm_plot_30, L"\frac{\beta_{est}}{\beta_{gt}}")
 
@@ -1894,12 +1912,12 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
 
         # plots for element vise comparison
         elem_η_plt = set_plot(fs, sz=(1650, 1250))
-        Plots.hline!(elem_η_plt, [η_gt[1]], label="Ground truth η", lw=3)
+        Plots.hline!(elem_η_plt, [η_gt[1]], label="Ground truth η", lw=3,  left_margin=12mm, bottom_margin = -15mm)
         Plots.xlabel!(elem_η_plt,L"\mathrm{Iterations}")
         Plots.ylabel!(elem_η_plt,L"\eta\;\mathrm{(KPa\cdot s)}")
 
         elem_β_plt = set_plot(fs, sz=(1650, 1250))
-        Plots.hline!(elem_β_plt, [β_gt[1]], label="Ground truth β", lw=3)
+        Plots.hline!(elem_β_plt, [β_gt[1]], label="Ground truth β", lw=3,  left_margin=12mm, bottom_margin = -15mm)
         Plots.xlabel!(elem_β_plt, L"\mathrm{Iterations}")
         Plots.ylabel!(elem_β_plt, L"\beta\;\mathrm{mm^{-1}}")
 
@@ -1915,17 +1933,17 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
             
             # figures for Simulation window vise camparison
             sim_window_η_plt = set_plot(fs, sz=(1650, 1250))
-            Plots.hline!(sim_window_η_plt, [η_gt[1]], label="Ground truth η", lw=3)
+            Plots.hline!(sim_window_η_plt, [η_gt[1]], label="Ground truth η", lw=3,  left_margin=12mm, bottom_margin = -15mm)
             Plots.xlabel!(sim_window_η_plt,L"\mathrm{Iterations}")
             Plots.ylabel!(sim_window_η_plt,L"\eta\;\mathrm{(KPa\cdot s)}")
             
             sim_window_β_plt = set_plot(fs, sz=(1650, 1250))
-            Plots.hline!(sim_window_β_plt, [β_gt[1]], label="Ground truth β", lw=3)
+            Plots.hline!(sim_window_β_plt, [β_gt[1]], label="Ground truth β", lw=3,  left_margin=12mm, bottom_margin = -15mm)
             Plots.xlabel!(sim_window_β_plt, L"\mathrm{Iterations}")
             Plots.ylabel!(sim_window_β_plt, L"\beta\;\mathrm{mm^{-1}}")
 
             plt_slices = set_plot(fs, sz=(1800, 750))
-            Plots.vline!(plt_slices, [0.0], color=:blue, linestyle=:dash, label="Minimum", bottom_margin = 15mm, left_margin=12mm, lw=3)
+            Plots.vline!(plt_slices, [0.0], color=:blue, linestyle=:dash, label="Minimum",  left_margin=12mm, lw=3)
             Plots.xlabel!(plt_slices, L"\mathrm{Distance\;from\;minimum\;(px)}")
             Plots.ylabel!(plt_slices, L"\mathrm{Cost}")
             Plots.ylims!(plt_slices, 0, 50)
@@ -1967,11 +1985,11 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
 
                         cost_list = readdlm(string(exp_folder,"/Results/data/cost_iter.csv"), ',', Float64)
                 
-                        Plots.plot!(sim_window_η_plt, est_η, label=string("Window size - $(sim_time)s"," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -15mm)
+                        Plots.plot!(sim_window_η_plt, est_η, label=string("Window size - $(sim_time)s"," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                         Plots.xlabel!(sim_window_η_plt, L"\mathrm{Iterations}")
                         Plots.ylabel!(sim_window_η_plt, L"\eta\;\mathrm{(KPa\cdot s)}")
                 
-                        Plots.plot!(sim_window_β_plt, est_β, label=string("Window size - $(sim_time)s"," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                        Plots.plot!(sim_window_β_plt, est_β, label=string("Window size - $(sim_time)s"," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                         Plots.xlabel!(sim_window_β_plt, L"\mathrm{Iterations}")
                         Plots.ylabel!(sim_window_β_plt, L"\beta\;\mathrm{mm^{-1}}")
 
@@ -1998,50 +2016,35 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
 
                         if sim_time == 10.0
                             if ne == 6
-                                Plots.plot!(η_norm_plot_10, est_η_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
-                                Plots.plot!(β_norm_plot_10, est_β_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                                Plots.plot!(η_norm_plot_10, est_η_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
+                                Plots.plot!(β_norm_plot_10, est_β_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
                                 
-                                Plots.plot!(plot_conv_10, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, bottom_margin = -15mm)
-                                Plots.xlabel!(plot_conv_10, L"\mathrm{Iterations}")
-                                Plots.ylabel!(plot_conv_10, L"mathrm{Cost\;(px)}")
-
-                                Plots.plot!(plot_conv_log_10, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, bottom_margin = -15mm, xscale=:log10, yscale=:log10)
-                                Plots.xlabel!(plot_conv_log_10, L"\mathrm{Iterations}")
-                                Plots.ylabel!(plot_conv_log_10, L"mathrm{Cost\;(px)}")
+                                Plots.plot!(plot_conv_10, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5)
+                                Plots.plot!(plot_conv_log_10, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, xscale=:log10, yscale=:log10)
                             end
 
                         elseif sim_time == 20.0
                             if ne == 6
-                                Plots.plot!(η_norm_plot_20, est_η_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
-                                Plots.plot!(β_norm_plot_20, est_β_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
+                                Plots.plot!(η_norm_plot_20, est_η_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
+                                Plots.plot!(β_norm_plot_20, est_β_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
                                 
-                                Plots.plot!(plot_conv_20, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, bottom_margin = -15mm)
-                                Plots.xlabel!(plot_conv_20, L"\mathrm{Iterations}")
-                                Plots.ylabel!(plot_conv_20, L"mathrm{Cost\;(px)}")
-
-                                Plots.plot!(plot_conv_log_20, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, bottom_margin = -15mm, xscale=:log10, yscale=:log10)
-                                Plots.xlabel!(plot_conv_log_20, L"\mathrm{Iterations}")
-                                Plots.ylabel!(plot_conv_log_20, L"mathrm{Cost\;(px)}")
+                                Plots.plot!(plot_conv_20, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5)
+                                Plots.plot!(plot_conv_log_20, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, xscale=:log10, yscale=:log10)
                             end
 
                         elseif sim_time == 30.0
                             if ne == 6
-                                Plots.plot!(η_norm_plot_30, est_η_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
-                                Plots.plot!(β_norm_plot_30, est_β_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, bottom_margin = -15mm)
-                          
-                                Plots.plot!(plot_conv_30, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, bottom_margin = -15mm)
-                                Plots.xlabel!(plot_conv_30, L"\mathrm{Iterations}")
-                                Plots.ylabel!(plot_conv_30, L"mathrm{Cost\;(px)}")
-
-                                Plots.plot!(plot_conv_log_30, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, bottom_margin = -15mm, xscale=:log10, yscale=:log10)
-                                Plots.xlabel!(plot_conv_log_30, L"\mathrm{Iterations}")
-                                Plots.ylabel!(plot_conv_log_30, L"mathrm{Cost\;(px)}")
+                                Plots.plot!(η_norm_plot_30, est_η_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
+                                Plots.plot!(β_norm_plot_30, est_β_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
+                                Plots.plot!(plot_conv_30, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5)
+                                Plots.plot!(plot_conv_log_30, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, xscale=:log10, yscale=:log10)
+    
                             end
-                            Plots.plot!(elem_η_plt, est_η, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                            Plots.plot!(elem_η_plt, est_η, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2)
                             Plots.xlabel!(elem_η_plt, L"\mathrm{Iterations}")
                             Plots.ylabel!(elem_η_plt, L"\eta\;\mathrm{(KPa\cdot s)}")
 
-                            Plots.plot!(elem_β_plt, est_β, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2, bottom_margin = -15mm)
+                            Plots.plot!(elem_β_plt, est_β, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=2)
                             Plots.xlabel!(elem_β_plt, L"\mathrm{Iterations}")
                             Plots.ylabel!(elem_β_plt, L"\beta\;\mathrm{mm^{-1}}")
 
@@ -2778,22 +2781,30 @@ function plot_syn()
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"] #,"constant"]
     avoid_dirs = ["3_less_noise", "s", "2"]
+    data_type_list = ["synthetic", "simulated"] #,"simulated"]
 
-    for viscosity_type in viscosity_type_list
-        filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
-        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16")
-        dirs = readdir(filepath_gt)
-        for dir in dirs
-            if dir in avoid_dirs
-                continue
-                println("Skipping dir $dir")
-            end
-            filepath_gt_dir = string(filepath_gt,"/$dir/")
-            filepath_res_dir = string(filepath_res,"/$dir/")
-            replot(filepath_res_dir, filepath_gt_dir)
+    for data_type in data_type_list
+        if data_type == "synthetic"
+            base_path = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes"
+        else
+            base_path = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes"
         end
-        if viscosity_type == "constant"
-            post_analysis(filepath_gt, filepath_res, avoid_dirs)
+        for viscosity_type in viscosity_type_list
+            filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
+            filepath_res = string("$base_path/$control/$viscosity_type/Q2_16")
+            dirs = readdir(filepath_gt)
+            for dir in dirs
+                if dir in avoid_dirs
+                    continue
+                    println("Skipping dir $dir")
+                end
+                filepath_gt_dir = string(filepath_gt,"/$dir/")
+                filepath_res_dir = string(filepath_res,"/$dir/")
+                replot(filepath_res_dir, filepath_gt_dir)
+            end
+            if viscosity_type == "constant"
+                post_analysis(filepath_gt, filepath_res, avoid_dirs)
+            end
         end
     end
 end
@@ -2841,6 +2852,6 @@ function optimize_real()
 end
 
 # main()
-# plot_syn()
+plot_syn()
 # optimize_sim()
-optimize_syn()
+# optimize_syn()
