@@ -473,8 +473,7 @@ function truncate_colormap(minval=0.0, maxval=1.0, n=100)
     return new_cmap
 end
 
-function plot_covariance(η_list::Vector{Float64}, β_list::Vector{Float64}, filepath::String)
-    set_file(filepath)
+function plot_covariance(η_list::Vector{Float64}, β_list::Vector{Float64}; legend_column::Int=1, fs::Int=22)
 
     mean_η = mean(η_list)
     mean_β = mean(β_list)
@@ -487,11 +486,39 @@ function plot_covariance(η_list::Vector{Float64}, β_list::Vector{Float64}, fil
     mean_vec = [mean_η; mean_β]
 
     # Plot the covariance matrix
-    plt = set_plot(22, sz=(1650, 1250))
-    StatsPlots.covellipse!(plt, mean_vec, cov_mat, label="Covariance", color=:red, alpha=0.5, linewidth=2)
-    scatter!(η_list, β_list, label="Data", color=:blue, alpha=0.5)
-    xlabel!(plt, "η")
-    ylabel!(plt, "β")    
-    title!(plt, "Covariance")
-    Plots.savefig(plt, string(filepath,"covariance.svg"))
+    plt = set_plot(fs, sz=(1650, 1250))
+    StatsPlots.covellipse!(plt, mean_vec, cov_mat, label="Covariance", color=:red, alpha=0.5, linewidth=3, bottom_margin = -15mm, legend=:outerbottom, legend_column=legend_column)
+    scatter!(η_list, β_list, label="Data points", color=:blue, alpha=0.5)
+    xlabel!(plt, L"\eta")
+    ylabel!(plt, L"\beta")    
+
+end
+
+function plot_covariance!(plt, η_list::Vector{Float64}, β_list::Vector{Float64}; label::String="Covariance", legend_column::Int=1, color_ellipse=nothing, color_scatter=nothing)
+
+    mean_η = mean(η_list)
+    mean_β = mean(β_list)
+
+    cov_η = cov(η_list)
+    cov_β = cov(β_list)
+    cov_ηβ = cov(η_list, β_list)
+
+    cov_mat = [cov_η cov_ηβ; cov_ηβ cov_β]
+    mean_vec = [mean_η; mean_β]
+
+    # Build kwargs for covellipse
+    covellipse_kwargs = (label=label, alpha=0.5, bottom_margin = -30mm, legend=:outerbottom, legend_column=legend_column)
+    if !isnothing(color_ellipse)
+        covellipse_kwargs = (covellipse_kwargs..., color=color_ellipse)
+    end
+
+    # Build kwargs for scatter
+    scatter_kwargs = (label="Data points", dpi=:400, ms=:6, markerstrokewidth=0.1)
+    if !isnothing(color_scatter)
+        scatter_kwargs = (scatter_kwargs..., color=color_scatter)
+    end
+
+    # Plot the covariance matrix
+    StatsPlots.covellipse!(plt, mean_vec, cov_mat; covellipse_kwargs...)
+    Plots.scatter!(plt, η_list, β_list; scatter_kwargs...)   
 end
