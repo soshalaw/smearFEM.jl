@@ -1306,7 +1306,7 @@ function replot(filepath, filepath_gt)
     time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
 
     for elem_size_folder in elem_size_folders
-        if elem_size_folder == "post_analysis" || elem_size_folder == "Q2_8"
+        if elem_size_folder == "post_analysis"
             continue
         end
         
@@ -1923,7 +1923,7 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
 
         
         for elem_size_folder_ in elem_size_folders
-            if elem_size_folder_ == "post_analysis" || elem_size_folder_ == "Q2_8"
+            if elem_size_folder_ == "post_analysis"
                 continue
             end
             
@@ -2662,7 +2662,7 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise"]
+    avoid_dirs = ["3_less_noise", "1", "3", "4", "5"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -2675,7 +2675,7 @@ function optimize_sim()
             filepath_gt = string(_filepath_gt,"/",dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
-                    noise_level_list = [1.0]
+                    noise_level_list = [0.0]
                 else
                     noise_level_list = [0.0]
                 end
@@ -2749,7 +2749,7 @@ function optimize_syn()
                     elseif noise_level != 0.0 && viscosity_type == "constant" && ne == 6
                         sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
-                        sim_time_exp_list = [5.0, 10.0, 20.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0, 10.0, 20.0, 2.0] # simulation time in seconds
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
@@ -2781,7 +2781,7 @@ function plot_syn()
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"] #,"constant"]
     avoid_dirs = ["3_less_noise", "s", "2"]
-    data_type_list = ["synthetic", "simulated"] #,"simulated"]
+    data_type_list = ["simulated"] #,"simulated"]
 
     for data_type in data_type_list
         if data_type == "synthetic"
@@ -2853,5 +2853,5 @@ end
 
 # main()
 # plot_syn()
-# optimize_sim()
-optimize_syn()
+optimize_sim()
+# optimize_syn()
