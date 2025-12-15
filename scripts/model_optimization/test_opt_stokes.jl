@@ -2704,9 +2704,9 @@ function optimize_sim()
                             "noise_level"=>noise_level, "mode"=>"multi_window")
 
                             # optimize(exp_params)
-                            push!(param_list, exp_params)
                         end
                     end
+                    push!(param_list, exp_params)
                 end
             end
         end
