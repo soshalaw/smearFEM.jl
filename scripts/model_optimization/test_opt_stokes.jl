@@ -2886,6 +2886,6 @@ function optimize_real()
 end
 
 # main()
-plot_syn()
+# plot_syn()
 # optimize_sim()
-# optimize_syn()
+optimize_syn()
