@@ -2671,7 +2671,7 @@ function optimize_sim()
                 continue
                 println("Skipping dir $dir")
             end
-            @info "Processing ground truth directory: $dir for $viscosity_type"
+            @info "Processing ground truth directory: $dir for $viscosity_type viscosity ..."
             filepath_gt = string(_filepath_gt,"/",dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
