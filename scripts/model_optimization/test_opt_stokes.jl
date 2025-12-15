@@ -2680,7 +2680,7 @@ function optimize_sim()
                     noise_level_list = [0.0]
                 end
                 for noise_level in noise_level_list 
-                    if noise_level == 0.0 && viscosity_type == "constant"
+                    if noise_level == 0.0 && viscosity_type == "constant" && ne != 6
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     elseif viscosity_type == "constant" && ne == 6
                         sim_time_exp_list = [30.0, 20.0, 10.0] # simulation time in seconds
@@ -2689,6 +2689,7 @@ function optimize_sim()
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
+                    println("Simulation time experiments to run: $sim_time_exp_list")
                     for sim_time_exp::Float16 in sim_time_exp_list
                         # ne = ne_exp^ref
                         if viscosity_type == "constant"
@@ -2704,9 +2705,9 @@ function optimize_sim()
                             "noise_level"=>noise_level, "mode"=>"multi_window")
 
                             # optimize(exp_params)
+                            push!(param_list, exp_params)
                         end
                     end
-                    push!(param_list, exp_params)
                 end
             end
         end
