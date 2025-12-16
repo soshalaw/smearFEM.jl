@@ -22,7 +22,7 @@ export assemble_system_A, assemble_system_B, apply_boundary_conditions_stokes, s
 export set_boundary_cond_flow_cube, set_boundary_cond_flow_cyl
 
 export read_csv, write_vtk, write_scene, write_csv, write_json, write_data, read_h5, read_json, read_perception_data, read_hdf5_generic # io.jl
-export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h, set_plot # plotting.jl
+export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h, set_plot, set_subplot # plotting.jl
 export plot_noise_covariance, plot_height_vs_slip, plot_field_at_height, arrow0!, get_norm, plot_data, plot_covariance! # analysis_plots.jl
 
 export mat_nan_inf_check, write_time_log

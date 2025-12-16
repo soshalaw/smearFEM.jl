@@ -429,6 +429,40 @@ function set_plot(fs::Int; sz::Tuple{Int,Int}=(1000,750))
     return plt
 end
 
+
+function set_subplot(fs::Int; sz::Tuple{Int,Int}=(1000,750), layout=(1,1), legend=nothing, legend_column=nothing, bottom_margin=nothing)
+
+    # Build optional kwargs for legend placement if provided
+    kw = ()
+    if legend !== nothing
+        kw = (kw..., legend=legend)
+    end
+    if legend_column !== nothing
+        kw = (kw..., legend_column=legend_column)
+    end
+    if bottom_margin !== nothing
+        kw = (kw..., bottom_margin=bottom_margin)
+    end
+
+    plt = Plots.plot(layout=layout,
+                            xtickfontsize = fs, ytickfontsize = fs,
+                            titlefontsize = fs,
+                            xguidefontsize = fs,
+                            yguidefontsize = fs,
+                            legendfontsize = fs-4, 
+
+                            size = sz, 
+                            fontfamily = "computer modern",
+                            framestyle = :box, 
+                            margin = 6mm, 
+
+                            grid = :true, 
+                            minorgrid = :true, 
+                            lw = 3,
+                            
+                            label=""; kw...)
+    return plt
+end
 """
     normalize(q, IEN)
 
@@ -487,8 +521,8 @@ function plot_covariance(η_list::Vector{Float64}, β_list::Vector{Float64}; leg
 
     # Plot the covariance matrix
     plt = set_plot(fs, sz=(1650, 1250))
-    StatsPlots.covellipse!(plt, mean_vec, cov_mat, label="Covariance", color=:red, alpha=0.5, linewidth=3, bottom_margin = -15mm, legend=:outerbottom, legend_column=legend_column)
-    scatter!(η_list, β_list, label="Data points", color=:blue, alpha=0.5)
+    StatsPlots.covellipse!(plt, mean_vec, cov_mat, label="Covariance", color=:red, alpha=0.5, bottom_margin = -15mm, legend=:outerbottom, legend_column=legend_column)
+    scatter!(η_list, β_list, label="Data points", dpi=:400, ms=:6, markerstrokewidth=0.1)
     xlabel!(plt, L"\eta")
     ylabel!(plt, L"\beta")    
 
@@ -513,7 +547,7 @@ function plot_covariance!(plt, η_list::Vector{Float64}, β_list::Vector{Float64
     end
 
     # Build kwargs for scatter
-    scatter_kwargs = (label="Data points", dpi=:400, ms=:6, markerstrokewidth=0.1)
+    scatter_kwargs = (label="Data points", dpi=:400, ms=:10, markerstrokewidth=0.1)
     if !isnothing(color_scatter)
         scatter_kwargs = (scatter_kwargs..., color=color_scatter)
     end

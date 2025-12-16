@@ -1349,6 +1349,8 @@ function replot(filepath, filepath_gt)
                     
                     η_gt = sim_params["η"]
                     β_gt = sim_params["β"]
+                    exp_path_n0 = replace(exp_path, "$noise_folder" => "noise_0.0")
+                    gt_h = readdlm(string(exp_path_n0,"/Results/data/gt_h.csv"), ',', Float64)
 
                     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
 
@@ -1357,7 +1359,6 @@ function replot(filepath, filepath_gt)
                         est_η = readdlm(string(exp_path,"/Results/data/η.csv"), ',', Float64)
                         est_β = readdlm(string(exp_path,"/Results/data/β.csv"), ',', Float64)
                         est_h = readdlm(string(exp_path,"/Results/data/est_h.csv"), ',', Float64)
-                        gt_h = readdlm(string(exp_path,"/Results/data/gt_h.csv"), ',', Float64)
                         cost_iter = readdlm(string(exp_path,"/Results/data/cost_iter.csv"), ',', Float64)
 
                         stats = read_json(string(exp_path,"/Results/data/stats.json")) 
@@ -1398,19 +1399,41 @@ function replot(filepath, filepath_gt)
                         costList = stats["cost_list"]
                         iterList = stats["iterList"]
 
-                        # Plot the estimated and ground truth height
-                        set_plot(fs, sz=(1650, 1250))
+                        # Plot the estimated and ground truth height with inset zoom
+                        plt_h = set_plot(fs, sz=(1650, 1250))
                         est_h = vec(Float64.(collect(est_h)))
                         gt_h = vec(Float64.(collect(gt_h)))
                         n_time = min(length(time), length(est_h), length(gt_h))
                         if n_time < length(time) || n_time < length(est_h) || n_time < length(gt_h)
                             @warn "Time and height vectors have mismatched lengths: time=$(length(time)), est_h=$(length(est_h)), gt_h=$(length(gt_h)). Truncating to $n_time samples for plotting."
                         end
-                        Plots.plot!(time[1:n_time], est_h[1:n_time], label="Estimated height", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
-                        Plots.plot!(time[1:n_time], gt_h[1:n_time], label="Ground truth height", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
-                        Plots.xlabel!(L"\mathrm{Time\;(s)}")
-                        Plots.ylabel!(L"\mathrm{Height\;(mm)}")
-                        Plots.savefig(string(exp_path,"/Results/plots/h_est.pdf"))
+                        Plots.plot!(plt_h, time[1:n_time], est_h[1:n_time], label="Estimated height", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                        Plots.plot!(plt_h, time[1:n_time], gt_h[1:n_time], label="Ground truth height", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                        Plots.xlabel!(plt_h, L"\mathrm{Time\;(s)}")
+                        Plots.ylabel!(plt_h, L"\mathrm{Height\;(mm)}")
+                        
+                        # Add inset subplot for zoomed region (10-20 seconds)
+                        inset_ax = Plots.@layout [a{0.7h} ; b{0.3h}]
+                        plt_full = Plots.plot(plt_h, legend=false)
+                        
+                        # Find indices for 10-20 seconds
+                        t_min, t_max = 10.0, 20.0
+                        mask_zoom = (time[1:n_time] .>= t_min) .& (time[1:n_time] .<= t_max)
+                        if sum(mask_zoom) > 0
+                            idx_zoom = findall(mask_zoom)
+                            plt_zoom = set_plot(20)  # smaller font for inset
+                            Plots.plot!(plt_zoom, time[idx_zoom], est_h[idx_zoom], label="Est", lw=2, legend=:topright)
+                            Plots.plot!(plt_zoom, time[idx_zoom], gt_h[idx_zoom], label="GT", lw=2, legend=:topright)
+                            Plots.xlabel!(plt_zoom, "Time (s)")
+                            Plots.ylabel!(plt_zoom, "Height (mm)")
+                            Plots.xlims!(plt_zoom, t_min, t_max)
+                            
+                            # Combine full and zoomed plots
+                            plt_combined = Plots.plot(plt_full, plt_zoom, layout=(2,1), size=(1650, 1250))
+                            Plots.savefig(plt_combined, string(exp_path,"/Results/plots/h_est.pdf"))
+                        else
+                            Plots.savefig(plt_h, string(exp_path,"/Results/plots/h_est.pdf"))
+                        end
 
                         # Plot the height estimation error
                         set_plot(fs, sz=(1650, 1250))
@@ -1686,6 +1709,62 @@ function replot(filepath, filepath_gt)
                         Plots.xlabel!(covarience_plt, L"\eta\;\mathrm{(KPa\cdot s)}")
                         Plots.ylabel!(covarience_plt, L"\beta\;\mathrm{(mm^{-1})}")
                         Plots.savefig(covarience_plt, string(exp_path,"/Results/plots/covariance.pdf"))
+
+                        h_plot = set_plot(fs, sz=(1650, 1250))
+                        Plots.plot!(h_plot, time, gt_h, label="Ground truth height", dpi=400, lw=3, legend=false)
+                        StatsPlots.errorline!(h_plot, time, h_pred, label="Estimated height", dpi=400, lw=3, legend=false)
+                        Plots.xlabel!(L"\mathrm{Time\;(s)}")
+                        Plots.ylabel!(L"\mathrm{Height\;(mm)}")
+                        Plots.savefig(string(exp_path,"/Results/plots/h_est_noisy.pdf"))
+                        
+                        # Add inset subplot for zoomed region (10-20 seconds)
+                        t_min, t_max = 10.0, 10.1
+                        mask_zoom = (time .>= t_min) .& (time .<= t_max)
+                        if sum(mask_zoom) > 0
+                            idx_zoom = findall(mask_zoom)
+                            # Build a single combined figure with two subplots and one shared legend
+                            # Use a 2-row layout: top row 2 subplots, bottom row small height for a centered legend
+                            plt_layout = @layout [a b; c{0.12h}]
+
+                            # Build a single combined figure and draw into subplots 1,2 and 3
+                            plt_combined = set_subplot(fs, sz=(3500, 1250), layout=plt_layout)
+
+                            # Full time series on left subplot (subplot=1)
+                            Plots.plot!(plt_combined, time, gt_h, subplot=1, label="", dpi=400, lw=3, color=:blue)
+                            try
+                                StatsPlots.errorline!(plt_combined, time, h_pred, subplot=1, label="", dpi=400, lw=3, color=:orange, bottom_margin = 20mm)
+                            catch
+                                StatsPlots.errorline!(plt_combined, time, h_pred', subplot=1, label="", dpi=400, lw=3, color=:orange, bottom_margin = 20mm)
+                            end
+                            Plots.xlabel!(plt_combined, L"\mathrm{Time\;(s)}", subplot=1)
+                            Plots.ylabel!(plt_combined, L"\mathrm{Height\;(mm)}", subplot=1)
+
+                            # Zoomed region on right subplot (subplot=2)
+                            Plots.plot!(plt_combined, time[idx_zoom], gt_h[idx_zoom], subplot=2, label="", lw=3, color=:blue)
+                            try
+                                StatsPlots.errorline!(plt_combined, time[idx_zoom], h_pred[:, idx_zoom], subplot=2, label="", dpi=400, lw=3, color=:orange, bottom_margin = 5mm)
+                            catch
+                                StatsPlots.errorline!(plt_combined, time[idx_zoom], h_pred[idx_zoom], subplot=2, label="", dpi=400, lw=3, color=:orange, bottom_margin = 5mm)
+                            end
+                            Plots.xlabel!(plt_combined, L"\mathrm{Time\;(s)}", subplot=2)
+                            Plots.xlims!(plt_combined, t_min, t_max, subplot=2)
+
+                            # Bottom subplot (subplot=3) — draw a single centered annotation as deterministic legend
+                            Plots.plot!(plt_combined, [], [], subplot=3, label="Ground truth Height", framestyle=:none, legend=:outerbottom, color=:blue, legend_column=2, background_color=:transparent, bottom_margin = -20mm)
+                            Plots.plot!(plt_combined, [], [], subplot=3, label="Estimated Height", framestyle=:none, legend=:outerbottom, color=:orange, background_color=:transparent, bottom_margin = -20mm)
+                            Plots.xlims!(plt_combined, 0.0, 1.0, subplot=3)
+                            Plots.ylims!(plt_combined, 0.0, 1.0, subplot=3)
+
+                            # Save combined figure
+                            Plots.savefig(plt_combined, string(exp_path, "/Results/plots/h_est_noisy_zoomed.pdf"))
+                        end
+
+                        error = abs.(h_pred' .- gt_h)
+                        h_error_plot = set_plot(fs, sz=(1650, 1250))
+                        StatsPlots.errorline!(h_error_plot, time, error', label="Height estimation error", dpi=400, lw=3, legend=:outerbottom, legend_column=1, bottom_margin = -30mm)
+                        Plots.xlabel!(L"\mathrm{Time\;(s)}")
+                        Plots.ylabel!(L"\mathrm{Height\;(mm)}")
+                        Plots.savefig(string(exp_path,"/Results/plots/h_est_noisy.pdf"))
                     end
                 elseif viscosity_type == "bulk_viscosity"
                     window_dirs = readdir(string(exp_path))
@@ -1915,9 +1994,13 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
         filepath_gt = string(filepath_gt_,"/",dir)
 
         printstyled("Processing directory: $(filepath_dir)\n", color=:green)
-        params = read_json(string(filepath_gt,"/data/sim_params.json"))
-        η_gt = params["η"]
-        β_gt = params["β"]  
+        sim_params = read_json(string(filepath_gt,"/data/sim_params.json"))
+        η_gt = sim_params["η"]
+        β_gt = sim_params["β"]  
+        sim_time = sim_params["simulation_time"]    
+        t_steps = sim_params["time_steps"]
+
+        time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
 
         println("Ground truth η: ", η_gt[1])
         η_gt_list = η_gt[1]*ones(40,1)
@@ -1962,16 +2045,32 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
             Plots.ylabel!(plt_slices, L"\mathrm{Cost}")
             Plots.ylims!(plt_slices, 0, 50)
 
+            
             for sim_time_folder_ in sim_time_folders
+
+                height_error_plt = set_plot(fs, sz=(1650, 1250))
+                Plots.plot!(height_error_plt, gt_h[], bottom_margin = -30mm, label=false)
+                Plots.xlabel!(height_error_plt, L"\mathrm{Time\;(s)}")
+                Plots.ylabel!(height_error_plt, L"\mathrm{Height\;Error\;(mm)}")
+
+                rel_height_error_plt = set_plot(fs, sz=(1650, 1250))
+                Plots.plot!(rel_height_error_plt, gt_h[], bottom_margin = -30mm, label=false)
+                Plots.xlabel!(rel_height_error_plt, L"\mathrm{Time\;(s)}")
+                Plots.ylabel!(rel_height_error_plt, L"\mathrm{Height\;Error\;(mm)}")
 
                 if sim_time_folder_ == "post_analysis_time" || sim_time_folder_ == "Results" || sim_time_folder_ == "simtime_20.0" || sim_time_folder_ == "simtime_10.0"
                     continue
                 end
 
                 covarience_plt = set_plot(fs, sz=(1650, 1250))
-                Plots.scatter!(covarience_plt, η_gt, β_gt, label="Ground truth", ms=:10, m=:star5, color=:indianred2, markerstrokewidth=0.1)
+                Plots.scatter!(covarience_plt, η_gt, β_gt, label="Ground truth", ms=:15, m=:star5, color=:indianred2, markerstrokewidth=0.1)
                 Plots.xlabel!(covarience_plt, L"\eta\;\mathrm{(KPa\cdot s)}")
                 Plots.ylabel!(covarience_plt, L"\beta\;\mathrm{(mm^{-1})}")
+
+                height_error_plt = set_plot(fs, sz=(1650, 1250))
+                Plots.plot!(height_error_plt, [], bottom_margin = -30mm, label=false)
+                Plots.xlabel!(height_error_plt, L"\mathrm{Time\;(s)}")
+                Plots.ylabel!(height_error_plt, L"\mathrm{Height\;Error\;(mm)}")
 
                 sim_time_folder = string(elem_size_folder,"/",sim_time_folder_)
                 noise_folders = readdir(sim_time_folder)
@@ -1983,28 +2082,34 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
                         continue
                     end
 
-                    exp_folder = string(filepath_dir,"/",elem_size_folder_,"/",sim_time_folder_,"/",noise_folder_)
+                    exp_path = string(filepath_dir,"/",elem_size_folder_,"/",sim_time_folder_,"/",noise_folder_)
 
-                    printstyled("Processing experiment folder: $(exp_folder)\n", color=:magenta)
-                    params = read_json(string(exp_folder,"/Results/data/experiment_parameters.json"))
+                    printstyled("Processing experiment folder: $(exp_path)\n", color=:magenta)
+                    exp_params = read_json(string(exp_path,"/Results/data/experiment_parameters.json"))
 
-                    noise_level = params["noise_level"]
+                    noise_level = exp_params["noise_level"]
 
-                    FunctionClass_x = params["FunctionClass_x"]
-                    ne = params["ne_exp"]
-                    sim_time = params["sim_time_exp"]
-            
+                    FunctionClass_x = exp_params["FunctionClass_x"]
+                    ne = exp_params["ne_exp"]
+                    sim_time = exp_params["sim_time_exp"]
+                    exp_path_n0 = replace(exp_path, "$noise_folder_" => "noise_0.0")
+                    gt_h = readdlm(string(exp_path_n0,"/Results/data/gt_h.csv"), ',', Float64)
                     
-                    printstyled("Processing for noise level: $(noise_level): $(exp_folder)\n", color=:yellow)
+                    printstyled("Processing for noise level: $(noise_level): $(exp_path)\n", color=:yellow)
                     if noise_level == 0.0
-                        est_η = readdlm(string(exp_folder,"/Results/data/η.csv"), ',', Float64)
-                        est_β = readdlm(string(exp_folder,"/Results/data/β.csv"), ',', Float64)
+                        exp_points::Int = round(Int,sim_time/t_steps)
+                        est_η = readdlm(string(exp_path,"/Results/data/η.csv"), ',', Float64)
+                        est_β = readdlm(string(exp_path,"/Results/data/β.csv"), ',', Float64)
+                        est_h = readdlm(string(exp_path,"/Results/data/est_h.csv"), ',', Float64)
+
+                        exp_points = sim_time/t_steps
+                        height_error = abs.(est_h - gt_h[1:exp_points])
 
                         # normalize by ground-truth                        
                         est_η_norm = est_η./η_gt
                         est_β_norm = est_β./β_gt
 
-                        cost_list = readdlm(string(exp_folder,"/Results/data/cost_iter.csv"), ',', Float64)
+                        cost_list = readdlm(string(exp_path,"/Results/data/cost_iter.csv"), ',', Float64)
                 
                         Plots.plot!(sim_window_η_plt, est_η, label=string("Window size - $(sim_time)s"," - ne: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                         Plots.xlabel!(sim_window_η_plt, L"\mathrm{Iterations}")
@@ -2014,7 +2119,7 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
                         Plots.xlabel!(sim_window_β_plt, L"\mathrm{Iterations}")
                         Plots.ylabel!(sim_window_β_plt, L"\beta\;\mathrm{(mm^{-1})}")
 
-                        slice_data = read_json(string(exp_folder,"/Results/data/slice_data.json"))
+                        slice_data = read_json(string(exp_path,"/Results/data/slice_data.json"))
 
                         t_steep = Float64.(collect(slice_data["steep"]["t"]))
                         zs_steep = Float64.(collect(slice_data["steep"]["zs"]))
@@ -2071,13 +2176,17 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
 
                         end
                     else
-                        η_pred = readdlm(string(exp_folder,"/Results/data/eta_est.csv"), ',', Float64) # estimated η values per sample
-                        β_pred = readdlm(string(exp_folder,"/Results/data/beta_est.csv"), ',', Float64) # estimated β values per sample
-                        h_pred = readdlm(string(exp_folder,"/Results/data/h_est.csv"), ',', Float64) # estimated height values per sample
+                        η_pred = readdlm(string(exp_path,"/Results/data/eta_est.csv"), ',', Float64) # estimated η values per sample
+                        β_pred = readdlm(string(exp_path,"/Results/data/beta_est.csv"), ',', Float64) # estimated β values per sample
+                        h_pred = readdlm(string(exp_path,"/Results/data/h_est.csv"), ',', Float64) # estimated height values per sample
 
                         plot_covariance!(covarience_plt, η_pred[:,1], β_pred[:,1], label="Noise $noise_level px", legend_column=3)
-                        Plots.xlabel!(covarience_plt, L"\eta\;\mathrm{(KPa\cdot s)}")
-                        Plots.ylabel!(covarience_plt, L"\beta\;\mathrm{(mm^{-1})}")
+
+                        height_error = abs.(h_pred' .- gt_h)
+                        rel_height_error = height_error ./ gt_h
+
+                        StatsPlots.errorline!(height_error_plt, time, height_error', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                        StatsPlots.errorline!(rel_height_error_plt, time, rel_height_error', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
                     end
                 end
                 
@@ -2085,6 +2194,7 @@ function post_analysis(filepath_gt_::String, filepath::String, avoid_list)
                 set_file(plot_path_noise)
                 @info "Saving plots to $plot_path_noise"
                 Plots.savefig(covarience_plt, string(plot_path_noise,"/covariance.pdf"))
+                Plots.savefig(height_error_plt, string(plot_path_noise,"/height_error.pdf"))
             end
             plot_path_sim_time = string(elem_size_folder,"/post_analysis_time/plots")
             set_file(plot_path_sim_time)
@@ -2708,7 +2818,7 @@ function optimize_sim()
             filepath_gt = string(_filepath_gt,"/",dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
-                    noise_level_list = [0.0]
+                    noise_level_list = [0.5, 1.0]
                 else
                     noise_level_list = [0.0]
                 end
@@ -2887,5 +2997,5 @@ end
 
 # main()
 # plot_syn()
-# optimize_sim()
-optimize_syn()
+optimize_sim()
+# optimize_syn()
