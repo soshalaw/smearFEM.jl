@@ -2,6 +2,8 @@ using Logging
 using ProgressMeter
 import ProgressMeter: next!, finish!
 using Dates
+using CSV
+using DataFrames
 
 function mat_nan_inf_check(v::AbstractArray)
     row, col = size(v,1), size(v,2)
@@ -106,7 +108,7 @@ end
 # logging Functions
 
 function write_time_log(start_time::Dates.DateTime, end_time::Dates.DateTime, params::Dict; dest_dir::String)
-    log_filepath = string(dest_dir, "/time_log.txt")
+    log_filepath = joinpath(dest_dir, "time_log.txt")
     if !isdir(dest_dir)
         mkpath(dest_dir)
     end
@@ -120,4 +122,37 @@ function write_time_log(start_time::Dates.DateTime, end_time::Dates.DateTime, pa
         end
         println(io, "----------------------------------------")
     end
+end
+
+function rewrite_cont_data(file_path::String)
+    folders = readdir(file_path)
+    for folder in folders
+        folder_path = joinpath(file_path, folder)
+        file_folder = readdir(folder_path)
+        for csv_file in file_folder
+            data = readdlm(joinpath(folder_path, csv_file), ',', Float64)
+            row_sz = size(data,1)
+            point_list = []
+            for i in 1:row_sz
+                rows = data[i,:]
+                new_cols = round(Int, size(rows,1)/2)
+                new_data = reshape(rows,2, new_cols)
+                push!(point_list, new_data)
+            end
+            runname = splitext(basename(csv_file))[1]   # <-- filename without extension
+            write_data(joinpath(folder_path, runname), point_list)
+        end
+    end
+end
+
+function dataframe_2_vec(df::DataFrame)
+    
+    data_list::Vector{AbstractArray} = Vector{AbstractArray}()
+    rows, cols = size(df)
+    for i in 1:rows
+        _data = Array(df[i,:])
+        data = [x for x in _data if !ismissing(x)]
+        push!(data_list, data)
+    end
+    return data_list
 end

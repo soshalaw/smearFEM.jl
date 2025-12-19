@@ -4,6 +4,8 @@ using DelimitedFiles
 using JSON3
 using Distributions
 using HDF5
+using CSV
+using DataFrames
 
 """
     write_vtk(filepath, fieldName, NodeList, IEN, ne, ndim, q)
@@ -136,9 +138,8 @@ function read_csv(filepath::String)
 
     return ObsDataList, splinex, spliney
 end
-
 """
-    write_csv(filepath, borders)
+write_csv(filepath, borders)
 
 Function to write the border data to a CSV file
 
@@ -154,7 +155,7 @@ function write_csv(filepath::String, Data)
 end
 
 """
-    write_contour_data(filepath, borders)
+write_contour_data(filepath, borders)
 
 Function to write the contour data to a CSV file
 
@@ -179,7 +180,7 @@ function write_data(filepath::String, data_array::AbstractArray)
 end
 
 """
-    set_file(filepath)
+set_file(filepath)
 
 Create the directories to store the data
 
@@ -196,7 +197,7 @@ function set_file(filepath::String)
 end
 
 """
-    read_sparse_mat(filepath)
+read_sparse_mat(filepath)
 
 Function to read the sparse matrix from a JSON file
 
@@ -219,7 +220,7 @@ function read_sparse_mat(filepath::String)
 end
 
 """
-    write_json(filepath, sparse_mat)
+write_json(filepath, sparse_mat)
 
 Function to write data to a JSON file
 
@@ -246,22 +247,22 @@ end
 
 """
     read_h5(filename, mode)
-
-Function to read mesh data from a .h5 file for IGA.
-
-# Arguments:
-- `filename::String`:Path to the the .h5 file.
-- `mode::String`:Simulation (sim) or test (test) mode. With the test modes the volume of the mesh is returned
-
-# Returns:
--`CPointList::Vector{Float64}`:Control point list.
--`W`:
--`C`:
--`IEN::Matrix{Float64}{nNodes, nElem}``:Connectivity array.
--`IEN_top::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the top surface mesh.
--`IEN_btm::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the bottom surface mesh.
-"""
-function read_h5(filename::String, mode::String="sim")
+    
+    Function to read mesh data from a .h5 file for IGA.
+    
+    # Arguments:
+    - `filename::String`:Path to the the .h5 file.
+    - `mode::String`:Simulation (sim) or test (test) mode. With the test modes the volume of the mesh is returned
+    
+    # Returns:
+    -`CPointList::Vector{Float64}`:Control point list.
+    -`W`:
+    -`C`:
+    -`IEN::Matrix{Float64}{nNodes, nElem}``:Connectivity array.
+    -`IEN_top::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the top surface mesh.
+    -`IEN_btm::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the bottom surface mesh.
+    """
+    function read_h5(filename::String, mode::String="sim")
     # Open the HDF5 file
     @info "reading from $filename"
     h5file = h5open(filename, "r")
@@ -272,7 +273,7 @@ function read_h5(filename::String, mode::String="sim")
     IEN = read(h5file, "IEN").+1  # Element connectivity
     C = read(h5file, "C")  # Extraction operators
     C_new = permutedims(C,[2,1,3])
-
+    
     IEN_top = read(h5file, "IEN_back").+1  # Element connectivity
     IEN_btm = read(h5file, "IEN_front").+1  # Element connectivity
     IEN_vis = read(h5file, "IEN_vis").+1  # Element connectivity
@@ -284,22 +285,22 @@ function read_h5(filename::String, mode::String="sim")
     C_btm_new = permutedims(C_btm,[2,1,3])
     C_vis = read(h5file, "C_vis")
     C_vis_new = permutedims(C_vis,[2,1,3])
-
+    
     if mode == "test"
         vol_BSpline = read(h5file, "BSpline_vol")
         vol_NURBS = read(h5file, "NURBS_vol")
         area_BSpline = read(h5file, "BSpline_area")
         area_NURBS = read(h5file, "NURBS_area")
-
+        
         # Close the HDF5 file after reading
         close(h5file)   
-
+        
         return CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new, vol_BSpline, vol_NURBS, area_BSpline, area_NURBS
     end
-
+    
     # Close the HDF5 file after reading
     close(h5file)
-
+    
     return CPointList, W, C_new, IEN, IEN_cp, IEN_top, C_top_new, IEN_btm, C_btm_new, IEN_vis, C_vis_new
 end
 
@@ -310,12 +311,17 @@ function read_perception_data(filepath::String)
     # Read the JSON file
     h5file = h5open(filepath, "r")
     pose = read(h5file, "poses")
-
+    
     pose_new = permutedims(pose,[2,1,3])
-
-
+    
+    
     println(size(pose))
-
+    
     return pose_new
 end
 
+function get_time_windows(file_path::String)
+    df = CSV.read(file_path,DataFrame,header=false)
+    windows = dataframe_2_vec(df)
+    return windows
+end

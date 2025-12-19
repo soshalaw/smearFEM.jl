@@ -172,11 +172,11 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
                     Plots.plot!(pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
                 end
                 if !isnothing(fields2D)
-                    Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
+                    Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:3, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
                                     dpi=:400)
                 end
                 if !isnothing(BorderNodes2D)
-                    Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:6, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
+                    Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:3, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
                                     dpi=:400)
                 end
             end
@@ -424,6 +424,9 @@ function set_plot(fs::Int; sz::Tuple{Int,Int}=(1000,750))
                             grid = :true, 
                             minorgrid = :true, 
                             lw = 3,
+                            legend=:outerbottom, 
+                            legend_column=2, 
+                            bottom_margin = -30mm,
                             
                             label="")
     return plt
