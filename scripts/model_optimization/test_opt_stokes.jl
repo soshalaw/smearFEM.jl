@@ -3574,7 +3574,7 @@ function optimize_syn()
                 for noise_level in noise_level_list 
                     if noise_level == 0.0 && viscosity_type == "constant"
                         sim_time_exp_list = [10.0, 20.0] # simulation time in seconds
-                    elseif noise_level != 0.0 && viscosity_type == "constant" && ne == 6
+                    elseif noise_level != 0.0 && viscosity_type == "constant" && ne == 4
                         sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
                         sim_time_exp_list = [5.0, 10.0, 20.0, 2.0] # simulation time in seconds
