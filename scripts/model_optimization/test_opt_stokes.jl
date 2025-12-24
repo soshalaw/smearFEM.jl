@@ -215,10 +215,9 @@ function optimize(exp_params::Dict)
             write_json(joinpath(exp_path,"Results","data","stats"), stats)
             write_csv(joinpath(exp_path,"Results","data","η"), ηpList)
             write_csv(joinpath(exp_path,"Results","data","β"), βpList)
-            write_csv(joinpath(exp_path,"Results","data","est_h"), est_h)
             write_csv(joinpath(exp_path,"Results","data","gt_h"), gt_h)
             write_csv(joinpath(exp_path,"Results","data","cost_iter"), costList)
-
+            
             reset_model!(model)
             model.η = [η]
             scene.β = [β]
@@ -227,7 +226,8 @@ function optimize(exp_params::Dict)
             # simulate the gt model with the estimated parameters
             est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)
             est_h = get_height(est_μ_list, h)
-
+            
+            write_csv(joinpath(exp_path,"Results","data","est_h"), est_h)
             write_data(joinpath(exp_path,"Results","data","sim_data","2D_surface_points"), pos2D)
             write_data(joinpath(exp_path,"Results","data","sim_data","3D_points"), pos3D)
             write_data(joinpath(exp_path,"Results","data","sim_data","motion_fields "), fields)
