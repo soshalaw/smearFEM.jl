@@ -3538,7 +3538,7 @@ function optimize_sim()
                 end
             end
         end
-        run_param_list(param_list; max_workers=5)
+        run_param_list(param_list; max_workers=10)
     end
 end
 
