@@ -182,7 +182,6 @@ function optimize(exp_params::Dict)
         ObsDataList = ObsDataList[_range] # align the observation points with the simulation time
 
         # Read the gt data
-        
         model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, gt_viscosity_type, 
         sim_time_exp, t_steps_exp)
         conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=SIDES, filepath=exp_path, ANIMATE=false)
@@ -211,23 +210,23 @@ function optimize(exp_params::Dict)
             printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
             printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
 
-            reset_model!(model)
-            model.η = [η]
-            scene.β = [β]
-            scene.sim_time = sim_time_gt
-
-            # simulate the gt model with the estimated parameters
-            est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)
-            est_h = get_height(est_μ_list, h)
-
             set_file(joinpath(exp_path,"Results","plots"))
-
+            
             write_json(joinpath(exp_path,"Results","data","stats"), stats)
             write_csv(joinpath(exp_path,"Results","data","η"), ηpList)
             write_csv(joinpath(exp_path,"Results","data","β"), βpList)
             write_csv(joinpath(exp_path,"Results","data","est_h"), est_h)
             write_csv(joinpath(exp_path,"Results","data","gt_h"), gt_h)
             write_csv(joinpath(exp_path,"Results","data","cost_iter"), costList)
+
+            reset_model!(model)
+            model.η = [η]
+            scene.β = [β]
+            scene.sim_time = sim_time_gt
+            
+            # simulate the gt model with the estimated parameters
+            est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)
+            est_h = get_height(est_μ_list, h)
 
             write_data(joinpath(exp_path,"Results","data","sim_data","2D_surface_points"), pos2D)
             write_data(joinpath(exp_path,"Results","data","sim_data","3D_points"), pos3D)

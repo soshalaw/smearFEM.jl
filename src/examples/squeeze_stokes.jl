@@ -1125,18 +1125,13 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
                     nDof_p::Int64, FunctionClass_x::String, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X; viscosity_model::String="power_law") where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
     n::Float64 = 0.9
     K::Float64 = 100.0
-    println("Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(sim_time/t_steps)")
     len_t::Int = round(Int,(sim_time/t_steps)) # number of time steps
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
-    println("Number of time steps: $len_t, Length of time array: $(length(time))")
-
-    if length(cParam) != length(time)
-        @warn "Length of cParam ($(length(cParam))) is different from length of time array ($(length(time))). Adjusting cParam length to match time array length."
-        if length(cParam) < length(time)
-            cParam = vcat(cParam, fill(cParam[end], length(time) - length(cParam)))
-        else
-            cParam = cParam[1:length(time)]
-        end
+    @info "Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(sim_time/t_steps)"
+    @info "Length of time array: $(length(time))"
+    
+    if length(cParam) < length(time)
+        @error "Length of the Force vector ($(length(cParam))) is less than length of time array ($(length(time)))"
     end
 
     if viscosity_type == "bulk_viscosity"
@@ -1246,7 +1241,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     nDof_p_cached::Int = nDof_p
     ndim_cached::Int = ndim
 
-    @unpack β, viscosity_type, q_d, C_uc, t_steps, sim_time, control = scene
+    @unpack β, viscosity_type, q_d, C_uc, t_steps, sim_time, control, cParam = scene
     β_cached::Any = β
     viscosity_type_cached::String = viscosity_type
     q_d_cached::Dict{Symbol, Matrix{Float64}} = q_d
@@ -1257,6 +1252,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     t_steps_cached::Float64 = t_steps
     sim_time_cached::Float64 = sim_time
     control_cached::String = control
+    cParam_cached::Vector{Float64} = scene.cParam
 
     @unpack nNodes = mdl.mesh_p
     nNodes_p_cached::Int = nNodes
@@ -1269,6 +1265,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     NodeList_cached::Matrix{Float64} = NodeList_u_cached
     ID_cached::Matrix{Int} = ID_u_cached
     T = Matrix{Float64}(I, size(NodeList_x_cached,2), size(NodeList_u_cached,2)) # projection matrix from geometry to field mesh
+
+    time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
+    len_t = length(time)
 
     if FunctionClass_x_cached == "S2" && FunctionClass_u_cached != "S2"
         # ID_cached = ID_x_cached
@@ -1283,9 +1282,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         isnothing(conditions.filepath) || AssertionError("Please provide a filepath to write the data")
         set_file(conditions.filepath)
     end
-
-    time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
-    len_t = length(time)
 
     μu_btm = 0  
     μu_side = 0
@@ -1405,7 +1401,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
             dMdβ[end,end] = (q_d_cached_top'dAdβ*q_d_cached_top)[end]
 
-            r = [-C_Tu*A*q_d; -B'*q_d; scene.cParam[iter].-q_d_cached_top'A*q_d]    # assemble the system of equations
+            r = [-C_Tu*A*q_d; -B'*q_d; cParam_cached[iter].-q_d_cached_top'A*q_d]    # assemble the system of equations
             drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdη*q_d] # solve the system of equations
             drdβ = -[C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdβ*q_d] # solve the system of equations
 
@@ -1480,7 +1476,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             B = assemble_system_B(mdl)         # assemble the stiffness matrix
             b = apply_boundary_conditions(mdl) # apply the neumann boundary conditions
         
-            q_d = (μu_btm*q_d_cached_btm + scene.cParam[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
+            q_d = (μu_btm*q_d_cached_btm + cParam_cached[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
         
             if viscosity_type_cached == "bulk_viscosity"
                 if length(β_cached) == 1
