@@ -3545,7 +3545,7 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
+    refine_list = [4] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
@@ -3572,7 +3572,7 @@ function optimize_syn()
                 end
                 for noise_level in noise_level_list 
                     if noise_level == 0.0 && viscosity_type == "constant" && ne != 6
-                        sim_time_exp_list = [5.0, 2.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
                     elseif viscosity_type == "constant" && ne == 6
                         sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
