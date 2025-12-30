@@ -3531,7 +3531,6 @@ function optimize_sim()
                             "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"simulated", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
                             "noise_level"=>noise_level, "mode"=>"multi_window")
 
-                            # optimize(exp_params)
                             push!(param_list, exp_params)
                         end
                     end
@@ -3546,7 +3545,7 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [6] # refinement levels, ne = ne_exp^refine
+    refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
@@ -3563,8 +3562,8 @@ function optimize_syn()
                 continue
                 println("Skipping dir $dir")
             end
+            @info "Processing ground truth directory: $dir for $viscosity_type viscosity ..."
             filepath_gt = string(_filepath_gt,"/",dir)
-            @info "Processing ground truth directory: $filepath_gt for $viscosity_type"
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
                     noise_level_list = [0.0]
@@ -3572,15 +3571,16 @@ function optimize_syn()
                     noise_level_list = [0.0]
                 end
                 for noise_level in noise_level_list 
-                    if noise_level == 0.0 && viscosity_type == "constant"
-                        sim_time_exp_list = [10.0, 20.0] # simulation time in seconds
-                    elseif noise_level != 0.0 && viscosity_type == "constant" && ne == 6
-                        sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
+                    if noise_level == 0.0 && viscosity_type == "constant" && ne != 6
+                        sim_time_exp_list = [5.0, 2.0] # simulation time in seconds
+                    elseif viscosity_type == "constant" && ne == 6
+                        sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
-                        sim_time_exp_list = [5.0, 10.0, 20.0, 2.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0] # simulation time in seconds
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
+                    println("Simulation time experiments to run: $sim_time_exp_list")
                     for sim_time_exp::Float16 in sim_time_exp_list
                         # ne = ne_exp^ref
                         if viscosity_type == "constant"
@@ -3588,22 +3588,22 @@ function optimize_syn()
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
+                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
+                            @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
                             "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                            "noise_level"=>noise_level, "mode"=>window)
-                            # optimize(exp_params)
+                            "noise_level"=>noise_level, "mode"=>"multi_window")
+
                             push!(param_list, exp_params)
                         end
                     end
                 end
             end
         end
-        run_param_list(param_list; max_workers=4)
+        run_param_list(param_list; max_workers=10)
     end
 end
-
 
 function optimize_real()
 
@@ -3683,5 +3683,5 @@ function plot_()
 end
 # main()
 # plot_()
-optimize_sim()
-# optimize_syn()
+# optimize_sim()
+optimize_syn()
