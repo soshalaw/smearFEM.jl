@@ -3545,9 +3545,9 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [8] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
+    refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"]
+    viscosity_type_list = ["bulk_viscosity"]
     window = "multi_window"
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
@@ -3576,7 +3576,7 @@ function optimize_syn()
                     elseif viscosity_type == "constant" && ne == 6
                         sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
-                        sim_time_exp_list = [5.0] # simulation time in seconds
+                        sim_time_exp_list = [2.0, 5.0, 10.0] # simulation time in seconds
                     else
                         sim_time_exp_list = [30.0] # simulation time in seconds
                     end
