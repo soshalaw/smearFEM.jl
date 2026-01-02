@@ -81,7 +81,7 @@ end
 
 function main()
     exp_params = Dict{String, Any}()
-    exp_params["filepath_gt"] = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/bulk_viscosity/Q2_16/1/"
+    exp_params["filepath_gt"] = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/bulk_viscosity/Q2_16/3/"
     compare_init(exp_params) 
 end
 
