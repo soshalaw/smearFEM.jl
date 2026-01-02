@@ -1651,8 +1651,6 @@ function replot(filepath, filepath_gt)
                         @warn "Failed to post-process contour parameters and cost surface: $err"
                     end
                     else
-                        println("Replotting for noisy data with noise level: $noise_level")
-
                         try
                             η_pred = readdlm(joinpath(exp_path,"Results","data","eta_est.csv"), ',', Float64) # estimated η values per sample
                             β_pred = readdlm(joinpath(exp_path,"Results","data","beta_est.csv"), ',', Float64) # estimated β values per sample
@@ -1794,7 +1792,7 @@ function replot(filepath, filepath_gt)
                             Plots.ylabel!(L"\mathrm{Height\;(mm)}")
                             Plots.savefig(joinpath(exp_path,"Results","plots","h_est_noisy.pdf"))
                         catch err
-                            @warn "Replotting for noisy data failed: $err"
+                            @error "Replotting for noisy data with noise $noise_level failed: $err"
                         end
                     end
                 elseif viscosity_type == "bulk_viscosity"
@@ -2011,6 +2009,16 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     dir_list = readdir(filepath)
 
     # plot for convergence per slip case
+    plot_conv_2 = set_plot(fs, sz=(2000, 1800))
+    Plots.plot!(plot_conv_2, [],  left_margin=12mm, bottom_margin = -30mm, label=false)
+    Plots.xlabel!(plot_conv_2, L"\mathrm{Iterations}")
+    Plots.ylabel!(plot_conv_2, L"\mathrm{Cost\;(px)}")
+    
+    plot_conv_5 = set_plot(fs, sz=(2000, 1800))
+    Plots.plot!(plot_conv_5, [],  left_margin=12mm, bottom_margin = -30mm, label=false)
+    Plots.xlabel!(plot_conv_5, L"\mathrm{Iterations}")
+    Plots.ylabel!(plot_conv_5, L"\mathrm{Cost\;(px)}")
+    
     plot_conv_10 = set_plot(fs, sz=(2000, 1800))
     Plots.plot!(plot_conv_10, [],  left_margin=12mm, bottom_margin = -30mm, label=false)
     Plots.xlabel!(plot_conv_10, L"\mathrm{Iterations}")
@@ -2025,6 +2033,16 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.plot!(plot_conv_30, [],  left_margin=12mm, bottom_margin = -30mm, label=false)
     Plots.xlabel!(plot_conv_30, L"\mathrm{Iterations}")
     Plots.ylabel!(plot_conv_30, L"\mathrm{Cost\;(px)}")
+
+    plot_conv_log_2 = set_plot(fs, sz=(2000, 1800))
+    Plots.plot!(plot_conv_log_2, [],  left_margin=12mm, bottom_margin = -30mm, label=false)
+    Plots.xlabel!(plot_conv_log_2, L"\mathrm{Iterations}")
+    Plots.ylabel!(plot_conv_log_2, L"\mathrm{Cost\;(px)}")
+
+    plot_conv_log_5 = set_plot(fs, sz=(2000, 1800))
+    Plots.plot!(plot_conv_log_5, [],  left_margin=12mm, bottom_margin = -30mm, label=false)
+    Plots.xlabel!(plot_conv_log_5, L"\mathrm{Iterations}")
+    Plots.ylabel!(plot_conv_log_5, L"\mathrm{Cost\;(px)}")
 
     plot_conv_log_10 = set_plot(fs, sz=(2000, 1800))
     Plots.plot!(plot_conv_log_10, [],  left_margin=12mm, bottom_margin = -30mm, label=false)
@@ -2042,6 +2060,26 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.ylabel!(plot_conv_log_30, L"\mathrm{Cost\;(px)}")
 
     # figures to compare convergence with slip levels
+    η_norm_plot_2 = set_plot(fs, sz=(2000, 1800))
+    Plots.hline!(η_norm_plot_2, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
+    Plots.xlabel!(η_norm_plot_2,L"\mathrm{Iterations}")
+    Plots.ylabel!(η_norm_plot_2,L"\frac{\eta_{est}}{\eta_{gt}}")
+
+    β_norm_plot_2 = set_plot(fs, sz=(2000, 1800))
+    Plots.hline!(β_norm_plot_2, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
+    Plots.xlabel!(β_norm_plot_2, L"\mathrm{Iterations}")
+    Plots.ylabel!(β_norm_plot_2, L"\frac{\beta_{est}}{\beta_{gt}}")
+
+    η_norm_plot_5 = set_plot(fs, sz=(2000, 1800))
+    Plots.hline!(η_norm_plot_5, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
+    Plots.xlabel!(η_norm_plot_5,L"\mathrm{Iterations}")
+    Plots.ylabel!(η_norm_plot_5,L"\frac{\eta_{est}}{\eta_{gt}}")
+
+    β_norm_plot_5 = set_plot(fs, sz=(2000, 1800))
+    Plots.hline!(β_norm_plot_5, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
+    Plots.xlabel!(β_norm_plot_5, L"\mathrm{Iterations}")
+    Plots.ylabel!(β_norm_plot_5, L"\frac{\beta_{est}}{\beta_{gt}}")
+    
     η_norm_plot_10 = set_plot(fs, sz=(2000, 1800))
     Plots.hline!(η_norm_plot_10, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
     Plots.xlabel!(η_norm_plot_10,L"\mathrm{Iterations}")
@@ -2073,6 +2111,16 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.ylabel!(β_norm_plot_30, L"\frac{\beta_{est}}{\beta_{gt}}")
 
     # η\β ratio plot
+    ratio_plot_2 = set_plot(fs, sz=(2000, 1800))
+    Plots.hline!(ratio_plot_2, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
+    Plots.xlabel!(ratio_plot_2,L"\mathrm{Iterations}")
+    Plots.ylabel!(ratio_plot_2,L"\frac{\eta_{est}}{\eta_{gt}}")
+
+    ratio_plot_5 = set_plot(fs, sz=(2000, 1800))
+    Plots.hline!(ratio_plot_5, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
+    Plots.xlabel!(ratio_plot_5,L"\mathrm{Iterations}")
+    Plots.ylabel!(ratio_plot_5,L"\frac{\eta_{est}}{\eta_{gt}}")
+    
     ratio_plot_10 = set_plot(fs, sz=(2000, 1800))
     Plots.hline!(ratio_plot_10, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
     Plots.xlabel!(ratio_plot_10,L"\mathrm{Iterations}")
@@ -2088,6 +2136,15 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.xlabel!(ratio_plot_30,L"\mathrm{Iterations}")
     Plots.ylabel!(ratio_plot_30,L"\frac{\eta_{est}}{\eta_{gt}}")
 
+    # relative height error plots
+    rel_height_error_glob_plot_2 = set_plot(fs, sz=(2000, 1800))
+    Plots.xlabel!(rel_height_error_glob_plot_2, L"\mathrm{Time\;(s)}")
+    Plots.ylabel!(rel_height_error_glob_plot_2, L"\mathrm{Relative\;Height\;Error}")
+
+    rel_height_error_glob_plot_5 = set_plot(fs, sz=(2000, 1800))
+    Plots.xlabel!(rel_height_error_glob_plot_5, L"\mathrm{Time\;(s)}")
+    Plots.ylabel!(rel_height_error_glob_plot_5, L"\mathrm{Relative\;Height\;Error}")
+
     rel_height_error_glob_plot_10 = set_plot(fs, sz=(2000, 1800))
     Plots.xlabel!(rel_height_error_glob_plot_10, L"\mathrm{Time\;(s)}")
     Plots.ylabel!(rel_height_error_glob_plot_10, L"\mathrm{Relative\;Height\;Error}")
@@ -2101,6 +2158,16 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.ylabel!(rel_height_error_glob_plot_30, L"\mathrm{Relative\;Height\;Error}")
 
     # η \ β * β_gt \ η_gt plot
+    ratio_norm_plot_2 = set_plot(fs, sz=(2000, 1800))
+    Plots.hline!(ratio_norm_plot_2, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
+    Plots.xlabel!(ratio_norm_plot_2,L"\mathrm{Iterations}")
+    Plots.ylabel!(ratio_norm_plot_2,L"\frac{\eta_{est}/\beta_{est}}{\eta_{gt}/\beta_{gt}}")
+
+    ratio_norm_plot_5 = set_plot(fs, sz=(2000, 1800))
+    Plots.hline!(ratio_norm_plot_5, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
+    Plots.xlabel!(ratio_norm_plot_5,L"\mathrm{Iterations}")
+    Plots.ylabel!(ratio_norm_plot_5,L"\frac{\eta_{est}/\beta_{est}}{\eta_{gt}/\beta_{gt}}")
+
     ratio_norm_plot_10 = set_plot(fs, sz=(2000, 1800))
     Plots.hline!(ratio_norm_plot_10, [1.0],  left_margin=12mm, bottom_margin = -30mm, linestyle=:dash, lw=3, label=false)
     Plots.xlabel!(ratio_norm_plot_10,L"\mathrm{Iterations}")
@@ -2327,9 +2394,18 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                         Plots.plot!(sim_window_β_plt, est_β, label=string("Window - $(sim_time)s"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                         Plots.plot!(sim_window_ratio_plt, ratio_est, label=string("Window - $(sim_time)s"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                         
-                        Plots.plot!(sim_window_rel_height_error_plt, time, rel_height_error, label=string("Window - $(sim_time)s"," - ne: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
-                        Plots.plot!(sim_window_height_plt, time, est_h, label=string("Window - $(sim_time)s"), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
-                        Plots.plot!(sim_window_height_plt, time, gt_h, label="Ground truth height", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                        time_h = copy(time)
+                        if length(rel_height_error) != length(time) 
+                            @warn "Length mismatch between height plot x-axis ($(length(rel_height_error))) and ground truth height ($(length(gt_h))). Adjusting..."
+                            min_length = min(length(rel_height_error), length(time))
+                            time_h = time[1:min_length]
+                            rel_height_error = rel_height_error[1:min_length]
+                            est_h = est_h[1:min_length]
+                            gt_h = gt_h[1:min_length]
+                        end
+                        Plots.plot!(sim_window_rel_height_error_plt, time_h, rel_height_error, label=string("Window - $(sim_time)s"," - ne: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                        Plots.plot!(sim_window_height_plt, time_h, est_h, label=string("Window - $(sim_time)s"), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                        Plots.plot!(sim_window_height_plt, time_h, gt_h, label="Ground truth height", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
                         
                         Plots.plot!(sim_window_η_norm_plt, est_η_norm, label=string("Window - $(sim_time)s"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                         Plots.plot!(sim_window_β_norm_plt, est_β_norm, label=string("Window - $(sim_time)s"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
@@ -2357,8 +2433,35 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                         catch e
                             @warn "Failed to read or plot slice data: $e"
                         end
+                        if sim_time == 2.0
+                            if ne == 6
+                                Plots.plot!(η_norm_plot_2, est_η_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
+                                Plots.plot!(β_norm_plot_2, est_β_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
+                                
+                                Plots.plot!(plot_conv_2, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5)
+                                Plots.plot!(plot_conv_log_2, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, xscale=:log10, yscale=:log10)
+                                
+                                Plots.plot!(ratio_plot_2, ratio_est, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, yscale=:log10)
+                                Plots.hline!(ratio_plot_2, [ratio_gt], linestyle=:dash, lw=3, label=false, color=:black, yscale=:log10)
 
-                        if sim_time == 10.0
+                                Plots.plot!(rel_height_error_glob_plot_2, time_h, rel_height_error, label=string("Window - $(sim_time)s"," - ne: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                                Plots.plot!(ratio_norm_plot_2, normalized_ratio, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
+                            end
+                        elseif sim_time == 5.0
+                            if ne == 6
+                                Plots.plot!(η_norm_plot_5, est_η_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
+                                Plots.plot!(β_norm_plot_5, est_β_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
+                                
+                                Plots.plot!(plot_conv_5, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5)
+                                Plots.plot!(plot_conv_log_5, cost_list, label=string(L"\beta:\;",β_gt), marker=2, dpi=400, lw=3, legend=:outerbottom, legendcolumn=5, xscale=:log10, yscale=:log10)
+                                
+                                Plots.plot!(ratio_plot_5, ratio_est, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, yscale=:log10)
+                                Plots.hline!(ratio_plot_5, [ratio_gt], linestyle=:dash, lw=3, label=false, color=:black, yscale=:log10)
+
+                                Plots.plot!(rel_height_error_glob_plot_5, time_h, rel_height_error, label=string("Window - $(sim_time)s"," - ne: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                                Plots.plot!(ratio_norm_plot_5, normalized_ratio, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
+                            end
+                        elseif sim_time == 10.0
                             if ne == 6
                                 Plots.plot!(η_norm_plot_10, est_η_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
                                 Plots.plot!(β_norm_plot_10, est_β_norm, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
@@ -2369,7 +2472,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                                 Plots.plot!(ratio_plot_10, ratio_est, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, yscale=:log10)
                                 Plots.hline!(ratio_plot_10, [ratio_gt], linestyle=:dash, lw=3, label=false, color=:black, yscale=:log10)
 
-                                Plots.plot!(rel_height_error_glob_plot_10, time, rel_height_error, label=string("Window - $(sim_time)s"," - ne: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                                Plots.plot!(rel_height_error_glob_plot_10, time_h, rel_height_error, label=string("Window - $(sim_time)s"," - ne: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
                                 Plots.plot!(ratio_norm_plot_10, normalized_ratio, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
                             end
                         elseif sim_time == 20.0
@@ -2383,7 +2486,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                                 Plots.plot!(ratio_plot_20, ratio_est, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, yscale=:log10)
                                 Plots.hline!(ratio_plot_20, [ratio_gt], linestyle=:dash, lw=3, label=false, color=:black, yscale=:log10)
 
-                                Plots.plot!(rel_height_error_glob_plot_20, time, rel_height_error, label=string("Window - $(sim_time)s"," - ne: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                                Plots.plot!(rel_height_error_glob_plot_20, time_h, rel_height_error, label=string("Window - $(sim_time)s"," - ne: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
                                 Plots.plot!(ratio_norm_plot_20, normalized_ratio, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
                             end
                         elseif sim_time == 30.0
@@ -2397,19 +2500,20 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                                 Plots.plot!(ratio_plot_30, ratio_est, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3, yscale=:log10)
                                 Plots.hline!(ratio_plot_30, [ratio_gt], linestyle=:dash, lw=3, label=false, color=:black, yscale=:log10)
 
-                                Plots.plot!(rel_height_error_glob_plot_30, time, rel_height_error, label=string("β = $β_gt"), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                                Plots.plot!(rel_height_error_glob_plot_30, time_h, rel_height_error, label=string("β = $β_gt"), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
                                 Plots.plot!(ratio_norm_plot_30, normalized_ratio, label=string("β = $β_gt"), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=3)
                             end
-                            Plots.plot!(height_error_plt, time, height_error, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
-                            Plots.plot!(rel_height_error_plt, time, rel_height_error, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                            println(size(height_error, 1), " vs ", size(gt_h), " vs ", size(time_h), " vs ", length(rel_height_error))
+                            Plots.plot!(height_error_plt, time_h, height_error, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                            Plots.plot!(rel_height_error_plt, time_h, rel_height_error, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
                             
                             Plots.plot!(elem_η_plt, est_η, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                             Plots.plot!(elem_β_plt, est_β, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                             Plots.plot!(elem_ratio_plt, ratio_est, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                             
-                            Plots.plot!(elem_rel_height_error_plt, time, rel_height_error, label=string("Number of elements: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
-                            Plots.plot!(elem_height_plt, time, est_h, label=string("Number of elements: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
-                            Plots.plot!(elem_height_plt, time, gt_h, label="Ground truth height", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                            Plots.plot!(elem_rel_height_error_plt, time_h, rel_height_error, label=string("Number of elements: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                            Plots.plot!(elem_height_plt, time_h, est_h, label=string("Number of elements: ",ne), dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                            Plots.plot!(elem_height_plt, time_h, gt_h, label="Ground truth height", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
                         
                             Plots.plot!(elem_η_norm_plt, est_η_norm, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                             Plots.plot!(elem_β_norm_plt, est_β_norm, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
@@ -2430,8 +2534,8 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                         # height_error = abs.(h_pred' .- gt_h)
                         # rel_height_error = height_error ./ gt_h
 
-                        # StatsPlots.errorline!(height_error_noise_plt, time, height_error', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
-                        # StatsPlots.errorline!(rel_height_error_noise_plt, time, rel_height_error', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                        # StatsPlots.errorline!(height_error_noise_plt, time_h, height_error', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                        # StatsPlots.errorline!(rel_height_error_noise_plt, time_h, rel_height_error', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
                     end
                 end
                 plot_path_noise = joinpath(sim_time_folder,"post_analysis_noise","plots")
@@ -2477,6 +2581,12 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     set_file(plot_path_global)
     
     @info "Saving plots to $plot_path_global"
+    Plots.savefig(plot_conv_2, joinpath(plot_path_global,"conv_2.pdf"))
+    Plots.savefig(plot_conv_log_2, joinpath(plot_path_global,"conv_log_2.pdf"))
+
+    Plots.savefig(plot_conv_5, joinpath(plot_path_global,"conv_5.pdf"))
+    Plots.savefig(plot_conv_log_5, joinpath(plot_path_global,"conv_log_5.pdf"))
+
     Plots.savefig(plot_conv_10, joinpath(plot_path_global,"conv_10.pdf"))
     Plots.savefig(plot_conv_log_10, joinpath(plot_path_global,"conv_log_10.pdf"))
     
@@ -2486,6 +2596,16 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.savefig(plot_conv_30, joinpath(plot_path_global,"conv_30.pdf"))
     Plots.savefig(plot_conv_log_30, joinpath(plot_path_global,"conv_log_30.pdf"))
     
+    Plots.savefig(η_norm_plot_2, joinpath(plot_path_global,"η_normalized_2.pdf"))
+    Plots.savefig(β_norm_plot_2, joinpath(plot_path_global,"β_normalized_2.pdf"))
+    Plots.savefig(ratio_plot_2, joinpath(plot_path_global,"η_β_ratio_2.pdf"))
+    Plots.savefig(rel_height_error_glob_plot_2, joinpath(plot_path_global,"relative_height_error_2.pdf"))
+
+    Plots.savefig(η_norm_plot_5, joinpath(plot_path_global,"η_normalized_5.pdf"))
+    Plots.savefig(β_norm_plot_5, joinpath(plot_path_global,"β_normalized_5.pdf"))
+    Plots.savefig(ratio_plot_5, joinpath(plot_path_global,"η_β_ratio_5.pdf"))
+    Plots.savefig(rel_height_error_glob_plot_5, joinpath(plot_path_global,"relative_height_error_5.pdf"))
+
     Plots.savefig(η_norm_plot_10, joinpath(plot_path_global,"η_normalized_10.pdf"))
     Plots.savefig(β_norm_plot_10, joinpath(plot_path_global,"β_normalized_10.pdf"))
     Plots.savefig(ratio_plot_10, joinpath(plot_path_global,"η_β_ratio_10.pdf"))
@@ -2501,6 +2621,8 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.savefig(ratio_plot_30, joinpath(plot_path_global,"η_β_ratio_30.pdf"))
     Plots.savefig(rel_height_error_glob_plot_30, joinpath(plot_path_global,"relative_height_error_30.pdf"))
 
+    Plots.savefig(ratio_norm_plot_2, joinpath(plot_path_global,"η_β_ratio_normalized_2.pdf"))
+    Plots.savefig(ratio_norm_plot_5, joinpath(plot_path_global,"η_β_ratio_normalized_5.pdf"))
     Plots.savefig(ratio_norm_plot_10, joinpath(plot_path_global,"η_β_ratio_normalized_10.pdf"))
     Plots.savefig(ratio_norm_plot_20, joinpath(plot_path_global,"η_β_ratio_normalized_20.pdf"))
     Plots.savefig(ratio_norm_plot_30, joinpath(plot_path_global,"η_β_ratio_normalized_30.pdf"))
@@ -3547,7 +3669,7 @@ function optimize_syn()
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["bulk_viscosity"]
+    viscosity_type_list = ["constant"]
     window = "multi_window"
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
@@ -3579,7 +3701,7 @@ function optimize_syn()
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
                         sim_time_exp_list = [2.0, 5.0, 10.0] # simulation time in seconds
                     else
-                        sim_time_exp_list = [30.0] # simulation time in seconds
+                        sim_time_exp_list = [2.0, 5.0, 10.0]  # simulation time in seconds
                     end
                     println("Simulation time experiments to run: $sim_time_exp_list")
                     for sim_time_exp::Float16 in sim_time_exp_list
@@ -3653,7 +3775,7 @@ function plot_()
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"] #,"constant"]
     avoid_dirs = ["3_less_noise", "s"]
-    data_type_list = ["simulated"] #,"simulated"]
+    data_type_list = ["synthetic"] #,"simulated"]
 
     for data_type in data_type_list
         if data_type == "synthetic"
@@ -3684,5 +3806,5 @@ function plot_()
 end
 # main()
 # plot_()
-optimize_sim()
-# optimize_syn()
+# optimize_sim()
+optimize_syn()
