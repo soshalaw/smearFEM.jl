@@ -223,7 +223,7 @@ function optimize(exp_params::Dict)
             scene.β = [β]
             scene.sim_time = sim_time_gt
             
-            # simulate the gt model with the estimated parameters
+            # simulate the model with the estimated parameters
             est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)
             est_h = get_height(est_μ_list, h)
             
@@ -364,6 +364,7 @@ function optimize(exp_params::Dict)
                 reset_model!(model)
                 model.η = [η]
                 scene.β = [β]
+                scene.sim_time = sim_time_gt
                 # simulate the model with the estimated parameters
                 est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)
                 
@@ -395,12 +396,13 @@ function optimize(exp_params::Dict)
                 write_csv(joinpath(exp_path,"Results","data","opt_data","iter","run_$n"), iterList)
                 write_csv(joinpath(exp_path,"Results","data","opt_data","est_height","run_$n"), est_h)
 
-                write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points","run_$n"), borderPts2DList)
-                write_data(joinpath(exp_path,"Results","data","sim_data","fields","run_$n"), fields)
-                write_data(joinpath(exp_path,"Results","data","sim_data","3D_points","run_$n"), pos3D)
                 write_data(joinpath(exp_path,"Results","data","sim_data","2D_points","run_$n"), pos2D)
+                write_data(joinpath(exp_path,"Results","data","sim_data","3D_points","run_$n"), pos3D)
+                write_data(joinpath(exp_path,"Results","data","sim_data","motion_fields ","run_$n"), fields)
+                write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points","run_$n"), borderPts2DList)
                 write_data(joinpath(exp_path,"Results","data","sim_data","spline_p","run_$n"), splinep)
                 write_data(joinpath(exp_path,"Results","data","sim_data","spline_q","run_$n"), splineq)
+
             end
 
             write_csv(joinpath(exp_path,"Results","data","eta_est"), η_pred)
@@ -1244,7 +1246,8 @@ function replot(filepath, filepath_gt)
                     else
                         error("Unknown data type: $data_type")
                     end
-                    
+
+                    time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
                     gt_h = gt_h_[1:(round(Int, sim_time/ t_steps))+1]
                     obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
                     conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
@@ -1372,7 +1375,6 @@ function replot(filepath, filepath_gt)
                         est_h = vec(Float64.(collect(est_h)))
                         gt_h = vec(Float64.(collect(gt_h)))
 
-                        time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
                         n_time = min(length(time), length(est_h), length(gt_h))
                         if n_time < length(time) || n_time < length(est_h) || n_time < length(gt_h)
                             @warn "Time and height vectors have mismatched lengths: time=$(length(time)), est_h=$(length(est_h)), gt_h=$(length(gt_h)). Truncating to $n_time samples for plotting."
@@ -1651,10 +1653,11 @@ function replot(filepath, filepath_gt)
                         @warn "Failed to post-process contour parameters and cost surface: $err"
                     end
                     else
-                        try
-                            η_pred = readdlm(joinpath(exp_path,"Results","data","eta_est.csv"), ',', Float64) # estimated η values per sample
-                            β_pred = readdlm(joinpath(exp_path,"Results","data","beta_est.csv"), ',', Float64) # estimated β values per sample
-                            h_pred = readdlm(joinpath(exp_path,"Results","data","h_est.csv"), ',', Float64) # estimated height values per sample
+                        # try
+                        
+                            η_pred = readdlm(joinpath(exp_path,"Results","data","eta_est.csv"), ',', Float64) # estimated η values per sample [n x n_iter]
+                            β_pred = readdlm(joinpath(exp_path,"Results","data","beta_est.csv"), ',', Float64) # estimated β values per sample [n x n_iter]
+                            h_pred = readdlm(joinpath(exp_path,"Results","data","h_est.csv"), ',', Float64) # estimated height values per sample [n x sim_time]
 
                             exp_params = read_json(joinpath(exp_path,"Results","data","experiment_parameters.json"))
                             
@@ -1664,39 +1667,64 @@ function replot(filepath, filepath_gt)
                             
                             if sim_time_exp != sim_time
                                 @warn "Simulation time in experiment parameters ($sim_time_exp) does not match that in ground truth ($sim_time)."
-                                if sim_time_exp < sim_time
-                                    @warn "Truncating obsBorderPts to match sim_time_exp."
-                                    obsBorderPts = obsBorderPts[1:Int(sim_time_exp/ t_steps)+1, :]
-                                    # symBorderPts = symBorderPts[1:Int(sim_time_exp/ t_steps)+1, :]
+                                                                # if ne_exp == 6
+                                @warn "Resimulating to match ground truth sim time."
+                                n_samples = size(η_pred, 1)
+                                h_est_lst = zeros(n_samples, Int(sim_time/ t_steps)+1)
+                                for n in 1:n_samples
+                                    η = η_pred[n, end]
+                                    β = β_pred[n, end]
+                                    @info "Resimulating for sample $n with η=$η, β=$β"
+                                    est_model, est_scene = def_problem(n, h, ne_exp, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
+                                    sim_time, t_steps)
+                                    est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinex, spliney = simulate(est_model, est_scene, conditions)
 
-                                    nSplinex = nSplinex[1:Int(sim_time_exp/ t_steps)+1, :]
-                                    nSpliney = nSpliney[1:Int(sim_time_exp/ t_steps)+1, :]
+                                    est_h = get_height(est_μ_list, h)
+                                    h_est_lst[n, :] = est_h
+                
+                                    write_csv(joinpath(exp_path,"Results","data","opt_data","est_height","run_$n"), est_h)
 
-                                    # splinex = splinex[1:Int(sim_time_exp/ t_steps)+1, :]
-                                    # spliney = spliney[1:Int(sim_time_exp/ t_steps)+1, :]
-
-                                else
-                                    @warn " Truncating simBorderPts to match gt sim time."
-                                    # symBorderPts = symBorderPts[1:Int(sim_time/ t_steps)+1, :]
-                                    obsBorderPts = obsBorderPts[1:Int(sim_time/ t_steps)+1, :]
-
-                                    nSplinex = nSplinex[1:Int(sim_time/ t_steps)+1, :]
-                                    nSpliney = nSpliney[1:Int(sim_time/ t_steps)+1, :]
-
-                                    # splinex = splinex[1:Int(sim_time/ t_steps)+1, :]
-                                    # spliney = spliney[1:Int(sim_time/ t_steps)+1, :]
+                                    write_data(joinpath(exp_path,"Results","data","sim_data","2D_points","run_$n"), pos2D)
+                                    write_data(joinpath(exp_path,"Results","data","sim_data","3D_points","run_$n"), pos3D)
+                                    write_data(joinpath(exp_path,"Results","data","sim_data","motion_fields ","run_$n"), fields)
+                                    write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points","run_$n"), borderPts2DList)
+                                    write_data(joinpath(exp_path,"Results","data","sim_data","spline_p","run_$n"), splinex)
+                                    write_data(joinpath(exp_path,"Results","data","sim_data","spline_q","run_$n"), spliney)
                                 end
-                            elseif length(obsBorderPts) != length(symBorderPts)
-                                n_time = min(length(obsBorderPts), length(symBorderPts))
-                                @warn "Mismatched number of time steps between observed border points ($(length(obsBorderPts))) and simulated border points ($(length(symBorderPts))). Truncating to $n_time time steps."
-                                obsBorderPts = obsBorderPts[1:n_time, :]
-                                # symBorderPts = symBorderPts[1:n_time, :]
+                                write_csv(joinpath(exp_path,"Results","data","h_est.csv"), h_est_lst)
+                                # if sim_time_exp < sim_time
+                                #     @warn "Truncating obsBorderPts to match sim_time_exp."
+                                #     obsBorderPts = obsBorderPts[1:Int(sim_time_exp/ t_steps)+1, :]
+                                #     # symBorderPts = symBorderPts[1:Int(sim_time_exp/ t_steps)+1, :]
 
-                                # nSplinex = nSplinex[1:n_time, :]
-                                # nSpliney = nSpliney[1:n_time, :]
+                                #     nSplinex = nSplinex[1:Int(sim_time_exp/ t_steps)+1, :]
+                                #     nSpliney = nSpliney[1:Int(sim_time_exp/ t_steps)+1, :]
 
-                                splinex = splinex[1:n_time, :]
-                                spliney = spliney[1:n_time, :]
+                                #     # splinex = splinex[1:Int(sim_time_exp/ t_steps)+1, :]
+                                #     # spliney = spliney[1:Int(sim_time_exp/ t_steps)+1, :]
+
+                                # else
+                                #     @warn " Truncating simBorderPts to match gt sim time."
+                                #     # symBorderPts = symBorderPts[1:Int(sim_time/ t_steps)+1, :]
+                                #     obsBorderPts = obsBorderPts[1:Int(sim_time/ t_steps)+1, :]
+
+                                #     nSplinex = nSplinex[1:Int(sim_time/ t_steps)+1, :]
+                                #     nSpliney = nSpliney[1:Int(sim_time/ t_steps)+1, :]
+
+                                #     # splinex = splinex[1:Int(sim_time/ t_steps)+1, :]
+                                #     # spliney = spliney[1:Int(sim_time/ t_steps)+1, :]
+                                # end
+                            # elseif length(obsBorderPts) != length(symBorderPts)
+                            #     n_time = min(length(obsBorderPts), length(symBorderPts))
+                            #     @warn "Mismatched number of time steps between observed border points ($(length(obsBorderPts))) and simulated border points ($(length(symBorderPts))). Truncating to $n_time time steps."
+                            #     obsBorderPts = obsBorderPts[1:n_time, :]
+                            #     # symBorderPts = symBorderPts[1:n_time, :]
+
+                            #     # nSplinex = nSplinex[1:n_time, :]
+                            #     # nSpliney = nSpliney[1:n_time, :]
+
+                            #     splinex = splinex[1:n_time, :]
+                            #     spliney = spliney[1:n_time, :]
                             end
                             
                             # d, pairs = closest_point(symBorderPts, obsBorderPts)
@@ -1725,11 +1753,11 @@ function replot(filepath, filepath_gt)
 
                             # animate_fields(filepath=joinpath(exp_path,"Results","plots"), pObs=nSplinex, qObs=nSpliney)
                         
-                            plt_cnt_error = set_plot(fs, sz=(2000, 1800))
-                            Plots.plot!(plt_cnt_error, d, label="Closest point distance error", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
-                            Plots.xlabel!(plt_cnt_error, L"\mathrm{Time\;(s)}")
-                            Plots.ylabel!(plt_cnt_error, L"\mathrm{Closest\;Point\;Distance\;(px)}")
-                            Plots.savefig(plt_cnt_error, joinpath(exp_path,"Results","plots","closest_point_distance_error.pdf"))
+                            # plt_cnt_error = set_plot(fs, sz=(2000, 1800))
+                            # Plots.plot!(plt_cnt_error, d, label="Closest point distance error", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                            # Plots.xlabel!(plt_cnt_error, L"\mathrm{Time\;(s)}")
+                            # Plots.ylabel!(plt_cnt_error, L"\mathrm{Closest\;Point\;Distance\;(px)}")
+                            # Plots.savefig(plt_cnt_error, joinpath(exp_path,"Results","plots","closest_point_distance_error.pdf"))
 
                             covarience_plt = plot_covariance(η_pred[:,1], β_pred[:,1], legend_column=2, fs=fs)
                             Plots.xlabel!(covarience_plt, L"\eta\;\mathrm{(KPa\cdot s)}")
@@ -1737,14 +1765,18 @@ function replot(filepath, filepath_gt)
                             Plots.savefig(covarience_plt, joinpath(exp_path,"Results","plots","covariance.pdf"))
 
                             h_plot = set_plot(fs, sz=(2000, 1800))
-                            Plots.plot!(h_plot, time, gt_h, label="Ground truth height", dpi=400, lw=3, legend=false)
-                            StatsPlots.errorline!(h_plot, time, h_pred, label="Estimated height", dpi=400, lw=3, legend=false)
+                            n_time = min(length(time), size(h_pred, 2), length(gt_h))
+                            if n_time < length(time) || n_time < size(h_pred, 2) || n_time < length(gt_h)
+                                @warn "Time and height vectors have mismatched lengths: time=$(length(time)), est_h=$(size(h_pred, 2)), gt_h=$(length(gt_h)). Truncating to $n_time samples for plotting."
+                            end
+                            Plots.plot!(h_plot, time[1:n_time], gt_h[1:n_time], label="Ground truth height", dpi=400, lw=3, legend=false)
+                            StatsPlots.errorline!(h_plot, time[1:n_time], h_pred[:,1:n_time], label="Estimated height", dpi=400, lw=3, legend=false)
                             Plots.xlabel!(L"\mathrm{Time\;(s)}")
                             Plots.ylabel!(L"\mathrm{Height\;(mm)}")
                             Plots.savefig(joinpath(exp_path,"Results","plots","h_est_noisy.pdf"))
                             
                             # Add inset subplot for zoomed region (10-20 seconds)
-                            t_min, t_max = 10.0, 10.1
+                            t_min, t_max = 5.0, 5.1
                             mask_zoom = (time .>= t_min) .& (time .<= t_max)
                             if sum(mask_zoom) > 0
                                 idx_zoom = findall(mask_zoom)
@@ -1758,9 +1790,9 @@ function replot(filepath, filepath_gt)
                                 # Full time series on left subplot (subplot=1)
                                 Plots.plot!(plt_combined, time, gt_h, subplot=1, label="", dpi=400, lw=3, color=:blue)
                                 try
-                                    StatsPlots.errorline!(plt_combined, time, h_pred, subplot=1, label="", dpi=400, lw=3, color=:orange, bottom_margin = 20mm)
+                                    StatsPlots.errorline!(plt_combined, time[1:n_time], h_pred[:,1:n_time], subplot=1, label="", dpi=400, lw=3, color=:orange, bottom_margin = 20mm)
                                 catch
-                                    StatsPlots.errorline!(plt_combined, time, h_pred', subplot=1, label="", dpi=400, lw=3, color=:orange, bottom_margin = 20mm)
+                                    StatsPlots.errorline!(plt_combined, time[1:n_time], h_pred[:,1:n_time]', subplot=1, label="", dpi=400, lw=3, color=:orange, bottom_margin = 20mm)
                                 end
                                 Plots.xlabel!(plt_combined, L"\mathrm{Time\;(s)}", subplot=1)
                                 Plots.ylabel!(plt_combined, L"\mathrm{Height\;(mm)}", subplot=1)
@@ -1785,15 +1817,15 @@ function replot(filepath, filepath_gt)
                                 Plots.savefig(plt_combined, joinpath(exp_path, "Results", "plots", "h_est_noisy_zoomed.pdf"))
                             end
 
-                            error = abs.(h_pred' .- gt_h)
+                            error = abs.(h_pred[:,1:n_time]' .- gt_h[1:n_time]) ./ gt_h[1:n_time]
                             h_error_plot = set_plot(fs, sz=(2000, 1800))
-                            StatsPlots.errorline!(h_error_plot, time, error', label="Height estimation error", dpi=400, lw=3, legend=:outerbottom, legend_column=1, bottom_margin = -30mm)
+                            StatsPlots.errorline!(h_error_plot, time[1:n_time], error', label="Height estimation error", dpi=400, lw=3, legend=:outerbottom, legend_column=1, bottom_margin = -30mm)
                             Plots.xlabel!(L"\mathrm{Time\;(s)}")
                             Plots.ylabel!(L"\mathrm{Height\;(mm)}")
-                            Plots.savefig(joinpath(exp_path,"Results","plots","h_est_noisy.pdf"))
-                        catch err
-                            @error "Replotting for noisy data with noise $noise_level failed: $err"
-                        end
+                            Plots.savefig(joinpath(exp_path,"Results","plots","h_rel_error_noisy.pdf"))
+                        # catch err
+                        #     @error "Replotting for noisy data with noise $noise_level failed: $err"
+                        # end
                     end
                 elseif viscosity_type == "bulk_viscosity"
                     window_dirs = readdir(exp_path)
@@ -2310,14 +2342,13 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
             Plots.ylabel!(plt_slices, L"\mathrm{Cost}")
             Plots.ylims!(plt_slices, 0, 50)
 
-            for sim_time_folder_ in sim_time_folders
+            for sim_time_folder_ in reverse(sort(sim_time_folders))
 
                 if sim_time_folder_ == "post_analysis_time" || sim_time_folder_ == "Results" # || sim_time_folder_ == "simtime_20.0" || sim_time_folder_ == "simtime_10.0"
                     continue
                 end
                 
                 covarience_plt = set_plot(fs, sz=(2000, 1800))
-                Plots.scatter!(covarience_plt, η_gt, β_gt, label="Ground truth", ms=:15, m=:star5, color=:indianred2, markerstrokewidth=0.1)
                 Plots.xlabel!(covarience_plt, L"\eta\;\mathrm{(KPa\cdot s)}")
                 Plots.ylabel!(covarience_plt, L"\beta\;\mathrm{(mm^{-1})}")
                 
@@ -2329,7 +2360,13 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                 rel_height_error_plt = set_plot(fs, sz=(2000, 1800))
                 Plots.plot!(rel_height_error_plt, [], bottom_margin = -30mm, label=false)
                 Plots.xlabel!(rel_height_error_plt, L"\mathrm{Time\;(s)}")
-                Plots.ylabel!(rel_height_error_plt, L"\mathrm{Height\;Error\;(mm)}")
+                Plots.ylabel!(rel_height_error_plt, L"\mathrm{Relative\;Height\;Error}")
+
+                # noise analysis plots
+                height_noise_plt = set_plot(fs, sz=(2000, 1800))
+                Plots.plot!(height_noise_plt, [], bottom_margin = -30mm, label=false)
+                Plots.xlabel!(height_noise_plt, L"\mathrm{Time\;(s)}")
+                Plots.ylabel!(height_noise_plt, L"\mathrm{Height\;(mm)}")
 
                 height_error_noise_plt = set_plot(fs, sz=(2000, 1800))
                 Plots.plot!(height_error_noise_plt, [], bottom_margin = -30mm, label=false)
@@ -2339,13 +2376,19 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                 rel_height_error_noise_plt = set_plot(fs, sz=(2000, 1800))
                 Plots.plot!(rel_height_error_noise_plt, [], bottom_margin = -30mm, label=false)
                 Plots.xlabel!(rel_height_error_noise_plt, L"\mathrm{Time\;(s)}")
-                Plots.ylabel!(rel_height_error_noise_plt, L"\mathrm{Height\;Error\;(mm)}")
+                Plots.ylabel!(rel_height_error_noise_plt, L"\mathrm{Relative\;Height\;Error}")
+
+                η_β_ratio_plt = set_plot(fs, sz=(2000, 1800))
+                Plots.plot!(η_β_ratio_plt, [], left_margin=12mm, bottom_margin = -30mm, label=false)
+                Plots.hline!(η_β_ratio_plt, [1], label=false, lw=3, linestyle=:dash)
+                Plots.xlabel!(η_β_ratio_plt, L"\mathrm{Iterations}")
+                Plots.ylabel!(η_β_ratio_plt, L"\frac{\eta}{\beta}\;(KPa\cdot s \cdot mm^{-1})")
 
                 sim_time_folder = joinpath(elem_size_folder, sim_time_folder_)
                 noise_folders = readdir(sim_time_folder)
 
                 printstyled("Processing simulation time folder: $(sim_time_folder)\n", color=:cyan)
-                for noise_folder_ in noise_folders
+                for noise_folder_ in reverse(sort(noise_folders))
 
                     if noise_folder_ == "post_analysis_noise" || noise_folder_ == "Results" 
                         continue
@@ -2520,33 +2563,52 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                             Plots.plot!(elem_ratio_norm_plt, normalized_ratio, label=string("Number of elements: ",ne), marker=2, dpi=400, lw=3, legend=:outerbottom, legend_column=2)
                         end
                     else
-                        # η_pred = readdlm(joinpath(exp_path,"Results","data","eta_est.csv"), ',', Float64) # estimated η values per sample
-                        # β_pred = readdlm(joinpath(exp_path,"Results","data","beta_est.csv"), ',', Float64) # estimated β values per sample
-                        # h_pred = readdlm(joinpath(exp_path,"Results","data","h_est.csv"), ',', Float64) # estimated height values per sample
+                        η_pred = readdlm(joinpath(exp_path,"Results","data","eta_est.csv"), ',', Float64) # estimated η values per sample
+                        β_pred = readdlm(joinpath(exp_path,"Results","data","beta_est.csv"), ',', Float64) # estimated β values per sample
+                        h_pred = readdlm(joinpath(exp_path,"Results","data","h_est.csv"), ',', Float64) # estimated height values per sample
 
-                        # plot_covariance!(covarience_plt, η_pred[:,1], β_pred[:,1], label="Noise $noise_level px", legend_column=3)
+                        n_samples = size(η_pred, 2)
+                        η_β_list = Float64[]
+                        iter_list = Int[]
+                        for n in 1:n_samples
+                            β = readdlm(joinpath(exp_path,"Results","data","opt_data","beta_steps","run_$n.csv"), ',', Float64)
+                            η = readdlm(joinpath(exp_path,"Results","data","opt_data","eta_steps","run_$n.csv"), ',', Float64)
+                            iter = readdlm(joinpath(exp_path,"Results","data","opt_data","iter","run_$n.csv"), ',', Int)
+                            ratio = η./β * (β_gt / η_gt)
+                            push!(η_β_list, ratio[end])
+                            push!(iter_list, iter)
+                        end
+                        plot_covariance!(covarience_plt, η_pred[:,1], β_pred[:,1], label="Noise $noise_level px", legend_column=3)
 
-                        # if size(h_pred, 2) < (exp_points+1)
-                        #     @warn "Estimated height data has fewer points ($(size(h_pred, 2))) than expected ($(exp_points+1))..."
-                        #     exp_points = size(h_pred, 2)  - 1
-                        # end
+                        n_time = min(length(time), size(h_pred, 2), length(gt_h))
+                        if n_time < length(time) || n_time < size(h_pred, 2) || n_time < length(gt_h)
+                            @warn "Time and height vectors have mismatched lengths: time=$(length(time)), est_h=$(size(h_pred, 2)), gt_h=$(length(gt_h)). Truncating to $n_time samples for plotting."
+                        end
+                        height_error = abs.(h_pred[:,1:n_time]' .- gt_h[1:n_time])
+                        rel_height_error = abs.(h_pred[:,1:n_time]' .- gt_h[1:n_time]) ./ gt_h[1:n_time]
 
-                        # height_error = abs.(h_pred' .- gt_h)
-                        # rel_height_error = height_error ./ gt_h
-
-                        # StatsPlots.errorline!(height_error_noise_plt, time_h, height_error', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
-                        # StatsPlots.errorline!(rel_height_error_noise_plt, time_h, rel_height_error', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=2, bottom_margin = -30mm)
+                        time_h = copy(time)
+                        if size(rel_height_error,1) != length(time) 
+                            @warn "Length mismatch between height plot x-axis ($(length(rel_height_error))) and ground truth height ($(length(gt_h))). Adjusting..."
+                            min_length = min(size(rel_height_error,1), length(time))
+                            time_h = time[1:min_length]
+                            rel_height_error = rel_height_error[1:min_length]
+                            h_pred = h_pred[:,1:min_length]
+                            gt_h = gt_h[1:min_length]
+                        end
+                        StatsPlots.errorline!(height_noise_plt, time_h, h_pred', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=4, bottom_margin = -30mm)
+                        StatsPlots.errorline!(height_error_noise_plt, time_h, height_error', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=4, bottom_margin = -30mm)
+                        StatsPlots.errorline!(rel_height_error_noise_plt, time_h, rel_height_error', label="σ = $(noise_level) px", dpi=400, lw=3, legend=:outerbottom, legend_column=4, bottom_margin = -30mm)
                     end
                 end
+                Plots.plot!(height_noise_plt, time_h, gt_h, label="Ground truth", dpi=400, lw=3, legend=:outerbottom, legend_column=4, bottom_margin = -30mm)
+                Plots.scatter!(covarience_plt, η_gt, β_gt, label="Ground truth", ms=:15, m=:star5, color=:indianred2, markerstrokewidth=0.1)
                 plot_path_noise = joinpath(sim_time_folder,"post_analysis_noise","plots")
                 set_file(plot_path_noise)
-                @info "Saving plots to $plot_path_noise"
                 Plots.savefig(covarience_plt, joinpath(plot_path_noise,"covariance.pdf"))
-                Plots.savefig(height_error_plt, joinpath(plot_path_noise,"height_error.pdf"))
-                Plots.savefig(rel_height_error_plt, joinpath(plot_path_noise,"relative_height_error.pdf"))
-
-                Plots.savefig(height_error_noise_plt, joinpath(plot_path_noise,"height_error_noise.pdf"))
-                Plots.savefig(rel_height_error_noise_plt, joinpath(plot_path_noise,"relative_height_error_noise.pdf"))
+                Plots.savefig(height_noise_plt, joinpath(plot_path_noise,"height.pdf"))
+                Plots.savefig(height_error_noise_plt, joinpath(plot_path_noise,"height_error.pdf"))
+                Plots.savefig(rel_height_error_noise_plt, joinpath(plot_path_noise,"relative_height_error.pdf"))
                 @info "Saved plots to $plot_path_noise"
             end
             plot_path_sim_time = joinpath(elem_size_folder,"post_analysis_time","plots")
@@ -3624,19 +3686,19 @@ function optimize_sim()
             filepath_gt = string(_filepath_gt,"/",dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
-                    noise_level_list = [2.0]
+                    noise_level_list = [0.0]
                 else
                     noise_level_list = [0.0]
                 end
                 for noise_level in noise_level_list 
                     if noise_level == 0.0 && viscosity_type == "constant" && ne != 6
-                        sim_time_exp_list = [5.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
                     elseif viscosity_type == "constant" && ne == 6
-                        sim_time_exp_list = [10.0, 20.0, 30.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
-                        sim_time_exp_list = [5.0] # simulation time in seconds
+                        sim_time_exp_list = [2.0, 5.0, 10.0] # simulation time in seconds
                     else
-                        sim_time_exp_list = [30.0] # simulation time in seconds
+                        sim_time_exp_list = [2.0, 5.0, 10.0]  # simulation time in seconds
                     end
                     println("Simulation time experiments to run: $sim_time_exp_list")
                     for sim_time_exp::Float16 in sim_time_exp_list
@@ -3667,9 +3729,9 @@ function optimize_syn()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [4] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
+    refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"]
+    viscosity_type_list = ["bulk_viscosity", "constant"]
     window = "multi_window"
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
@@ -3690,7 +3752,6 @@ function optimize_syn()
                 if ne == 6 && viscosity_type == "constant"
                     noise_level_list = [0.0]
                 else
-
                     noise_level_list = [0.0]
                 end
                 for noise_level in noise_level_list 
@@ -3711,7 +3772,7 @@ function optimize_syn()
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
+                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
@@ -3775,7 +3836,7 @@ function plot_()
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"] #,"constant"]
     avoid_dirs = ["3_less_noise", "s"]
-    data_type_list = ["synthetic"] #,"simulated"]
+    data_type_list = ["simulated"] #,"simulated"]
 
     for data_type in data_type_list
         if data_type == "synthetic"

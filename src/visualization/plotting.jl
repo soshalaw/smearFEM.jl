@@ -557,5 +557,5 @@ function plot_covariance!(plt, η_list::Vector{Float64}, β_list::Vector{Float64
 
     # Plot the covariance matrix
     StatsPlots.covellipse!(plt, mean_vec, cov_mat; covellipse_kwargs...)
-    Plots.scatter!(plt, η_list, β_list; scatter_kwargs...)   
+    # Plots.scatter!(plt, η_list, β_list; scatter_kwargs...)   
 end
