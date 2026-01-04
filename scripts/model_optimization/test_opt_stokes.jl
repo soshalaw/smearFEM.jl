@@ -3771,7 +3771,7 @@ function optimize_real()
     window = "multi_window"
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-
+    sim_time_exp_list = [2.0, 5.0, 10.0] # simulation time in seconds
     avoid_dirs = ["3_less_noise","s","6"]
     _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data")
     dir_list = readdir(_filepath_gt)
