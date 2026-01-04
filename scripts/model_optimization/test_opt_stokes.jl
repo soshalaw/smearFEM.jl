@@ -3754,7 +3754,6 @@ end
 
 function optimize_real()
 
-    ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [6] # refinement levels, ne = ne_exp^refine
@@ -3784,41 +3783,20 @@ function optimize_real()
         @info "Processing ground truth directory: $dir for $viscosity_type viscosity ..."
         filepath_gt = string(_filepath_gt,"/",dir)
         for ne in refine_list
-            if ne == 6 && viscosity_type == "constant"
-                noise_level_list = [0.0]
-            else
-                noise_level_list = [0.0]
-            end
-            for noise_level in noise_level_list 
-                if noise_level == 0.0 && viscosity_type == "constant" && ne != 6
-                    sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
-                elseif viscosity_type == "constant" && ne == 6
-                    # sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
-                    sim_time_exp_list = [5.0, 10.0, 20.0, 30.0] # simulation time in seconds
-                elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
-                    sim_time_exp_list = [2.0, 5.0, 10.0] # simulation time in seconds
-                else
-                    sim_time_exp_list = [2.0, 5.0, 10.0]  # simulation time in seconds
-                end
-                println("Simulation time experiments to run: $sim_time_exp_list")
-                for sim_time_exp in sim_time_exp_list
-                    println("Simulation time: $sim_time_exp seconds")
-                    file_id = 5
-                    filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data/$file_id")
-                    filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/physical_data/integration_tests/single_window/$sim_time_exp")
-                    
-                    for ref in refine_list
-                        ne = 4
-                        @info "Running optimization with ne = $ne"
-                        for FunctionClass_x in FunctionClass_x_List
-                            @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
-                            
-                            exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
-                            "η_start" => η_start, "β_start" => β_start, "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "viscosity_type"=>viscosity_type, 
-                            "data_type"=>"physical", "r" => r, "h" => h, "camera_matrix" => camera_matrix, "F_ext" => F_ext, "mode"=>"multi_window")
-                            
-                            push!(param_list, exp_params)
-                        end
+            println("Simulation time experiments to run: $sim_time_exp_list")
+            for sim_time_exp in sim_time_exp_list
+                println("Simulation time: $sim_time_exp seconds")
+                filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/physical_data/optimization/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
+                for ne in refine_list
+                    @info "Running optimization with ne = $ne"
+                    for FunctionClass_x in FunctionClass_x_List
+                        @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
+                        
+                        exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
+                        "η_start" => η_start, "β_start" => β_start, "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "viscosity_type"=>viscosity_type, 
+                        "data_type"=>"physical", "r" => r, "h" => h, "camera_matrix" => camera_matrix, "F_ext" => F_ext, "mode"=>"multi_window")
+                        
+                        push!(param_list, exp_params)
                     end
                 end
             end
