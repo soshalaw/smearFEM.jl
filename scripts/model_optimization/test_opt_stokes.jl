@@ -3757,7 +3757,7 @@ function optimize_real()
     ne_exp::Int = 2 # number of elements in the mesh for the experiment 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [4] # refinement levels, ne = ne_exp^refine
+    refine_list = [6] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     η_start = 1.0
     β_start = 1.0
@@ -3773,7 +3773,7 @@ function optimize_real()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise","s"]
+    avoid_dirs = ["3_less_noise","s","6"]
     _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data")
     dir_list = readdir(_filepath_gt)
     for dir in dir_list
