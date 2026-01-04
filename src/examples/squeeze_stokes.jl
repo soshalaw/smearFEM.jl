@@ -1125,19 +1125,19 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
                     nDof_p::Int64, FunctionClass_x::String, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X; viscosity_model::String="power_law") where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
     n::Float64 = 0.9
     K::Float64 = 100.0
-    len_t::Int = round(Int,(sim_time/t_steps)) # number of time steps
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
+    len_t::Int = length(time)
     @info "Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(sim_time/t_steps)"
-    @info "Length of time array: $(length(time))"
+    @info "Length of time array: $(len_t)"
     
-    if length(cParam) < length(time)
+    if length(cParam) < len_t   
         @error "Length of the Force vector ($(length(cParam))) is less than length of time array ($(length(time)))"
     end
 
     if viscosity_type == "bulk_viscosity"
         if viscosity_model == "power_law"
             @info "Using power law viscosity model"
-            η = get_η_power_law.(time, -cParam, r, h, η_0, n, K)
+            η = get_η_power_law.(time, -cParam[1:len_t], r, h, η_0, n, K)
         elseif viscosity_model == "carreau"
             @info "Using Carreau viscosity model reading data from file"
             η = get_η_carraeu.(h, -cParam, r)

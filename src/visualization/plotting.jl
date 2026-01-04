@@ -414,7 +414,7 @@ function set_plot(fs::Int; sz::Tuple{Int,Int}=(1000,750))
                             titlefontsize = fs,
                             xguidefontsize = fs,
                             yguidefontsize = fs,
-                            legendfontsize = fs-4, 
+                            legendfontsize = fs-5, 
 
                             size = sz, 
                             fontfamily = "computer modern",
@@ -428,7 +428,7 @@ function set_plot(fs::Int; sz::Tuple{Int,Int}=(1000,750))
                             legend_column=2, 
                             bottom_margin = -30mm,
                             
-                            label="")
+                            label=false)
     return plt
 end
 
