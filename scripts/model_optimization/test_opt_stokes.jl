@@ -457,6 +457,7 @@ function optimize(exp_params::Dict)
                 scene.cParam = _F
             else
                 scene.cParam = F[data_range_]
+            end
             @info "Time window $(time_windows[ti])"
 
             println("Data frame : $(data_range_)")
@@ -507,7 +508,12 @@ function optimize(exp_params::Dict)
             for ti::Int in 1:length(windows)
                 data_range_ = data_ranges_[ti]
                 scene.sim_time = time_windows[ti]
-                scene.cParam = F[data_range_]
+                if data_type == "physical"
+                    _F = -F_ext*ones(Float64, round(Int, scene.sim_time*frame_rate)) # force applied to the cylinder in N
+                    scene.cParam = _F
+                else
+                    scene.cParam = F[data_range_]
+                end
                 obsBorderPts_t = windows[ti] # align the observation points with the simulation time
 
                 println("Data frame : $(data_range_)")
