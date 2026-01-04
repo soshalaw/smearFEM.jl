@@ -3739,7 +3739,7 @@ function optimize_syn()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise"]
+    avoid_dirs = ["3_less_noise", "1", "2", "4", "3"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -3760,7 +3760,8 @@ function optimize_syn()
                     if noise_level == 0.0 && viscosity_type == "constant" && ne != 6
                         sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
                     elseif viscosity_type == "constant" && ne == 6
-                        sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
+                        # sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0, 10.0, 20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
                         sim_time_exp_list = [2.0, 5.0, 10.0] # simulation time in seconds
                     else
