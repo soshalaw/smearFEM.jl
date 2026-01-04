@@ -129,6 +129,8 @@ function optimize(exp_params::Dict)
         F_ext = exp_params["F_ext"]
         println("Applied force: $F_ext N")
 
+        F = -F_ext*ones(Float64, round(Int, sim_time_gt*frame_rate)) # force applied to the cylinder in N
+
         obj_pose = get_pose(t_obs)  # Example usage of get_pose function
         obj_pose_ = zeros(Float64, 4,4)
         obj_pose_[1,1] = -1.0
