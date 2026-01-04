@@ -3869,6 +3869,6 @@ function plot_()
     end
 end
 # main()
-plot_()
+# plot_()
 # optimize_sim()
-# optimize_syn()
+optimize_syn()
