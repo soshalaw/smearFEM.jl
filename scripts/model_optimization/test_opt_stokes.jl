@@ -3801,7 +3801,7 @@ function optimize_real()
             end
         end
     end
-    run_param_list(param_list; max_workers=1)
+    run_param_list(param_list; max_workers=15)
 end
 
 function plot_()
