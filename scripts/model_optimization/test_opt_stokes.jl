@@ -127,10 +127,7 @@ function optimize(exp_params::Dict)
         t_steps_gt = t_steps_exp
 
         F_ext = exp_params["F_ext"]
-        F = -F_ext*ones(Float64, round(Int, steps_exp)) # force applied to the cylinder in N
         println("Applied force: $F_ext N")
-
-        # t_obs = Float64.(t_obs)
 
         obj_pose = get_pose(t_obs)  # Example usage of get_pose function
         obj_pose_ = zeros(Float64, 4,4)
@@ -455,7 +452,11 @@ function optimize(exp_params::Dict)
             ti = 1
             data_range_ = data_ranges_[ti]
             scene.sim_time = time_windows[ti]
-            scene.cParam = F[data_range_]
+            if data_type == "physical"
+                _F = -F_ext*ones(Float64, round(Int, scene.sim_time*frame_rate)) # force applied to the cylinder in N
+                scene.cParam = _F
+            else
+                scene.cParam = F[data_range_]
             @info "Time window $(time_windows[ti])"
 
             println("Data frame : $(data_range_)")
