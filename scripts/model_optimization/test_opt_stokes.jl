@@ -3786,10 +3786,9 @@ function optimize_real()
             println("Simulation time experiments to run: $sim_time_exp_list")
             for sim_time_exp in sim_time_exp_list
                 println("Simulation time: $sim_time_exp seconds")
-                filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/physical_data/optimization/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
                 for ne in refine_list
-                    @info "Running optimization with ne = $ne"
                     for FunctionClass_x in FunctionClass_x_List
+                        filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/physical_data/optimization/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
                         @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
                         
                         exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
