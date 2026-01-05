@@ -1626,8 +1626,8 @@ function replot(filepath, filepath_gt)
                                 n_samples = size(η_pred, 1)
                                 h_est_lst = zeros(n_samples, Int(sim_time/ t_steps)+1)
                                 for n in 1:n_samples
-                                    η = η_pred[n, end]
-                                    β = β_pred[n, end]
+                                    η = η_pred[n]
+                                    β = β_pred[n]
                                     
                                     @info "Resimulating for sample $n with η=$η, β=$β"
                                     est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
@@ -1646,7 +1646,7 @@ function replot(filepath, filepath_gt)
                                     write_data(joinpath(exp_path,"Results","data","sim_data","spline_p","run_$n"), splinex)
                                     write_data(joinpath(exp_path,"Results","data","sim_data","spline_q","run_$n"), spliney)
                                 end
-                                write_csv(joinpath(exp_path,"Results","data","h_est.csv"), h_est_lst)
+                                write_csv(joinpath(exp_path,"Results","data","h_est"), h_est_lst)
                                 # if sim_time_exp < sim_time
                                 #     @warn "Truncating obsBorderPts to match sim_time_exp."
                                 #     obsBorderPts = obsBorderPts[1:Int(sim_time_exp/ t_steps)+1, :]
@@ -3705,7 +3705,7 @@ function optimize_syn()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "1", "2", "4", "3"]
+    avoid_dirs = ["3_less_noise", "5", "s"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -3727,7 +3727,7 @@ function optimize_syn()
                         sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
                     elseif viscosity_type == "constant" && ne == 6
                         # sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
-                        sim_time_exp_list = [5.0, 10.0, 20.0, 30.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
                         sim_time_exp_list = [2.0, 5.0, 10.0] # simulation time in seconds
                     else
@@ -3814,8 +3814,8 @@ function plot_()
 
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"] #,"constant"]
-    avoid_dirs = ["3_less_noise", "1", "2", "4", "3"]
-    data_type_list = ["simulated"] #,"simulated"]
+    avoid_dirs = ["3_less_noise"]
+    data_type_list = ["synthetic"] #,"simulated"]
 
     for data_type in data_type_list
         if data_type == "synthetic"
@@ -3837,7 +3837,7 @@ function plot_()
                 replot(filepath_res_dir, filepath_gt_dir)
             end
             if viscosity_type == "constant"
-                # post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
+                post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
             elseif viscosity_type == "bulk_viscosity"
                 # post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
             end
@@ -3847,5 +3847,5 @@ end
 # main()
 # plot_()
 # optimize_sim()
-# optimize_syn()
-optimize_real()
+optimize_syn()
+# optimize_real()
