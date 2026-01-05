@@ -3512,7 +3512,7 @@ function set_time_window(time_step_len::Float64, data::AbstractArray; method::St
                 else
                     requested_end = end_point
                     # adjust the time window end to the last available sample
-                    t_window_end = round((size(data, 1))/time_step_len, digits=1)
+                    t_window_end = round((size(data, 1)-1)/time_step_len, digits=1)
                     end_point = size(data, 1)
                     @warn "Requested end point $requested_end exceeds data size $(size(data,1)); adjusting to end of data (end_point=$end_point). Adjusted end time to $t_window_end seconds."
                 end
@@ -3541,7 +3541,7 @@ function set_time_window(time_step_len::Float64, data::AbstractArray; method::St
         start_point = end_point
         t_window_prev = t_window_end
         t_window_end = get_t_window(window_size, time_step_len, iter, method)
-        end_point = round(Int,t_window_end*time_step_len)
+        end_point = round(Int,t_window_end*time_step_len)+1
     end
     return time_windows, windows, data_ranges, t_windows
 end
@@ -3777,7 +3777,7 @@ function optimize_real()
     window = "multi_window"
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    sim_time_exp_list = [1.0, 2.0, 5.0] # simulation time in seconds
+    sim_time_exp_list = [5.0] # simulation time in seconds
     avoid_dirs = ["3_less_noise","s","6"]
     _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data")
     dir_list = readdir(_filepath_gt)
@@ -3807,13 +3807,13 @@ function optimize_real()
             end
         end
     end
-    run_param_list(param_list; max_workers=15)
+    run_param_list(param_list; max_workers=5)
 end
 
 function plot_()
 
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["bulk_viscosity"] #,"constant"]
+    viscosity_type_list = ["constant"] #,"constant"]
     avoid_dirs = ["3_less_noise", "1", "2", "4", "3"]
     data_type_list = ["simulated"] #,"simulated"]
 
@@ -3845,7 +3845,7 @@ function plot_()
     end
 end
 # main()
-# plot_()
+plot_()
 # optimize_sim()
 # optimize_syn()
-optimize_real()
+# optimize_real()
