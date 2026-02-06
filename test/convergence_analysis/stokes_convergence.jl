@@ -62,12 +62,12 @@ function main()
 
         new_node_list = node_list + sol_u
 
-        BorderPts2D_gt, SurfacePts2D_fem = extract_borders(new_node_list', camera_matrix, camera_pose)
+        BorderPts2D, SurfacePts2D_fem = extract_borders(new_node_list', camera_matrix, camera_pose)
         
-        # display(Plots.plot!(BorderPts2D_gt[1,:],BorderPts2D_gt[2,:],label="gt"))
-        pi_gt, qi_gt = fit_curve(border=BorderPts2D_gt)
+        # display(Plots.plot!(BorderPts2D[1,:],BorderPts2D[2,:],label="gt"))
+        pi, qi = fit_curve(border=BorderPts2D)
         # set_plot(22)
-        display(Plots.plot!(pi_gt,qi_gt,label="gt"))
+        display(Plots.plot!(pi,qi,label="gt"))
         for (i, ne) in enumerate(exp_ne)     
             
             println("Running for ne = $ne and β = $β")
@@ -104,12 +104,12 @@ function main()
 
             # display(Plots.plot!(pi_iga,qi_iga,label="IGA, ne = $ne"))
             d, pairs = closest_point([vcat(pi_iga', qi_iga')], [vcat(pi_fem', qi_fem')])
-            d_iga, pairs_iga = closest_point([vcat(pi_iga', qi_iga')], [vcat(pi_gt', qi_gt')])
-            d_fem, pairs_fem = closest_point([vcat(pi_fem', qi_fem')], [vcat(pi_gt', qi_gt')])
+            d_iga, pairs_iga = closest_point([vcat(pi_iga', qi_iga')], [vcat(pi', qi')])
+            d_fem, pairs_fem = closest_point([vcat(pi_fem', qi_fem')], [vcat(pi', qi')])
             
             pts_d, pts_pairs = closest_point([BorderPts2D_iga], [vcat(pi_fem', qi_fem')])
-            pts_d_iga, pts_pairs_iga = closest_point([BorderPts2D_iga], [vcat(pi_gt', qi_gt')])
-            pts_d_fem, pts_pairs_fem = closest_point([BorderPts2D_fem], [vcat(pi_gt', qi_gt')])
+            pts_d_iga, pts_pairs_iga = closest_point([BorderPts2D_iga], [vcat(pi', qi')])
+            pts_d_fem, pts_pairs_fem = closest_point([BorderPts2D_fem], [vcat(pi', qi')])
 
             norm_cost = pairs[2]
             norm_cost_iga = pairs_iga[2]
@@ -208,4 +208,61 @@ function main()
 
 end
 
-main()
+function mesh_convergence_analysis()
+
+    height_list = AbstractArray[]
+    μ_list = AbstractArray[]
+
+    r::Float64 = 25.0  # radius of the cylinder in mm
+    h::Float64 = 40.0  # height of the cylinder in mm
+
+    β::Float64 = 100.0
+    η::Float64 = 100.0
+
+    viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
+    FunctionClass_x::String = "Q2" # Function space for the ground truth
+    FunctionClass_p::String = "Q1"
+    FunctionClass_u::String = "Q2"
+    control::String = "force" # "force" or "velocity"
+    nDof_u::Int = 3
+    nDof_p::Int = 1
+    ndim::Int = 3
+
+    F_ext::Float64 = 0.2*9.812*1e3 # force applied to the cylinder in N
+    sim_time::Float64 = 0.1 # simulation time in seconds
+    steps::Float64 = 1  # number of time steps
+    t_steps = sim_time/steps
+
+    obj_pose = zeros(Float64, 4, 4)
+    obj_pose[1,1] = -1.0
+    obj_pose[2,3] = -1.0
+    obj_pose[3,2] = -1.0
+    obj_pose[1:3,4] = [0.0, h/2, 150.0]
+    camera_matrix::AbstractMatrix{Float64} = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
+    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis")
+
+    conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=false, filepath=filepath, ANIMATE=false)
+    F = -F_ext*ones(Float64, round(Int, steps)) # force applied to the cylinder in N
+
+    model_ref, scene_ref = def_problem(r, h, 8, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
+                                        sim_time, t_steps)
+
+    est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = stokes_single_step_force(model_ref, scene_ref, conditions)   
+
+    mesh_sz = [2, 4, 6, 8, 10, 12, 14, 16]
+    for mesh in mesh_sz
+        println("Running for mesh size = $mesh")
+        # run the simulation for the given mesh size and store the results
+        model, scene = def_problem(r, h, mesh, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
+                                    sim_time, t_steps)
+
+        est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = stokes_single_step_force(model, scene, conditions)
+        
+        push!(height_list, get_height(est_μ_list, h))
+        push!(μ_list, est_μ_list)
+    end
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_list", height_list)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/μ_list", μ_list)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/mesh_sz", mesh_sz)
+end
+mesh_convergence_analysis()

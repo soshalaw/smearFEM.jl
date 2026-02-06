@@ -77,7 +77,7 @@ function plot_mesh(NodeList, IEN)
         end
 
     elseif sz == 3
-        Plots.scatter3d(NodeList[1,:], NodeList[2,:], NodeList[3,:], markersize=2, label="", dpi=:400, lw=3)
+        Plots.scatter3d(NodeList[1,:], NodeList[2,:], NodeList[3,:], markersize=2, label="", dpi=:400, lw=1)
         iter = 1:size(IEN,1)
         for i in iter
             x = NodeList[1,IEN[i,:]]
@@ -159,40 +159,40 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
         iter = 1:sz
         animation2 = @animate for i in iter
             
-            plt = set_plot(22)
+            plt = set_plot(12)
             if !isnothing(pObs) && !isnothing(p) && !isnothing(pgt)    
-                Plots.plot!(p[i],q[i], labels="Lagrange basis", aspect_ratio = :equal, dpi=:400, lw=2, color=:darkorange)
-                Plots.plot!(pObs[i],qObs[i], labels="NURBS basis", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
-                Plots.plot!(pgt[i],qgt[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2, color=:green4)
+                Plots.plot!(plt, p[i],q[i], labels="Lagrange basis", aspect_ratio = :equal, dpi=:400, lw=2, color=:darkorange)
+                Plots.plot!(plt, pObs[i],qObs[i], labels="NURBS basis", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
+                Plots.plot!(plt, pgt[i],qgt[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2, color=:green4)
             else
                 if !isnothing(p)   
-                    Plots.plot!(p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=3, color=:darkorange) #, marker = :circle, markersize = 2)
+                    Plots.plot!(plt, p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=1, color=:darkorange) #, marker = :circle, markersize = 2)
                 end
                 if !isnothing(pObs)
-                    Plots.plot!(pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
+                    Plots.plot!(plt, pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
                 end
                 if !isnothing(fields2D)
-                    Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:3, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
+                    Plots.scatter!(plt, fields2D[i][1,:], fields2D[i][2,:], ms=:3, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
                                     dpi=:400)
                 end
                 if !isnothing(BorderNodes2D)
-                    Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:3, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
+                    Plots.scatter!(plt, BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:3, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
                                     dpi=:400)
                 end
             end
 
-            Plots.xlabel!(L"x")
-            Plots.ylabel!(L"y")
-            Plots.xlims!(0,2048)
-            Plots.ylims!(0,1536)
-            Plots.yflip!(true)  # if needed to match image coords
+            Plots.xlabel!(plt, L"x")
+            Plots.ylabel!(plt, L"y")
+            Plots.xlims!(plt, 0,2048)
+            Plots.ylims!(plt, 0,1536)
+            Plots.yflip!(plt, true)  # if needed to match image coords
             next!(pr)
             try
                 yield()
             catch
             end
         end
-        gif(animation2, string(filepath,"/2D_grid.gif"), fps=30)
+        gif(animation2, string(filepath,"/2D_grid.gif"), fps=5)
     end
 end
 
@@ -221,28 +221,28 @@ function animate_2D_comp(;borders=nothing, filepath="images/2D_grid.gif")
         iter = 1:sz
         animation2 = @animate for i in iter
             
-            plt = set_plot(22)
+            plt = set_plot(12)
 
             if !isnothing(p)   
-                Plots.plot!(p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=2)
+                Plots.plot!(plt, p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=2)
             end
             if !isnothing(pObs)
-                Plots.plot!(pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2)
+                Plots.plot!(plt, pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2)
             end
             if !isnothing(fields2D)
-                Plots.scatter!(fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
+                Plots.scatter!(plt, fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
                                 dpi=:400)
             end
             if !isnothing(BorderNodes2D)
-                Plots.scatter!(BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:6, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
+                Plots.scatter!(plt, BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:6, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
                                 dpi=:400)
             end
 
-            Plots.xlabel!(L"x")
-            Plots.ylabel!(L"y")
-            Plots.xlims!(0,2048)
-            Plots.ylims!(0,1536)
-            Plots.yflip!(true)  # if needed to match image coords
+            Plots.xlabel!(plt, L"x")
+            Plots.ylabel!(plt, L"y")
+            Plots.xlims!(plt, 0,2048)
+            Plots.ylims!(plt, 0,1536)
+            Plots.yflip!(plt, true)  # if needed to match image coords
             next!(pr)
             try
                 yield()
@@ -407,27 +407,30 @@ function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String
     gif(animation, string(filepath,"/matches_h.gif"), fps=10)
 end
 
-function set_plot(fs::Int; sz::Tuple{Int,Int}=(1000,750))
+function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1, right_margin=5pt, left_margin=-1pt, top_margin=1pt, bottom_margin=-30mm)
 
     plt = Plots.plot(1, 
-                            xtickfontsize = fs, ytickfontsize = fs,
+                            xtickfontsize = round(Int,fs*0.85), ytickfontsize = round(Int,fs*0.85),
                             titlefontsize = fs,
                             xguidefontsize = fs,
                             yguidefontsize = fs,
-                            legendfontsize = fs-5, 
+                            legendfontsize = round(Int,fs*0.8), 
 
                             size = sz, 
                             fontfamily = "computer modern",
                             framestyle = :box, 
-                            margin = 6mm, 
+                            top_margin=top_margin,
+                            left_margin=left_margin,
+                            bottom_margin=bottom_margin, # negative margin to move legend down
+                            right_margin=right_margin,
 
                             grid = :true, 
                             minorgrid = :true, 
-                            lw = 3,
+                            lw = 1,
                             legend=:outerbottom, 
-                            legend_column=2, 
-                            bottom_margin = -30mm,
-                            
+                            legend_column=legend_column, 
+                            foreground_color_legend = nothing,
+
                             label=false)
     return plt
 end
@@ -452,7 +455,7 @@ function set_subplot(fs::Int; sz::Tuple{Int,Int}=(1000,750), layout=(1,1), legen
                             titlefontsize = fs,
                             xguidefontsize = fs,
                             yguidefontsize = fs,
-                            legendfontsize = fs-4, 
+                            legendfontsize = fs, 
 
                             size = sz, 
                             fontfamily = "computer modern",
@@ -461,7 +464,7 @@ function set_subplot(fs::Int; sz::Tuple{Int,Int}=(1000,750), layout=(1,1), legen
 
                             grid = :true, 
                             minorgrid = :true, 
-                            lw = 3,
+                            lw = 4,
                             
                             label=""; kw...)
     return plt
@@ -544,13 +547,13 @@ function plot_covariance!(plt, η_list::Vector{Float64}, β_list::Vector{Float64
     mean_vec = [mean_η; mean_β]
 
     # Build kwargs for covellipse
-    covellipse_kwargs = (label=label, alpha=0.5, bottom_margin = -30mm, legend=:outerbottom, legend_column=legend_column)
+    covellipse_kwargs = (label=label, alpha=0.5, legend=:outerbottom, legend_column=legend_column)
     if !isnothing(color_ellipse)
-        covellipse_kwargs = (covellipse_kwargs..., color=color_ellipse)
+        covellipse_kwargs = (covellipse_kwargs..., color=color_ellipse, lw=1)
     end
 
     # Build kwargs for scatter
-    scatter_kwargs = (label="Data points", dpi=:400, ms=:10, markerstrokewidth=0.1)
+    scatter_kwargs = (label="Data points", ms=:10, markerstrokewidth=0.1)
     if !isnothing(color_scatter)
         scatter_kwargs = (scatter_kwargs..., color=color_scatter)
     end

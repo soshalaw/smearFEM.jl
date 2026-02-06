@@ -310,14 +310,16 @@ function read_perception_data(filepath::String)
     end
     # Read the JSON file
     h5file = h5open(filepath, "r")
+    
     pose = read(h5file, "poses")
-    
+    pose_plt_top = read(h5file, "pose_top_plate")
+    pose_plt_btm = read(h5file, "pose_btm_plate")
+
     pose_new = permutedims(pose,[2,1,3])
-    
-    
-    println(size(pose))
-    
-    return pose_new
+    pose_top_plt_new = permutedims(pose_plt_top,[2,1,3])
+    pose_btm_plt_new = permutedims(pose_plt_btm,[2,1,3])
+
+    return pose_new, pose_top_plt_new, pose_btm_plt_new
 end
 
 function get_time_windows(file_path::String)

@@ -1134,16 +1134,15 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
         @error "Length of the Force vector ($(length(cParam))) is less than length of time array ($(length(time)))"
     end
 
+    η = [η_0]
     if viscosity_type == "bulk_viscosity"
         if viscosity_model == "power_law"
             @info "Using power law viscosity model"
             η = get_η_power_law.(time, -cParam[1:len_t], r, h, η_0, n, K)
         elseif viscosity_model == "carreau"
             @info "Using Carreau viscosity model reading data from file"
-            η = get_η_carraeu.(h, -cParam, r)
+            η = [η_0]
         end
-    else
-        η = [η_0]
     end 
 
     # define the model

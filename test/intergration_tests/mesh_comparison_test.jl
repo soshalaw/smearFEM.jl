@@ -4,10 +4,10 @@ using FileIO, Images
 
 function initialize_meshes()
     # Initialization code here
-    gt_path = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data/5"
-    t_obs = read_perception_data(string(gt_path, "/Results/sequence.hdf5"))
+    gt_path = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data/3"
+    t_obs = read_perception_data(string(gt_path, "/data/sequence.hdf5"))
 
-    _ObsDataList, _splinexObs, _splineyObs = read_csv(string(gt_path, "/data/sim_data/contour_data"))
+    _ObsDataList, _splinexObs, _splineyObs = read_csv(string(gt_path, "/data/img_data/contour_data"))
     meta_data = read_json(string(gt_path, "/data/video_metadata.json"))
 
     frame_rate = round(Int, meta_data["frame_rate"])
@@ -27,7 +27,7 @@ function initialize_meshes()
 
     # test case 
     r::Float64 = 25  # radius of the cylinder in mm
-    h::Float64 = 40  # height of the cylinder in mm
+    h::Float64 = 38.5  # height of the cylinder in mm
     F_ext::Float64 = 1*9.812*1e3 # force applied to the cylinder in N
     F = -F_ext*ones(Float64, round(Int, steps_exp)) # force applied to the cylinder in N
     ne_exp = 4
@@ -61,22 +61,23 @@ function initialize_meshes()
     println("Valid frames: ", length(valid_frames), " out of ", length(ObsDataList))
     println("Outlier frames: ", length(outlier_frames))
 
-    # borderPts2DList, pos2D, splinep, splineq = initialize_mesh(r, h, ne_exp, FunctionClass_u, camera_matrix, obj_pose, filepath, SIDES)
+    borderPts2DList, pos2D, splinep, splineq = initialize_mesh(r, h, ne_exp, FunctionClass_u, camera_matrix, obj_pose, filepath, SIDES)
     # model, scene = def_problem(r, h, ne_exp, η_start, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_start, F, control, gt_viscosity_type, 
     #                     sim_time_exp, t_steps_exp)
-    conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=SIDES, filepath=filepath, ANIMATE=false)
+    # conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=SIDES, filepath=filepath, ANIMATE=false)
     # output, gradList, borderPts2DList, splinep, splineq, mdl, pos2D = simulate(model, scene, conditions) # run the simulation
 
-    animate_fields(filepath = string(conditions.filepath,"/Results/images/"), pObs=splinexObs, qObs=splineyObs)
-
-    img = load(string(gt_path, "/Results/contour_detection/00000.png"))
+    # animate_fields(filepath = string(conditions.filepath,"/Results/images/"), pObs=splinexObs, qObs=splineyObs)
+    img_name = string(lpad(compression_frames[1], 5, '0'), ".png")
+    println("Loading image: ", img_name)
+    img = load(string(gt_path, "/data/Results/contour_detection/", img_name))
 
     # Plotting the meshes
     p = plot(img; axis=nothing, legend=false)
 
     # Overlay curves
     plot!(p, splinexObs[1], splineyObs[1], label="", lw=2, color=:blue)
-    # plot!(p, borderPts2DList[1][1,:], borderPts2DList[1][2,:], label="", lw=2, color=:black)
+    plot!(p, borderPts2DList[1][1,:], borderPts2DList[1][2,:], label="", lw=2, color=:black)
 
     xlims!(p, 0, 2048)
     ylims!(p, 0, 1536)

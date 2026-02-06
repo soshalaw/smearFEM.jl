@@ -202,8 +202,359 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
         return q_out, mdl
     end
 end
-"""
-    write_data(exp_params::Dict)
+
+function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
+
+    reset_model!(mdl)
+    
+    @unpack FunctionClass, IEN, IEN_cp, ID, NodeList, C_vol, W = mdl.mesh_x
+    FunctionClass_x_cached::String = FunctionClass
+    NodeList_x_cached::Matrix{Float64} = NodeList
+    IEN_x_cached::Matrix{Int} = IEN
+    IEN_x_cp_cached::Matrix{Int} = IEN_cp
+    ID_x_cached::Matrix{Int} = ID
+    C_vol_x_cached = C_vol
+    W_x_cached = W
+
+    @unpack IEN, ID, FunctionClass, top_nodes, bottom_nodes, side_nodes, nNodes = mdl.mesh_u
+    FunctionClass_u_cached::String = FunctionClass
+    IEN_u_cached::Matrix{Int} = IEN
+    ID_u_cached::Matrix{Int} = ID
+    nNodes_u_cached::Int = nNodes
+    NodeList_u_cached::Matrix{Float64} = NodeList
+    top_node_list_cached::Vector{Int} = top_nodes # top nodes
+    bottom_node_list_cached::Vector{Int} = bottom_nodes # bottom nodes
+    side_node_list_cached::Vector{Int} = side_nodes
+
+    @unpack η, nDof_u, nDof_p, ndim = mdl
+    η_cached::Any = η
+    nDof_u_cached::Int = nDof_u
+    nDof_p_cached::Int = nDof_p
+    ndim_cached::Int = ndim
+
+    @unpack β, viscosity_type, q_d, C_uc, t_steps, sim_time, control, cParam = scene
+    β_cached::Any = β
+    viscosity_type_cached::String = viscosity_type
+    q_d_cached::Dict{Symbol, Matrix{Float64}} = q_d
+    q_d_cached_top::SparseMatrixCSC{Bool, Int64} = q_d_cached[:top]
+    q_d_cached_btm::SparseMatrixCSC{Bool, Int64} = q_d_cached[:bottom]
+    q_d_cached_brdr::SparseMatrixCSC{Bool, Int64} = q_d_cached[:border]
+    C_uc_cached::SparseMatrixCSC{Bool, Int64} = C_uc
+    t_steps_cached::Float64 = t_steps
+    sim_time_cached::Float64 = sim_time
+    control_cached::String = control
+    cParam_cached::Vector{Float64} = scene.cParam
+
+    @unpack nNodes = mdl.mesh_p
+    nNodes_p_cached::Int = nNodes
+
+    @unpack camera_matrix, obj_pose, SIDES = conditions    
+    camera_matrix_cached::Matrix{Float64} = camera_matrix
+    obj_pose_cached::Matrix{Float64} = obj_pose
+    SIDES_cached::Bool = SIDES
+    
+    NodeList_cached::Matrix{Float64} = NodeList_u_cached
+    ID_cached::Matrix{Int} = ID_u_cached
+    T = Matrix{Float64}(I, size(NodeList_x_cached,2), size(NodeList_u_cached,2)) # projection matrix from geometry to field mesh
+
+    time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
+    len_t = length(time)
+
+    if FunctionClass_x_cached == "S2" && FunctionClass_u_cached != "S2"
+        T = get_nurbs_2_lagrange_proj(IEN_x_cached, IEN_u_cached, C_vol_x_cached, NodeList_x_cached, W_x_cached)
+        NodeList_cached = NodeList_x_cached
+    end
+
+    T_ = T'*inv(T*T')
+    C_Tu = transpose(C_uc_cached) # transpose the constraint matrix
+
+    if conditions.filepath != ""
+        isnothing(conditions.filepath) || AssertionError("Please provide a filepath to write the data")
+        set_file(conditions.filepath)
+    end
+
+    μu_btm = 0  
+    μu_side = 0
+    
+    NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
+            
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, nNodes_u_cached, BorderNodesList=side_node_list_cached)
+    pi, qi = fit_curve(border=BorderPts2D)
+    
+    dqdη = zeros(Float64, size(q_d_cached_top))
+    dqdβ = zeros(Float64, size(q_d_cached_top))
+
+    displacement = AbstractArray[zeros(Float64,size(NodeList_proj,1),size(NodeList_proj,2))] # store the displacement of the mesh in 3D
+    surface_fields = AbstractArray[]
+    surface_pts_3D = AbstractArray[vcat(NodeList_proj[:,top_node_list_cached]', 
+                                        NodeList_proj[:,bottom_node_list_cached]', 
+                                        NodeList_proj[:,side_node_list_cached]')']      # store the solution fields of the mesh in 3D
+    gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)] # store the solution fields of the border nodes in 2D 
+    pos3D = AbstractArray[NodeList_proj]         # store the solution fields of the mesh in 3D
+    pos3D_cp = AbstractArray[NodeList_cached]  
+    pos2D = AbstractArray[SurfacePts2D]          # store the solution fields of the mesh in 2D
+    borderPts2DList = AbstractArray[BorderPts2D] # store the solution fields of the surfaces in 2D
+    splinep = AbstractArray[BorderPts2D[1,:]]    # store the x coordinates samples of the spline parameters of the border nodes
+    splineq = AbstractArray[BorderPts2D[2,:]]    # store the y coordinates samples of the spline parameters of the border nodes
+    output = Float64[] 
+    writeborderList = [vcat(pi', qi')]
+    iter = 1
+    
+    if control_cached == "force"
+
+        A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached)  # initialize the stiffness matrix
+        B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_p_cached*(nNodes_p_cached)^ndim_cached)      # initialize the stiffness matrix
+        b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached)      # initialize the stiffness matrix
+        q_d = spzeros(nDof_u_cached*(nNodes_u_cached)^ndim_cached,1)                                                                       # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        A = similar(A_bar)
+
+        A_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(C_uc_cached,2))   # convert to sparse matrix
+        B_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(B,2))             # convert to sparse matrix
+
+        dA_freedη = similar(A_free)                         
+        dA_freedβ = similar(A_free)                         
+        dB_free = spzeros(size(B_free))                     
+        zero = spzeros(size(B_free,2),size(B_free,2))
+
+        dAdη = similar(A_bar)
+        dAdβ = similar(A_bar)
+        dB = spzeros(size(B))
+
+        q = similar(q_d)
+        dqfdη = similar(q)
+        dqfdβ = similar(q)
+
+        M = spzeros((size(A_free,1)+size(B_free,2)+1),(size(A_free,2)+size(B_free,2)+1))
+        dMdη = spzeros(size(M))
+        dMdβ = spzeros(size(M))
+
+        A_bar .= assemble_system_A(mdl)     # assemble the stiffness matrix
+        B .= assemble_system_B(mdl)         # assemble the stiffness matrix
+        b .= apply_boundary_conditions(mdl) # apply the neumann boundary conditions
+    
+        q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
+        
+        if viscosity_type_cached == "bulk_viscosity"
+            if length(β_cached) == 1
+                A = η_cached[iter]*A_bar + β_cached[1]*b
+            else
+                A = η_cached[iter]*A_bar + β_cached[iter]*b
+            end
+        else
+            A .= η_cached[1]*A_bar + β_cached[1]*b
+        end
+    
+        dAdη .= A_bar
+        dAdβ .= b
+
+        A_free .= C_Tu*A*C_uc_cached # extract the free part of the stiffness matrix
+        B_free .= C_Tu*B             # extract the free part of the stiffness matrix
+
+        dA_freedη .= C_Tu*dAdη*C_uc_cached # extract the free part of the stiffness matrix
+        dA_freedβ .= C_Tu*dAdβ*C_uc_cached # extract the free part of the stiffness matrix
+
+        M[1:size(A_free,1),1:size(A_free,2)] = A_free
+        M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = B_free'
+        M[end,1:size(A_free,2)] = q_d_cached_top'*A*C_uc_cached
+
+        M[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = B_free
+        M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = zero
+        M[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = q_d_cached_top'*B
+
+        M[1:size(A_free,1),end] = C_Tu*A*q_d_cached_top
+        M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = B'*q_d_cached_top
+        M[end,end] = (q_d_cached_top'A*q_d_cached_top)[end]
+        
+        dMdη[1:size(A_free,1),1:size(A_free,2)] = dA_freedη
+        dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = dB_free'
+        dMdη[end,1:size(A_free,2)] = q_d_cached_top'*dAdη*C_uc_cached
+
+        dMdη[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = dB_free
+        dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = zero
+        dMdη[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = q_d_cached_top'*dB
+
+        dMdη[1:size(A_free,1),end] = C_Tu*dAdη*q_d_cached_top
+        dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
+        dMdη[end,end] = (q_d_cached_top'dAdη*q_d_cached_top)[end]
+        
+        dMdβ[1:size(A_free,1),1:size(A_free,2)] = dA_freedβ
+        dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = dB_free'
+        dMdβ[end,1:size(A_free,2)] = q_d_cached_top'*dAdβ*C_uc_cached
+
+        dMdβ[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = dB_free
+        dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = zero
+        dMdβ[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = q_d_cached_top'*dB
+
+        dMdβ[1:size(A_free,1),end] = C_Tu*dAdβ*q_d_cached_top
+        dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
+        dMdβ[end,end] = (q_d_cached_top'dAdβ*q_d_cached_top)[end]
+
+        r = [-C_Tu*A*q_d; -B'*q_d; cParam_cached[iter].-q_d_cached_top'A*q_d]    # assemble the system of equations
+        drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdη*q_d] # solve the system of equations
+        drdβ = -[C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdβ*q_d] # solve the system of equations
+
+        lum = lu(M) # LU decomposition of the system of equations
+
+        sol = lum\Matrix(r)             # solve the system of equations
+        dsoldη = lum\(drdη - dMdη*sol)  # solve the system of equations
+        dsoldβ = lum\(drdβ - dMdβ*sol)  # solve the system of equations
+
+        q_f = view(sol, 1:size(A_free, 1))
+        dqfdη = view(dsoldη, 1:size(A_free, 1))
+        dqfdβ = view(dsoldβ, 1:size(A_free, 1))
+
+        p_f = view(sol, (size(A_free, 1) + 1):(size(A_free, 1) + size(B_free, 2)))
+        dpfdη = view(dsoldη, (size(A_free, 1) + 1):(size(A_free, 1) + size(B_free, 2)))
+        dpfdβ = view(dsoldβ, (size(A_free, 1) + 1):(size(A_free, 1) + size(B_free, 2)))
+
+        μ_tp = sol[end]
+        dμdη = dsoldη[end]
+        dμdβ = dsoldβ[end]
+        
+        q .= q_d + C_uc_cached*q_f + μ_tp*q_d_cached_top;       # assemble the solution 
+        dqdη .= dqdη + C_uc_cached*dqfdη + dμdη*q_d_cached_top; # assemble the solution
+        dqdβ .= dqdβ + C_uc_cached*dqfdβ + dμdβ*q_d_cached_top; # assemble the solution
+
+        p = p_f;
+        dpdη = dpfdη; # assemble the solution
+        dpdβ = dpfdβ; # assemble the solution
+
+        motion_y = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # extract the motion of the mesh grid
+        dmdη_out_y = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'*t_steps_cached
+        dmdβ_out_y = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'*t_steps_cached
+
+        motion =  motion_y # extract the motion of the mesh grid
+
+        NodeList_cached = NodeList_cached + motion # update the mesh grid
+        mdl.mesh_x.NodeList = NodeList_cached      # update the mesh grid
+
+        NodeList_proj = NodeList_cached # project the motion on the geometry mesh grid
+        dmdη_out_proj = dmdη_out_y
+        dmdβ_out_proj = dmdβ_out_y
+        motion_proj = motion
+        
+        mat_nan_inf_check(dmdη_out_y)
+        mat_nan_inf_check(dmdβ_out_y)
+        
+        dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
+
+        BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+        pi, qi = fit_curve(border=BorderPts2D)
+
+        push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
+        push!(displacement, motion_proj)
+        push!(surface_fields, motion_proj[:,side_node_list_cached])
+        push!(surface_pts_3D, vcat(NodeList_proj[:,top_node_list_cached]', NodeList_proj[:,bottom_node_list_cached]', NodeList_proj[:,side_node_list_cached]')')
+        push!(gradList,dudθ)
+        push!(pos2D, SurfacePts2D)
+        push!(pos3D, NodeList_proj)
+        push!(pos3D_cp, NodeList_cached)
+        push!(borderPts2DList, BorderPts2D)
+        push!(splinep, BorderPts2D[1,:])
+        push!(splineq, BorderPts2D[2,:])
+        push!(writeborderList, vcat(pi', qi'))
+
+    elseif control_cached == "velocity"
+
+        A_bar = assemble_system_A(mdl)     # assemble the stiffness matrix
+        B = assemble_system_B(mdl)         # assemble the stiffness matrix
+        b = apply_boundary_conditions(mdl) # apply the neumann boundary conditions
+    
+        q_d = (μu_btm*q_d_cached_btm + cParam_cached[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
+    
+        if viscosity_type_cached == "bulk_viscosity"
+            if length(β_cached) == 1
+                A = η_cached[iter]*A_bar + β_cached[1]*b
+            else
+                A = η_cached[iter]*A_bar + β_cached[iter]*b
+            end
+        else
+            A = η_cached[1]*A_bar + β_cached[1]*b
+        end
+
+        dAdη = A_bar
+        dAdβ = b
+        dB = zeros(Float64, size(B))
+
+        C_Tu = transpose(C_uc_cached)      # transpose the constraint matrix
+    
+        A_free = C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
+        B_free = C_Tu*B                    # extract the free part of the stiffness matrix
+
+        dA_freedη = C_Tu*dAdη*C_uc_cached        # extract the free part of the stiffness matrix
+        dA_freedβ = C_Tu*dAdβ*C_uc_cached        # extract the free part of the stiffness matrix
+        dB_free = zeros(Float64, size(B_free))
+    
+        K_free = [A_free B_free; B_free' zeros(Float64, size(B_free,2),size(B_free,2))]      # assemble the system of equations
+        dKdη = [C_Tu*dAdη*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
+        dKdβ = [C_Tu*dAdβ*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
+        
+        invK = inv(Matrix(K_free))
+    
+        r = [C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
+        drdη = [C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2))] # solve the system of equations
+        drdβ = [C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2))] # solve the system of equations
+
+        sol = -invK*r                    # solve the system of equations
+        dsoldη = -invK*(drdη + dKdη*sol) # solve the system of equations
+        dsoldβ = -invK*(drdβ + dKdβ*sol) # solve the system of equations
+    
+        q_f = sol[1:size(A_free,1)]      # extract the free part of the solution
+        dqfdη = dsoldη[1:size(A_free,1)] # extract the free part of the solution
+        dqfdβ = dsoldβ[1:size(A_free,1)] # extract the free part of the solution
+
+        p_f = sol[size(A_free,1)+1:end]      # extract the free part of the solution
+        dpfdη = dsoldη[size(A_free,1)+1:end] # extract the free part of the solution 
+        dpfdβ = dsoldβ[size(A_free,1)+1:end] # extract the free part of the solution
+    
+        q = q_d + C_uc_cached*q_f;         # assemble the solution 
+        dqdη = dqdη + C_uc_cached*dqfdη;   # assemble the solution
+        dqdβ = dqdβ + C_uc_cached*dqfdβ;   # assemble the solution
+
+        p = p_f;
+        dpdη = dpfdη;  # assemble the solution
+        dpdβ = dpfdβ;  # assemble the solution
+
+        motion = hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # get the motion of the mesh
+        dmdη_out = hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
+        dmdβ_out = hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
+        
+        NodeList_cached = NodeList_cached + motion # update the mesh grid
+        mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
+    
+        NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
+        dmdη_out_proj = dmdη_out*T
+        dmdβ_out_proj = dmdβ_out*T
+        
+        dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
+    
+        BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+        pi, qi = fit_curve(border=BorderPts2D)
+
+        mat_nan_inf_check(dudθ[:,:,1])
+        mat_nan_inf_check(dudθ[:,:,2])
+
+        push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
+        push!(displacement, motion)
+        push!(surface_fields, motion[:,side_node_list_cached])
+        push!(surface_pts_3D, NodeList_proj[:,side_node_list_cached]')
+        push!(gradList,dudθ)
+        push!(pos2D, SurfacePts2D)
+        push!(pos3D, NodeList_proj)
+        push!(pos3D_cp, NodeList_cached)
+        push!(borderPts2DList, BorderPts2D)
+        push!(splinep, BorderPts2D[1,:])
+        push!(splineq, BorderPts2D[2,:]) 
+        push!(writeborderList, vcat(pi', qi'))
+    else
+            throw(ArgumentError("Control type not unknown"))
+    end
+
+    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, splinep, splineq
+end
+                                    """
+write_data(exp_params::Dict)
+
 Writes simulation data to files based on the provided experiment parameters.
 
 # Arguments
@@ -297,7 +648,6 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
         rm(string(filepath), recursive=true, force=true) # remove the previous results folder if it exists
     end
 
-    
     h_, gradList, borderPts2DList, fields, pos3D, pos2D, _ = simulate(model, scene, conditions) # run the simulation
     
     h = get_height(h_, model.mesh_u.h) # get the mesh height with time
@@ -325,72 +675,6 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
 
     @info "Data written to $filepath"
 
-end
-
-"""
-    test(r, h, ne, c1, c2, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control; writeData=false, filepath="nothing", mode="lame", SIDES=false)
-
-Runs a test simulation.
-
-# Arguments
-- `r::Number`: Radius of the cylinder.
-- `h::Number`: Height of the cylinder.
-- `ne::Int64`: Number of elements.
-- `c1::Number`: First material parameter.
-- `c2::Number`: Second material parameter.
-- `ndim::Int64`: Number of dimensions.
-- `FunctionClass::String`: Type of basis function.
-- `nDof::Int64`: Number of degrees of freedom per node.
-- `β::Number`: Friction parameter.
-- `CameraMatrix::AbstractMatrix{Float64}`: Camera matrix.
-- `endTime::Number`: End time of the simulation.
-- `tSteps::Number`: Number of time steps.
-- `Control::String`: Type of control ("force" or "displacement").
-
-# Keyword Arguments
-- `writeData::Bool`: Whether to write data to a file (default: `false`).
-- `filepath::String`: Path to the output file (default: `"nothing"`).
-- `mode::String`: Type of constitutive matrix ("lame" by default).
-- `SIDES::Bool`: Whether to include side boundaries (default: `false`).
-
-# Returns
-- `μ_list::Vector{Float64}`: Force applied on the top boundary in the force constrolled scenario / Force applied on the top boundary in the displacement controlled scenario.
-- `gradList::Vector{Matrix{Float64}}`: List of gradients of the border points at each timestep.
-- `borderPts2DList::Vector{Matrix{Float64}}`: List of 2D border points at each timestep.
-- `splinep::Vector{Vector{Float64}}`: x coordinates of the border observation at each timestep interpolated.
-- `splineq::Vector{Vector{Float64}}`: y coordinates of the border observation at each timestep interpolated.
-- `mdl::model`: Model object containing mesh and material properties.
-- `SurfacePt2D::Vector{Matrix{Float64}}`: List of surface nodes of the mesh at each timestep.
-"""
-function test(r::Number, h::Number, ne::Int64, c1::Float64, c2::Float64, ndim::Int64, FunctionClass::String, nDof::Int64, β::Number, CameraMatrix::AbstractMatrix{Float64}, 
-            endTime::Number, tSteps::Number, Control::String; writeData::Bool=false, filepath::String="nothing", mode::String = "lame", SIDES::Bool=false)
-    
-    if writeData
-        isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
-        set_file(filepath)
-    end
-
-    time = collect(Float64, range(0, stop=endTime, step=tSteps))
-    len_t = length(time)
-
-    if Control == "force"
-        cParam = -3*ones(len_t)
-    elseif Control == "displacement"
-        μ_tp = -0.1
-        cParam = μ_tp*ones(len_t)
-    end
-
-    cMat = get_cMat(c1, c2, type=mode) # E, ν or λ, μ
-    dcdλ = get_cMat(1.0 , 0.0, type=mode)
-    dcdβ = get_cMat(0.0 , 1.0, type=mode)
-
-    dcdθl = cat(dcdλ, dcdβ, dims=3)
-
-    μ_list, gradList, borderPts2DList, splinep, splineq, mdl, SurfacePt2D = simulate(r, h, ne, c1, c2, ndim, FunctionClass, nDof, β, CameraMatrix, time, 
-                                                                                Control, cParam, cMat, writeData=writeData, filepath=filepath, SIDES=SIDES, 
-                                                                                dcdλ=dcdλ)
-
-    return μ_list, gradList, borderPts2DList, splinep, splineq, mdl, SurfacePt2D
 end
 
 """
