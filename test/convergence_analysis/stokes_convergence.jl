@@ -244,7 +244,7 @@ function mesh_convergence_analysis()
     conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=false, filepath=filepath, ANIMATE=false)
     F = -F_ext*ones(Float64, round(Int, steps)) # force applied to the cylinder in N
 
-    model_ref, scene_ref = def_problem(r, h, 8, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
+    model_ref, scene_ref = def_problem(r, h, 16, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
                                         sim_time, t_steps)
 
     est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = stokes_single_step_force(model_ref, scene_ref, conditions)   
