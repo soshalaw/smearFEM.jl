@@ -1127,7 +1127,7 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
     K::Float64 = 100.0
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
     len_t::Int = length(time)
-    @info "Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(sim_time/t_steps)"
+    @info "Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(round(Int, sim_time/t_steps))"
     @info "Length of time array: $(len_t)"
     
     if length(cParam) < len_t   
@@ -1234,6 +1234,10 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     bottom_node_list_cached::Vector{Int} = bottom_nodes # bottom nodes
     side_node_list_cached::Vector{Int} = side_nodes
 
+    @unpack nNodes, NodeList = mdl.mesh_p
+    nNodes_p_cached::Int = nNodes
+    NodeList_p_cached::Matrix{Float64} = NodeList
+
     @unpack η, nDof_u, nDof_p, ndim = mdl
     η_cached::Any = η
     nDof_u_cached::Int = nDof_u
@@ -1252,9 +1256,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     sim_time_cached::Float64 = sim_time
     control_cached::String = control
     cParam_cached::Vector{Float64} = scene.cParam
-
-    @unpack nNodes = mdl.mesh_p
-    nNodes_p_cached::Int = nNodes
 
     @unpack camera_matrix, obj_pose, SIDES = conditions    
     camera_matrix_cached::Matrix{Float64} = camera_matrix
@@ -1293,6 +1294,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     dqdη = zeros(Float64, size(q_d_cached_top))
     dqdβ = zeros(Float64, size(q_d_cached_top))
 
+    velocity = AbstractArray[zeros(Float64,size(NodeList_proj,1),size(NodeList_proj,2))] # store the velocity of the mesh in 3D
+    pressure = AbstractArray[zeros(Float64,size(NodeList_proj,1),1)] # store the pressure of the mesh in 3D
     displacement = AbstractArray[zeros(Float64,size(NodeList_proj,1),size(NodeList_proj,2))] # store the displacement of the mesh in 3D
     surface_fields = AbstractArray[]
     surface_pts_3D = AbstractArray[vcat(NodeList_proj[:,top_node_list_cached]', 
@@ -1426,11 +1429,12 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dqdη .= dqdη + C_uc_cached*dqfdη + dμdη*q_d_cached_top; # assemble the solution
             dqdβ .= dqdβ + C_uc_cached*dqfdβ + dμdβ*q_d_cached_top; # assemble the solution
 
-            p = p_f;
-            dpdη = dpfdη; # assemble the solution
-            dpdβ = dpfdβ; # assemble the solution
+            p = p_f' # assemble the solution;
+            dpdη = dpfdη'; # assemble the solution
+            dpdβ = dpfdβ'; # assemble the solution
 
-            motion_y = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # extract the motion of the mesh grid
+            velocity_field = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])' # reshape the solution to get the velocity field
+            motion_y = velocity_field*t_steps_cached # extract the motion of the mesh grid
             dmdη_out_y = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'*t_steps_cached
             dmdβ_out_y = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'*t_steps_cached
 
@@ -1451,9 +1455,11 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
             BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
-
-
+            
+            println(size(velocity_field), size(p))
             push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
+            push!(velocity, velocity_field) # store the velocity of the mesh in 3D
+            push!(pressure, p) # store the pressure of the mesh in 3D
             push!(displacement, motion_proj)
             push!(surface_fields, motion_proj[:,side_node_list_cached])
             push!(surface_pts_3D, vcat(NodeList_proj[:,top_node_list_cached]', NodeList_proj[:,bottom_node_list_cached]', NodeList_proj[:,side_node_list_cached]')')
@@ -1526,13 +1532,14 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dqdη = dqdη + C_uc_cached*dqfdη;   # assemble the solution
             dqdβ = dqdβ + C_uc_cached*dqfdβ;   # assemble the solution
 
-            p = p_f;
-            dpdη = dpfdη;  # assemble the solution
-            dpdβ = dpfdβ;  # assemble the solution
+            p = p_f'; # assemble the solution
+            dpdη = dpfdη';  # assemble the solution
+            dpdβ = dpfdβ';  # assemble the solution
 
-            motion = hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # get the motion of the mesh
-            dmdη_out = hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
-            dmdβ_out = hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
+            velocity_field = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])' # reshape the solution to get the velocity field
+            motion = velocity_field*t_steps_cached # get the motion of the mesh
+            dmdη_out = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
+            dmdβ_out = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
             
             NodeList_cached = NodeList_cached + motion # update the mesh grid
             mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
@@ -1550,6 +1557,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             mat_nan_inf_check(dudθ[:,:,2])
 
             push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
+            push!(velocity, velocity_field) # store the velocity of the mesh in 3D
+            push!(pressure, p) # store the pressure of the mesh in 3D
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
             push!(surface_pts_3D, NodeList_proj[:,side_node_list_cached]')
@@ -1580,8 +1589,10 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     if conditions.WRITECONTOUR
         write_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)
     end
+
     if conditions.WRITEVTK
-        write_scene(string(conditions.filepath,"/data"), pos3D, mdl.mesh_u.IEN, mdl.ne, mdl.ndim, displacement, ID=ID_cached, FunctionClass=mdl.mesh_u.FunctionClass)
+        # write_scene(string(conditions.filepath,"/data"), NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, pressure, ID=ID_cached, FunctionClass=mdl.mesh_p.FunctionClass)
+        write_stokes_scene(string(conditions.filepath,"/data"), NodeList_u_cached, mdl.mesh_u.IEN, NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, velocity, pressure)
     end
     return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, splinep, splineq
 end

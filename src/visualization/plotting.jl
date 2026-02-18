@@ -159,30 +159,30 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
         iter = 1:sz
         animation2 = @animate for i in iter
             
-            plt = set_plot(12)
+            plt = set_plot(12, frame=true)
             if !isnothing(pObs) && !isnothing(p) && !isnothing(pgt)    
-                Plots.plot!(plt, p[i],q[i], labels="Lagrange basis", aspect_ratio = :equal, dpi=:400, lw=2, color=:darkorange)
-                Plots.plot!(plt, pObs[i],qObs[i], labels="NURBS basis", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
-                Plots.plot!(plt, pgt[i],qgt[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2, color=:green4)
+                Plots.plot!(plt, p[i],q[i], labels=L"\mathrm{Lagrange basis}", aspect_ratio = :equal, dpi=:400, lw=2, color=:darkorange)
+                Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathrm{NURBS basis}", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
+                Plots.plot!(plt, pgt[i],qgt[i], labels=L"\mathrm{Observation}", aspect_ratio = :equal, dpi=:400, lw=2, color=:green4)
             else
                 if !isnothing(p)   
-                    Plots.plot!(plt, p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=1, color=:darkorange) #, marker = :circle, markersize = 2)
+                    Plots.plot!(plt, p[i],q[i], legend=true, labels=L"\mathrm{Simulation}", aspect_ratio = :equal, dpi=:400, lw=1, color=:darkorange) #, marker = :circle, markersize=2)
                 end
                 if !isnothing(pObs)
-                    Plots.plot!(plt, pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
+                    Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathcal{B}_{k,j}", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
                 end
                 if !isnothing(fields2D)
-                    Plots.scatter!(plt, fields2D[i][1,:], fields2D[i][2,:], ms=:3, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
+                    Plots.scatter!(plt, fields2D[i][1,:], fields2D[i][2,:], ms=:2, mc=:royalblue, ma=:0.7, legend=true, labels=L"\hat{\mathcal{B}}_{k,j}", aspect_ratio = :equal, 
                                     dpi=:400)
                 end
                 if !isnothing(BorderNodes2D)
-                    Plots.scatter!(plt, BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:3, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
+                    Plots.scatter!(plt, BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:3, mc=:indianred2, legend=true, labels=L"\bar{\mathcal{B}}_{k,j}", aspect_ratio = :equal, 
                                     dpi=:400)
                 end
             end
 
-            Plots.xlabel!(plt, L"x")
-            Plots.ylabel!(plt, L"y")
+            Plots.xlabel!(plt, L"x\;[\mathrm{px}]")
+            Plots.ylabel!(plt, L"y\;[\mathrm{px}]")
             Plots.xlims!(plt, 0,2048)
             Plots.ylims!(plt, 0,1536)
             Plots.yflip!(plt, true)  # if needed to match image coords
@@ -224,22 +224,22 @@ function animate_2D_comp(;borders=nothing, filepath="images/2D_grid.gif")
             plt = set_plot(12)
 
             if !isnothing(p)   
-                Plots.plot!(plt, p[i],q[i], legend=true, labels="Simulation", aspect_ratio = :equal, dpi=:400, lw=2)
+                Plots.plot!(plt, p[i],q[i], legend=true, labels=L"\mathrm{Simulation}", aspect_ratio = :equal, dpi=:400, lw=2)
             end
             if !isnothing(pObs)
-                Plots.plot!(plt, pObs[i],qObs[i], labels="Observation", aspect_ratio = :equal, dpi=:400, lw=2)
+                Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathcal{B}", aspect_ratio = :equal, dpi=:400, lw=2)
             end
             if !isnothing(fields2D)
-                Plots.scatter!(plt, fields2D[i][1,:], fields2D[i][2,:], ms=:4, mc=:royalblue, ma=:0.7, legend=true, labels="Surface Nodes", aspect_ratio = :equal, 
+                Plots.scatter!(plt, fields2D[i][1,:], fields2D[i][2,:], ms=:2, mc=:royalblue, ma=:0.7, legend=true, labels=L"\bar{\mathcal{B}}", aspect_ratio = :equal, 
                                 dpi=:400)
             end
             if !isnothing(BorderNodes2D)
-                Plots.scatter!(plt, BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:6, mc=:indianred2, legend=true, labels="Border Nodes", aspect_ratio = :equal, 
+                Plots.scatter!(plt, BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:2, mc=:indianred2, legend=true, labels=L"\hat{\mathcal{B}}", aspect_ratio = :equal, 
                                 dpi=:400)
             end
 
-            Plots.xlabel!(plt, L"x")
-            Plots.ylabel!(plt, L"y")
+            Plots.xlabel!(plt, L"x\;[\mathrm{px}]")
+            Plots.ylabel!(plt, L"y\;[\mathrm{px}]")
             Plots.xlims!(plt, 0,2048)
             Plots.ylims!(plt, 0,1536)
             Plots.yflip!(plt, true)  # if needed to match image coords
@@ -280,7 +280,7 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
         zmax = maximum(surface_pts[1][3,:])
         zmin = minimum(surface_pts[1][3,:])
     end
-    fz = 22
+    fz = 12
     iter = 1:sz
     fac = 0.2 # factor to extend the limits of the plot
     pr = progress_guard(sz; desc="Animating 3D fields...",showspeed=true)
@@ -295,15 +295,15 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
                             ylims=(ymin-fac*(ymax-ymin), ymax+fac*(ymax-ymin)),
                             zlims=(zmin, zmax+fac*(zmax-zmin)),
 
-                            xlabel=L"x",ylabel=L"y",zlabel=L"z",
+                            xlabel=L"x\;[\mathrm{mm}]",ylabel=L"y\;[\mathrm{mm}]",zlabel=L"z\;[\mathrm{mm}]",
 
-                            tickfontsize = fz-4,
+                            tickfontsize = fz-2,
                             guidefontsize = fz,
                             legendfontsize = fz-2, 
 
                             aspect_ratio = :equal, 
 
-                            size = (1000,750), 
+                            size = (500,500), 
 
                             fontfamily = "computer modern",
                             framestyle = :semi, 
@@ -315,10 +315,10 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
                             label="")
         if !isnothing(fields)
             if isnothing(IEN)
-                Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:indianred2, markersize=4, label=:"", dpi=:400)
+                Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:indianred2, markersize=3, label=:"", dpi=:400)
             else
                 ien_iter = 1:size(IEN,2)
-                Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:royalblue, markersize=4, label=:"", dpi=:400)
+                Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:royalblue, markersize=3, label=:"", dpi=:400)
                 seq = []
                 if size(IEN,1) == 27
                     seq = [1,9,2,10,3,11,4,12,1,17,5,13,6,14,7,15,8,16,5,13,6,18,2,10,3,19,7,15,8,20,4]
@@ -335,7 +335,7 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
             end
         end
         if !isnothing(surface_pts)
-            Plots.scatter3d!(surface_pts[i][1,:], surface_pts[i][2,:], surface_pts[i][3,:], mc=:indianred2, markersize=4, label=:"", dpi=:400)
+            Plots.scatter3d!(surface_pts[i][1,:], surface_pts[i][2,:], surface_pts[i][3,:], mc=:indianred2, markersize=3, label=:"", dpi=:400)
         end
         next!(pr)
         try
@@ -407,8 +407,12 @@ function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String
     gif(animation, string(filepath,"/matches_h.gif"), fps=10)
 end
 
-function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1, right_margin=5pt, left_margin=-1pt, top_margin=1pt, bottom_margin=-30mm)
+function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1, right_margin=5pt, left_margin=-1pt, top_margin=1pt, bottom_margin=-20mm, frame=false)
 
+    frame_brdr = nothing
+    if frame
+        frame_brdr = :match
+    end
     plt = Plots.plot(1, 
                             xtickfontsize = round(Int,fs*0.85), ytickfontsize = round(Int,fs*0.85),
                             titlefontsize = fs,
@@ -429,7 +433,7 @@ function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1, r
                             lw = 1,
                             legend=:outerbottom, 
                             legend_column=legend_column, 
-                            foreground_color_legend = nothing,
+                            foreground_color_legend = frame_brdr,
 
                             label=false)
     return plt
@@ -528,7 +532,7 @@ function plot_covariance(η_list::Vector{Float64}, β_list::Vector{Float64}; leg
     # Plot the covariance matrix
     plt = set_plot(fs, sz=(1650, 1250))
     StatsPlots.covellipse!(plt, mean_vec, cov_mat, label="Covariance", color=:red, alpha=0.5, bottom_margin = -15mm, legend=:outerbottom, legend_column=legend_column)
-    scatter!(η_list, β_list, label="Data points", dpi=:400, ms=:6, markerstrokewidth=0.1)
+    scatter!(η_list, β_list, label="Data points", dpi=:400, ms=:2, markerstrokewidth=0.1)
     xlabel!(plt, L"\eta")
     ylabel!(plt, L"\beta")    
 

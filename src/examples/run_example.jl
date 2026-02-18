@@ -1,6 +1,7 @@
 using LinearSolve
 using SparseArrays
 using IterativeSolvers
+using Dates
 
 """
     simulate_single_tstep(r, h, ne, c1, c2, ndim, FunctionClass, nDof, β, μ_tp, μ_btm; mode="lame", GRAD=false, DENSE=false, CG=false)
@@ -121,7 +122,6 @@ Simulates the deformation of the mesh for a single time step using the Stokes mo
 function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Number, ndim::Int64, FunctionClass_u::String, FunctionClass_p::String, nDof_u::Int64,
                                     nDof_p::Int64, β::Number, μu_tp::Number, μu_btm::Number, μu_side::Number; FunctionClass_x::String=FunctionClass_u, GRAD::Bool=false, DENSE::Bool=false)
     
-    
     filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
 
     mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
@@ -205,6 +205,7 @@ end
 
 function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
+    start_time = Dates.now()
     reset_model!(mdl)
     
     @unpack FunctionClass, IEN, IEN_cp, ID, NodeList, C_vol, W = mdl.mesh_x
@@ -549,13 +550,14 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     else
             throw(ArgumentError("Control type not unknown"))
     end
-
-    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, splinep, splineq
+    end_time = Dates.now()
+    elapsed_time = end_time - start_time
+    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, splinep, splineq, elapsed_time
 end
                                     """
 write_data(exp_params::Dict)
 
-Writes simulation data to files based on the provided experiment parameters.
+    Writes simulation data to files based on the provided experiment parameters.
 
 # Arguments
 - `exp_params::Dict`: A dictionary containing experiment parameters such as mesh size, material properties, file paths, and simulation settings.

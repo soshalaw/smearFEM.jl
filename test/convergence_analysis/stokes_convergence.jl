@@ -211,7 +211,10 @@ end
 function mesh_convergence_analysis()
 
     height_list = AbstractArray[]
+    height_error_list = AbstractArray[]
+    border_error_list = Float16[]
     μ_list = AbstractArray[]
+    time_list = []
 
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
@@ -230,8 +233,8 @@ function mesh_convergence_analysis()
 
     F_ext::Float64 = 0.2*9.812*1e3 # force applied to the cylinder in N
     sim_time::Float64 = 0.1 # simulation time in seconds
-    steps::Float64 = 1  # number of time steps
-    t_steps = sim_time/steps
+    step_size = 0.1
+    steps = round(Int, sim_time/step_size)  
 
     obj_pose = zeros(Float64, 4, 4)
     obj_pose[1,1] = -1.0
@@ -244,25 +247,46 @@ function mesh_convergence_analysis()
     conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=false, filepath=filepath, ANIMATE=false)
     F = -F_ext*ones(Float64, round(Int, steps)) # force applied to the cylinder in N
 
-    model_ref, scene_ref = def_problem(r, h, 16, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
-                                        sim_time, t_steps)
+    model_ref, scene_ref = def_problem(r, h, 2, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
+                                        sim_time, step_size)
 
-    est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = stokes_single_step_force(model_ref, scene_ref, conditions)   
+    est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq, elapsed_time = stokes_single_step_force(model_ref, scene_ref, conditions)   
 
-    mesh_sz = [2, 4, 6, 8, 10, 12, 14, 16]
+    mesh_sz_ = [2, 4, 6, 8, 10, 12, 14, 16]
+    mesh_sz = reverse(mesh_sz_)
+    iter_index = 1
+    h_ref = 0.0
+    border_ref = borderPts2DList
     for mesh in mesh_sz
         println("Running for mesh size = $mesh")
         # run the simulation for the given mesh size and store the results
         model, scene = def_problem(r, h, mesh, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
-                                    sim_time, t_steps)
+                                    sim_time, step_size)
 
-        est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = stokes_single_step_force(model, scene, conditions)
+        est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq, elapsed_time = stokes_single_step_force(model, scene, conditions)
         
-        push!(height_list, get_height(est_μ_list, h))
+        h_mesh = get_height(est_μ_list, h)
+        if iter_index == 1
+            h_ref = h_mesh
+            border_ref = borderPts2DList
+        end
+        δh = abs.(h_ref - h_mesh)
+        d, _ = closest_point(borderPts2DList, border_ref)
+
+        println("Height error: ", δh)
+        push!(height_list, h_mesh)
+        push!(height_error_list, δh)
+        push!(border_error_list, sum(d)/length(d))
         push!(μ_list, est_μ_list)
+        push!(time_list, elapsed_time.value)
+        iter_index += 1
     end
+
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_list", height_list)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_error_list", height_error_list)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/border_error_list", border_error_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/μ_list", μ_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/mesh_sz", mesh_sz)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/time_list", time_list)
 end
 mesh_convergence_analysis()

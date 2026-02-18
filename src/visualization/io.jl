@@ -90,18 +90,98 @@ function write_scene(filepath::String, NodeList, IEN, ne::Int64, ndim::Int64, fi
 
     # Create a VTK collection
     cells = [MeshCell(cellType,IEN[:,e]) for e in 1:ne^ndim]
-
     fieldIter = 1:length(fields)
     paraview_collection(string(filepath,"/vtkFiles/displacement")) do pvd # create a paraview collection
         @showprogress "Writing out to VTK..." for i in fieldIter
             vtk_grid(string(filepath,"/vtkFiles/timestep_$i"), NodeList[i], cells) do vtk # write out the fields to VTK
-                vtk["u"] = fields[i]
+                vtk["p"] = fields[i]
                 time = (i - 1)
                 pvd[time] = vtk
             end
         end
     end
 end 
+
+"""
+    write_stokes_scene(filepath, NodeList_u, IEN_u, NodeList_p, IEN_p, ne, ndim, velocities, pressures)
+
+Write Stokes results when velocity uses a Q2 mesh and pressure uses a Q1 mesh.
+
+# Arguments:
+- `filepath::String`: Name and path to the VTK output directory.
+- `NodeList_u`: Q2 velocity node coordinates (single array or vector of arrays per timestep).
+- `IEN_u::Matrix{nNodes, nElem}`: Q2 velocity connectivity array.
+- `NodeList_p`: Q1 pressure node coordinates (single array or vector of arrays per timestep).
+- `IEN_p::Matrix{nNodes, nElem}`: Q1 pressure connectivity array.
+- `ne::Integer`: Number of elements in x, y, z direction.
+- `ndim::Integer`: Number of dimensions.
+- `velocities::Vector`: Velocity field per timestep.
+- `pressures::Vector`: Pressure field per timestep.
+"""
+function write_stokes_scene(
+    filepath::String,
+    NodeList_u,
+    IEN_u,
+    NodeList_p,
+    IEN_p,
+    ne::Int64,
+    ndim::Int64,
+    velocities,
+    pressures;
+    ID=nothing,
+    velocity_name::String="v",
+    pressure_name::String="p",
+    collection_name_velocity::String="velocity",
+    collection_name_pressure::String="pressure"
+)
+
+    set_file(string(filepath, "/vtkFiles")) # create the directory to store the VTK files
+
+    if ndim == 1
+        cellType_p = VTKCellTypes.VTK_LINE
+        cellType_u = VTKCellTypes.VTK_LAGRANGE_CURVE
+    elseif ndim == 2
+        cellType_p = VTKCellTypes.VTK_QUAD
+        cellType_u = VTKCellTypes.VTK_LAGRANGE_QUADRILATERAL
+    elseif ndim == 3
+        cellType_p = VTKCellTypes.VTK_HEXAHEDRON
+        cellType_u = VTKCellTypes.VTK_LAGRANGE_HEXAHEDRON
+    else
+        throw(ArgumentError("ndim must be 1, 2, or 3."))
+    end
+
+    IEN_u = rearrange(ndim, IEN_u)  # rearrange the Q2 solution
+
+    if length(velocities) != length(pressures)
+        throw(ArgumentError("velocities and pressures must have the same length."))
+    end
+
+    cells_u = [MeshCell(cellType_u, IEN_u[:, e]) for e in 1:size(IEN_u, 2)]
+    cells_p = [MeshCell(cellType_p, IEN_p[:, e]) for e in 1:size(IEN_p, 2)]
+    fieldIter = 1:length(pressures)
+
+    paraview_collection(string(filepath, "/vtkFiles/", collection_name_velocity)) do pvd
+        @showprogress "Writing out velocity to VTK..." for i in fieldIter
+            node_list_u = isa(NodeList_u, AbstractVector) ? NodeList_u[i] : NodeList_u
+            vtk_grid(string(filepath, "/vtkFiles/velocity_$i"), node_list_u, cells_u) do vtk
+                vtk[velocity_name] = velocities[i]
+                time = (i - 1)
+                pvd[time] = vtk
+            end
+        end
+    end
+
+    paraview_collection(string(filepath, "/vtkFiles/", collection_name_pressure)) do pvd
+        @showprogress "Writing out pressure to VTK..." for i in fieldIter
+            node_list_p = isa(NodeList_p, AbstractVector) ? NodeList_p[i] : NodeList_p
+            vtk_grid(string(filepath, "/vtkFiles/pressure_$i"), node_list_p, cells_p) do vtk
+                vtk[pressure_name] = pressures[i]
+                time = (i - 1)
+                pvd[time] = vtk
+            end
+        end
+    end
+end
 
 """
     read_csv(filepath)
@@ -262,7 +342,7 @@ end
     -`IEN_top::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the top surface mesh.
     -`IEN_btm::Matrix{Float64}{nNodes, nElem}``:Connectivity array for the bottom surface mesh.
     """
-    function read_h5(filename::String, mode::String="sim")
+function read_h5(filename::String, mode::String="sim")
     # Open the HDF5 file
     @info "reading from $filename"
     h5file = h5open(filename, "r")
