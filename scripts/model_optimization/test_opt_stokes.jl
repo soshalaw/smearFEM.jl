@@ -509,6 +509,7 @@ function optimize(exp_params::Dict)
         est_ηpList = Vector{Float64}(undef,data_pt_len)
         avg_ηList = Vector{Float64}(undef,data_pt_len)
         est_βpList = Vector{Float64}(undef,data_pt_len)
+        pred_h_list = Vector{Float64}(undef, data_pt_len)
 
         if mode == "single_window"
             @info "Optimizing over a single time window"
@@ -583,6 +584,7 @@ function optimize(exp_params::Dict)
                 end
                 obsBorderPts_t = windows[ti] # align the observation points with the simulation time
 
+                
                 printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
                 println("Data frame : $(data_range_)")
                 println("Time frame : $(scene.sim_time)")
@@ -595,18 +597,22 @@ function optimize(exp_params::Dict)
                     avg_ηList[data_range_] .= av_η
                     printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
                 end
-
+                if ti > 1
+                    reset_model!(model)
+                    model.η = [θ[1]]
+                    scene.β = [θ[2]]
+                    pred_μ_list, _, borderPts2DList, _ = simulate(model, scene, conditions)
+                    pred_h = get_height(pred_μ_list, h)
+                    pred_h_list[data_range_] = pred_h
+                end
+                @info "Predicting dynamics in time window $(ti)..."
                 @info "Fitting model in time window $(ti)..."
                 stats = fit_model(model, scene, conditions, obsBorderPts_t, θ, outliers=outlier_frames)
 
                 est_ηpList[data_range_] .= stats["η"]
                 est_βpList[data_range_] .= stats["β"]
 
-                if data_type == "physical" 
-                    θ[1] = stats["η"]
-                else
-                    θ[1] = stats["η"]
-                end
+                θ[1] = stats["η"]
                 θ[2] = stats["β"]
 
                 update_model!(model)
@@ -632,7 +638,7 @@ function optimize(exp_params::Dict)
             est_h_list = get_height(est_μ_list, h)
             
             if data_type != "physical" && viscosity_model != "carreau"
-                gt_μ_list, gradList, borderPts2DList, fields_gt, pos3D_gt, pos2D_gt, splinex_gt, spliney_gt = simulate(model_gt, scene_gt, conditions)
+                gt_μ_list, gradList, borderPts2DList_gt, fields_gt, pos3D_gt, pos2D_gt, splinex_gt, spliney_gt = simulate(model_gt, scene_gt, conditions)
                 gt_h_list = get_height(gt_μ_list, h)
                 write_csv(joinpath(exp_path,"Results","data","η_gt"), model_gt.η)
                 write_csv(joinpath(exp_path,"Results","data","β_gt"), β_gt)
@@ -641,7 +647,7 @@ function optimize(exp_params::Dict)
                 write_data(joinpath(exp_path,"Results","data","sim_data","2D_surface_points_gt"), pos2D_gt)
                 write_data(joinpath(exp_path,"Results","data","sim_data","3D_points_gt"), pos3D_gt)
                 write_data(joinpath(exp_path,"Results","data","sim_data","motion_fields_gt "), fields_gt)
-                write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points_gt"), borderPts2DList)
+                write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points_gt"), borderPts2DList_gt)
             end
         end
 
@@ -655,6 +661,151 @@ function optimize(exp_params::Dict)
     end_time = Dates.now()
     write_time_log(start_time, end_time, exp_params; dest_dir=joinpath(exp_path,"Results","logs"))
     @info "Data writing completed. Results saved to $exp_path"
+end
+
+function predict(filepath, filepath_gt)
+    
+    elem_size_folders = readdir(joinpath(filepath))
+    println("Element size folders: $(elem_size_folders)")
+    
+    sim_params = read_json(joinpath(filepath_gt,"data","sim_params.json")) 
+
+    r::Float64 = sim_params["r"]
+    h::Float64 = sim_params["h"]
+    
+    viscosity_type::String = sim_params["viscosity_type"]
+    F = Array(float.(sim_params["cParam"]))
+
+    sim_time::Float64 = sim_params["simulation_time"]
+    t_steps::Float64 = sim_params["time_steps"]
+    
+    camera_matrix::AbstractArray = reshape(Array(sim_params["camera_matrix"]), 3, 3)
+    obj_pose::AbstractArray = reshape(Array(sim_params["obj_pose"])*1.0,4,4)
+    
+    control::String = sim_params["control_type"]
+
+    viscosity_model::String = ""
+    if viscosity_type == "bulk_viscosity" && haskey(sim_params, "model_type") && sim_params["model_type"] == "carreau"
+        viscosity_model = sim_params["model_type"]
+    end
+
+    ndim::Int = 3
+    nDof_p::Int = 1  # number of degree of freedom per node
+    nDof_u::Int = ndim  # number of degree of freedom per node
+
+    gt_h_::Matrix{Float64} = Matrix{Float64}(undef,0,0)
+
+    if viscosity_type == "bulk_viscosity"
+        viscosity_type = "constant"
+    # Read ground truth height data
+        for elem_size_folder in elem_size_folders
+        
+            if elem_size_folder == "post_analysis" || elem_size_folder == "Q2_8" || elem_size_folder == "Q2_4"
+                continue
+            end
+            
+            sim_time_folders = readdir(joinpath(filepath, elem_size_folder))
+
+            # Iterate over simulation time folders
+            for sim_time_folder in sim_time_folders
+                if sim_time_folder == "post_analysis_time" || sim_time_folder == "Results"  || sim_time_folder == "simtime_2.0"  || sim_time_folder == "simtime_20.0" || sim_time_folder == "simtime_10.0" || sim_time_folder == "simtime_30.0"
+                    continue
+                end
+
+                noise_folders = readdir(joinpath(filepath, elem_size_folder, sim_time_folder))
+                for noise_folder in noise_folders
+                    if noise_folder == "post_analysis_noise" || noise_folder == "Results"
+                        continue
+                    end
+                    exp_path = joinpath(filepath, elem_size_folder, sim_time_folder, noise_folder)
+                
+                    window_dirs = readdir(exp_path)
+                    for window_dir in window_dirs
+                        if window_dir == "Results" || window_dir == "post_analysis_window" || window_dir == "single_window" || window_dir == "post_analysis_noise"
+                            println("Skipping directory: $window_dir")
+                            continue
+                        end
+                        win_exp_path = joinpath(filepath, elem_size_folder, sim_time_folder, noise_folder, window_dir)
+                        
+                        println("Processing window: $win_exp_path")
+                        exp_params = read_json(joinpath(win_exp_path ,"Results","data","experiment_parameters.json"))
+                        sim_time_exp::Float64 = exp_params["sim_time_exp"]
+                        data_type::String = exp_params["data_type"]
+                        ne_exp::Int = exp_params["ne_exp"]
+                        FunctionClass_u::String = exp_params["FunctionClass_u"]
+                        FunctionClass_p::String = exp_params["FunctionClass_p"]    
+                        FunctionClass_x::String = exp_params["FunctionClass_x"]
+
+                        est_ηpList = readdlm(joinpath(win_exp_path,"Results","data","est_η.csv"), ',', Float64)
+                        est_βpList = readdlm(joinpath(win_exp_path,"Results","data","est_β.csv"), ',', Float64)
+                        est_h_list = readdlm(joinpath(win_exp_path,"Results","data","est_h.csv"), ',', Float64)
+                        pred_h_list = AbstractArray[]
+                        # est_h_list_1 = AbstractArray[]
+                        pred_borderPts_list = AbstractArray[]
+
+                        data_ranges_ = get_time_windows(joinpath(win_exp_path,"Results","data","window_data","data_ranges.csv"))
+                        t_windows = readdlm(joinpath(win_exp_path,"Results","data","window_data","t_windows.csv"),',',Float64)
+                        time_windows = readdlm(joinpath(win_exp_path,"Results","data","window_data","time_windows.csv"),',',Float64)
+                        
+                        conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
+                        model, scene = def_problem(r, h, ne_exp, 1.0, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, 1.0, F, control, viscosity_type, 
+                        sim_time_exp, t_steps)
+                        for ti::Int in 1:(size(data_ranges_, 1)-1)
+
+                            data_range_ = data_ranges_[ti] # get the data range for the current time window
+                            scene.sim_time = time_windows[ti]
+                            height_range = collect(Float64, range(start=data_range_[1], stop=data_range_[end]+1, step=1))
+
+                            η = est_ηpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
+                            β = est_βpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
+
+                            if data_type == "physical"
+                                _F = -F_ext*ones(Float64, round(Int, scene.sim_time*frame_rate)) # force applied to the cylinder in N
+                                scene.cParam = _F
+                            else
+                                scene.cParam = F[data_range_]
+                            end
+
+                            printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
+                            println("Data frame : $(data_range_)")
+                            println("Time frame : $(scene.sim_time)")
+                            @info "Time window $(t_windows[ti])"
+
+                            if ti > 1
+                                @info "Predicting dynamics in time window $(ti)..."
+                                reset_model!(model)
+                                data_range_prev = data_ranges_[ti-1] # get the data range for the previous time window
+                                η_pred = est_ηpList[data_range_prev][1] # get the first value in the estimation window the rest are the same for the window
+                                β_pred = est_βpList[data_range_prev][1] # get the first value in the estimation window the rest are the same for the window
+
+                                model.η = [η_pred]
+                                scene.β = [β_pred]
+                                pred_μ_list, _, PredborderPts2DList, _ = simulate(model, scene, conditions)
+                                pred_h = get_height(pred_μ_list, h)
+                                push!(pred_borderPts_list, PredborderPts2DList)
+                                push!(pred_h_list, pred_h)
+                            end
+
+                            reset_model!(model)
+                            model.η = [η]
+                            scene.β = [β]
+                            est_μ_list, _, borderPts2DList, _ = simulate(model, scene, conditions)
+                            h_est = get_height(est_μ_list, h)
+                            if ti == 1
+                                push!(pred_borderPts_list, borderPts2DList)
+                                push!(pred_h_list, h_est)
+                            end
+                            update_model!(model)
+                            h = h_est[end] # update the height for the next window simulation
+                        end
+                        write_csv(joinpath(win_exp_path,"Results","data","pred_h"), pred_h_list)
+                        write_data(joinpath(win_exp_path,"Results","data","sim_data","pred_2D_border_points"), pred_borderPts_list)
+                    end
+                end
+            end
+        end
+    end
+    return 
 end
 
 function replot(filepath, filepath_gt)
@@ -3807,7 +3958,7 @@ function plot_()
     viscosity_type_list = ["bulk_viscosity"] #,"constant"]
     model_type::String = "Stokes" # "carreau" or "Stokes"
     avoid_dirs = ["3_less_noise", "s"]
-    data_type_list = ["synthetic", "physical"]
+    data_type_list = ["synthetic"]
 
     for data_type in data_type_list
         if data_type == "synthetic"
@@ -3842,15 +3993,16 @@ function plot_()
                 end
                 filepath_gt_dir = string(filepath_gt,"/$dir/")
                 filepath_res_dir = string(filepath_res,"/$dir/")
-                replot(filepath_res_dir, filepath_gt_dir)
+                # replot(filepath_res_dir, filepath_gt_dir)
+                predict(filepath_res_dir, filepath_gt_dir)
             end
-            if viscosity_type == "constant"
-                post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
-            elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
-                post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
-            elseif data_type == "physical"
-                post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
-            end
+            # if viscosity_type == "constant"
+            #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
+            # elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
+            #     post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
+            # elseif data_type == "physical"
+            #     post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
+            # end
         end
     end
 end

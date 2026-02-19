@@ -1122,7 +1122,7 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
 Define the conditions and the parameters of the squueze flow problem considered.
 """
 function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                    nDof_p::Int64, FunctionClass_x::String, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X; viscosity_model::String="power_law") where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
+                    nDof_p::Int64, FunctionClass_x::String, β::Y, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X; viscosity_model::String="power_law") where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number}
     n::Float64 = 0.9
     K::Float64 = 100.0
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
@@ -1456,7 +1456,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
             
-            println(size(velocity_field), size(p))
             push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(velocity, velocity_field) # store the velocity of the mesh in 3D
             push!(pressure, p) # store the pressure of the mesh in 3D
