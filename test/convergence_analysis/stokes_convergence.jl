@@ -6,6 +6,16 @@ using LinearAlgebra
 using DelimitedFiles
 using CSV
 using DataFrames
+using Plots.PlotMeasures
+using LaTeXStrings
+
+global fs::Int = 10
+global plt_height::Int = 360
+global plt_width::Int = 330
+global plt_lft_margin = -6pt
+global plt_right_margin = 10pt
+global plt_top_margin = -3pt
+
 
 function main()
     # test case 
@@ -232,7 +242,7 @@ function mesh_convergence_analysis()
     ndim::Int = 3
 
     F_ext::Float64 = 0.2*9.812*1e3 # force applied to the cylinder in N
-    sim_time::Float64 = 0.1 # simulation time in seconds
+    sim_time::Float64 = 1 # simulation time in seconds
     step_size = 0.1
     steps = round(Int, sim_time/step_size)  
 
@@ -250,7 +260,7 @@ function mesh_convergence_analysis()
     model_ref, scene_ref = def_problem(r, h, 2, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
                                         sim_time, step_size)
 
-    est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq, elapsed_time = stokes_single_step_force(model_ref, scene_ref, conditions)   
+    est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model_ref, scene_ref, conditions)   
 
     mesh_sz_ = [2, 4, 6, 8, 10, 12, 14, 16]
     mesh_sz = reverse(mesh_sz_)
@@ -259,11 +269,16 @@ function mesh_convergence_analysis()
     border_ref = borderPts2DList
     for mesh in mesh_sz
         println("Running for mesh size = $mesh")
+        t_start = Dates.now()
         # run the simulation for the given mesh size and store the results
         model, scene = def_problem(r, h, mesh, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
                                     sim_time, step_size)
 
-        est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq, elapsed_time = stokes_single_step_force(model, scene, conditions)
+        # est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq, elapsed_time = stokes_single_step_force(model, scene, conditions)
+        
+        est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model_ref, scene_ref, conditions)   
+        t_end = Dates.now()
+        elapsed_time = t_end - t_start
         
         h_mesh = get_height(est_μ_list, h)
         if iter_index == 1
@@ -289,4 +304,32 @@ function mesh_convergence_analysis()
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/mesh_sz", mesh_sz)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/mesh_convergence_analysis/time_list", time_list)
 end
+
+function plot_convergence(file_path::String)
+    height_error_list = readdlm(joinpath(file_path,"height_error_list.csv"), ',', Float64)
+    border_error_list = readdlm(joinpath(file_path,"border_error_list.csv"), ',', Float64)
+    mesh_sz = readdlm(joinpath(file_path,"mesh_sz.csv"), ',', Float64)
+    time_list = readdlm(joinpath(file_path,"time_list.csv"), ',', Float64)
+    time_list_sec = time_list ./ 1e3 # convert time from milliseconds to seconds
+    plot_path = joinpath(file_path, "plots")
+    set_file(plot_path) # create the directory to store the plots
+
+    display(mesh_sz)
+    plt1 = set_plot(fs, sz=(plt_width, plt_height))
+    Plots.plot!(plt1, mesh_sz, height_error_list[:,2], label="Height error", ms=:5, xlabel="Mesh size", ylabel="Error")
+    Plots.xticks!(plt1, mesh_sz[:,1])
+    Plots.savefig(plt1, string(plot_path,"/height_convergence.pdf"))
+
+    plt2 = set_plot(fs, sz=(plt_width, plt_height))
+    Plots.plot!(plt2, mesh_sz, border_error_list, label="Border error", ms=:5, xlabel="Mesh size", ylabel="Error")
+    Plots.xticks!(plt2, mesh_sz[:,1])
+    Plots.savefig(plt2, string(plot_path,"/border_convergence.pdf"))
+
+    plt3 = set_plot(fs, sz=(plt_width, plt_height))
+    Plots.plot!(plt3, mesh_sz, time_list_sec, label="Computation time", ms=:5, xlabel="Mesh size", ylabel="Time (s)")
+    Plots.xticks!(plt3, mesh_sz[:,1])
+    Plots.savefig(plt3, string(plot_path,"/time_convergence.pdf"))
+end
+
 mesh_convergence_analysis()
+# plot_convergence("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 

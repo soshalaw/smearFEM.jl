@@ -844,7 +844,7 @@ function replot(filepath, filepath_gt)
 
         # Iterate over simulation time folders
         for sim_time_folder in sim_time_folders
-            if sim_time_folder == "post_analysis_time" || sim_time_folder == "Results"  || sim_time_folder == "simtime_2.0"  || sim_time_folder == "simtime_20.0" || sim_time_folder == "simtime_10.0" || sim_time_folder == "simtime_30.0"
+            if sim_time_folder == "post_analysis_time" || sim_time_folder == "Results"  || sim_time_folder == "simtime_1.0"  || sim_time_folder == "simtime_20.0" || sim_time_folder == "simtime_10.0" || sim_time_folder == "simtime_30.0"
                 continue
             end
 
@@ -4000,7 +4000,7 @@ function plot_()
     control::String = "force" # "force" or "velocity"
     viscosity_type_list = ["bulk_viscosity"] #,"constant"]
     model_type::String = "Stokes" # "carreau" or "Stokes"
-    avoid_dirs = ["3_less_noise", "s", "2", "3", "4", "5"]
+    avoid_dirs = ["3_less_noise", "s"]
     data_type_list = ["physical"]
 
     for data_type in data_type_list
