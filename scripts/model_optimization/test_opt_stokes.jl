@@ -758,13 +758,7 @@ function predict(filepath, filepath_gt)
 
                             η = est_ηpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
                             β = est_βpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
-
-                            if data_type == "physical"
-                                _F = -F_ext*ones(Float64, round(Int, scene.sim_time*frame_rate)) # force applied to the cylinder in N
-                                scene.cParam = _F
-                            else
-                                scene.cParam = F[data_range_]
-                            end
+                            scene.cParam = F[data_range_]
 
                             printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
                             println("Data frame : $(data_range_)")
@@ -842,7 +836,7 @@ function replot(filepath, filepath_gt)
      # Read ground truth height data
 
     for elem_size_folder in elem_size_folders
-        if elem_size_folder == "post_analysis"
+        if elem_size_folder == "post_analysis" || elem_size_folder == "Q2_8" || elem_size_folder == "Q2_4"
             continue
         end
         
@@ -1440,9 +1434,9 @@ function replot(filepath, filepath_gt)
                         data_type = exp_params["data_type"]
                         ne = exp_params["ne_exp"]
                         
+                        gt_h_ = readdlm(joinpath(filepath_gt,"data","h.csv"), ',', Float64)
                         if data_type != "physical"
                             noise_level = exp_params["noise_level"]
-                            gt_h_ = readdlm(joinpath(filepath_gt,"data","h.csv"), ',', Float64)
                         else
                             noise_level = 0.0
                         end
@@ -1463,6 +1457,7 @@ function replot(filepath, filepath_gt)
                             est_ηpList = readdlm(joinpath(win_exp_path,"Results","data","est_η.csv"), ',', Float64)
                             est_βpList = readdlm(joinpath(win_exp_path,"Results","data","est_β.csv"), ',', Float64)
                             est_h_list = readdlm(joinpath(win_exp_path,"Results","data","est_h.csv"), ',', Float64)
+                            pred_h_list = read_unstrcut_csv(joinpath(win_exp_path,"Results","data","pred_h.csv"))
                             ratio_gt = similar(est_ηpList)
                             ratio_opt = similar(est_ηpList)
                             avg_ηList = similar(est_ηpList)
@@ -1487,9 +1482,9 @@ function replot(filepath, filepath_gt)
                                 @warn "Observation time frame $obs_time is less than experimental simulation time frame $sim_time_exp, switching to observation time frame"
                                 sim_time_exp = obs_time
                             end
-                                                
+                                        
                             data_point_len = round(Int, obs_time/t_steps)
-                            if data_type != "physical"
+                            if data_type != "physical" 
                                 if viscosity_model != "carreau"
                                     η_gt = float.(sim_params["η"])
                                     β_gt = float.(sim_params["β"])
@@ -1498,8 +1493,9 @@ function replot(filepath, filepath_gt)
                                     ratio_opt = est_ηpList ./ est_βpList
                                     ratio_gt = η_gt ./ β_gt
                                 end
-                                gt_h = gt_h_[1:(data_point_len+1)]
                             end
+                            gt_h = gt_h_[1:(data_point_len+1)]
+
                             symBorderPts = symBorderPts[1:data_point_len+1, :]
                             obsBorderPts = obsBorderPts[1:data_point_len+1, :]
                             est_h_list = est_h_list[1:data_point_len+1, :]
@@ -1607,58 +1603,91 @@ function replot(filepath, filepath_gt)
                             Plots.ylims!(plt_β, max(minimum(est_βpList)*0.8,0), min((maximum(est_βpList)*1.1),(maximum(est_βpList)+10)))
                             Plots.savefig(plt_β, joinpath(win_exp_path,"Results","plots","β.pdf"))
                             
-                            # animate_fields(filepath=joinpath(win_exp_path,"Results","plots"), p=splinex, q=spliney, pObs=nSplinex, qObs=nSpliney)
-
+                            h_plt = set_plot(fs, sz=(plt_width, plt_height), legend_column=2)
                             if data_type != "physical"
-                                h_plt = set_plot(fs, sz=(plt_width, plt_height), legend_column=2)
                                 Plots.plot!(h_plt, t_full_h, gt_h, label=L"h_{gt}", left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
-                                Plots.plot!(h_plt, t_full_h, est_h_list, label=L"h_{est}")
-                                for ti::Int in 1:(size(data_ranges_, 1)-1)
-                                    t = t_windows[ti]
-                                    Plots.vline!(h_plt, [t], color=:gray, linestyle=:dash, label=false)
-                                end
-                                Plots.xlabel!(h_plt, L"\mathrm{Time\;[s]}")
-                                Plots.ylabel!(h_plt, L"\mathrm{Height\;[mm]}")
-                                Plots.xlims!(h_plt, 0, end_obs_win)
-                                Plots.ylims!(h_plt, minimum(vcat(gt_h, est_h_list))*0.8, maximum(vcat(gt_h, est_h_list))*1.2)
-                                Plots.savefig(joinpath(win_exp_path,"Results","plots","h.pdf"))
-
-                                h_normalized_plt = set_plot(fs, sz=(plt_width, plt_height))
-                                Plots.plot!(h_normalized_plt, t_full_h, est_h_list./gt_h, label=L"h_{est}/h_{gt}", left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
-                                for ti::Int in 1:(size(data_ranges_, 1)-1)
-                                    t = t_windows[ti]
-                                    Plots.vline!(h_normalized_plt, [t], color=:gray, linestyle=:dash, label=false)
-                                end
-                                Plots.xlabel!(h_normalized_plt, L"\mathrm{Time\;[s]}")
-                                Plots.ylabel!(h_normalized_plt, L"h_{est}/h_{gt}")
-                                Plots.xlims!(h_normalized_plt, 0, end_obs_win)
-                                Plots.ylims!(h_normalized_plt, minimum(est_h_list./gt_h)*0.99, maximum(est_h_list./gt_h)*1.01)
-                                Plots.savefig(joinpath(win_exp_path,"Results","plots","h_normalized.pdf"))
-
-                                error_plt = set_plot(fs, sz=(plt_width, plt_height))
-                                Plots.plot!(error_plt, t_full_h, abs.(est_h_list-gt_h), label="Height estimation error", left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
-                                for ti::Int in 1:(size(data_ranges_, 1)-1)
-                                    t = t_windows[ti]
-                                    Plots.vline!(error_plt, [t], color=:gray, linestyle=:dash, label=false)
-                                end
-                                Plots.savefig(joinpath(win_exp_path,"Results","plots","h_est_error.pdf"))
-                                Plots.xlabel!(error_plt, L"\mathrm{Time\;[s]}")
-                                Plots.ylabel!(error_plt, L"\mathrm{Height\;Error\;[mm]}")
-                                Plots.xlims!(error_plt, 0, end_obs_win)
-                                Plots.savefig(joinpath(win_exp_path,"Results","plots","h_est_error.pdf"))
-
-                                rel_error_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
-                                Plots.plot!(rel_error_plt, t_full_h, abs.(est_h_list-gt_h)./gt_h*100, label="Relative Height estimation error", left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
-                                for ti::Int in 1:(size(data_ranges_, 1)-1)
-                                    t = t_windows[ti]
-                                    Plots.vline!(rel_error_plt, [t], color=:gray, linestyle=:dash, label=false)
-                                end
-                                Plots.xlabel!(rel_error_plt, L"\mathrm{Time\;[s]}")
-                                Plots.ylabel!(rel_error_plt, latexstring("Relative Height Error [\$\\%\$]"))
-                                Plots.xlims!(rel_error_plt, 0, end_obs_win)
-                                Plots.ylims!(rel_error_plt, -0.1, maximum(abs.(est_h_list-gt_h)./gt_h*100)*5)
-                                Plots.savefig(joinpath(win_exp_path,"Results","plots","rel_error.pdf"))
+                            else
+                                Plots.plot!(h_plt, t_full_h, gt_h, label=L"h_{m}", left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
                             end
+                                Plots.plot!(h_plt, t_full_h, est_h_list, label=L"h_{est}")
+                            for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                pred_h_list_vec = pred_h_list[ti]
+                                range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                                t = t_windows[ti]
+                                if ti == 1
+                                    Plots.plot!(h_plt, t_full_h[range_], pred_h_list_vec, label=L"h_{pred}", linestyle=:dash, color=def_orange)
+                                else
+                                    Plots.plot!(h_plt, t_full_h[range_], pred_h_list_vec, linestyle=:dash, color=def_orange, label=false)
+                                end
+                                Plots.vline!(h_plt, [t], color=:gray, linestyle=:dash, label=false)
+                            end
+                            Plots.xlabel!(h_plt, L"\mathrm{Time\;[s]}")
+                            Plots.ylabel!(h_plt, L"\mathrm{Height\;[mm]}")
+                            Plots.xlims!(h_plt, 0, end_obs_win)
+                            Plots.ylims!(h_plt, minimum(vcat(gt_h, est_h_list))*0.8, maximum(vcat(gt_h, est_h_list))*1.2)
+                            Plots.savefig(joinpath(win_exp_path,"Results","plots","h.pdf"))
+
+                            h_normalized_plt = set_plot(fs, sz=(plt_width, plt_height), legend_column=2)
+                            if data_type != "physical"
+                                Plots.plot!(h_normalized_plt, t_full_h, est_h_list./gt_h, label=L"h_{est}/h_{gt}", left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
+                            else
+                                Plots.plot!(h_normalized_plt, t_full_h, est_h_list./gt_h, label=L"h_{est}/h_{m}", left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
+                            end
+                                for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                pred_h_list_vec = pred_h_list[ti]
+                                range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                                t = t_windows[ti]
+                                if ti == 1
+                                    Plots.plot!(h_normalized_plt, t_full_h[range_], pred_h_list_vec./gt_h[range_], label=L"h_{pred}/h_{gt}", linestyle=:dash, color=def_orange)
+                                else
+                                    Plots.plot!(h_normalized_plt, t_full_h[range_], pred_h_list_vec./gt_h[range_], linestyle=:dash, color=def_orange, label=false)
+                                end
+                                Plots.vline!(h_normalized_plt, [t], color=:gray, linestyle=:dash, label=false)
+                            end
+                            Plots.xlabel!(h_normalized_plt, L"\mathrm{Time\;[s]}")
+                            Plots.ylabel!(h_normalized_plt, L"h_{est}/h_{gt}")
+                            Plots.xlims!(h_normalized_plt, 0, end_obs_win)
+                            Plots.ylims!(h_normalized_plt, minimum(est_h_list./gt_h)*0.98, maximum(est_h_list./gt_h)*1.02)
+                            Plots.savefig(joinpath(win_exp_path,"Results","plots","h_normalized.pdf"))
+
+                            error_plt = set_plot(fs, sz=(plt_width, plt_height))
+                            Plots.plot!(error_plt, t_full_h, abs.(est_h_list-gt_h), label="Height estimation error", left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
+                            for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                pred_h_list_vec = pred_h_list[ti]
+                                range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                                t = t_windows[ti]
+                                if ti == 1
+                                    Plots.plot!(error_plt, t_full_h[range_], abs.(pred_h_list_vec-gt_h[range_]), label=L"Error_{pred}", linestyle=:dash, color=def_orange)
+                                else
+                                    Plots.plot!(error_plt, t_full_h[range_], abs.(pred_h_list_vec-gt_h[range_]), linestyle=:dash, color=def_orange, label=false)
+                                end
+                                Plots.vline!(error_plt, [t], color=:gray, linestyle=:dash, label=false)
+                            end
+                            Plots.savefig(joinpath(win_exp_path,"Results","plots","h_est_error.pdf"))
+                            Plots.xlabel!(error_plt, L"\mathrm{Time\;[s]}")
+                            Plots.ylabel!(error_plt, L"\mathrm{Height\;Error\;[mm]}")
+                            Plots.xlims!(error_plt, 0, end_obs_win)
+                            Plots.savefig(joinpath(win_exp_path,"Results","plots","h_est_error.pdf"))
+
+                            rel_error_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
+                            Plots.plot!(rel_error_plt, t_full_h, abs.(est_h_list-gt_h)./gt_h*100, label="Relative Height estimation error", left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
+                            for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                pred_h_list_vec = pred_h_list[ti]
+                                range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                                t = t_windows[ti]
+                                if ti == 1
+                                    Plots.plot!(rel_error_plt, t_full_h[range_], abs.(pred_h_list_vec-gt_h[range_])./gt_h[range_]*100, label=L"Relative\;Error_{pred}", linestyle=:dash, color=def_orange)
+                                else
+                                    Plots.plot!(rel_error_plt, t_full_h[range_], abs.(pred_h_list_vec-gt_h[range_])./gt_h[range_]*100, linestyle=:dash, color=def_orange, label=false)
+                                end
+                                Plots.vline!(rel_error_plt, [t], color=:gray, linestyle=:dash, label=false)
+                            end
+                            Plots.xlabel!(rel_error_plt, L"\mathrm{Time\;[s]}")
+                            Plots.ylabel!(rel_error_plt, latexstring("Relative Height Error [\$\\%\$]"))
+                            Plots.xlims!(rel_error_plt, 0, end_obs_win)
+                            Plots.ylims!(rel_error_plt, -0.1, maximum(abs.(est_h_list-gt_h)./gt_h*100)*5)
+                            Plots.savefig(joinpath(win_exp_path,"Results","plots","rel_error.pdf"))
+                            
                         # catch err
                         #         @warn "Post-analysis for window $window_dir failed: $err"
                         # end
@@ -3204,6 +3233,20 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
     @info "Saved plots to $plot_path_global"
 end
 
+function read_unstrcut_csv(file_path::String)
+    data_list = []
+
+    data = readdlm(file_path)
+    data_len = size(data,1)
+    data_iter = 1:data_len
+    for vec_iter in data_iter
+        s = data[vec_iter,1]
+        vec = parse.(Float64, split(s, ','))
+        push!(data_list, vec)
+    end
+    return data_list
+end
+
 function _get_borders(data_type::String, filepath_gt::String, exp_path::String)
 
     if data_type  == "synthetic"
@@ -3957,8 +4000,8 @@ function plot_()
     control::String = "force" # "force" or "velocity"
     viscosity_type_list = ["bulk_viscosity"] #,"constant"]
     model_type::String = "Stokes" # "carreau" or "Stokes"
-    avoid_dirs = ["3_less_noise", "s"]
-    data_type_list = ["synthetic"]
+    avoid_dirs = ["3_less_noise", "s", "2", "3", "4", "5"]
+    data_type_list = ["physical"]
 
     for data_type in data_type_list
         if data_type == "synthetic"
@@ -3993,8 +4036,8 @@ function plot_()
                 end
                 filepath_gt_dir = string(filepath_gt,"/$dir/")
                 filepath_res_dir = string(filepath_res,"/$dir/")
-                # replot(filepath_res_dir, filepath_gt_dir)
                 predict(filepath_res_dir, filepath_gt_dir)
+                replot(filepath_res_dir, filepath_gt_dir)
             end
             # if viscosity_type == "constant"
             #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
