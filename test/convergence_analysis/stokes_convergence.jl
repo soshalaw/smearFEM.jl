@@ -264,7 +264,7 @@ function mesh_convergence_analysis()
     est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model_ref, scene_ref, conditions)   
 
     mesh_sz_ = [2, 4, 6, 8, 10, 12, 14, 16]
-    mesh_sz = reverse(mesh_sz_)
+    mesh_sz = mesh_sz_
     iter_index = 1
     h_ref = 0.0
     border_ref = borderPts2DList
@@ -277,7 +277,7 @@ function mesh_convergence_analysis()
 
         # est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq, elapsed_time = stokes_single_step_force(model, scene, conditions)
         
-        est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model_ref, scene_ref, conditions)   
+        est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)   
         t_end = Dates.now()
         elapsed_time = t_end - t_start
         
