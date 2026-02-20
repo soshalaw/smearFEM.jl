@@ -241,7 +241,7 @@ function mesh_convergence_analysis()
     nDof_p::Int = 1
     ndim::Int = 3
 
-    F_ext::Float64 = 0.2*9.812*1e3 # force applied to the cylinder in N
+    F_ext::Float64 = 9.812*1e3 # force applied to the cylinder in N
     sim_time::Float64 = 1 # simulation time in seconds
     step_size = 0.1
     steps = round(Int, sim_time/step_size)  
