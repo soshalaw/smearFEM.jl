@@ -553,13 +553,13 @@ function plot_covariance!(plt, η_list::Vector{Float64}, β_list::Vector{Float64
     # Build kwargs for covellipse
     covellipse_kwargs = (label=label, alpha=0.5, legend=:outerbottom, legend_column=legend_column)
     if !isnothing(color_ellipse)
-        covellipse_kwargs = (covellipse_kwargs..., color=color_ellipse, lw=1)
+        covellipse_kwargs = (covellipse_kwargs..., color=color_ellipse, lw=1, groupcolor=group_color)
     end
 
     # Build kwargs for scatter
     scatter_kwargs = (label="Data points", ms=:10, markerstrokewidth=0.1)
     if !isnothing(color_scatter)
-        scatter_kwargs = (scatter_kwargs..., color=color_scatter)
+        scatter_kwargs = (scatter_kwargs..., color=color_scatter, groupcolor=group_color)
     end
 
     # Plot the covariance matrix

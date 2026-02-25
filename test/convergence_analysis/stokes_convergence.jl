@@ -9,6 +9,7 @@ using DataFrames
 using Plots.PlotMeasures
 using LaTeXStrings
 using Dates
+using Statistics
 
 global fs::Int = 10
 global plt_height::Int = 360
@@ -242,7 +243,7 @@ function mesh_convergence_analysis()
     nDof_p::Int = 1
     ndim::Int = 3
 
-    F_ext::Float64 = 9.812*1e3 # force applied to the cylinder in N
+    F_ext::Float64 = 9.812*3e3 # force applied to the cylinder in N
     sim_time::Float64 = 1 # simulation time in seconds
     step_size = 0.1
     steps = round(Int, sim_time/step_size)  
@@ -315,9 +316,10 @@ function plot_convergence(file_path::String)
     plot_path = joinpath(file_path, "plots")
     set_file(plot_path) # create the directory to store the plots
 
-    display(mesh_sz)
+    mean_height_error = mean(height_error_list, dims=2)
+    display(mean_height_error)
     plt1 = set_plot(fs, sz=(plt_width, plt_height))
-    Plots.plot!(plt1, mesh_sz, height_error_list[:,2], label="Height error", ms=:5, xlabel="Mesh size", ylabel="Error")
+    Plots.plot!(plt1, mesh_sz, mean_height_error[:,1], label="Height error", ms=:5, xlabel="Mesh size", ylabel="Error")
     Plots.xticks!(plt1, mesh_sz[:,1])
     Plots.savefig(plt1, string(plot_path,"/height_convergence.pdf"))
 
@@ -327,10 +329,10 @@ function plot_convergence(file_path::String)
     Plots.savefig(plt2, string(plot_path,"/border_convergence.pdf"))
 
     plt3 = set_plot(fs, sz=(plt_width, plt_height))
-    Plots.plot!(plt3, mesh_sz, time_list_sec, label="Computation time", ms=:5, xlabel="Mesh size", ylabel="Time (s)")
+    Plots.plot!(plt3, mesh_sz, time_list_sec/10, label="Computation time", ms=:5, xlabel="Mesh size", ylabel="Time (s)")
     Plots.xticks!(plt3, mesh_sz[:,1])
     Plots.savefig(plt3, string(plot_path,"/time_convergence.pdf"))
 end
 
-mesh_convergence_analysis()
-# plot_convergence("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 
+# mesh_convergence_analysis()
+plot_convergence("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 
