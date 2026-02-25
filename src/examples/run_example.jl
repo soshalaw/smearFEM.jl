@@ -666,14 +666,16 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_data(string(filepath,"/data/sim_data/displacement_fields"), fields)
     write_data(string(filepath,"/data/sim_data/2D_border_points"), borderPts2DList)
 
-    time = collect(Float64, range(scene.t_steps, stop=scene.sim_time, step=scene.t_steps))
-    println(size(model.η))
-    println(size(time))
-    plt = set_plot(22)
-    Plots.plot!(plt, time, model.η, lw=3, label="Shear Viscosity", color=:red)
-    Plots.xlabel!(plt, L"\mathrm{Time\;(s)}")
-    Plots.ylabel!(plt, L"\eta(\mathrm{t})\;\mathrm{(KPa\cdot s)}")
-    savefig(plt, string(filepath,"/Results/images/shear_viscosity_time.pdf"))
+    if _scene.viscosity_type == "bulk_viscosity"
+        time = collect(Float64, range(scene.t_steps, stop=scene.sim_time, step=scene.t_steps))
+        println(size(model.η))
+        println(size(time))
+        plt = set_plot(22)
+        Plots.plot!(plt, time, model.η, lw=3, label="Shear Viscosity", color=:red)
+        Plots.xlabel!(plt, L"\mathrm{Time\;(s)}")
+        Plots.ylabel!(plt, L"\eta(\mathrm{t})\;\mathrm{(KPa\cdot s)}")
+        savefig(plt, string(filepath,"/Results/images/shear_viscosity_time.pdf"))
+    end
 
     @info "Data written to $filepath"
 
