@@ -8,9 +8,9 @@ function main()
     # parameters for the optimization
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
-    ne_gt::Int = 6 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 16 # number of elements in the mesh for the ground truth
 
-    β_gt_list = [100.0]
+    β_gt_list = [2e3, 5e3, 1e4, 1e5, 1e10] # penalty parameters for the ground truth
     η_gt_list = [100.0]
 
     refine_list = [2] # refinement levels, ne = ne_exp^refine
@@ -20,8 +20,8 @@ function main()
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
 
     F_ext::Float64 = 0.2*9.812*1e3 # force applied to the cylinder in N
-    sim_time_gt::Float64 = 20.0 # simulation time in seconds
-    steps_gt::Float64 = 10.0 # number of time steps
+    sim_time_gt::Float64 = 35.0 # simulation time in seconds
+    steps_gt::Int = 350 # number of time steps
 
     obj_pose = zeros(Float64, 4,4)
     obj_pose[1,1] = -1.0
@@ -32,7 +32,7 @@ function main()
 
     for viscosity_type in viscosity_type_list
         for FunctionClass_x in FunctionClass_x_gt_list
-            run_id = 1
+            run_id = 6
             for β_gt in β_gt_list
                 for η_gt in η_gt_list
                     if β_gt <= 1.0
@@ -47,6 +47,12 @@ function main()
                         F_ext = 9.813e3*40 # force applied to the cylinder in kg.mm/s^2 (N)
                     elseif β_gt == 1e3
                         F_ext = 9.813e3*70 # force applied to the cylinder in kg.mm/s^2 (N)
+                    elseif β_gt == 1e4
+                        F_ext = 9.813e3*150 # force applied to the cylinder in kg.mm/s^2 (N)
+                    elseif β_gt == 1e5
+                        F_ext = 9.813e3*350 # force applied to the cylinder in kg.mm/s^2 (N)
+                    elseif β_gt == 1e10
+                        F_ext = 9.813e3*1e4 # force applied to the cylinder in kg.mm/s^2 (N)
                     end
                     filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$(FunctionClass_x)_$(ne_gt)/$run_id")
 

@@ -84,17 +84,18 @@ echo "Found PDFs: $(tr -cd '\0' < "$PDF_LIST" | wc -c)  (jobs=$JOBS)"
 if xargs --help 2>&1 | grep -q "-P"; then
   cat "$PDF_LIST" | xargs -0 -n1 -P "$JOBS" -I{} bash -c '
     pdf="{}"; dir=$(dirname -- "$pdf"); base=$(basename -- "$pdf"); name="${base%.*}";
+    mkdir -p "$dir/pngs";
     if [ "$ALL_PAGES" -eq 1 ]; then
-      out_pattern="$dir/${name}-page%03d.png"; first_out=$(printf "$dir/${name}-page%03d.png" 0);
+      out_pattern="$dir/pngs/${name}-page%03d.png"; first_out=$(printf "$dir/pngs/${name}-page%03d.png" 0);
       if [ -f "$first_out" ]; then
-        echo "Replacing existing files for: $pdf -> ${name}-pageNNN.png"
+        echo "Replacing existing files for: $pdf -> pngs/${name}-pageNNN.png"
         # remove any existing page files so ImageMagick will write fresh ones
-        rm -f "$dir/${name}-page"*.png || true
+        rm -f "$dir/pngs/${name}-page"*.png || true
       fi
-      echo "Converting all pages: $pdf -> ${name}-pageNNN.png (density=$DENSITY, quality=$QUALITY)"
+      echo "Converting all pages: $pdf -> pngs/${name}-pageNNN.png (density=$DENSITY, quality=$QUALITY)"
       "${IM_CMD[@]}" -density "$DENSITY" "$pdf" $( [ -n "$RESIZE" ] && printf '%s ' -resize "$RESIZE" ) -quality "$QUALITY" "$out_pattern"
     else
-      out="$dir/${name}.png"
+      out="$dir/pngs/${name}.png"
       if [ -f "$out" ]; then
         echo "Replacing existing file: $out"
         rm -f "$out" || true
@@ -110,14 +111,15 @@ else
     dir=$(dirname -- "$pdf")
     base=$(basename -- "$pdf")
     name="${base%.*}"
+    mkdir -p "$dir/pngs"
     if [ "$ALL_PAGES" -eq 1 ]; then
-      out_pattern="$dir/${name}-page%03d.png"
-      first_out=$(printf "$dir/${name}-page%03d.png" 0)
+      out_pattern="$dir/pngs/${name}-page%03d.png"
+      first_out=$(printf "$dir/pngs/${name}-page%03d.png" 0)
       if [ -f "$first_out" ]; then
-        echo "Replacing existing files for: $pdf -> ${name}-pageNNN.png"
-        rm -f "$dir/${name}-page"*.png || true
+        echo "Replacing existing files for: $pdf -> pngs/${name}-pageNNN.png"
+        rm -f "$dir/pngs/${name}-page"*.png || true
       fi
-      echo "Converting all pages: $pdf -> ${name}-pageNNN.png (density=$DENSITY, quality=$QUALITY)"
+      echo "Converting all pages: $pdf -> pngs/${name}-pageNNN.png (density=$DENSITY, quality=$QUALITY)"
       cmd=("${IM_CMD[@]}" -density "$DENSITY" "$pdf")
       if [ -n "$RESIZE" ]; then
         cmd+=( -resize "$RESIZE" )
@@ -125,7 +127,7 @@ else
       cmd+=( -quality "$QUALITY" "$out_pattern" )
       "${cmd[@]}"
     else
-      out="$dir/${name}.png"
+      out="$dir/pngs/${name}.png"
       if [ -f "$out" ]; then
         echo "Replacing existing file: $out"
         rm -f "$out" || true

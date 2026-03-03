@@ -1593,5 +1593,5 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         # write_scene(string(conditions.filepath,"/data"), NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, pressure, ID=ID_cached, FunctionClass=mdl.mesh_p.FunctionClass)
         write_stokes_scene(string(conditions.filepath,"/data"), NodeList_u_cached, mdl.mesh_u.IEN, NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, velocity, pressure)
     end
-    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, splinep, splineq
+    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, splinep, splineq, velocity, pressure
 end

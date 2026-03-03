@@ -650,7 +650,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
         rm(string(filepath), recursive=true, force=true) # remove the previous results folder if it exists
     end
 
-    h_, gradList, borderPts2DList, fields, pos3D, pos2D, _ = simulate(model, scene, conditions) # run the simulation
+    h_, gradList, borderPts2DList, displacement_fields, pos3D, pos2D, splinep, splineq, velocity, pressure = simulate(model, scene, conditions) # run the simulation
     
     h = get_height(h_, model.mesh_u.h) # get the mesh height with time
     display(scene.cParam)
@@ -663,8 +663,10 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_csv(string(filepath,"/data/h"), h)
     write_data(string(conditions.filepath,"/data/sim_data/2D_surface_points"), pos2D)
     write_data(string(filepath,"/data/sim_data/node_points"), pos3D)
-    write_data(string(filepath,"/data/sim_data/displacement_fields"), fields)
+    write_data(string(filepath,"/data/sim_data/displacement_fields"), displacement_fields)
     write_data(string(filepath,"/data/sim_data/2D_border_points"), borderPts2DList)
+    write_data(string(filepath,"/data/sim_data/velocity_fields"), velocity)
+    write_data(string(filepath,"/data/sim_data/pressure_fields"), pressure)
 
     if _scene.viscosity_type == "bulk_viscosity"
         time = collect(Float64, range(scene.t_steps, stop=scene.sim_time, step=scene.t_steps))
@@ -802,3 +804,53 @@ function readData(filepath::String)
     savefig(string(filepath,"/Results"))
     return obsBorderPts, xObs, yObs
 end
+
+"""
+    plot_rad_vel(file_path)
+
+Plots the mean radial velocity against the slip parameter.
+
+# Arguments
+- `file_path::String`: Path to the directory containing the simulation data.
+
+# Returns
+- A plot of mean radial velocity vs slip parameter.
+"""
+function plot_rad_vel(file_path::String)
+    dirs = readdir(file_path)
+    v_rad_slip_list = zeros(Float64, (length(dirs)-1))
+    β_list = zeros(Float64, (length(dirs)-1))
+    for (i, dir) in enumerate(dirs)
+        if dir == "analysis" || dir == "Results"
+            continue
+        end
+        file = joinpath(file_path, dir, "data", "sim_data", "velocity_fields")
+        exp_params = read_json(joinpath(file_path, dir, "data", "sim_params.json"))
+        β = exp_params["β"]
+        β_list[i] = β[1]
+        csv_file = readdir(file)
+        v_rad_mean_list = zeros(Float64, length(csv_file))
+        for (j, csv) in enumerate(csv_file)
+            data = readdlm(joinpath(file, csv), ',')
+            v1 = data[1:169,1]
+            v2 = data[1:169,2]
+            v_rad = sqrt.(v1.^2 + v2.^2)
+            vrad_mean = mean(v_rad)
+            v_rad_mean_list[j] = vrad_mean
+        end
+        v_rad_time_mean = mean(v_rad_mean_list)
+        v_rad_slip_list[i] = v_rad_time_mean
+    end
+    sort_idx = sortperm(β_list)
+    β_list = β_list[sort_idx]
+    v_rad_slip_list = v_rad_slip_list[sort_idx]
+    plt = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
+    Plots.plot!(plt, β_list, v_rad_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\beta\$ [kPa s mm\$^{-1}\$]"), ylabel="Mean Radial Velocity [mm/s]", xscale=:log10, legend=false)
+    Plots.xticks!(plt, [1, 1e2, 1e4, 1e6, 1e8, 1e10, 1e12, 1e14, 1e16, 1e18, 1e20])
+    plot_path = joinpath(file_path, "analysis")
+    if !isdir(plot_path)
+        mkdir(plot_path)
+    end
+    Plots.savefig(string(plot_path,"/mean_radial_velocity_vs_slip_parameter.pdf"))
+end
+
