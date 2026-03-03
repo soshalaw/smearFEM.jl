@@ -8,9 +8,9 @@ function main()
     # parameters for the optimization
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
-    ne_gt::Int = 16 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 6 # number of elements in the mesh for the ground truth
 
-    β_gt_list = [2e3, 5e3, 1e4, 1e5, 1e10] # penalty parameters for the ground truth
+    β_gt_list = [2e3, 5e3, 1e4, 1e5] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [100.0]
 
     refine_list = [2] # refinement levels, ne = ne_exp^refine
@@ -47,12 +47,16 @@ function main()
                         F_ext = 9.813e3*40 # force applied to the cylinder in kg.mm/s^2 (N)
                     elseif β_gt == 1e3
                         F_ext = 9.813e3*70 # force applied to the cylinder in kg.mm/s^2 (N)
-                    elseif β_gt == 1e4
+                    elseif β_gt == 2e3
                         F_ext = 9.813e3*150 # force applied to the cylinder in kg.mm/s^2 (N)
+                    elseif β_gt == 5e3
+                        F_ext = 9.813e3*350 # force applied to the cylinder in
+                    elseif β_gt == 1e4
+                        F_ext = 9.813e3*700 # force applied to the cylinder in kg.mm/s^2 (N)
                     elseif β_gt == 1e5
-                        F_ext = 9.813e3*350 # force applied to the cylinder in kg.mm/s^2 (N)
+                        F_ext = 9.813e3*7e3 # force applied to the cylinder in kg.mm/s^2 (N)
                     elseif β_gt == 1e10
-                        F_ext = 9.813e3*1e4 # force applied to the cylinder in kg.mm/s^2 (N)
+                        F_ext = 9.813e3*7e8 # force applied to the cylinder in kg.mm/s^2 (N)
                     end
                     filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$(FunctionClass_x)_$(ne_gt)/$run_id")
 
