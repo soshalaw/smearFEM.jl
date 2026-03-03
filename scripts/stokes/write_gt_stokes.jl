@@ -8,7 +8,7 @@ function main()
     # parameters for the optimization
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
-    ne_gt::Int = 6 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 16 # number of elements in the mesh for the ground truth
 
     β_gt_list = [2e3, 5e3, 1e4, 1e5] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [100.0]
