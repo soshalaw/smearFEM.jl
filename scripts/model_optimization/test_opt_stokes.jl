@@ -4189,7 +4189,7 @@ function plot_()
 end
 
 # main()
-plot_()
-# optimize_sim()
+# plot_()
+optimize_sim()
 # optimize_syn()
 # optimize_real()
