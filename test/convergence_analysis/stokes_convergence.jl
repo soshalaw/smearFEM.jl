@@ -10,6 +10,7 @@ using Plots.PlotMeasures
 using LaTeXStrings
 using Dates
 using Statistics
+using LaTeXStrings
 
 global fs::Int = 10
 global plt_height::Int = 360
@@ -317,6 +318,7 @@ function mesh_convergence_analysis()
 end
 
 function plot_convergence(file_path::String)
+    height_list = readdlm(joinpath(file_path,"height_list.csv"), ',', Float64)
     height_error_list = readdlm(joinpath(file_path,"height_error_list.csv"), ',', Float64)
     border_error_list = readdlm(joinpath(file_path,"border_error_list.csv"), ',', Float64)
     mesh_sz = readdlm(joinpath(file_path,"mesh_sz.csv"), ',', Float64)
@@ -326,19 +328,19 @@ function plot_convergence(file_path::String)
     set_file(plot_path) # create the directory to store the plots
 
     mean_height_error = mean(height_error_list, dims=2)
-    display(mean_height_error)
+    mean_height = mean(height_list, dims=2)
     plt1 = set_plot(fs, sz=(plt_width, plt_height))
-    Plots.plot!(plt1, mesh_sz, mean_height_error[:,1], label="Height error", xlabel="Mesh size", ylabel="Error", marker=:circle, ms=2)
+    Plots.plot!(plt1, mesh_sz, (mean_height_error[:,1]/mean_height[1,1])*100, label=false, xlabel="Mesh size", ylabel=latexstring("Relative height error \$[\\%]\$"), marker=:circle, ms=2)
     Plots.xticks!(plt1, mesh_sz[:,1])
     Plots.savefig(plt1, string(plot_path,"/height_convergence.pdf"))
 
     plt2 = set_plot(fs, sz=(plt_width, plt_height))
-    Plots.plot!(plt2, mesh_sz, border_error_list, label="Border error", xlabel="Mesh size", ylabel="Error", marker=:circle, ms=2)
+    Plots.plot!(plt2, mesh_sz, border_error_list, label=false, xlabel="Mesh size", ylabel="Error", marker=:circle, ms=2)
     Plots.xticks!(plt2, mesh_sz[:,1])
     Plots.savefig(plt2, string(plot_path,"/border_convergence.pdf"))
 
     plt3 = set_plot(fs, sz=(plt_width, plt_height))
-    Plots.plot!(plt3, mesh_sz, time_list_sec, label="Computation time", xlabel="Mesh size", ylabel="Time (s)", yscale=:log10, marker=:circle, ms=2)
+    Plots.plot!(plt3, mesh_sz, time_list_sec, label=false, xlabel="Mesh size", ylabel="Time (s)", yscale=:log10, marker=:circle, ms=2)
     Plots.xticks!(plt3, mesh_sz[:,1])
     Plots.savefig(plt3, string(plot_path,"/time_convergence.pdf"))
 end

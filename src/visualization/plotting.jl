@@ -551,7 +551,7 @@ function plot_covariance!(plt, η_list::Vector{Float64}, β_list::Vector{Float64
     mean_vec = [mean_η; mean_β]
 
     # Build kwargs for covellipse
-    covellipse_kwargs = (label=label, alpha=0.5, legend=:outerbottom, legend_column=legend_column)
+    covellipse_kwargs = (label=label, alpha=0.5, legend_column=legend_column, bottom_margin=-30mm)
     if !isnothing(color_ellipse)
         covellipse_kwargs = (covellipse_kwargs..., color=color_ellipse, lw=1)
     end
@@ -564,5 +564,6 @@ function plot_covariance!(plt, η_list::Vector{Float64}, β_list::Vector{Float64
 
     # Plot the covariance matrix
     StatsPlots.covellipse!(plt, mean_vec, cov_mat; covellipse_kwargs...)
+
     # Plots.scatter!(plt, η_list, β_list; scatter_kwargs...)
 end

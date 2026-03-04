@@ -2035,45 +2035,53 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
         # plots for element vise comparison
         # plots for convergence 
-        elem_η_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_conv_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+        Plots.xlabel!(elem_conv_plt, L"\mathrm{Iterations}")
+        Plots.ylabel!(elem_conv_plt, L"\mathrm{Cost\;[px]}")
+
+        elem_conv_plt_log = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+        Plots.xlabel!(elem_conv_plt_log, L"\mathrm{Iterations}")
+        Plots.ylabel!(elem_conv_plt_log, L"\mathrm{Cost\;[px]}")
+
+        elem_η_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
         Plots.hline!(elem_η_plt, [η_gt[1]], label="Ground truth η",  left_margin=plt_lft_margin)
         Plots.xlabel!(elem_η_plt,L"\mathrm{Iterations}")
         Plots.ylabel!(elem_η_plt,L"\eta\;\mathrm{[kPa\, s]}")
 
-        elem_β_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_β_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
         Plots.hline!(elem_β_plt, [β_gt[1]], label="Ground truth β",  left_margin=plt_lft_margin)
         Plots.xlabel!(elem_β_plt, L"\mathrm{Iterations}")
         Plots.ylabel!(elem_β_plt, L"\beta\;\mathrm{[Pa\, s \, m]}")
 
-        elem_ratio_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_ratio_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
         Plots.hline!(elem_ratio_plt, [η_gt[1]/β_gt[1]], label="Ground truth η/β",  left_margin=plt_lft_margin)
         Plots.xlabel!(elem_ratio_plt, L"\mathrm{Iterations}")   
         Plots.ylabel!(elem_ratio_plt, L"\eta/\beta\;\mathrm{[mm^{-1}]}")
         
         # plots for normalized values
-        elem_η_norm_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_η_norm_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
         Plots.hline!(elem_η_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash, color=:black)
         Plots.xlabel!(elem_η_norm_plt,L"\mathrm{Iterations}")
         Plots.ylabel!(elem_η_norm_plt,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
-        elem_β_norm_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_β_norm_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
         Plots.hline!(elem_β_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash, color=:black)
         Plots.xlabel!(elem_β_norm_plt, L"\mathrm{Iterations}")
         Plots.ylabel!(elem_β_norm_plt, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
 
-        elem_ratio_norm_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_ratio_norm_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
         Plots.hline!(elem_ratio_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash, color=:black)
         Plots.xlabel!(elem_ratio_norm_plt, L"\mathrm{Iterations}")   
-        Plots.ylabel!(elem_ratio_norm_plt, L"\frac{\eta_{\mathrm{est}}/\beta_{\mathrm{est}}}{\eta_{\mathrm{gt}}/\beta_{\mathrm{gt}}}")
+        Plots.ylabel!(elem_ratio_norm_plt, L"\eta_{\mathrm{est}}/\beta_{\mathrm{est}}\\eta_{\mathrm{gt}}/\beta_{\mathrm{gt}}")
 
         # plots for height error
-        elem_rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
         Plots.plot!(elem_rel_height_error_plt, [], left_margin=plt_lft_margin, label=false)
         Plots.xlabel!(elem_rel_height_error_plt, L"\mathrm{Time\;[s]}")
         Plots.ylabel!(elem_rel_height_error_plt, latexstring("Relative Height Error [\$\\%\$]"))
         Plots.xlims!(elem_rel_height_error_plt, 0, end_obs_win)
 
-        elem_height_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_height_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
         Plots.plot!(elem_height_plt, [], left_margin=plt_lft_margin, label=false)
         Plots.xlabel!(elem_height_plt, L"\mathrm{Time\;[s]}")
         Plots.ylabel!(elem_height_plt, L"\mathrm{Height\;[mm]}")
@@ -2118,7 +2126,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
             sim_window_ratio_norm_plt = set_plot(fs, sz=(plt_width, plt_height))
             Plots.hline!(sim_window_ratio_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash, color=:black)
             Plots.xlabel!(sim_window_ratio_norm_plt, L"\mathrm{Iterations}")   
-            Plots.ylabel!(sim_window_ratio_norm_plt, L"\frac{\eta_{\mathrm{est}}/\beta_{\mathrm{est}}}{\eta_{\mathrm{gt}}/\beta_{\mathrm{gt}}}")
+            Plots.ylabel!(sim_window_ratio_norm_plt, L"\eta_{\mathrm{est}}/\beta_{\mathrm{est}}\\eta_{\mathrm{gt}}/\beta_{\mathrm{gt}}")
 
             # plots for height error
             sim_window_rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
@@ -2166,8 +2174,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                 
                 # noise analysis plots
                 noise_cols::Int = 2
-                covarience_plt = set_plot(fs, sz=(plt_width, plt_height))
-                Plots.plot!(covarience_plt, [], label=false, left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin)
+                covarience_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=noise_cols)
                 Plots.xlabel!(covarience_plt, L"\eta/\eta_{\mathrm{gt}}")
                 Plots.ylabel!(covarience_plt, L"\beta/\beta_{\mathrm{gt}}")
                 Plots.xlims!(covarience_plt, 0.6, 6.5)
@@ -2221,6 +2228,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                 printstyled("Processing simulation time folder: $(sim_time_folder)\n", color=:cyan)
 
                 noise_iter = 0
+                min_η_norm, max_η_norm, min_β_norm, max_β_norm = 0.0, 0.0, 0.0, 0.0
                 for noise_folder_ in reverse(sort(noise_folders))
                     
                     if noise_folder_ == "post_analysis_noise" || noise_folder_ == "Results" 
@@ -2377,27 +2385,33 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                                 Plots.plot!(contour_plt_zoom, nSplinex[end], nSpliney[end], label=false, color=:red)
                             end
                             println(size(height_error, 1), " vs ", size(gt_h), " vs ", size(time_h), " vs ", length(rel_height_error))
-                            Plots.plot!(height_error_plt, time_h, height_error, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
+                            Plots.plot!(height_error_plt, time_h, height_error, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
 
-                            Plots.plot!(rel_height_error_plt, time_h, rel_height_error, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
+                            Plots.plot!(rel_height_error_plt, time_h, rel_height_error, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
                             
-                            Plots.plot!(elem_η_plt, iter, est_η, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
+                            Plots.plot!(elem_conv_plt, iter, cost_list, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
+                            Plots.xticks!(elem_conv_plt, 0:2:(max_iter+1))
+                            
+                            Plots.plot!(elem_conv_plt_log, iter, cost_list, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom, yscale=:log10)
+                            Plots.xticks!(elem_conv_plt_log, 0:2:(max_iter+1))
+
+                            Plots.plot!(elem_η_plt, iter, est_η, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
                             Plots.xticks!(elem_η_plt, 0:2:(max_iter+1))
                             
-                            Plots.plot!(elem_β_plt, iter, est_β, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
+                            Plots.plot!(elem_β_plt, iter, est_β, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
                             Plots.xticks!(elem_β_plt, 0:2:(max_iter+1))
-                            Plots.plot!(elem_ratio_plt, iter, ratio_est, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
+                            Plots.plot!(elem_ratio_plt, iter, ratio_est, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
                             Plots.xticks!(elem_ratio_plt, 0:2:(max_iter+1))
                             
-                            Plots.plot!(elem_rel_height_error_plt, time_h, rel_height_error, label=string("Number of elements: ",ne), legend=:outerbottom, legend_column=2)
-                            Plots.plot!(elem_height_plt, time_h, est_h, label=string("Number of elements: ",ne), legend=:outerbottom, legend_column=2)
-                            Plots.plot!(elem_height_plt, time_h, gt_h, label=L"h_{\mathrm{gt}}(t)", legend=:outerbottom, legend_column=2)
+                            Plots.plot!(elem_rel_height_error_plt, time_h, rel_height_error, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), legend=:outerbottom)
+                            Plots.plot!(elem_height_plt, time_h, est_h, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), legend=:outerbottom)
+                            Plots.plot!(elem_height_plt, time_h, gt_h, label=L"h_{\mathrm{gt}}(t)", legend=:outerbottom)
                         
-                            Plots.plot!(elem_η_norm_plt, iter, est_η_norm, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
+                            Plots.plot!(elem_η_norm_plt, iter, est_η_norm, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
                             Plots.xticks!(elem_η_norm_plt, 0:2:(max_iter+1))
-                            Plots.plot!(elem_β_norm_plt, iter, est_β_norm, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
+                            Plots.plot!(elem_β_norm_plt, iter, est_β_norm, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
                             Plots.xticks!(elem_β_norm_plt, 0:2:(max_iter+1))
-                            Plots.plot!(elem_ratio_norm_plt, iter, normalized_ratio, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
+                            Plots.plot!(elem_ratio_norm_plt, iter, normalized_ratio, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
                             Plots.xticks!(elem_ratio_norm_plt, 0:2:(max_iter+1))
                         end
                     else
@@ -2408,6 +2422,22 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                         η_β_pred = η_pred[:,1] ./ β_pred[:,1]* (β_gt / η_gt) # normalize the ratio by ground truth to compare across different noise levels
                         dist = fit(Normal, η_β_pred)
                         StatsPlots.plot!(dist_plot, dist, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), legend_column=noise_cols)
+
+                        η_norm = η_pred[:,1] ./ η_gt
+                        β_norm = β_pred[:,1] ./ β_gt
+
+                        if minimum(η_norm) < min_η_norm || min_η_norm == 0.0
+                            min_η_norm = minimum(η_norm)
+                        end
+                        if maximum(η_norm) > max_η_norm || max_η_norm == 0.0
+                            max_η_norm = maximum(η_norm)
+                        end
+                        if minimum(β_norm) < min_β_norm || min_β_norm == 0.0
+                            min_β_norm = minimum(β_norm)
+                        end
+                        if maximum(β_norm) > max_β_norm || max_β_norm == 0.0
+                            max_β_norm = maximum(β_norm)
+                        end
 
                         n_samples = size(η_pred, 2)
                         η_β_list = []
@@ -2459,10 +2489,13 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                         noise_iter += 1
                     end
                 end
-
                 # Plots.scatter!(covarience_plt, η_gt, β_gt, label="Ground truth", ms=:15, m=:star5, color=def_red, markerstrokewidth=0.1)
+                xlims = [min_η_norm, max_η_norm]
+                ylims = [min_β_norm, max_β_norm]
                 Plots.hline!(covarience_plt, [1], linestyle=:dash, label=false, color=:black)
                 Plots.vline!(covarience_plt, [1], linestyle=:dash, label=false, color=:black)
+                Plots.lens!(covarience_plt, xlims, ylims, inset = (1, bbox(0.45, 0.3, 0.5, 0.4)), label=false)
+                Plots.plot!(covarience_plt, bottom_margin=-20mm)
 
                 plot_path_noise = joinpath(sim_time_folder,"post_analysis_noise","plots")
                 set_file(plot_path_noise)
@@ -2494,7 +2527,8 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
         
         plot_path_elems = joinpath(filepath_dir,"post_analysis","plots")
         set_file(plot_path_elems)
-
+        Plots.savefig(elem_conv_plt, joinpath(plot_path_elems,"conv_$dir.pdf"))
+        Plots.savefig(elem_conv_plt_log, joinpath(plot_path_elems,"conv_log_$dir.pdf"))
         Plots.savefig(elem_ratio_plt, joinpath(plot_path_elems,"η_β_ratio_$dir.pdf"))
         Plots.savefig(elem_η_plt, joinpath(plot_path_elems,"η_$dir.pdf"))
         Plots.savefig(elem_β_plt, joinpath(plot_path_elems,"β_$dir.pdf"))
@@ -3909,15 +3943,15 @@ function optimize_sim()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
+    refine_list = [2, 10, 12, 14, 16] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["bulk_viscosity","constant"]
+    viscosity_type_list = ["constant"]
     window = "multi_window"
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise"]
+    avoid_dirs = ["3_less_noise", "1", "2", "4", "5"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -3936,14 +3970,14 @@ function optimize_sim()
                 end
                 for noise_level in noise_level_list 
                     if noise_level == 0.0 && viscosity_type == "constant" && ne != 6
-                        sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0] #, 2.0, 10.0] # simulation time in seconds
                     elseif viscosity_type == "constant" && ne == 6
-                        # sim_time_exp_list = [5.0, 2.0, 10.0] # simulation time in seconds
-                        sim_time_exp_list = [20.0, 30.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0] #, 2.0, 10.0] # simulation time in seconds
+                        # sim_time_exp_list = [20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
                         sim_time_exp_list = [2.0, 5.0, 10.0] # simulation time in seconds
                     else
-                        sim_time_exp_list = [2.0, 5.0, 10.0]  # simulation time in seconds
+                        sim_time_exp_list = [5.0]  # simulation time in seconds
                     end
                     println("Simulation time experiments to run: $sim_time_exp_list")
                     for sim_time_exp::Float16 in sim_time_exp_list
@@ -4102,10 +4136,10 @@ end
 
 function plot_()
     control::String = "force" # "force" or "velocity"
-    viscosity_type_list = ["bulk_viscosity"] #,"constant"]
+    viscosity_type_list = ["constant"] #,"constant"]
     model_type::String = "Stokes" # "carreau" or "Stokes"
     avoid_dirs = ["3_less_noise", "s"]
-    data_type_list = ["physical"] # "synthetic", "simulated", "physical"
+    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
 
     for data_type in data_type_list
         if data_type == "synthetic"
@@ -4141,7 +4175,7 @@ function plot_()
                 filepath_gt_dir = string(filepath_gt,"/$dir/")
                 filepath_res_dir = string(filepath_res,"/$dir/")
                 # predict(filepath_res_dir, filepath_gt_dir)
-                replot(filepath_res_dir, filepath_gt_dir)
+                # replot(filepath_res_dir, filepath_gt_dir)
             end
             if viscosity_type == "constant"
                 post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
