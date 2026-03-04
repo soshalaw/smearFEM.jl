@@ -349,21 +349,21 @@ function optimize(exp_params::Dict)
             η_iter = 1:size(ηList,1)
             β_iter = 1:size(βList,1)
 
-            for i::Int in η_iter
-                η = ηList[i]
-                for j::Int in β_iter
-                    β = βList[j]
-                    reset_model!(model)
-                    model.η = [η]
-                    scene.β = [β]
-                    μ_list, gradList, simBorderPts, fields_, pos3D_, pos2D_, splinex_, spliney_ = simulate(model, scene, conditions)
+            # for i::Int in η_iter
+            #     η = ηList[i]
+            #     for j::Int in β_iter
+            #         β = βList[j]
+            #         reset_model!(model)
+            #         model.η = [η]
+            #         scene.β = [β]
+            #         μ_list, gradList, simBorderPts, fields_, pos3D_, pos2D_, splinex_, spliney_ = simulate(model, scene, conditions)
                     
-                    # test the closest point function
-                    d, pairs = closest_point(simBorderPts, obsBorderPts)
+            #         # test the closest point function
+            #         d, pairs = closest_point(simBorderPts, obsBorderPts)
                     
-                    CostMat[i,j] = sum(d)/length(d)
-                end
-            end
+            #         CostMat[i,j] = sum(d)/length(d)
+            #     end
+            # end
             
             # Plot the cost function surface (interactive GLMakie)
             # set_plot(fs, sz=(plt_width, plt_height))
@@ -410,7 +410,7 @@ function optimize(exp_params::Dict)
             # Write the results to files
             contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
 
-            write_json(joinpath(exp_path,"Results","data","contour_plot_params"), contour_plot_params)
+            # write_json(joinpath(exp_path,"Results","data","contour_plot_params"), contour_plot_params)
 
         # @save joinpath(exp_path,"Results","data","sim_data","Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
         else
@@ -3943,7 +3943,7 @@ function optimize_sim()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2, 10, 12, 14, 16] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
+    refine_list = [2] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
@@ -3951,7 +3951,7 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "1", "2", "4", "5"]
+    avoid_dirs = ["3_less_noise", "1", "2", "4", "5", "6", "7", "8", "9", "10", "s"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
