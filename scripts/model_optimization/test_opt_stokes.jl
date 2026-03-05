@@ -3943,7 +3943,7 @@ function optimize_sim()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2, 10, 12, 14, 16] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
+    refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
@@ -3951,7 +3951,7 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "1", "2", "4", "5", "6", "7", "8", "9", "10", "s"]
+    avoid_dirs = ["3_less_noise", "1", "2", "3", "4", "5"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
