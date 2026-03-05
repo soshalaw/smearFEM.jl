@@ -3964,9 +3964,9 @@ function optimize_sim()
             filepath_gt = string(_filepath_gt,"/",dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
-                    noise_level_list = [0.0]
+                    noise_level_list = [0.5, 1.0, 1.5, 2.0]
                 else
-                    noise_level_list = [0.0, 0.5, 1.0, 1.5, 2.0]
+                    noise_level_list = [0.0]
                 end
                 for noise_level in noise_level_list 
                     if noise_level == 0.0 && viscosity_type == "constant" && ne != 6
