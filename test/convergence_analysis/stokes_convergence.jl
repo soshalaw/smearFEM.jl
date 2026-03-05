@@ -327,16 +327,16 @@ function plot_convergence(file_path::String)
     plot_path = joinpath(file_path, "plots")
     set_file(plot_path) # create the directory to store the plots
 
-    mesh_sz = mesh_sz[1:(end-1),:]
-    height_error_list = height_error_list[1:(end-1),:]
-    height_list = height_list[1:(end-1),:]
-    time_list_sec = time_list_sec[1:(end-1),:]
-    border_error_list = border_error_list[1:(end-1),:]
+    mesh_sz = mesh_sz[2:(end-1),:]
+    height_error_list = height_error_list[2:(end-1),:]
+    height_list = height_list[2:(end-1),:]
+    time_list_sec = time_list_sec[2:(end-1),:]
+    border_error_list = border_error_list[2:(end-1),:]
 
     mean_height_error = mean(height_error_list, dims=2)
     mean_height = mean(height_list, dims=2)
     plt1 = set_plot(fs, sz=(plt_width, plt_height))
-    Plots.plot!(plt1, mesh_sz, (mean_height_error[:,1]/mean_height[1,1])*100, label=false, xlabel="Mesh size", ylabel=latexstring("Relative height error \$[\\%]\$"), marker=:circle, ms=2)
+    Plots.plot!(plt1, mesh_sz, (mean_height_error[:,1]/mean_height[1,1])*100, label=false, xlabel="Mesh size", ylabel=latexstring("Relative height error \$[\\%]\$"), marker=:circle, ms=2, yscale=:log10)
     Plots.xticks!(plt1, mesh_sz[:,1])
     Plots.savefig(plt1, string(plot_path,"/height_convergence.pdf"))
 
