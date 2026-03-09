@@ -4138,9 +4138,9 @@ end
 function plot_()
     control::String = "force" # "force" or "velocity"
     viscosity_type_list = ["bulk_viscosity"] #,"constant"]
-    model_type::String = "carreau" # "carreau" or "Stokes"
+    model_type::String = "Stokes" # "carreau" or "Stokes"
     avoid_dirs = ["3_less_noise", "s"]
-    data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
+    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
 
     for data_type in data_type_list
         if data_type == "synthetic"
