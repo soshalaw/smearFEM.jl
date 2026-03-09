@@ -110,34 +110,34 @@ function optimize(exp_params::Dict)
             write_gt_data(exp_params)
         end
         
-        params = read_json(joinpath(filepath_gt,"data","sim_params.json"))
+        sim_params = read_json(joinpath(filepath_gt,"data","sim_params.json"))
         
-        r = params["r"]
-        h = params["h"]
+        r = sim_params["r"]
+        h = sim_params["h"]
         
-        gt_viscosity_type = params["viscosity_type"]
-        F = Array(float.(params["cParam"]))
+        gt_viscosity_type = sim_params["viscosity_type"]
+        F = Array(float.(sim_params["cParam"]))
         
         if gt_viscosity_type == "bulk_viscosity"
-            if haskey(params, "model_type") && params["model_type"] == "carreau"
-                viscosity_model = params["model_type"]
+            if haskey(sim_params, "model_type") && sim_params["model_type"] == "carreau"
+                viscosity_model = sim_params["model_type"]
             else
                 viscosity_model = "power_law"
-                η_gt = params["η"][1]
-                β_gt = params["β"][1]
+                η_gt = sim_params["η"][1]
+                β_gt = sim_params["β"][1]
             end
         else
-            η_gt = params["η"][1]
-            β_gt = params["β"][1]
+            η_gt = sim_params["η"][1]
+            β_gt = sim_params["β"][1]
         end
 
-        sim_time_gt = params["simulation_time"]
-        t_steps_gt = params["time_steps"]
+        sim_time_gt = sim_params["simulation_time"]
+        t_steps_gt = sim_params["time_steps"]
         
         camera_matrix = reshape(Array(float.(sim_params["camera_matrix"])),3,3)
         obj_pose = reshape(Array(float.(sim_params["obj_pose"])*1.0),4,4)
         
-        control = params["control_type"]
+        control = sim_params["control_type"]
         
         model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, gt_viscosity_type, 
         sim_time_gt, t_steps_gt, viscosity_model=viscosity_model)
@@ -456,14 +456,14 @@ function optimize(exp_params::Dict)
                 costnList[n] = costList
                 iternList[n] = iterList
 
-                params = Dict("gt_η" => η_gt,
+                sim_params = Dict("gt_η" => η_gt,
                 "gt_β" => β_gt,
                 "η" => η,
                 "β" => β,
                 "η_accuracy" => η_accuracy,
                 "β_accuracy" => β_accuracy)
 
-                write_json(joinpath(exp_path,"Results","data","stats","run_$n"), params)
+                write_json(joinpath(exp_path,"Results","data","stats","run_$n"), sim_params)
 
                 write_csv(joinpath(exp_path,"Results","data","opt_data","cost_steps","run_$n"), costList)
                 write_csv(joinpath(exp_path,"Results","data","opt_data","eta_steps","run_$n"), ηpList)
