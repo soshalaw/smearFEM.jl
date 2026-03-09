@@ -134,8 +134,8 @@ function optimize(exp_params::Dict)
         sim_time_gt = params["simulation_time"]
         t_steps_gt = params["time_steps"]
         
-        camera_matrix = reshape(Array(params["camera_matrix"]), 3, 3)
-        obj_pose = reshape(Array(params["obj_pose"])*1.0,4,4)
+        camera_matrix = reshape(Array(float.(sim_params["camera_matrix"])),3,3)
+        obj_pose = reshape(Array(float.(sim_params["obj_pose"])*1.0),4,4)
         
         control = params["control_type"]
         
