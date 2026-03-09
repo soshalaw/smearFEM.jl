@@ -267,8 +267,8 @@ function optimize(exp_params::Dict)
         # time = collect(Float64, range(start=0, stop=sim_time_exp, step=t_steps_exp))
         if noiseLevel == 0.0
                 
-            obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
-            stats = fit_model(model, scene, conditions, obsBorderPts, θ, outliers=outlier_frames)
+            obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
+            stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ, outliers=outlier_frames)
 
             iterList = stats["iterList"]
             costList = stats["cost_list"]
@@ -359,7 +359,7 @@ function optimize(exp_params::Dict)
             #         μ_list, gradList, simBorderPts, fields_, pos3D_, pos2D_, splinex_, spliney_ = simulate(model, scene, conditions)
                     
             #         # test the closest point function
-            #         d, pairs = closest_point(simBorderPts, obsBorderPts)
+            #         d, pairs = closest_point(simBorderPts, obs_border_pt_lst)
                     
             #         CostMat[i,j] = sum(d)/length(d)
             #     end
@@ -419,14 +419,14 @@ function optimize(exp_params::Dict)
             β_pred = zeros(Float64, n_samples)
             costnList = Vector{Vector{Float64}}(undef, n_samples)
             iternList = Vector{AbstractVector}(undef, n_samples)
-            est_h_list = Matrix{Float64}(undef, n_samples, round(Int,sim_time_exp/t_steps_exp)+1)
+            est_h_list = Matrix{Float64}(undef, n_samples, round(Int,sim_time_gt/t_steps_exp)+1)
             ANIMATED = false
 
             set_file(joinpath(exp_path,"Results","plots"))
             for n::Int in 1:n_samples
-                obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
+                obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
 
-                stats = fit_model(model, scene, conditions, obsBorderPts, θ, outliers=outlier_frames)
+                stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ, outliers=outlier_frames)
                                     
                 iterList = stats["iterList"]
                 costList = stats["cost_list"]
@@ -490,7 +490,7 @@ function optimize(exp_params::Dict)
     elseif gt_viscosity_type == "bulk_viscosity"
         
         av_η::Float64 = 0.0
-        obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
+        obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
         mode::String = exp_params["mode"] # "single_window" or "multiple_window" or "full_time"
         sim_time_window::Float64 = 30.0 # time window size for optimization in seconds
         
@@ -502,7 +502,7 @@ function optimize(exp_params::Dict)
         
         set_file(joinpath(exp_path,"Results","plots"))
         
-        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obsBorderPts, method="quadratic", window_size=sim_time_exp)
+        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obs_border_pt_lst, method="quadratic", window_size=sim_time_exp)
         _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="quadratic", window_size=sim_time_exp)
         _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="quadratic", window_size=sim_time_exp)
         println("Time windows: $(time_windows)")
@@ -542,11 +542,11 @@ function optimize(exp_params::Dict)
 
             printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
 
-            obsBorderPts_t = windows[ti] # align the observation points with the simulation time
+            obs_border_pt_lst_t = windows[ti] # align the observation points with the simulation time
             splinexObs_t = splinexObs_win[ti]
             splineyObs_t = splineyObs_win[ti]
 
-            println("observation Window size: $(size(obsBorderPts_t,1)) seconds")
+            println("observation Window size: $(size(obs_border_pt_lst_t,1)) seconds")
 
             println("Time frame : $data_range_")
             printstyled("Time window: $(ti)\n"; color = :green)
@@ -558,7 +558,7 @@ function optimize(exp_params::Dict)
                 printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
             end
 
-            stats = fit_model(model, scene, conditions, obsBorderPts_t, θ, outliers=outlier_frames)
+            stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ, outliers=outlier_frames)
 
             est_ηpList[data_range_] .= stats["η"]
             est_βpList[data_range_] .= stats["β"]
@@ -595,14 +595,14 @@ function optimize(exp_params::Dict)
                 else
                     scene.cParam = F[data_range_]
                 end
-                obsBorderPts_t = windows[ti] # align the observation points with the simulation time
+                obs_border_pt_lst_t = windows[ti] # align the observation points with the simulation time
 
                 
                 printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
                 println("Data frame : $(data_range_)")
                 println("Time frame : $(scene.sim_time)")
                 @info "Time window $(t_windows[ti])"
-                println("observation Window size: $(size(obsBorderPts_t,1)) seconds")
+                println("observation Window size: $(size(obs_border_pt_lst_t,1)) seconds")
 
                 if data_type != "physical" && viscosity_model != "carreau"
                     η_gt_ = model_gt.η[data_range_]
@@ -620,7 +620,7 @@ function optimize(exp_params::Dict)
                 end
                 @info "Predicting dynamics in time window $(ti)..."
                 @info "Fitting model in time window $(ti)..."
-                stats = fit_model(model, scene, conditions, obsBorderPts_t, θ, outliers=outlier_frames)
+                stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ, outliers=outlier_frames)
 
                 est_ηpList[data_range_] .= stats["η"]
                 est_βpList[data_range_] .= stats["β"]
@@ -830,8 +830,8 @@ function replot(filepath, filepath_gt)
     sim_time::Float64 = sim_params["simulation_time"]
     t_steps::Float64 = sim_params["time_steps"]
     
-    camera_matrix::AbstractArray = reshape(Array(sim_params["camera_matrix"]), 3, 3)
-    obj_pose::AbstractArray = reshape(Array(sim_params["obj_pose"])*1.0,4,4)
+    camera_matrix::Matrix{Float64} = reshape(Array(float.(sim_params["camera_matrix"])),3,3)
+    obj_pose::AbstractArray = reshape(Array(float.(sim_params["obj_pose"])*1.0),4,4)
     
     control::String = sim_params["control_type"]
 
@@ -885,6 +885,7 @@ function replot(filepath, filepath_gt)
                     ne_exp = exp_params["ne_exp"]
                     data_type = exp_params["data_type"]
                     control = exp_params["control"]
+                    num_exp_points::Int = round(Int, sim_time_exp/t_steps)
 
                     if data_type != "physical"
                         gt_h_ = readdlm(joinpath(filepath_gt,"data","h.csv"), ',', Float64)
@@ -902,7 +903,7 @@ function replot(filepath, filepath_gt)
                     time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
                     gt_h = gt_h_[1:(round(Int, sim_time/ t_steps))+1]
 
-                    obsBorderPts, symBorderPts, nSplinex, nSpliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path)
+                    obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path, num_exp_points)
                     conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
                     if noise_level == 0.0
 
@@ -915,7 +916,7 @@ function replot(filepath, filepath_gt)
                         η = stats["η"]
                         β = stats["β"]
                         
-                        d, pairs = closest_point(symBorderPts, obsBorderPts)
+                        d, pairs = closest_point(sim_border_pt_lst, obs_border_pt_lst)
 
                         if sim_time_exp == 5.0
                             cont_y_min = 350
@@ -929,7 +930,7 @@ function replot(filepath, filepath_gt)
                         
                         contour_plt = set_plot(fs, sz=(plt_width, plt_height))
                         Plots.plot!(contour_plt, [], label=false, legend=:outerbottom, legend_column=2, aspect_ratio = :equal)
-                        # Plots.scatter!(contour_plt, symBorderPts[end][1,:], symBorderPts[end][2,:], label="Simulated contour", ms=:10, mc=:royalblue, ma=:0.7, markerstrokewidth=0.2)
+                        # Plots.scatter!(contour_plt, sim_border_pt_lst[end][1,:], sim_border_pt_lst[end][2,:], label="Simulated contour", ms=:10, mc=:royalblue, ma=:0.7, markerstrokewidth=0.2)
                         Plots.plot!(contour_plt, nSplinex[end], nSpliney[end], label="Ground truth contour", color=:red)
                         Plots.yflip!(true)
                         Plots.xlims!(contour_plt, 480, 1520)
@@ -940,7 +941,7 @@ function replot(filepath, filepath_gt)
 
                         contour_plt_zoom = set_plot(fs, sz=(1200, plt_height))
                         Plots.plot!(contour_plt_zoom, [], label=false, legend=:outerbottom, legend_column=2, aspect_ratio = :equal)
-                        # Plots.scatter!(contour_plt_zoom, symBorderPts[end][1,:], symBorderPts[end][2,:], label="Simulated contour", ms=:10, mc=:royalblue, ma=:0.7, markerstrokewidth=0.2)
+                        # Plots.scatter!(contour_plt_zoom, sim_border_pt_lst[end][1,:], sim_border_pt_lst[end][2,:], label="Simulated contour", ms=:10, mc=:royalblue, ma=:0.7, markerstrokewidth=0.2)
                         Plots.plot!(contour_plt_zoom, nSplinex[end], nSpliney[end], label=false, color=:red)
                         Plots.xlims!(contour_plt_zoom, 1000, 1520)
                         Plots.ylims!(contour_plt_zoom, cont_y_min, 1200)
@@ -950,7 +951,7 @@ function replot(filepath, filepath_gt)
                         Plots.ylabel!(contour_plt_zoom, L"y\;\mathrm{[px]}")
                         Plots.savefig(contour_plt_zoom, joinpath(exp_path,"Results","plots","contour_comparison_zoom.pdf"))
 
-                        # animate_fields(filepath=joinpath(exp_path,"Results","plots"), BorderNodes2D=symBorderPts, pObs=nSplinex, qObs=nSpliney)
+                        # animate_fields(filepath=joinpath(exp_path,"Results","plots"), BorderNodes2D=sim_border_pt_lst, pObs=nSplinex, qObs=nSpliney)
                         # animate_fields(filepath=joinpath(exp_path,"Results","plots"), pObs=nSplinex, qObs=nSpliney)
                     
                         costList = stats["cost_list"]
@@ -1253,8 +1254,8 @@ function replot(filepath, filepath_gt)
                             exp_params = read_json(joinpath(exp_path,"Results","data","experiment_parameters.json"))
                             
                             sim_time_exp = exp_params["sim_time_exp"]
-                            obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noise_level)
-                            # symBorderPts, splinex, spliney = read_csv(joinpath(exp_path,"Results","data","sim_data","2D_border_points"))
+                            obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noise_level)
+                            # sim_border_pt_lst, splinex, spliney = read_csv(joinpath(exp_path,"Results","data","sim_data","2D_border_points"))
                             
                             # if sim_time_exp != sim_time
                             #     @warn "Simulation time in experiment parameters ($sim_time_exp) does not match that in ground truth ($sim_time)."
@@ -1284,9 +1285,9 @@ function replot(filepath, filepath_gt)
                             #     end
                             #     write_csv(joinpath(exp_path,"Results","data","h_est"), h_est_lst)
                                 # if sim_time_exp < sim_time
-                                #     @warn "Truncating obsBorderPts to match sim_time_exp."
-                                #     obsBorderPts = obsBorderPts[1:Int(sim_time_exp/ t_steps)+1, :]
-                                #     # symBorderPts = symBorderPts[1:Int(sim_time_exp/ t_steps)+1, :]
+                                #     @warn "Truncating obs_border_pt_lst to match sim_time_exp."
+                                #     obs_border_pt_lst = obs_border_pt_lst[1:Int(sim_time_exp/ t_steps)+1, :]
+                                #     # sim_border_pt_lst = sim_border_pt_lst[1:Int(sim_time_exp/ t_steps)+1, :]
 
                                 #     nSplinex = nSplinex[1:Int(sim_time_exp/ t_steps)+1, :]
                                 #     nSpliney = nSpliney[1:Int(sim_time_exp/ t_steps)+1, :]
@@ -1296,8 +1297,8 @@ function replot(filepath, filepath_gt)
 
                                 # else
                                 #     @warn " Truncating simBorderPts to match gt sim time."
-                                #     # symBorderPts = symBorderPts[1:Int(sim_time/ t_steps)+1, :]
-                                #     obsBorderPts = obsBorderPts[1:Int(sim_time/ t_steps)+1, :]
+                                #     # sim_border_pt_lst = sim_border_pt_lst[1:Int(sim_time/ t_steps)+1, :]
+                                #     obs_border_pt_lst = obs_border_pt_lst[1:Int(sim_time/ t_steps)+1, :]
 
                                 #     nSplinex = nSplinex[1:Int(sim_time/ t_steps)+1, :]
                                 #     nSpliney = nSpliney[1:Int(sim_time/ t_steps)+1, :]
@@ -1305,11 +1306,11 @@ function replot(filepath, filepath_gt)
                                 #     # splinex = splinex[1:Int(sim_time/ t_steps)+1, :]
                                 #     # spliney = spliney[1:Int(sim_time/ t_steps)+1, :]
                                 # end
-                            # elseif length(obsBorderPts) != length(symBorderPts)
-                            #     n_time = min(length(obsBorderPts), length(symBorderPts))
-                            #     @warn "Mismatched number of time steps between observed border points ($(length(obsBorderPts))) and simulated border points ($(length(symBorderPts))). Truncating to $n_time time steps."
-                            #     obsBorderPts = obsBorderPts[1:n_time, :]
-                            #     # symBorderPts = symBorderPts[1:n_time, :]
+                            # elseif length(obs_border_pt_lst) != length(sim_border_pt_lst)
+                            #     n_time = min(length(obs_border_pt_lst), length(sim_border_pt_lst))
+                            #     @warn "Mismatched number of time steps between observed border points ($(length(obs_border_pt_lst))) and simulated border points ($(length(sim_border_pt_lst))). Truncating to $n_time time steps."
+                            #     obs_border_pt_lst = obs_border_pt_lst[1:n_time, :]
+                            #     # sim_border_pt_lst = sim_border_pt_lst[1:n_time, :]
 
                             #     # nSplinex = nSplinex[1:n_time, :]
                             #     # nSpliney = nSpliney[1:n_time, :]
@@ -1318,11 +1319,11 @@ function replot(filepath, filepath_gt)
                             #     spliney = spliney[1:n_time, :]
                             # end
                             
-                            # d, pairs = closest_point(symBorderPts, obsBorderPts)
+                            # d, pairs = closest_point(sim_border_pt_lst, obs_border_pt_lst)
                             
                             # contour_plt = set_plot(fs, sz=(plt_width, plt_height))
                             # Plots.plot!(contour_plt, [], label=false, legend=:outerbottom, legend_column=2, aspect_ratio = :equal)
-                            # Plots.scatter!(contour_plt, symBorderPts[end][1,:], symBorderPts[end][2,:], label="Simulated contour", ms=:10, mc=:royalblue, ma=:0.7, markerstrokewidth=0.2)
+                            # Plots.scatter!(contour_plt, sim_border_pt_lst[end][1,:], sim_border_pt_lst[end][2,:], label="Simulated contour", ms=:10, mc=:royalblue, ma=:0.7, markerstrokewidth=0.2)
                             # Plots.plot!(contour_plt, nSplinex[end], nSpliney[end], label="Ground truth contour", color=:red)
                             # Plots.yflip!(true)
                             # Plots.xlims!(contour_plt, 480, 1520)
@@ -1333,7 +1334,7 @@ function replot(filepath, filepath_gt)
 
                             # contour_plt_zoom = set_plot(fs, sz=(350, 350))
                             # Plots.plot!(contour_plt_zoom, [], label=false, legend=:outerbottom, legend_column=2, aspect_ratio = :equal)
-                            # Plots.scatter!(contour_plt_zoom, symBorderPts[end][1,:], symBorderPts[end][2,:], label="Simulated contour", ms=:10, mc=:royalblue, ma=:0.7, markerstrokewidth=0.2)
+                            # Plots.scatter!(contour_plt_zoom, sim_border_pt_lst[end][1,:], sim_border_pt_lst[end][2,:], label="Simulated contour", ms=:10, mc=:royalblue, ma=:0.7, markerstrokewidth=0.2)
                             # Plots.plot!(contour_plt_zoom, nSplinex[end], nSpliney[end], label="Ground truth contour", color=:red)
                             # Plots.xlims!(contour_plt_zoom, 1000, 1520)
                             # Plots.ylims!(contour_plt_zoom, 480, 1200)
@@ -1465,7 +1466,7 @@ function replot(filepath, filepath_gt)
                                 error("Unknown data type: $data_type")
                             end
 
-                            obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
+                            obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
 
                             est_ηpList = readdlm(joinpath(win_exp_path,"Results","data","est_η.csv"), ',', Float64)
                             est_βpList = readdlm(joinpath(win_exp_path,"Results","data","est_β.csv"), ',', Float64)
@@ -1479,7 +1480,7 @@ function replot(filepath, filepath_gt)
                             t_windows = readdlm(joinpath(win_exp_path,"Results","data","window_data","t_windows.csv"),',',Float64)
                             time_windows = readdlm(joinpath(win_exp_path,"Results","data","window_data","time_windows.csv"),',',Float64)
 
-                            symBorderPts, splinex, spliney = read_csv(joinpath(win_exp_path,"Results","data","sim_data","2D_border_points"))
+                            sim_border_pt_lst, splinex, spliney = read_csv(joinpath(win_exp_path,"Results","data","sim_data","2D_border_points"))
                             
                             println("Time windows: $(time_windows)")
                             obs_time = sum(time_windows)
@@ -1501,8 +1502,7 @@ function replot(filepath, filepath_gt)
                             product_opt = est_ηpList .* est_βpList
                             sum_opt = est_ηpList .+ est_βpList
 
-                            if data_type != "physical" 
-                                if viscosity_model != "carreau"
+                            if data_type != "physical"
                                     η_gt = float.(sim_params["η"])
                                     β_gt = float.(sim_params["β"])
                                     η_gt = η_gt[1:data_point_len]
@@ -1510,15 +1510,14 @@ function replot(filepath, filepath_gt)
                                     ratio_gt = η_gt ./ β_gt
                                     product_gt = η_gt .* β_gt
                                     sum_gt = η_gt .+ β_gt
-                                end
                             end
                             gt_h = gt_h_[1:(data_point_len+1)]
 
-                            symBorderPts = symBorderPts[1:data_point_len+1, :]
-                            obsBorderPts = obsBorderPts[1:data_point_len+1, :]
+                            sim_border_pt_lst = sim_border_pt_lst[1:data_point_len+1, :]
+                            obs_border_pt_lst = obs_border_pt_lst[1:data_point_len+1, :]
                             est_h_list = est_h_list[1:data_point_len+1, :]
 
-                            d, pairs = closest_point(symBorderPts, obsBorderPts)
+                            d, pairs = closest_point(sim_border_pt_lst, obs_border_pt_lst)
                             
                             t_full_h = collect(range(start=0, stop=sim_time, step=t_steps))
                             
@@ -1565,7 +1564,7 @@ function replot(filepath, filepath_gt)
                                 prev_η = est_ηpList[data_range_[end]]
                                 t_prev = t+t_steps
                             end
-                            if data_type != "physical" && viscosity_model != "carreau"
+                            if data_type != "physical"
                                 Plots.plot!(plt_η, t_full, η_gt, label=L"\eta_{\mathrm{gt}}(t)", color=def_green)
                             end
                             Plots.xlabel!(L"\mathrm{Time\;[s]}")
@@ -1991,21 +1990,20 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.ylabel!(ratio_norm_plot_30,L"\frac{\eta_{\mathrm{est}}/\beta_{\mathrm{est}}}{\eta_{\mathrm{gt}}/\beta_{\mathrm{gt}}}")
     
     # conotour_plots
-    cont_y_min = 350
-    contour_plt = set_plot(fs, sz=(plt_width, plt_height))
-    Plots.plot!(contour_plt, [], label=false, legend=:outerbottom, legend_column=2, aspect_ratio = :equal)
+    cont_y_lims = [400, 1200] 
+    cont_x_lims = [1380, 1430]
+    contour_plt = set_plot(fs, sz=(round(Int,plt_width*1.5), plt_height), legend_column=3)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt, 480, 1520)
-    Plots.ylims!(contour_plt, cont_y_min, 1200)
+    # Plots.ylims!(contour_plt, 0, 1)
     Plots.xlabel!(contour_plt, L"x\;\mathrm{[px]}")
     Plots.ylabel!(contour_plt, L"y\;\mathrm{[px]}")
 
-    contour_plt_zoom = set_plot(fs, sz=(1200, plt_height))
-    Plots.plot!(contour_plt_zoom, [], label=false, legend=:outerbottom, legend_column=2, aspect_ratio = :equal)
+    contour_plt_zoom = set_plot(fs, sz=(plt_width, plt_height), legend_column=3)
     Plots.xticks!(contour_plt_zoom, 1100:200:1520)
     Plots.yflip!(true)
-    Plots.xlims!(contour_plt_zoom, 1000, 1520)
-    Plots.ylims!(contour_plt_zoom, cont_y_min, 1200)
+    Plots.xlims!(contour_plt_zoom, cont_x_lims[1], cont_x_lims[2])
+    # Plots.ylims!(contour_plt_zoom, cont_y_lims[1], cont_y_lims[2])
     Plots.xlabel!(contour_plt_zoom, L"x\;\mathrm{[px]}")
     Plots.ylabel!(contour_plt_zoom, L"y\;\mathrm{[px]}")
 
@@ -2088,7 +2086,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
         Plots.xlims!(elem_height_plt, 0, end_obs_win)
         
         for elem_size_folder_ in elem_size_folders
-            if elem_size_folder_ == "post_analysis" || elem_size_folder_ == "Q2_2"
+            if elem_size_folder_ == "post_analysis" || elem_size_folder_ == "Q2_16"
                 continue
             end
             
@@ -2247,13 +2245,13 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                     sim_time = exp_params["sim_time_exp"]
                     data_type = exp_params["data_type"]
                     exp_path_n0 = replace(exp_path, "$noise_folder_" => "noise_0.0")
-                    exp_points::Int = round(Int,sim_time/t_steps)
-                    exp_points = sim_time/t_steps
+                    num_exp_points::Int = round(Int,sim_time/t_steps)
 
-                    obsBorderPts, symBorderPts, nSplinex, nSpliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path)
-
+                    
                     printstyled("Processing for noise level: $(noise_level): $(exp_path)\n", color=:yellow)
                     if noise_level == 0.0
+                        
+                        obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path, num_exp_points)
                         est_η = readdlm(joinpath(exp_path,"Results","data","η.csv"), ',', Float64)
                         est_β = readdlm(joinpath(exp_path,"Results","data","β.csv"), ',', Float64)
                         est_h = readdlm(joinpath(exp_path,"Results","data","est_h.csv"), ',', Float64)
@@ -2380,9 +2378,9 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                                 Plots.plot!(h_glob_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
                                 Plots.plot!(h_glob_plot_5, time_h, h_norm, label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1], linestyle=:dash)
                                 Plots.plot!(h_glob_plot_5, time_h, gt_h, label=false, style=:dash, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            
-                                Plots.plot!(contour_plt, nSplinex[end], nSpliney[end], label="Ground truth contour", color=:red)
-                                Plots.plot!(contour_plt_zoom, nSplinex[end], nSpliney[end], label=false, color=:red)
+                                
+                                Plots.plot!(contour_plt, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(contour_plt_zoom, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
                             end
                             println(size(height_error, 1), " vs ", size(gt_h), " vs ", size(time_h), " vs ", length(rel_height_error))
                             Plots.plot!(height_error_plt, time_h, height_error, label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
@@ -2837,7 +2835,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                         error("Unknown data type: $data_type")
                     end
 
-                    obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
+                    obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
 
                     local η_gt::Vector{Float64} = float.(sim_params["η"])
                     local β_gt  = sim_params["β"]
@@ -2851,7 +2849,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                     t_windows = readdlm(joinpath(win_exp_path,"Results","data","window_data","t_windows.csv"),',',Float64)
                     time_windows = readdlm(joinpath(win_exp_path,"Results","data","window_data","time_windows.csv"),',',Float64)
 
-                    symBorderPts, splinex, spliney = read_csv(joinpath(win_exp_path,"Results","data","sim_data","2D_border_points"))
+                    sim_border_pt_lst, splinex, spliney = read_csv(joinpath(win_exp_path,"Results","data","sim_data","2D_border_points"))
                     
                     println("Time windows: $(time_windows)")
                     obs_time = sum(time_windows)
@@ -2871,8 +2869,8 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                     data_point_len = round(Int, obs_time/t_steps)
                     η_gt = η_gt[1:data_point_len]
                     gt_h = gt_h_[1:(data_point_len+1)]
-                    symBorderPts = symBorderPts[1:data_point_len+1, :]
-                    obsBorderPts = obsBorderPts[1:data_point_len+1, :]
+                    sim_border_pt_lst = sim_border_pt_lst[1:data_point_len+1, :]
+                    obs_border_pt_lst = obs_border_pt_lst[1:data_point_len+1, :]
                     est_h = est_h_list[1:data_point_len+1, :]
 
                     height_error = abs.(est_h - gt_h)
@@ -3224,7 +3222,7 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                     ne = exp_params["ne_exp"]
 
                     ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","img_data","contour_data"))  
-                    obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
+                    obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
 
                     est_ηpList = readdlm(joinpath(win_exp_path,"Results","data","est_η.csv"), ',', Float64)
                     est_βpList = readdlm(joinpath(win_exp_path,"Results","data","est_β.csv"), ',', Float64)
@@ -3234,7 +3232,7 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                     t_windows = readdlm(joinpath(win_exp_path,"Results","data","window_data","t_windows.csv"),',',Float64)
                     time_windows = readdlm(joinpath(win_exp_path,"Results","data","window_data","time_windows.csv"),',',Float64)
 
-                    symBorderPts, splinex, spliney = read_csv(joinpath(win_exp_path,"Results","data","sim_data","2D_border_points"))
+                    sim_border_pt_lst, splinex, spliney = read_csv(joinpath(win_exp_path,"Results","data","sim_data","2D_border_points"))
                     
                     println("Time windows: $(time_windows)")
                     obs_time = sum(time_windows)
@@ -3253,8 +3251,8 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
 
                     data_point_len = round(Int, obs_time/t_steps)
                     gt_h = gt_h_[1:(data_point_len+1)]
-                    symBorderPts = symBorderPts[1:data_point_len+1, :]
-                    obsBorderPts = obsBorderPts[1:data_point_len+1, :]
+                    sim_border_pt_lst = sim_border_pt_lst[1:data_point_len+1, :]
+                    obs_border_pt_lst = obs_border_pt_lst[1:data_point_len+1, :]
                     est_h = est_h_list[1:data_point_len+1, :]
                     time = collect(range(start=0, stop=sim_time, step=t_steps))
 
@@ -3386,35 +3384,38 @@ function read_unstrcut_csv(file_path::String)
     return data_list
 end
 
-function _get_borders(data_type::String, filepath_gt::String, exp_path::String)
+function _get_borders(data_type::String, filepath_gt::String, exp_path::String, num_exp_points::Int)
 
     if data_type  == "synthetic"
         ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","img_data","contour_data"))  
-        @info "Data type $data_type Reading synthetic contour data of $(length(ObsDataList)) time steps"
+        @info "Data type $data_type Reading synthetic ground truth contour data of $(length(ObsDataList)) time steps"
     elseif data_type == "simulated"
         ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","sim_data","contour_data"))  
-        @info "Data type $data_type Reading simulated contour data from $(joinpath(filepath_gt,"data","sim_data","contour_data")) of $(length(ObsDataList)) time steps"
+        @info "Data type : $data_type Reading simulated ground truth contour data from $(joinpath(filepath_gt,"data","sim_data","contour_data")) of $(length(ObsDataList)) time steps"
     else
         error("Unknown data type: $data_type")
     end
 
-    obsBorderPts, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
-    symBorderPts, splinex, spliney = read_csv(joinpath(exp_path,"Results","data","sim_data","2D_border_points"))
+    obs_border_pt_lst, gt_Splinex, gt_Spliney, pd = add_noise(ObsDataList, nFactor=0.0)
+    sim_border_pt_lst, splinex, spliney = read_csv(joinpath(exp_path,"Results","data","sim_data","2D_border_points"))
+    @info "Reading simulated contour data from $(joinpath(exp_path,"Results","data","sim_data","2D_border_points")) of $(length(sim_border_pt_lst)) time steps"
 
-    if length(obsBorderPts) != length(symBorderPts)
-        n_time = min(length(obsBorderPts), length(symBorderPts))
-        @warn "Mismatched number of time steps between observed border points ($(length(obsBorderPts))) and simulated border points ($(length(symBorderPts))). Truncating to $n_time time steps."
-        obsBorderPts = obsBorderPts[1:n_time, :]
-        symBorderPts = symBorderPts[1:n_time, :]
+    println("Number of observation border points: ", length(obs_border_pt_lst), typeof(obs_border_pt_lst))
+    # println("Number of simulation border points: ", length(sim_border_pt_lst), typeof(sim_border_pt_lst))
+    @assert length(ObsDataList) >= num_exp_points "Not enough observation border points: have $(length(ObsDataList)), need at least $num_exp_points"
+    # @assert length(sim_border_pt_lst) >= num_exp_points "Not enough simulation border points: have $(length(sim_border_pt_lst)), need at least $num_exp_points"
 
-        nSplinex = nSplinex[1:n_time, :]
-        nSpliney = nSpliney[1:n_time, :]
+    obs_border_pt_lst = obs_border_pt_lst[1:num_exp_points, :]
+    sim_border_pt_lst = sim_border_pt_lst[1:num_exp_points, :]
 
-        splinex = splinex[1:n_time, :]
-        spliney = spliney[1:n_time, :]
-    end
+    gt_Splinex = gt_Splinex[1:num_exp_points, :]
+    gt_Spliney = gt_Spliney[1:num_exp_points, :]
 
-    return obsBorderPts, symBorderPts, nSplinex, nSpliney, splinex, spliney
+    splinex = splinex[1:num_exp_points, :]
+    spliney = spliney[1:num_exp_points, :]
+
+
+    return obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney
 end
 # Note: GLMakie / Makie support was removed from automated paths; this script
 # now prefers PlotlyJS for saved interactive HTML output and keeps Plots for
@@ -4136,10 +4137,10 @@ end
 
 function plot_()
     control::String = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"] #,"constant"]
-    model_type::String = "Stokes" # "carreau" or "Stokes"
+    viscosity_type_list = ["bulk_viscosity"] #,"constant"]
+    model_type::String = "carreau" # "carreau" or "Stokes"
     avoid_dirs = ["3_less_noise", "s"]
-    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
+    data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
 
     for data_type in data_type_list
         if data_type == "synthetic"
@@ -4175,21 +4176,21 @@ function plot_()
                 filepath_gt_dir = string(filepath_gt,"/$dir/")
                 filepath_res_dir = string(filepath_res,"/$dir/")
                 # predict(filepath_res_dir, filepath_gt_dir)
-                # replot(filepath_res_dir, filepath_gt_dir)
+                replot(filepath_res_dir, filepath_gt_dir)
             end
             if viscosity_type == "constant"
                 post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
-            # elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
-            #     post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
-            # elseif data_type == "physical"
-            #     post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
+            elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
+                post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
+            elseif data_type == "physical"
+                post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
             end
         end
     end
 end
 
 # main()
-# plot_()
-optimize_sim()
+plot_()
+# optimize_sim()
 # optimize_syn()
 # optimize_real()

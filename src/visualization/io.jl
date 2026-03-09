@@ -1,7 +1,7 @@
 using WriteVTK
 using ProgressMeter
 using DelimitedFiles
-using JSON3
+using JSON
 using Distributions
 using HDF5
 using CSV
@@ -321,7 +321,7 @@ function read_json(filepath::String)
         throw(SystemError("Trying to read from $filepath, the directory does not exist."))
     end
     # Read the JSON file
-    data = JSON3.read(filepath)
+    data = JSON.parsefile(filepath)
     return data
 end
 
