@@ -292,7 +292,7 @@ function read_sparse_mat(filepath::String)
         throw(SystemError("Trying to read from $filepath, the directory does not exist."))
     end
     # Read the JSON file
-    sparse_mat = JSON3.read(filepath)
+    sparse_mat = JSON.parsefile(filepath)
     row_ptr = [i + 1 for i in sparse_mat[:row]] # -1 for Python numbering
     col_ptr = [i + 1 for i in sparse_mat[:col]]
     values = sparse_mat[:data]
@@ -311,7 +311,7 @@ Function to write data to a JSON file
 function write_json(filepath::String, data::Dict)
     set_file(dirname(filepath))
     open(string(filepath,".json"), "w") do io
-        JSON3.pretty(io, data)
+        JSON.print(io, data, 4)
     end
     @info "Data written to $(filepath)"
 end
