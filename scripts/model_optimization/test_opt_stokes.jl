@@ -1551,15 +1551,15 @@ function replot(filepath, filepath_gt)
                                 if ti == 1
                                     Plots.plot!(plt_η, t_win, est_ηpList[data_range_], label=L"\eta_{\mathrm{est}}(t)", color=def_red)
                                     Plots.plot!(plt_η, [], label=L"\eta_{\mathrm{pred}}(t)", color=def_blue, linestyle=:dash)
-                                    if data_type != "physical" && viscosity_model != "carreau"
-                                        Plots.plot!(plt_η, t_win, avg_ηList[data_range_], label=L"\eta_{\mathrm{avg}}(t)", color=:gray)
-                                    end 
+                                    # if data_type != "physical" && viscosity_model != "carreau"
+                                    #     Plots.plot!(plt_η, t_win, avg_ηList[data_range_], label=L"\eta^{\mathrm{avg}}_{\mathrm{gt}}(t)", color=:gray)
+                                    # end 
                                 else
                                     Plots.plot!(plt_η, t_win, est_ηpList[data_range_], color=def_red, label=false)
                                     Plots.plot!(plt_η, t_win, prev_η*ones(length(t_win)), label=false, color=def_blue, linestyle=:dash)
-                                    if data_type != "physical" && viscosity_model != "carreau"
-                                        Plots.plot!(plt_η, t_win, avg_ηList[data_range_], color=:gray, label=false)
-                                    end 
+                                    # if data_type != "physical" && viscosity_model != "carreau"
+                                    #     Plots.plot!(plt_η, t_win, avg_ηList[data_range_], color=:gray, label=false)
+                                    # end 
                                 end
                                 prev_η = est_ηpList[data_range_[end]]
                                 t_prev = t+t_steps
@@ -1568,7 +1568,7 @@ function replot(filepath, filepath_gt)
                                 Plots.plot!(plt_η, t_full, η_gt, label=L"\eta_{\mathrm{gt}}(t)", color=def_green)
                             end
                             Plots.xlabel!(L"\mathrm{Time\;[s]}")
-                            Plots.ylabel!(latexstring("\$\\eta_{\\mathrm{est}}(t)\$ [kPa s]"))
+                            Plots.ylabel!(latexstring("\$\\eta(t)\$ [kPa s]"))
                             Plots.xlims!(plt_η, 0, end_obs_win)
                             Plots.ylims!(plt_η, max(minimum(est_ηpList)*0.8,0), min((maximum(est_ηpList)*1.2),(maximum(est_ηpList)+10)))
                             Plots.savefig(plt_η, joinpath(win_exp_path,"Results","plots","η.pdf"))
@@ -2572,7 +2572,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
     η_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
     Plots.hline!(η_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black)
     Plots.xlabel!(η_norm_plot_5,L"\mathrm{Iterations}")
-    Plots.ylabel!(η_norm_plot_5,L"\eta_{\mathrm{est}}/\eta_{\mathrm{avg}}")
+    Plots.ylabel!(η_norm_plot_5,L"\eta_{\mathrm{est}}/\eta^{\mathrm{avg}}_{\mathrm{gt}}(t)")
 
     β_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
     Plots.hline!(β_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black)
@@ -2582,7 +2582,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
     η_norm_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
     Plots.hline!(η_norm_plot_10, [1.0],  linestyle=:dash, label=false, color=:black)
     Plots.xlabel!(η_norm_plot_10,L"\mathrm{Iterations}")
-    Plots.ylabel!(η_norm_plot_10,L"\eta_{\mathrm{est}}/\eta_{\mathrm{avg}}")
+    Plots.ylabel!(η_norm_plot_10,L"\eta_{\mathrm{est}}/\eta^{\mathrm{avg}}_{\mathrm{gt}}(t)")
 
     β_norm_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
     Plots.hline!(β_norm_plot_10, [1.0],  linestyle=:dash, label=false, color=:black)
@@ -2881,7 +2881,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                     est_β_norm = est_βpList./β_gt
 
                     ratio_est = est_ηpList ./ est_βpList
-                    ratio_gt = η_gt / β_gt
+                    ratio_gt = η_gt ./ β_gt
                     normalized_ratio = est_η_norm ./ est_β_norm
             
                     Plots.plot!(sim_window_η_plt, est_ηpList, label=string("Window - $(sim_time)s"), marker=1, legend=:outerbottom, legend_column=2)
@@ -3952,7 +3952,7 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "1", "2", "3", "4", "5"]
+    avoid_dirs = ["3_less_noise", "1", "2", "3", "4"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -4140,7 +4140,7 @@ function plot_()
     viscosity_type_list = ["bulk_viscosity"] #,"constant"]
     model_type::String = "Stokes" # "carreau" or "Stokes"
     avoid_dirs = ["3_less_noise", "s"]
-    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
+    data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
 
     for data_type in data_type_list
         if data_type == "synthetic"
