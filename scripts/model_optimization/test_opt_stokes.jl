@@ -259,6 +259,9 @@ function optimize(exp_params::Dict)
         # Read the gt data
         model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, gt_viscosity_type, 
         sim_time_exp, t_steps_exp)
+
+        est_model, est_scene = def_problem(r, h, ne_exp, η_start, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_start, F, control, gt_viscosity_type,
+        sim_time_gt, t_steps_exp)
         conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=SIDES, filepath=exp_path, ANIMATE=false)
         
         gt_h_ = readdlm(joinpath(filepath_gt,"data","h.csv"), ',', Float64)
@@ -293,13 +296,12 @@ function optimize(exp_params::Dict)
             write_csv(joinpath(exp_path,"Results","data","gt_h"), gt_h)
             write_csv(joinpath(exp_path,"Results","data","cost_iter"), costList)
             
-            reset_model!(model)
-            model.η = [η]
-            scene.β = [β]
-            scene.sim_time = sim_time_gt
+            reset_model!(est_model)
+            est_model.η = [η]
+            est_scene.β = [β]
             
             # simulate the model with the estimated parameters
-            est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)
+            est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(est_model, est_scene, conditions)
             est_h = get_height(est_μ_list, h)
             
             write_csv(joinpath(exp_path,"Results","data","est_h"), est_h)
@@ -436,12 +438,12 @@ function optimize(exp_params::Dict)
                 η = stats["η"]
                 β = stats["β"]
                 
-                reset_model!(model)
-                model.η = [η]
-                scene.β = [β]
-                scene.sim_time = sim_time_gt
+                reset_model!(est_model)
+                est_model.η = [η]
+                est_scene.β = [β]
+                
                 # simulate the model with the estimated parameters
-                est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)
+                est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(est_model, est_scene, conditions)
                 
                 est_h = get_height(est_μ_list, h)
                 
