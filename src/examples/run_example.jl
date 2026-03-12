@@ -845,7 +845,7 @@ function plot_rad_vel(file_path::String)
     β_list = β_list[sort_idx]
     v_rad_slip_list = v_rad_slip_list[sort_idx]
     plt = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
-    Plots.plot!(plt, β_list, v_rad_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\beta\$ [kPa s mm\$^{-1}\$]"), ylabel="Mean Radial Velocity [mm/s]", xscale=:log10, legend=false)
+    Plots.plot!(plt, β_list, v_rad_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\beta\$ [kPa s mm\$^{-1}\$]"), ylabel="Mean Radial Velocity [mm/s]", xscale=:log10, yscale=:log10, legend=false)
     Plots.xticks!(plt, [1, 1e2, 1e4, 1e6, 1e8, 1e10, 1e12, 1e14, 1e16, 1e18, 1e20])
     plot_path = joinpath(file_path, "analysis")
     if !isdir(plot_path)
@@ -854,3 +854,4 @@ function plot_rad_vel(file_path::String)
     Plots.savefig(string(plot_path,"/mean_radial_velocity_vs_slip_parameter.pdf"))
 end
 
+plot_rad_vel("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/constant/Q2_6")
