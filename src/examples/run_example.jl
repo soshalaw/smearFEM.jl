@@ -853,5 +853,3 @@ function plot_rad_vel(file_path::String)
     end
     Plots.savefig(string(plot_path,"/mean_radial_velocity_vs_slip_parameter.pdf"))
 end
-
-plot_rad_vel("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/constant/Q2_6")
