@@ -16,7 +16,7 @@ using Random
 using Colors
 
 using Dates
-# using JLD2
+using JLD2
 using Plots.PlotMeasures
 
 global def_orange = RGB(245/255,118/255,0)
@@ -414,7 +414,7 @@ function optimize(exp_params::Dict)
 
             write_json(joinpath(exp_path,"Results","data","contour_plot_params"), contour_plot_params)
 
-        @save joinpath(exp_path,"Results","data","sim_data","Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
+            @save joinpath(exp_path,"Results","data","sim_data","Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
         else
             n_samples = 10
             η_pred = zeros(Float64, n_samples)
