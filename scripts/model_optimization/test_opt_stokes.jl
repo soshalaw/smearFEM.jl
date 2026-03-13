@@ -410,11 +410,11 @@ function optimize(exp_params::Dict)
             # end
 
             # Write the results to files
-            contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
+            contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat, )
 
             write_json(joinpath(exp_path,"Results","data","contour_plot_params"), contour_plot_params)
 
-            @save joinpath(exp_path,"Results","data","sim_data","Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
+            # @save joinpath(exp_path,"Results","data","sim_data","Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
         else
             n_samples = 10
             η_pred = zeros(Float64, n_samples)
@@ -1505,14 +1505,18 @@ function replot(filepath, filepath_gt)
                             sum_opt = est_ηpList .+ est_βpList
 
                             if data_type != "physical"
-                                    η_gt = float.(sim_params["η"])
-                                    β_gt = float.(sim_params["β"])
-                                    η_gt = η_gt[1:data_point_len]
-                                    avg_ηList = readdlm(joinpath(win_exp_path,"Results","data","avg_η.csv"), ',', Float64)
-                                    ratio_gt = η_gt ./ β_gt
-                                    product_gt = η_gt .* β_gt
-                                    sum_gt = η_gt .+ β_gt
+                                η_gt = float.(sim_params["η"])
+                                β_gt = float.(sim_params["β"])
+                                η_gt = η_gt[1:data_point_len]
+                                avg_ηList = readdlm(joinpath(win_exp_path,"Results","data","avg_η.csv"), ',', Float64)
+                                ratio_gt = η_gt ./ β_gt
+                                product_gt = η_gt .* β_gt
+                                sum_gt = η_gt .+ β_gt
                             end
+                            println(ratio_gt)
+                            println(product_gt)
+                            println(sum_gt)
+
                             gt_h = gt_h_[1:(data_point_len+1)]
 
                             sim_border_pt_lst = sim_border_pt_lst[1:data_point_len+1, :]
@@ -1572,7 +1576,7 @@ function replot(filepath, filepath_gt)
                             Plots.xlabel!(L"\mathrm{Time\;[s]}")
                             Plots.ylabel!(latexstring("\$\\eta(t)\$ [kPa s]"))
                             Plots.xlims!(plt_η, 0, end_obs_win)
-                            Plots.ylims!(plt_η, max(minimum(est_ηpList)*0.8,0), min((maximum(est_ηpList)*1.2),(maximum(est_ηpList)+10)))
+                            # Plots.ylims!(plt_η, max(minimum(est_ηpList)*0.8,0), min((maximum(est_ηpList)*1.2),(maximum(est_ηpList)+10)))
                             Plots.savefig(plt_η, joinpath(win_exp_path,"Results","plots","η.pdf"))
                             
                             plt_β = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
@@ -1596,7 +1600,7 @@ function replot(filepath, filepath_gt)
                             if data_type != "physical" && viscosity_model != "carreau"
                                 Plots.hline!(plt_β, β_gt, label=L"\beta_{\mathrm{gt}}", color=def_green)
                             end
-                            Plots.ylims!(plt_β, max(minimum(est_βpList)*0.8,0), min((maximum(est_βpList)*1.1),(maximum(est_βpList)+10)))
+                            # Plots.ylims!(plt_β, max(minimum(est_βpList)*0.8,0), min((maximum(est_βpList)*1.1),(maximum(est_βpList)+10)))
                             Plots.xlabel!(L"\mathrm{Time\;[s]}")
                             Plots.ylabel!(latexstring("\$\\beta(t)\$ [Pa s m\$^{-1}\$]"))
                             Plots.xlims!(plt_β, 0, end_obs_win)
@@ -1615,10 +1619,10 @@ function replot(filepath, filepath_gt)
                                 end
                                 t_prev = t+t_steps
                             end
-                            if data_type != "physical" && viscosity_model != "carreau"
+                            if data_type != "physical"
                                 Plots.plot!(plot_param_ratio, t_full, ratio_gt, label=L"\eta_{\mathrm{gt}}/\beta_{\mathrm{gt}}", color=def_green)
                             end
-                            Plots.ylims!(plot_param_ratio, max(minimum(ratio_opt)*0.8,0), min((maximum(ratio_opt)*1.2),(maximum(ratio_opt)+10)))
+                            # Plots.ylims!(plot_param_ratio, max(minimum(ratio_opt)*0.8,0), min((maximum(ratio_opt)*1.2),(maximum(ratio_opt)+10)))
                             Plots.xlabel!(plot_param_ratio, L"\mathrm{Time\;[s]}")
                             Plots.ylabel!(latexstring("\$\\eta/\\beta\$ [mm\$^{-1}\$]"))
                             Plots.xlims!(plot_param_ratio, 0, end_obs_win)
@@ -1637,10 +1641,10 @@ function replot(filepath, filepath_gt)
                                 end
                                 t_prev = t+t_steps
                             end
-                            if data_type != "physical" && viscosity_model != "carreau"
+                            if data_type != "physical"
                                 Plots.plot!(plot_param_product, t_full, product_gt, label=L"\eta_{\mathrm{gt}} \cdot \beta_{\mathrm{gt}}", color=def_green)
                             end
-                            Plots.ylims!(plot_param_product, max(minimum(product_opt)*0.8,0), min((maximum(product_opt)*1.2),(maximum(product_opt)+10)))
+                            # Plots.ylims!(plot_param_product, max(minimum(product_opt)*0.8,0), min((maximum(product_opt)*1.2),(maximum(product_opt)+10)))
                             Plots.xlabel!(plot_param_product, L"\mathrm{Time\;[s]}")
                             Plots.ylabel!(latexstring("\$\\eta \\cdot \\beta\$"))
                             Plots.xlims!(plot_param_product, 0, end_obs_win)
@@ -1659,10 +1663,10 @@ function replot(filepath, filepath_gt)
                                 end
                                 t_prev = t+t_steps
                             end
-                            if data_type != "physical" && viscosity_model != "carreau"
+                            if data_type != "physical"
                                 Plots.plot!(plot_param_sum, t_full, sum_gt, label=L"\eta_{\mathrm{gt}} + \beta_{\mathrm{gt}}", color=def_green)
                             end
-                            Plots.ylims!(plot_param_sum, max(minimum(sum_opt)*0.8,0), min((maximum(sum_opt)*1.2),(maximum(sum_opt)+10)))
+                            # Plots.ylims!(plot_param_sum, max(minimum(sum_opt)*0.8,0), min((maximum(sum_opt)*1.2),(maximum(sum_opt)+10)))
                             Plots.xlabel!(plot_param_sum, L"\mathrm{Time\;[s]}")
                             Plots.ylabel!(latexstring("\$\\eta + \\beta\$"))
                             Plots.xlims!(plot_param_sum, 0, end_obs_win)
@@ -3946,7 +3950,7 @@ function optimize_sim()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
+    refine_list = [2] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
@@ -4142,10 +4146,10 @@ function plot_cost_contours(cost_array::AbstractArray, x_range::AbstractVector, 
 end
 function plot_()
     control::String = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
-    model_type::String = "Stokes" # "carreau" or "Stokes"
+    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
+    model_type::String = "carreau" # "carreau" or "Stokes"
     avoid_dirs = ["3_less_noise", "s"]
-    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
+    data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
 
     for data_type in data_type_list
         if data_type == "synthetic"
