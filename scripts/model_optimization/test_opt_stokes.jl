@@ -410,7 +410,7 @@ function optimize(exp_params::Dict)
             # end
 
             # Write the results to files
-            contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat, )
+            contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
 
             write_json(joinpath(exp_path,"Results","data","contour_plot_params"), contour_plot_params)
 
@@ -3950,7 +3950,7 @@ function optimize_sim()
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
-    refine_list = [2] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
+    refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
