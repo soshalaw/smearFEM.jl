@@ -1311,15 +1311,21 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     output = Float64[] 
     writeborderList = [vcat(pi', qi')]
 
+    dac_list = Float64[]
+    bd_list = Float64[]
+    dad_list = Float64[]
+    A_list = Float64[]
+
     iter::Int = 1
     pr = progress_guard(len_t; desc= "Simulating with prescribed $(control_cached) ...", showspeed=true)
     if control_cached == "force"
 
-        A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached)  # initialize the stiffness matrix
+        _A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached)  # initialize the stiffness matrix
         B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_p_cached*(nNodes_p_cached)^ndim_cached)      # initialize the stiffness matrix
         b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached)      # initialize the stiffness matrix
         q_d = spzeros(nDof_u_cached*(nNodes_u_cached)^ndim_cached,1)                                                                       # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-        A = similar(A_bar)
+        A = similar(_A_bar)
+        A_bar = similar(_A_bar)
 
         A_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(C_uc_cached,2)) # convert to sparse matrix
         B_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(B,2)) # convert to sparse matrix
@@ -1329,8 +1335,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         dB_free = spzeros(size(B_free))                     
         zero = spzeros(size(B_free,2),size(B_free,2))
 
-        dAdη = similar(A_bar)
-        dAdβ = similar(A_bar)
+        dAdη = similar(_A_bar)
+        dAdβ = similar(_A_bar)
         dB = spzeros(size(B))
 
         q = similar(q_d)
@@ -1342,23 +1348,32 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         dMdβ = spzeros(size(M))
 
         for t in time
-            A_bar .= assemble_system_A(mdl)     # assemble the stiffness matrix
+            _A_bar .= assemble_system_A(mdl)     # assemble the stiffness matrix
             B .= assemble_system_B(mdl)         # assemble the stiffness matrix
             b .= apply_boundary_conditions(mdl) # apply the neumann boundary conditions
-        
             q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
-            
+   
             if viscosity_type_cached == "bulk_viscosity"
                 if length(β_cached) == 1
-                    A = η_cached[iter]*A_bar + β_cached[1]*b
+                    A .= η_cached[iter]*_A_bar + β_cached[1]*b
+                    A_bar .= η_cached[iter]*_A_bar
                 else
-                    A = η_cached[iter]*A_bar + β_cached[iter]*b
+                    A .= η_cached[iter]*_A_bar + β_cached[iter]*b
+                    A_bar .= η_cached[iter]*_A_bar
                 end
             else
-                A .= η_cached[1]*A_bar + β_cached[1]*b
+                A .= η_cached[1]*_A_bar + β_cached[1]*b
+                A_bar .= η_cached[1]*_A_bar
             end
-        
-            dAdη .= A_bar
+            println("η: ", η_cached[1])
+            println("β: ", β_cached[1])
+            println("Norm of _A_bar: ", maximum(_A_bar))
+            println("Norm of A_bar: ", maximum(A_bar))
+            println("Norm of b: ", maximum(b))
+            println("Norm of A: ", maximum(A))
+            println("Norm of B: ", maximum(B))
+
+            dAdη .= _A_bar
             dAdβ .= b
 
             A_free .= C_Tu*A*C_uc_cached # extract the free part of the stiffness matrix
@@ -1369,7 +1384,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
             M[1:size(A_free,1),1:size(A_free,2)] = A_free
             M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = B_free'
-            M[end,1:size(A_free,2)] = q_d_cached_top'*A*C_uc_cached
+            M[end,1:size(A_free,2)] = q_d_cached_top'*A_bar*C_uc_cached
 
             M[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = B_free
             M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = zero
@@ -1377,8 +1392,15 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
             M[1:size(A_free,1),end] = C_Tu*A*q_d_cached_top
             M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = B'*q_d_cached_top
-            M[end,end] = (q_d_cached_top'A*q_d_cached_top)[end]
-          
+            M[end,end] = (q_d_cached_top'*A_bar*q_d_cached_top)[end]
+            
+            # println("Norm of M: ", maximum(M))
+
+            push!(dac_list, norm(q_d_cached_top'*A_bar*C_uc_cached))
+            push!(bd_list, norm(q_d_cached_top'*B))
+            push!(dad_list, norm((q_d_cached_top'*A_bar*q_d_cached_top)[end]))
+            push!(A_list, norm(A_bar))
+
             dMdη[1:size(A_free,1),1:size(A_free,2)] = dA_freedη
             dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = dB_free'
             dMdη[end,1:size(A_free,2)] = q_d_cached_top'*dAdη*C_uc_cached
@@ -1476,7 +1498,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         end
     elseif control_cached == "velocity"
         for t in time
-            A_bar = assemble_system_A(mdl)     # assemble the stiffness matrix
+            _A_bar = assemble_system_A(mdl)     # assemble the stiffness matrix
             B = assemble_system_B(mdl)         # assemble the stiffness matrix
             b = apply_boundary_conditions(mdl) # apply the neumann boundary conditions
         
@@ -1484,15 +1506,15 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         
             if viscosity_type_cached == "bulk_viscosity"
                 if length(β_cached) == 1
-                    A = η_cached[iter]*A_bar + β_cached[1]*b
+                    A = η_cached[iter]*_A_bar + β_cached[1]*b
                 else
-                    A = η_cached[iter]*A_bar + β_cached[iter]*b
+                    A = η_cached[iter]*_A_bar + β_cached[iter]*b
                 end
             else
-                A = η_cached[1]*A_bar + β_cached[1]*b
+                A = η_cached[1]*_A_bar + β_cached[1]*b
             end
 
-            dAdη = A_bar
+            dAdη = _A_bar
             dAdβ = b
             dB = zeros(Float64, size(B))
 
@@ -1509,15 +1531,15 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dKdη = [C_Tu*dAdη*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
             dKdβ = [C_Tu*dAdβ*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
             
-            invK = inv(Matrix(K_free))
+            luk = lu(K_free) # LU decomposition of the system of equations
         
             r = [C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
             drdη = [C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2))] # solve the system of equations
             drdβ = [C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2))] # solve the system of equations
 
-            sol = -invK*r                    # solve the system of equations
-            dsoldη = -invK*(drdη + dKdη*sol) # solve the system of equations
-            dsoldβ = -invK*(drdβ + dKdβ*sol) # solve the system of equations
+            sol = -luk\r                    # solve the system of equations
+            dsoldη = -luk\(drdη + dKdη*sol) # solve the system of equations
+            dsoldβ = -luk\(drdβ + dKdβ*sol) # solve the system of equations
         
             q_f = sol[1:size(A_free,1)]      # extract the free part of the solution
             dqfdη = dsoldη[1:size(A_free,1)] # extract the free part of the solution
@@ -1555,7 +1577,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             mat_nan_inf_check(dudθ[:,:,1])
             mat_nan_inf_check(dudθ[:,:,2])
 
-            push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
+            # push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(velocity, velocity_field) # store the velocity of the mesh in 3D
             push!(pressure, p) # store the pressure of the mesh in 3D
             push!(displacement, motion)
@@ -1577,6 +1599,11 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             throw(ArgumentError("Control type not unknown"))
     end
     
+    if conditions.WRITEVTK
+        # write_scene(string(conditions.filepath,"/data"), NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, pressure, ID=ID_cached, FunctionClass=mdl.mesh_p.FunctionClass)
+        write_stokes_scene(string(conditions.filepath,"/data"), pos3D, mdl.mesh_u.IEN, NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, velocity, pressure)
+    end
+
     # write the data to a file
     if conditions.ANIMATE
         animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=IEN_u_cached, BorderNodes2D=borderPts2DList, fields2D=pos2D)
@@ -1588,10 +1615,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     if conditions.WRITECONTOUR
         write_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)
     end
-
-    if conditions.WRITEVTK
-        # write_scene(string(conditions.filepath,"/data"), NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, pressure, ID=ID_cached, FunctionClass=mdl.mesh_p.FunctionClass)
-        write_stokes_scene(string(conditions.filepath,"/data"), NodeList_u_cached, mdl.mesh_u.IEN, NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, velocity, pressure)
-    end
+    
+    plt = set_plot(12,legend_column=4)
+    Plots.plot!(plt, time, dac_list, label=L"\delta^{T}_{U}\,A\,C")
+    Plots.plot!(plt, time, bd_list, label=L"\delta^{T}_{U}\,B^{T}")
+    Plots.plot!(plt, time, dad_list, label=L"\delta^{T}_{U}\,A\,\delta_{U}")
+    Plots.plot!(plt, time, A_list, label=L"A")
+    # Plots.ylims!(1e2, 1e8)
+    Plots.savefig(plt, string(conditions.filepath,"/dA_dc.pdf"))
     return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, splinep, splineq, velocity, pressure
 end

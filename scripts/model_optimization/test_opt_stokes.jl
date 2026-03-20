@@ -16,7 +16,7 @@ using Random
 using Colors
 
 using Dates
-using JLD2
+# using JLD2
 using Plots.PlotMeasures
 
 global def_orange = RGB(245/255,118/255,0)
@@ -1037,19 +1037,57 @@ function replot(filepath, filepath_gt)
                             end
                         end
                         
+                        function _to_matrix(x)
+                            if isa(x, AbstractMatrix)
+                                return Float64.(collect(x))
+                            else
+                                try
+                                    rows = collect(x)
+
+                                    # Handle a collection/set of row vectors by stacking to a matrix
+                                    if !isempty(rows)
+                                        row_arrays = map(rows) do r
+                                            if isa(r, AbstractVector)
+                                                Float64.(collect(r))
+                                            elseif isa(r, AbstractMatrix) && (size(r,1) == 1 || size(r,2) == 1)
+                                                vec(Float64.(collect(r)))
+                                            else
+                                                nothing
+                                            end
+                                        end
+
+                                        if all(!isnothing, row_arrays)
+                                            row_arrays = Vector{Vector{Float64}}(row_arrays)
+                                            ncols = length(row_arrays[1])
+                                            if any(length(row) != ncols for row in row_arrays)
+                                                error("Cannot coerce input to matrix: inconsistent row lengths")
+                                            end
+                                            return reduce(vcat, permutedims.(row_arrays))
+                                        end
+                                    end
+
+                                    return Float64.(rows)
+                                catch err
+                                    error("Cannot coerce input to matrix: $err")
+                                end
+                            end
+                        end
+                        
                         try 
                             contour_plot_params = read_json(joinpath(exp_path,"Results","data","contour_plot_params.json")) 
                             ηList = _to_vector(contour_plot_params["η_list"])
                             βList = _to_vector(contour_plot_params["β_list"])
+                            CostMat = _to_matrix(contour_plot_params["cost_mat"])
+
                             # ensure CostMat is a dense Float64 matrix
-                            CostMat = try
-                                Array(contour_plot_params["cost_mat"]) |> x -> Float64.(x)
-                            catch err
-                                error("Failed to coerce cost_mat to dense Float64 matrix: $err")
-                            end
+                            # CostMat = try
+                            #     Array(contour_plot_params["cost_mat"]) |> x -> Float64.(x)
+                            # catch err
+                            #     error("Failed to coerce cost_mat to dense Float64 matrix: $err")
+                            # end
 
                             # --- Post-process: compute Hessian-based principal directions from CostMat ---
-                            try
+                            # try
                                 # Ensure CostMat shape matches (length(ηList), length(βList))
                                 nx = length(ηList); ny = length(βList)
                                 sz = size(CostMat)
@@ -1148,8 +1186,8 @@ function replot(filepath, filepath_gt)
                                 Plots.plot!(plt_dirs, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
                                 Plots.plot!(plt_dirs, etas_steep, betas_steep, label = "Steepest dir", color=:black, legend=:outerbottom, legend_column=3)
                                 Plots.plot!(plt_dirs, etas_flat,  betas_flat,  label = "Flattest dir",  lw=1, color=:magenta, legend=:outerbottom, legend_column=3)
-                                Plots.scatter!(plt_dirs, [η0], [β0], label="Minimum Cost", ms=15, m=:star5, color=:black, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
-                                Plots.scatter!(plt_dirs, [η_gt], [β_gt], label="Ground truth", ms=:15, m=:star5, color=def_red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
+                                Plots.scatter!(plt_dirs, [η0], [β0], label="Minimum Cost", ms=:5, m=:star5, color=:black, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
+                                Plots.scatter!(plt_dirs, [η_gt], [β_gt], label="Ground truth", ms=:5, m=:star5, color=def_red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
                                 Plots.xlabel!(plt_dirs, L"\eta\;\mathrm{[kPa\, s]}")
                                 Plots.ylabel!(plt_dirs, L"\beta\;\mathrm{[Pa\, s \, m]}")
                                 Plots.savefig(plt_dirs, joinpath(exp_path, "Results", "plots", "cost_surface_with_directions.pdf"))
@@ -1157,8 +1195,8 @@ function replot(filepath, filepath_gt)
                                 plt_cont = set_plot(fs, sz=(plt_width, plt_height))
                                 Plots.contour!(plt_cont, ηList, βList, CostMat', color=:turbo, fill=false, levels=100, legend=:outerbottom, legend_column=3, clims=cost_clims)
                                 Plots.plot!(plt_cont, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
-                                Plots.scatter!(plt_cont, [η0], [β0], label="Minimum Cost", ms=15, m=:star5, color=:black, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
-                                Plots.scatter!(plt_cont, [η_gt], [β_gt], label="Ground truth", ms=:15, m=:star5, color=def_red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
+                                Plots.scatter!(plt_cont, [η0], [β0], label="Minimum Cost", ms=:5, m=:star5, color=:black, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
+                                Plots.scatter!(plt_cont, [η_gt], [β_gt], label="Ground truth", ms=:5, m=:star5, color=def_red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
                                 Plots.xlabel!(plt_cont, L"\eta\;\mathrm{[kPa\, s]}")
                                 Plots.ylabel!(plt_cont, L"\beta\;\mathrm{[Pa\, s \, m]}")
                                 Plots.savefig(plt_cont, joinpath(exp_path, "Results", "plots", "cost_surface.pdf"))
@@ -1166,8 +1204,8 @@ function replot(filepath, filepath_gt)
                                 plt_cont = set_plot(fs, sz=(plt_width, plt_height))
                                 Plots.contourf!(plt_cont, ηList, βList, CostMat', color=:turbo, fill=false, levels=100, legend=:outerbottom, legend_column=3, clims=cost_clims)
                                 Plots.plot!(plt_cont, est_η, est_β, label="Estimations", ms=:4, m=:x, color=:red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
-                                Plots.scatter!(plt_cont, [η0], [β0], label="Minimum Cost", ms=15, m=:star5, color=:black, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
-                                Plots.scatter!(plt_cont, [η_gt], [β_gt], label="Ground truth", ms=15, m=:star5, color=def_red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
+                                Plots.scatter!(plt_cont, [η0], [β0], label="Minimum Cost", ms=:5, m=:star5, color=:black, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
+                                Plots.scatter!(plt_cont, [η_gt], [β_gt], label="Ground truth", ms=:5, m=:star5, color=def_red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
                                 Plots.xlabel!(plt_cont, L"\eta\;\mathrm{[kPa\, s]}")
                                 Plots.ylabel!(plt_cont, L"\beta\;\mathrm{[Pa\, s \, m]}")
                                 Plots.savefig(plt_cont, joinpath(exp_path, "Results", "plots", "cost_surface_iter.pdf"))
@@ -1201,9 +1239,9 @@ function replot(filepath, filepath_gt)
                                 write_json(joinpath(exp_path, "Results", "data", "direction_analysis"), dir_info)
                                 write_json(joinpath(exp_path, "Results", "data", "slice_data"), slice_data)
 
-                            catch err
-                                @warn "Post-process Hessian/direction analysis failed: $err"
-                            end
+                            # catch err
+                            #     @warn "Post-process Hessian/direction analysis failed: $err"
+                            # end
 
                             # Plot the cost function surface: prefer PlotlyJS HTML export to avoid
                             # creating a GLMakie Figure (which may require a compatible WebIO setup).
@@ -2005,13 +2043,48 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.xlabel!(contour_plt, L"x\;\mathrm{[px]}")
     Plots.ylabel!(contour_plt, L"y\;\mathrm{[px]}")
 
-    contour_plt_zoom = set_plot(fs, sz=(plt_width, plt_height), legend_column=3)
+    cnt_plt_width = 179
+    contour_plt_zoom = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
     Plots.xticks!(contour_plt_zoom, 1100:200:1520)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt_zoom, cont_x_lims[1], cont_x_lims[2])
     # Plots.ylims!(contour_plt_zoom, cont_y_lims[1], cont_y_lims[2])
     Plots.xlabel!(contour_plt_zoom, L"x\;\mathrm{[px]}")
     Plots.ylabel!(contour_plt_zoom, L"y\;\mathrm{[px]}")
+
+    contour_plt_zoom_05 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
+    Plots.xticks!(contour_plt_zoom_05, 1100:200:1520)
+    Plots.yflip!(true)
+    Plots.xlims!(contour_plt_zoom_05, cont_x_lims[1], cont_x_lims[2])
+    # Plots.ylims!(contour_plt_zoom_05, cont_y_lims[1], cont_y_lims[2])
+    Plots.xlabel!(contour_plt_zoom_05, L"x\;\mathrm{[px]}")
+    Plots.ylabel!(contour_plt_zoom_05, L"y\;\mathrm{[px]}")
+
+    contour_plt_zoom_10 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
+    Plots.xticks!(contour_plt_zoom_10, 1100:200:1520)
+    Plots.yflip!(true)
+    Plots.xlims!(contour_plt_zoom_10, cont_x_lims[1], cont_x_lims[2])
+    # Plots.ylims!(contour_plt_zoom_10, cont_y_lims[1], cont_y_lims[2])
+    Plots.xlabel!(contour_plt_zoom_10, L"x\;\mathrm{[px]}")
+    Plots.ylabel!(contour_plt_zoom_10, L"y\;\mathrm{[px]}")
+
+    contour_plt_zoom_15 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
+    Plots.xticks!(contour_plt_zoom_15, 1100:200:1520)
+    Plots.yflip!(true)
+    Plots.xlims!(contour_plt_zoom_15, cont_x_lims[1], cont_x_lims[2])
+    # Plots.ylims!(contour_plt_zoom_15, cont_y_lims[1], cont_y_lims[2])
+    Plots.xlabel!(contour_plt_zoom_15, L"x\;\mathrm{[px]}")
+    Plots.ylabel!(contour_plt_zoom_15, L"y\;\mathrm{[px]}")
+
+    contour_plt_zoom_20 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
+    Plots.xticks!(contour_plt_zoom_20, 1100:200:1520)
+    Plots.yflip!(true)
+    Plots.xlims!(contour_plt_zoom_20, cont_x_lims[1], cont_x_lims[2])
+    # Plots.ylims!(contour_plt_zoom_20, cont_y_lims[1], cont_y_lims[2])
+    Plots.xlabel!(contour_plt_zoom_20, L"x\;\mathrm{[px]}")
+    Plots.ylabel!(contour_plt_zoom_20, L"y\;\mathrm{[px]}")
+
+    cont_plt_legend = set_plot(fs, sz=(cnt_plt_width, plt_height), legend=:outertopright)
 
     max_iter = 1
     for dir in dir_list
@@ -2151,7 +2224,6 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
             Plots.ylabel!(plt_slices, L"\mathrm{Cost}")
             Plots.ylims!(plt_slices, 0, 50)
                 
-                
             for sim_time_folder_ in reverse(sort(sim_time_folders))
 
                 if sim_time_folder_ == "post_analysis_time" || sim_time_folder_ == "Results" || sim_time_folder_ == "simtime_2.0" || sim_time_folder_ == "simtime_20.0" || sim_time_folder_ == "simtime_10.0" || sim_time_folder_ == "simtime_30.0"
@@ -2240,7 +2312,6 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                     end
                     
                     exp_path = joinpath(filepath_dir, elem_size_folder_, sim_time_folder_, noise_folder_)
-
                     printstyled("Processing experiment folder: $(exp_path)\n", color=:magenta)
                     exp_params = read_json(joinpath(exp_path,"Results","data","experiment_parameters.json"))
 
@@ -2253,11 +2324,10 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                     exp_path_n0 = replace(exp_path, "$noise_folder_" => "noise_0.0")
                     num_exp_points::Int = round(Int,sim_time/t_steps)
 
-                    
                     printstyled("Processing for noise level: $(noise_level): $(exp_path)\n", color=:yellow)
+                    obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path_n0, num_exp_points)
                     if noise_level == 0.0
                         
-                        obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path, num_exp_points)
                         est_η = readdlm(joinpath(exp_path,"Results","data","η.csv"), ',', Float64)
                         est_β = readdlm(joinpath(exp_path,"Results","data","β.csv"), ',', Float64)
                         est_h = readdlm(joinpath(exp_path,"Results","data","est_h.csv"), ',', Float64)
@@ -2423,6 +2493,8 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                         β_pred = readdlm(joinpath(exp_path,"Results","data","beta_est.csv"), ',', Float64) # estimated β values per sample
                         h_pred = readdlm(joinpath(exp_path,"Results","data","h_est.csv"), ',', Float64) # estimated height values per sample
 
+                        n_obs_border_pt_lst, n_gt_Splinex, n_gt_Spliney = add_noise(obs_border_pt_lst, nFactor=noise_level)
+
                         η_β_pred = η_pred[:,1] ./ β_pred[:,1].* (β_gt ./ η_gt) # normalize the ratio by ground truth to compare across different noise levels
                         dist = fit(Normal, η_β_pred)
                         StatsPlots.plot!(dist_plot, dist, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), legend_column=noise_cols)
@@ -2459,6 +2531,18 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                         end
                         plot_covariance!(covarience_plt, η_pred[:,1]./η_gt, β_pred[:,1]./β_gt, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), legend_column=noise_cols, color_ellipse=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1])
 
+                        if noise_level == 0.5
+                            Plots.plot!(contour_plt_zoom_05, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(cont_plt_legend, [], [], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                        elseif noise_level == 1.0
+                            Plots.plot!(contour_plt_zoom_10, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                        elseif noise_level == 1.5
+                            Plots.plot!(contour_plt_zoom_15, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                        elseif noise_level == 2.0
+                            Plots.plot!(contour_plt_zoom_20, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                        end
+
+                        
                         n_time = min(length(time), size(h_pred, 2), length(gt_h))
                         if n_time < length(time) || n_time < size(h_pred, 2) || n_time < length(gt_h)
                             @warn "Time and height vectors have mismatched lengths: time=$(length(time)), est_h=$(size(h_pred, 2)), gt_h=$(length(gt_h)). Truncating to $n_time samples for plotting."
@@ -2511,6 +2595,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                 Plots.savefig(ratio_noise_plt, joinpath(plot_path_noise,"eta_beta_ratio_$dir.pdf"))
                 Plots.savefig(η_noise_norm_plt, joinpath(plot_path_noise,"eta_normalized_$dir.pdf"))
                 Plots.savefig(dist_plot, joinpath(plot_path_noise,"eta_beta_ratio_distribution_$dir.pdf"))
+                
                 @info "Saved plots to $plot_path_noise"
             end
             plot_path_sim_time = joinpath(elem_size_folder,"post_analysis_time","plots")
@@ -2567,7 +2652,11 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.savefig(h_glob_plot_5, joinpath(plot_path_global,"height_comparison_5.pdf"))
     Plots.savefig(contour_plt, joinpath(plot_path_global,"contour_comparison_5.pdf"))
     Plots.savefig(contour_plt_zoom, joinpath(plot_path_global,"contour_comparison_5_zoomed.pdf"))
-    
+    Plots.savefig(contour_plt_zoom_05, joinpath(plot_path_global,"contour_comparison_zoom_05.pdf"))
+    Plots.savefig(contour_plt_zoom_10, joinpath(plot_path_global,"contour_comparison_zoom_10.pdf"))
+    Plots.savefig(contour_plt_zoom_15, joinpath(plot_path_global,"contour_comparison_zoom_15.pdf"))
+    Plots.savefig(contour_plt_zoom_20, joinpath(plot_path_global,"contour_comparison_zoom_20.pdf"))
+    Plots.savefig(cont_plt_legend, joinpath(plot_path_global,"slip_legend_vertical.pdf"))
     @info "Saved plots to $plot_path_global"
 end
 
@@ -4146,10 +4235,10 @@ function plot_cost_contours(cost_array::AbstractArray, x_range::AbstractVector, 
 end
 function plot_()
     control::String = "force" # "force" or "velocity"
-    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
-    model_type::String = "carreau" # "carreau" or "Stokes"
-    avoid_dirs = ["3_less_noise", "s"]
-    data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
+    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
+    model_type::String = "Stokes" # "carreau" or "Stokes"
+    avoid_dirs = ["3_less_noise", "s"] #, "6", "7", "8", "9"]
+    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
 
     for data_type in data_type_list
         if data_type == "synthetic"
@@ -4187,19 +4276,19 @@ function plot_()
                 # predict(filepath_res_dir, filepath_gt_dir)
                 replot(filepath_res_dir, filepath_gt_dir)
             end
-            if viscosity_type == "constant"
-                post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
-            elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
-                post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
-            elseif data_type == "physical"
-                post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
-            end
+            # if viscosity_type == "constant"
+            #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
+            # elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
+            #     post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
+            # elseif data_type == "physical"
+            #     post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
+            # end
         end
     end
 end
 
 # main()
-# plot_()
-optimize_sim()
+plot_()
+# optimize_sim()
 # optimize_syn()
 # optimize_real()

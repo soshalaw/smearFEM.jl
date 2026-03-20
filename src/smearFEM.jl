@@ -14,7 +14,7 @@ export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_
 export closest_point, height_sample, match_points, fit_model # smearOptimize.jl
 export reset_model!, update_model! # models.jl
 
-export simulate, write_sim_data, test, simulate_single_tstep, compare, readData, initialize_mesh, write_gt_data, plot_rad_vel
+export simulate, write_sim_data, test, simulate_single_tstep, compare, readData, initialize_mesh, write_gt_data, plot_rad_norm_vel_vs_slip, plot_rad_norm_vel_vs_visc
 export simulate_single_tstep_stokes, simulate_stokes, test_stokes, write_sim_data_stokes, stokes_single_step_force
 export set_boundary_conditions, simulate, set_file, assemble_system, set_slip_conditions, get_cMat, get_volume
 export set_boundary_conditions_dense, assemble_system_dense, set_slip_conditions_dense

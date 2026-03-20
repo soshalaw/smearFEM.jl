@@ -816,12 +816,13 @@ Plots the mean radial velocity against the slip parameter.
 # Returns
 - A plot of mean radial velocity vs slip parameter.
 """
-function plot_rad_vel(file_path::String)
+function plot_rad_norm_vel_vs_slip(file_path::String)
     dirs = readdir(file_path)
     v_rad_slip_list = zeros(Float64, (length(dirs)-1))
+    v_norm_slip_list = zeros(Float64, (length(dirs)-1))
     β_list = zeros(Float64, (length(dirs)-1))
     for (i, dir) in enumerate(dirs)
-        if dir == "analysis" || dir == "Results"
+        if dir == "analysis" || dir == "Results" || !isdir(joinpath(file_path, dir))
             continue
         end
         file = joinpath(file_path, dir, "data", "sim_data", "velocity_fields")
@@ -830,26 +831,106 @@ function plot_rad_vel(file_path::String)
         β_list[i] = β[1]
         csv_file = readdir(file)
         v_rad_mean_list = zeros(Float64, length(csv_file))
+        v_norm_mean_list = zeros(Float64, length(csv_file))
         for (j, csv) in enumerate(csv_file)
+            if csv == "000.csv"
+                continue
+            end
             data = readdlm(joinpath(file, csv), ',')
-            v1 = data[1:169,1]
-            v2 = data[1:169,2]
+            v1 = data[2028:end,1]
+            v2 = data[2028:end,2]
+            v3 = data[2028:end,3]
             v_rad = sqrt.(v1.^2 + v2.^2)
+            v_norm_mean = mean(abs.(v3))
             vrad_mean = mean(v_rad)
             v_rad_mean_list[j] = vrad_mean
+            v_norm_mean_list[j] = v_norm_mean
         end
         v_rad_time_mean = mean(v_rad_mean_list)
+        v_norm_time_mean = mean(v_norm_mean_list)
         v_rad_slip_list[i] = v_rad_time_mean
+        v_norm_slip_list[i] = v_norm_time_mean
     end
     sort_idx = sortperm(β_list)
     β_list = β_list[sort_idx]
     v_rad_slip_list = v_rad_slip_list[sort_idx]
-    plt = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
-    Plots.plot!(plt, β_list, v_rad_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\beta\$ [kPa s mm\$^{-1}\$]"), ylabel="Mean Radial Velocity [mm/s]", xscale=:log10, yscale=:log10, legend=false)
-    Plots.xticks!(plt, [1, 1e2, 1e4, 1e6, 1e8, 1e10, 1e12, 1e14, 1e16, 1e18, 1e20])
+    v_norm_slip_list = v_norm_slip_list[sort_idx]
+    
     plot_path = joinpath(file_path, "analysis")
     if !isdir(plot_path)
         mkdir(plot_path)
     end
+
+    println("Slip parameters: ", β_list)
+
+    plt_rad = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
+    Plots.plot!(plt_rad, β_list, v_rad_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\beta\$ [kPa s mm\$^{-1}\$]"), ylabel="Mean Radial Velocity [mm/s]", xscale=:log10, yscale=:log10, legend=false)
+    Plots.xticks!(plt_rad, [1, 1e2, 1e4, 1e6, 1e8, 1e10])
     Plots.savefig(string(plot_path,"/mean_radial_velocity_vs_slip_parameter.pdf"))
+
+    plt_norm = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
+    Plots.plot!(plt_norm, β_list, v_norm_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\beta\$ [kPa s mm\$^{-1}\$]"), ylabel="Mean Normal Velocity [mm/s]", xscale=:log10, yscale=:log10, legend=false)
+    Plots.xticks!(plt_norm, [1, 1e2, 1e4, 1e6, 1e8, 1e10])
+    Plots.savefig(string(plot_path,"/mean_normal_velocity_vs_slip_parameter.pdf"))
+
+end
+
+function plot_rad_norm_vel_vs_visc(file_path::String)
+    dirs = readdir(file_path)
+    v_rad_slip_list = zeros(Float64, (length(dirs)-1))
+    v_norm_slip_list = zeros(Float64, (length(dirs)-1))
+    η_list = zeros(Float64, (length(dirs)-1))
+    for (i, dir) in enumerate(dirs)
+        if dir == "analysis" || dir == "Results" || !isdir(joinpath(file_path, dir))
+            continue
+        end
+        file = joinpath(file_path, dir, "data", "sim_data", "velocity_fields")
+        exp_params = read_json(joinpath(file_path, dir, "data", "sim_params.json"))
+        η = exp_params["η"]
+        η_list[i] = η[1]
+        csv_file = readdir(file)
+        v_rad_mean_list = zeros(Float64, length(csv_file)-1)
+        v_norm_mean_list = zeros(Float64, length(csv_file)-1) 
+        for (j, csv) in enumerate(csv_file)
+            if csv == "000.csv"
+                continue
+            end
+            j = j - 1 # adjust index to account for skipping the first file
+            data = readdlm(joinpath(file, csv), ',')
+            v1 = data[2028:end,1]
+            v2 = data[2028:end,2]
+            v3 = data[2028:end,3]
+            v_rad = sqrt.(v1.^2 + v2.^2)
+            v_norm_mean = mean(abs.(v3))
+            vrad_mean = mean(v_rad)
+            v_rad_mean_list[j] = vrad_mean
+            v_norm_mean_list[j] = v_norm_mean
+        end
+        v_rad_time_mean = mean(v_rad_mean_list)
+        v_norm_time_mean = mean(v_norm_mean_list)
+        v_rad_slip_list[i] = v_rad_time_mean
+        v_norm_slip_list[i] = v_norm_time_mean
+    end
+    sort_idx = sortperm(η_list)
+    η_list = η_list[sort_idx]
+    v_rad_slip_list = v_rad_slip_list[sort_idx]
+    v_norm_slip_list = v_norm_slip_list[sort_idx]
+    inv_eta_list = 1 ./ η_list
+    plot_path = joinpath(file_path, "analysis")
+    if !isdir(plot_path)
+        mkdir(plot_path)
+    end
+
+    println("Viscosity parameters: ", η_list)
+
+    plt_rad = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
+    Plots.plot!(plt_rad, inv_eta_list, v_rad_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\eta\$ [kPa s]"), ylabel="Mean Radial Velocity [mm/s]", legend=false)
+    # Plots.xticks!(plt_rad, [1, 1e2, 1e4, 1e6, 1e8, 1e10])
+    Plots.savefig(string(plot_path,"/mean_radial_velocity_vs_viscosity_parameter.pdf"))
+
+    plt_norm = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
+    Plots.plot!(plt_norm, inv_eta_list, v_norm_slip_list, marker=:o, ms=2, xlabel=latexstring("\$1 / \\eta\$ [kPa s]"), ylabel="Mean Normal Velocity [mm/s]", legend=false)
+    # Plots.xticks!(plt_norm, [1, 1e2, 1e4, 1e6, 1e8, 1e10])
+    Plots.savefig(string(plot_path,"/mean_normal_velocity_vs_viscosity_parameter.pdf"))
+
 end

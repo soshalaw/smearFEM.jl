@@ -407,3 +407,4 @@ function get_time_windows(file_path::String)
     windows = dataframe_2_vec(df)
     return windows
 end
+
