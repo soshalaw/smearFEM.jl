@@ -504,9 +504,9 @@ function optimize(exp_params::Dict)
         
         set_file(joinpath(exp_path,"Results","plots"))
         
-        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obs_border_pt_lst, method="quadratic", window_size=sim_time_exp)
-        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="quadratic", window_size=sim_time_exp)
-        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="quadratic", window_size=sim_time_exp)
+        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obs_border_pt_lst, method="linear", window_size=sim_time_exp)
+        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="linear", window_size=sim_time_exp)
+        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="linear", window_size=sim_time_exp)
         println("Time windows: $(time_windows)")
         obs_time = sum(time_windows)
 
@@ -4111,7 +4111,7 @@ function optimize_syn()
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    avoid_dirs = ["3_less_noise", "5", "s"]
+    avoid_dirs = ["3_less_noise"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -4165,31 +4165,34 @@ function optimize_syn()
 end
 
 function optimize_real()
-
+    F_ext::Float64 = 9.812*1e3 # force applied to the cylinder in N
+    sim_time_exp_list::Vector{Float64} = [0.5] # simulation time in seconds
     FunctionClass_x_List = ["Q2"]
-    # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [6] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    η_start = 1.0
-    β_start = 1.0
+    η_start = 50.0
+    β_start = 50.0
     viscosity_type = "bulk_viscosity"
     
     r::Float64 = 25.0  # radius of the cylinder in mm
-    h::Float64 = 38.5  # height of the cylinder in mm
+    h::Float64 = 40.0  # height of the cylinder in mm
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
-    # sim_time_exp::Float64 = 5.0 # simulation time in seconds
-    F_ext::Float64 = 9.812*1e3 # force applied to the cylinder in N
-    model_type = "Stokes" # "carreau" or "Stokes"
+
+    model_type = "carreau" # "carreau" or "Stokes"
     window = "multi_window" # "multi_window" or "single_window"
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    sim_time_exp_list = [0.5] # simulation time in seconds
     avoid_dirs = ["3_less_noise","s"]
 
     if model_type == "carreau" && viscosity_type == "bulk_viscosity"
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Carreau")
+        sim_time_exp_list = [5.0]
+        F_ext = 1e4 # force applied to the cylinder in N
     else
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data")
+        sim_time_exp_list = [0.5] # simulation time in seconds
+        F_ext = 9.812*1e3 # force applied to the cylinder in N
+        h = 38.5  # height of the cylinder in mm
     end
 
     dir_list = readdir(_filepath_gt)
@@ -4288,7 +4291,7 @@ function plot_()
 end
 
 # main()
-plot_()
+# plot_()
 # optimize_sim()
 # optimize_syn()
-# optimize_real()
+optimize_real()

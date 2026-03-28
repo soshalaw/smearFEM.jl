@@ -650,7 +650,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
         rm(string(filepath), recursive=true, force=true) # remove the previous results folder if it exists
     end
 
-    h_, gradList, borderPts2DList, displacement_fields, pos3D, pos2D, splinep, splineq, velocity, pressure = simulate(model, scene, conditions) # run the simulation
+    h_, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, pos3D, splinep, splineq, velocity, pressure = simulate(model, scene, conditions) # run the simulation
     
     h = get_height(h_, model.mesh_u.h) # get the mesh height with time
     display(scene.cParam)
@@ -663,15 +663,15 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_csv(string(filepath,"/data/h"), h)
     write_data(string(conditions.filepath,"/data/sim_data/2D_surface_points"), pos2D)
     write_data(string(filepath,"/data/sim_data/node_points"), pos3D)
-    write_data(string(filepath,"/data/sim_data/displacement_fields"), displacement_fields)
+    write_data(string(filepath,"/data/sim_data/displacement_fields"), displacement)
     write_data(string(filepath,"/data/sim_data/2D_border_points"), borderPts2DList)
     write_data(string(filepath,"/data/sim_data/velocity_fields"), velocity)
     write_data(string(filepath,"/data/sim_data/pressure_fields"), pressure)
 
     if _scene.viscosity_type == "bulk_viscosity"
         time = collect(Float64, range(scene.t_steps, stop=scene.sim_time, step=scene.t_steps))
-        println(size(model.η))
-        println(size(time))
+        # println(size(model.η))
+        # println(size(time))
         plt = set_plot(22)
         Plots.plot!(plt, time, model.η, lw=3, label="Shear Viscosity", color=:red)
         Plots.xlabel!(plt, L"\mathrm{Time\;(s)}")
@@ -764,9 +764,12 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String,
     isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
     set_file(filepath)
     
-    mesh = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)
+    ndim::Int = 3
+    # mesh = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)
+    filepath_mesh = joinpath("/home", "soshala", "SMEAR-PhD", "smear-modules", "smear-meshes")
+    mesh = get_gmsh_cylinder(joinpath(filepath_mesh, "cylinder_x_$ne.msh"), 1, r, h, FunctionClass)
 
-    BorderPts2D, SurfacePts2D = extract_borders(mesh.NodeList, camera_matrix, obj_pose, mesh.nNodes, BorderNodesList= mesh.side_nodes)
+    BorderPts2D, SurfacePts2D = extract_borders(mesh.NodeList, camera_matrix, obj_pose, 13, BorderNodesList= mesh.side_nodes)
     pi, qi = fit_curve(border=BorderPts2D)
         
                                                # store the solution fields of the border nodes in 2D 
@@ -778,11 +781,12 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String,
     splineq = AbstractArray[qi]                                                                           # store the y coordinates samples of the spline parameters of the border nodes 
     writeborderList = [vcat(pi', qi')]
 
-    animate_fields(filepath = string(filepath,"/Results/images"), SurfaceNodes3D=surface_pts_3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
-    write_data(string(filepath,"/Results"), writeborderList)
+    write_scene(joinpath(filepath,"data"), pos3D, mesh.IEN, ndim, pos3D, function_class = mesh.FunctionClass)
+    animate_fields(filepath = joinpath(filepath,"Results","images"), Nodes=pos3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+    write_data(joinpath(filepath,"Results"), writeborderList)
 
     return borderPts2DList, pos2D, splinep, splineq
-end
+end 
 
 """
     readData(filepath)
@@ -861,7 +865,7 @@ function plot_rad_norm_vel_vs_slip(file_path::String)
         mkdir(plot_path)
     end
 
-    println("Slip parameters: ", β_list)
+    # println("Slip parameters: ", β_list)
 
     plt_rad = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
     Plots.plot!(plt_rad, β_list, v_rad_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\beta\$ [kPa s mm\$^{-1}\$]"), ylabel="Mean Radial Velocity [mm/s]", xscale=:log10, yscale=:log10, legend=false)
@@ -921,7 +925,7 @@ function plot_rad_norm_vel_vs_visc(file_path::String)
         mkdir(plot_path)
     end
 
-    println("Viscosity parameters: ", η_list)
+    # println("Viscosity parameters: ", η_list)
 
     plt_rad = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
     Plots.plot!(plt_rad, inv_eta_list, v_rad_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\eta\$ [kPa s]"), ylabel="Mean Radial Velocity [mm/s]", legend=false)

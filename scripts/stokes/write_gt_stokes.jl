@@ -10,18 +10,20 @@ function main()
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Int = 6 # number of elements in the mesh for the ground truth
 
-    β_gt_list = [1e10] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
-    η_gt_list = [1e2, 200.0, 500.0, 700.0, 1e3, 1500.0] # viscosity values for the ground truth in kg/(mm⋅s)
+    β_gt_list = [0.01, 10.0, 50.0, 1e2, 500.0, 1e3, 5e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
+    weights = [1, 1, 1, 1, 1, 1, 1.5] # weights for the different β_gt values in the loss function
+    η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
 
-    refine_list = [2] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
 
     viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
 
-    F_ext::Float64 = 0.2*9.812*1e3 # force applied to the cylinder in N
-    sim_time_gt::Float64 = 10.0 # simulation time in seconds
-    steps_gt::Int = 100 # number of time steps
+    F_ext::Float64 = 9.813e3*0.85 # force applied to the cylinder in kg.mm/s^2 (N)
+    δF_ext = 9.813e3*0.15/(β_gt_list[end]-β_gt_list[1]) # perturbation in the force applied to the cylinder in kg.mm/s^2 (N)
+    
+    sim_time_gt::Float64 = 30.0 # simulation time in seconds
+    steps_gt::Int = 30 # number of time steps
 
     obj_pose = zeros(Float64, 4,4)
     obj_pose[1,1] = -1.0
@@ -33,32 +35,9 @@ function main()
     for viscosity_type in viscosity_type_list
         for FunctionClass_x in FunctionClass_x_gt_list
             run_id = 1
-            for β_gt in β_gt_list
+            for (β_gt, w) in zip(β_gt_list, weights)
                 for η_gt in η_gt_list
-                    if β_gt <= 1.0
-                        F_ext = 9.813e3
-                    elseif β_gt == 10.0
-                        F_ext = 9.813e3*1.75 # force applied to the cylinder in kg.mm/s^2 (N)
-                    elseif β_gt == 50.0
-                        F_ext = 9.813e3*5.5 # force applied to the cylinder in kg.mm/s^2 (N)
-                    elseif β_gt == 100.0
-                        F_ext = 9.813e3*10 # force applied to the cylinder in kg.mm/s^2 (N)
-                    elseif β_gt == 500.0
-                        F_ext = 9.813e3*40 # force applied to the cylinder in kg.mm/s^2 (N)
-                    elseif β_gt == 1e3
-                        F_ext = 9.813e3*70 # force applied to the cylinder in kg.mm/s^2 (N)
-                    elseif β_gt == 2e3
-                        F_ext = 9.813e3*150 # force applied to the cylinder in kg.mm/s^2 (N)
-                    elseif β_gt == 5e3
-                        F_ext = 9.813e3*350 # force applied to the cylinder in
-                    elseif β_gt == 1e4
-                        F_ext = 9.813e3*700 # force applied to the cylinder in kg.mm/s^2 (N)
-                    elseif β_gt == 1e5
-                        F_ext = 9.813e3*7e3 # force applied to the cylinder in kg.mm/s^2 (N)
-                    elseif β_gt == 1e10
-                        F_ext = 9.813e3*7e8 # force applied to the cylinder in kg.mm/s^2 (N)
-                    end
-                    F_ext = 9.813e3*1.75 # force applied to the cylinder in kg.mm/s^2 (N)
+                    F_ext = round((F_ext + δF_ext*β_gt*w), digits=1)
                     filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$(FunctionClass_x)_$(ne_gt)/$run_id")
 
                     exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => ne_gt, "β_gt" => β_gt, 

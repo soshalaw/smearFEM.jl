@@ -885,6 +885,7 @@ function meshgrid_cube(lx::X, ly::Y, lz::Z, ne::Int64; FunctionClass::String="Q1
         throw(ArgumentError("Basis function type $FunctionClass is unknown"))
     end
 
+    # display(ID)
     return NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, [BorderNodes, BottomBorderNodes, TopBorderNodes] 
 end
 
@@ -951,6 +952,7 @@ Set up the mesh grid for a 3D cylinder
 - `IEN_top::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the top surface
 - `IEN_bottom::Matrix{Int64}{ne^(ndim-1),2^(ndim-1)}` : array of elements on the bottom surface
 - `BorderNodes::Vector{Int64}` : array of nodes on the boundaries
+
 """
 function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", filePath::String=" ") where {T<:Number,U<:Number}
     if string(FunctionClass[1]) == "S"
@@ -991,74 +993,13 @@ function meshgrid_cylinder(r::T, h::U, ne::Int64; FunctionClass::String="Q1", fi
         NodeList = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h)
 
         mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID, FunctionClass=FunctionClass,
-            nNodes=nNodes, ne=ne, side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2])
+            nNodes=nNodes^3, ne=ne^3, side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2])
     else
         ArgumentError("FunctionClass type unknown")
     end
 
     return mesh
 end
-
-# Functions to manipulate the meshgrid
-
-"""
-    inflate_cylinder(NodeList, x0, x1, y0, y1)
-
-Inflate the cube into a cylinder.
-
-# Arguments:
-- `NodeListCube::Matrix{Float64}{nNodes,ndim}` : array of nodes
-- `x0::Number` : x-coordinate of the lower left corner of the domain
-- `x1::Number` : x-coordinate of the upper right corner of the domain
-- `y0::Number` : y-coordinate of the lower left corner of the domain
-- `y1::Number` : y-coordinate of the upper right corner of the domain
-- `r::Number`  : Radius of the output cylindrical mesh
-
-# Returns:
-- `NodeListCyl::Matrix{Float64}{nNodes,ndim}` : array of nodes of the cylindrical mesh
-"""
-# function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1::W, r::Array{Y}, h::Z=1.0; GRAD::Bool=false) where {T<:Number,U<:Number,V<:Number,W<:Number,Y<:Number,Z<:Number}
-#     NodeListCyl = copy(NodeListCube)
-#     ∇NodeListCyl = zeros(Float64,size(NodeListCube,1),size(NodeListCube,2),2)
-
-#     nNodes = 1
-#     center = [0.5*(x0 + x1), 0.5*(y0 + y1)]
-#     sz_layer = size(NodeListCyl,2)/nNodes
-    
-#     iter = 1:sz_layer
-#     layer_iter = 1:nNodes
-
-#     for layer in layer_iter
-#         if GRAD == true
-#             for i in iter
-#                 scale = maximum(abs.(NodeListCube[1:2,((layer-1)+i)] - center))
-#                 if scale ≈ 0.
-#                     NodeListCyl[1:2,((layer-1)+i)] = [0 , 0]
-#                 else
-#                     r_ = sqrt((NodeListCube[1,((layer-1)+i)] - center[1])^2 + (NodeListCube[2,((layer-1)+i)] - center[2])^2)
-#                     NodeListCyl[1:2,i] = 2*r[layer]*scale*(NodeListCube[1:2,((layer-1)+i)] - center)/r_
-#                     NodeListCyl[3,i] = NodeListCube[3,((layer-1)+i)]*h
-
-#                     ∇NodeListCyl[1:2,i,1] = 2*scale*(NodeListCube[1:2,((layer-1)+i)] - center)/r_ # ∂x/∂r = K_1 and ∂y/∂r = K_2
-#                     ∇NodeListCyl[3,i,2] = NodeListCube[3,((layer-1)+i)] # ∂z/∂h = λ_i 
-#                 end
-#             end
-#             return NodeListCyl, ∇NodeListCyl
-#         else
-#             for i in iter
-#                 scale = maximum(abs.(NodeListCube[1:2,((layer-1)+i)] - center))
-#                 if scale ≈ 0.
-#                     NodeListCyl[1:2,((layer-1)+i)] = [0 , 0]
-#                 else
-#                     r_ = sqrt((NodeListCube[1,((layer-1)+i)] - center[1])^2 + (NodeListCube[2,((layer-1)+i)] - center[2])^2)
-#                     NodeListCyl[1:2,i] = 2*r[layer]*scale*(NodeListCube[1:2,((layer-1)+i)] - center)/r_
-#                     NodeListCyl[3,i] = NodeListCube[3,((layer-1)+i)]*h
-#                 end
-#             end
-#             return NodeListCyl
-#         end
-#     end
-# end
 
 function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1::W, r::Y, h::Z=1.0; GRAD::Bool=false) where {T<:Number,U<:Number,V<:Number,W<:Number,Y<:Number,Z<:Number}
     NodeListCyl = copy(NodeListCube)
@@ -1097,6 +1038,34 @@ function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1
         return NodeListCyl
     end
 end
+
+function get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, FunctionClass::String="Q1") where {T<:Number,U<:Number}
+    @info "Reading cylinder mesh from $file_path"
+    NodeList, IEN, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes, ne = get_mesh_data(file_path)
+
+    node_iter = 1:nNodes
+    ID = zeros(Int64, ndof, nNodes)
+    
+    p = sortperm(NodeList[3,:]) # sort the nodes based on their z-coordinate to ensure the correct ordering of node IDs
+    n = 1
+    for m in p
+        for l in 1:ndof
+            ID[l,m] = ndof*(n-1) + l
+        end
+        n = n + 1
+    end
+
+    # for m in 1:nNodes
+    #     for l in 1:ndof
+    #         ID[l,m] = ndof*(m-1) + l
+    #     end
+    # end
+
+    mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID, FunctionClass=FunctionClass,
+            nNodes=nNodes, ne=ne, side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2])
+    return mesh
+end
+
 
 """
     reset_mesh!(mesh::AbstractMeshgrid)

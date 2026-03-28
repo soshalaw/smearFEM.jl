@@ -24,6 +24,7 @@ export set_boundary_cond_flow_cube, set_boundary_cond_flow_cyl
 export read_csv, write_vtk, write_scene, write_csv, write_json, write_data, read_h5, read_json, read_perception_data, read_hdf5_generic, get_time_windows, write_stokes_scene # io.jl
 export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h, set_plot, set_subplot # plotting.jl
 export plot_noise_covariance, plot_height_vs_slip, plot_field_at_height, arrow0!, get_norm, plot_data, plot_covariance! # analysis_plots.jl
+export get_mesh_data # gmsh_utils.jl
 
 export mat_nan_inf_check, write_time_log, dataframe_2_vec
 
@@ -34,9 +35,10 @@ include("fem/PostProcess.jl")
 include("fem/types.jl")
 include("fem/scenarios.jl")
 
-include("visualization/plotting.jl")
-include("visualization/io.jl")
-include("visualization/analysis_plots.jl")
+include("io/plotting.jl")
+include("io/io.jl")
+include("io/analysis_plots.jl")
+include("io/gmsh_utils.jl")
 
 include("optimization/smearOptimize.jl")
 

@@ -65,10 +65,10 @@ Function to write the solution to a VTK file
 - `ndim::Integer`: Number of dimensions
 - `fields::Vector{Vector{Float64}}`: Solution fields.
 """
-function write_scene(filepath::String, NodeList, IEN, ne::Int64, ndim::Int64, fields; ID=nothing, FunctionClass::String="Q1")
+function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields; function_class::String="Q1")
 
     set_file(string(filepath,"/vtkFiles")) # create the directory to store the VTK files
-    if FunctionClass == "Q1"
+    if function_class == "Q1"
         if ndim == 1
             cellType = VTKCellTypes.VTK_LINE
         elseif ndim == 2
@@ -76,7 +76,7 @@ function write_scene(filepath::String, NodeList, IEN, ne::Int64, ndim::Int64, fi
         elseif ndim == 3
             cellType = VTKCellTypes.VTK_HEXAHEDRON
         end
-    elseif FunctionClass == "Q2"
+    elseif function_class == "Q2"
         if ndim == 1
             cellType = VTKCellTypes.VTK_LAGRANGE_CURVE
         elseif ndim == 2
@@ -85,15 +85,17 @@ function write_scene(filepath::String, NodeList, IEN, ne::Int64, ndim::Int64, fi
             cellType = VTKCellTypes.VTK_LAGRANGE_HEXAHEDRON
         end
 
+        println(size(IEN))
         IEN = rearrange(ndim, IEN)  # rearrange the solution
     end
 
     # Create a VTK collection
-    cells = [MeshCell(cellType,IEN[:,e]) for e in 1:ne^ndim]
+    e_iter = 1:size(IEN, 2)
+    cells = [MeshCell(cellType,IEN[:,e]) for e in e_iter]
     fieldIter = 1:length(fields)
     paraview_collection(string(filepath,"/vtkFiles/displacement")) do pvd # create a paraview collection
         @showprogress "Writing out to VTK..." for i in fieldIter
-            vtk_grid(string(filepath,"/vtkFiles/timestep_$i"), NodeList[i], cells) do vtk # write out the fields to VTK
+            vtk_grid(string(filepath,"/vtkFiles/timestep_$i"), node_list_list[i], cells) do vtk # write out the fields to VTK
                 vtk["p"] = fields[i]
                 time = (i - 1)
                 pvd[time] = vtk
@@ -132,7 +134,8 @@ function write_stokes_scene(
     velocity_name::String="v",
     pressure_name::String="p",
     collection_name_velocity::String="velocity",
-    collection_name_pressure::String="pressure"
+    collection_name_pressure::String="pressure",
+    pos3D::Vector{AbstractArray}=zeros(Float64, 0, 0)
 )
 
     set_file(string(filepath, "/vtkFiles")) # create the directory to store the VTK files
@@ -178,6 +181,17 @@ function write_stokes_scene(
                 vtk[pressure_name] = pressures[i]
                 time = (i - 1)
                 pvd[time] = vtk
+            end
+        end
+    end
+
+    if length(pos3D) != 0
+        paraview_collection(string(filepath, "/vtkFiles/geometry")) do pvd
+            @showprogress "Writing out geometry to VTK..." for i in fieldIter
+                vtk_grid(string(filepath, "/vtkFiles/geometry_$i"), pos3D[i], cells_u) do vtk
+                    time = (i - 1)
+                    pvd[time] = vtk
+                end
             end
         end
     end

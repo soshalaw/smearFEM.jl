@@ -155,7 +155,7 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
         elseif !isnothing(pgt)
             sz = length(pgt)
         end
-    pr = progress_guard(sz; desc="Animating 2D fields...",showspeed=true)
+    pr = Progress(sz; desc="Animating 2D fields...",showspeed=true)
         iter = 1:sz
         animation2 = @animate for i in iter
             
@@ -217,7 +217,7 @@ function animate_2D_comp(;borders=nothing, filepath="images/2D_grid.gif")
         else
             sz = length(fields2D)
         end
-    pr = progress_guard(sz; desc="Animating 2D fields...",showspeed=true)
+    pr = Progress(sz; desc="Animating 2D fields...",showspeed=true)
         iter = 1:sz
         animation2 = @animate for i in iter
             
@@ -283,7 +283,7 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
     fz = 12
     iter = 1:sz
     fac = 0.2 # factor to extend the limits of the plot
-    pr = progress_guard(sz; desc="Animating 3D fields...",showspeed=true)
+    pr = Progress(sz; desc="Animating 3D fields...",showspeed=true)
     animation = @animate for i in iter
         if !isnothing(fields)
             zmin = minimum(fields[i][3,:])
@@ -351,7 +351,7 @@ function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath::St
     set_file(filepath)
     sz = length(simborderfields)
     @argcheck length(simborderfields) == length(pairsList)
-    pr = progress_guard(sz; desc="Plotting matches ...",showspeed=true)
+    pr = Progress(sz; desc="Plotting matches ...",showspeed=true)
     iter = 1:sz
     animation = @animate for i in iter
         borderp = simborderfields[i][1,:]
@@ -383,7 +383,7 @@ function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String
     @argcheck length(Exptx) == length(Obsptx)
     sz = length(p)
     sz == length(Obsptx) || AssertionError("The number of simulated and observed data should be the same")
-    pr = progress_guard(sz; desc="Plotting matches...",showspeed=true)
+    pr = Progress(sz; desc="Plotting matches...",showspeed=true)
     iter = 1:sz
     animation = @animate for i in iter
         plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y",title="Prospective Projection of the 3D Grid", dpi=400,label="")

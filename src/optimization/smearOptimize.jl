@@ -37,6 +37,8 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; out
         if frame_idx in outliers
             @info "Skipping frame $frame_idx as it is marked as an outlier."
             continue
+        elseif frame_idx == 1
+            continue # skip the first frame 
         end
         tcost = 0
         pairs = match_points(sim_t, obs_t) # match the points using the first border
@@ -65,10 +67,17 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dud
     dcost_list = []
     dcost2List = []
     pairsList = []
+    
     @argcheck length(sim_frames) == length(obs_frames) "Size of the simulation and observation scenes should be the same"
     @argcheck length(sim_frames) == length(dudθ) "Size of the simulation and observation scenes should be the same"
 
-    for (obs_t, sim_t, du_tdθ) in zip(obs_frames, sim_frames, dudθ) # iterate over the scenes
+    for (frame_idx, (obs_t, sim_t, du_tdθ)) in enumerate(zip(obs_frames, sim_frames, dudθ)) # iterate over the scenes
+        if frame_idx in outliers
+            @info "Skipping frame $frame_idx as it is marked as an outlier."
+            continue
+        elseif frame_idx == 1
+            continue # skip the first frame 
+        end
         @argcheck size(sim_t,2) == size(du_tdθ,2) "Number of the border points and the gradient points should be the same"
 
         mat_nan_inf_check(du_tdθ[:,:,1])

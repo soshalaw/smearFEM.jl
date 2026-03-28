@@ -232,7 +232,7 @@ function mesh_convergence_analysis()
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
 
-    β::Float64 = 100.0
+    β::Float64 = 1e3 # penalty parameter for the ground truth
     η::Float64 = 100.0
 
     viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
@@ -244,9 +244,9 @@ function mesh_convergence_analysis()
     nDof_p::Int = 1
     ndim::Int = 3
 
-    F_ext::Float64 = 9.813e3*10 # force applied to the cylinder in N
-    sim_time::Float64 = 25.0 # simulation time in seconds
-    step_size = 0.1
+    F_ext::Float64 = 9.813e3*1.75 # force applied to the cylinder in N
+    sim_time::Float64 = 1.0 # simulation time in seconds
+    step_size = 1.0 # time step size in seconds
     steps = round(Int, sim_time/step_size)  
 
     obj_pose = zeros(Float64, 4, 4)
@@ -265,7 +265,7 @@ function mesh_convergence_analysis()
 
     # est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model_ref, scene_ref, conditions)   
 
-    mesh_sz_ = [2, 4, 6, 8, 10, 12, 14, 16] # number of elements in the mesh for the convergence analysis, ne = ne_exp^refine
+    mesh_sz_ = [2, 4, 6, 8, 10] # number of elements in the mesh for the convergence analysis, ne = ne_exp^refine
     mesh_sz = reverse(mesh_sz_)
     iter_index = 1
     h_ref = 0.0
@@ -351,5 +351,5 @@ function plot_convergence(file_path::String)
     Plots.savefig(plt3, string(plot_path,"/time_convergence.pdf"))
 end
 
-# mesh_convergence_analysis()
+mesh_convergence_analysis()
 plot_convergence("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 

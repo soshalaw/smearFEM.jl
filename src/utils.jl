@@ -39,16 +39,20 @@ mutable struct NonTtyProgress
     total::Int
     interval_ns::Int    # reporting interval in nanoseconds
     last_report_ns::Int  # last report timestamp (ns)
+    last_iteration_ns::Int  # last iteration timestamp (ns)
     desc::String
 end
 
 function next!(p::NonTtyProgress, n::Integer=1; kwargs...)
     p.count += n
     now_ns = time_ns()
+    # Calculate time per iteration in seconds
+    time_per_iter_ms = round((now_ns - p.last_iteration_ns) / 1e9, digits=3)
+    p.last_iteration_ns = now_ns
     # report if enough time passed or on completion
     if (now_ns - p.last_report_ns) >= p.interval_ns || p.count >= p.total
         try
-            @info (isempty(p.desc) ? "Progress" : p.desc) progress=p.count total=p.total
+            @info "\e[32m$(isempty(p.desc) ? "Progress" : p.desc) | progress: $(round(p.count/p.total*100, digits=1))% | time/iter: $(time_per_iter_ms)s/iter\e[39m"
         catch
             # logging shouldn't break execution
         end
@@ -59,7 +63,7 @@ end
 
 function finish!(p::NonTtyProgress; kwargs...)
     try
-        @info (isempty(p.desc) ? "Progress completed" : string(p.desc, " completed")) progress=p.total
+        @info "\e[32m$(isempty(p.desc) ? "Progress completed" : string(p.desc, " completed")) | progress: $(round(p.count/p.total*100, digits=1))%\e[39m"
     catch
     end
     return nothing
@@ -101,7 +105,8 @@ function progress_guard(total; kwargs...)
     else
         desc = haskey(kwargs, :desc) ? string(kwargs[:desc]) : ""
         interval_ns = Int(max(1, floor(report_interval * 1e9)))
-        return NonTtyProgress(0, Int(total), interval_ns, time_ns(), desc)
+        now_ns = time_ns()
+        return NonTtyProgress(0, Int(total), interval_ns, now_ns, now_ns, desc)
     end
 end
 
