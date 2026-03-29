@@ -524,7 +524,7 @@ function optimize(exp_params::Dict)
         est_ηpList = Vector{Float64}(undef,data_pt_len)
         avg_ηList = Vector{Float64}(undef,data_pt_len)
         est_βpList = Vector{Float64}(undef,data_pt_len)
-        pred_h_list = Vector{Float64}(undef, data_pt_len)
+        pred_h_list = AbstractArray[]
 
         if mode == "single_window"
             @info "Optimizing over a single time window"
@@ -612,15 +612,7 @@ function optimize(exp_params::Dict)
                     avg_ηList[data_range_] .= av_η
                     printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
                 end
-                if ti > 1
-                    reset_model!(model)
-                    model.η = [θ[1]]
-                    scene.β = [θ[2]]
-                    pred_μ_list, _, borderPts2DList, _ = simulate(model, scene, conditions)
-                    pred_h = get_height(pred_μ_list, h)
-                    pred_h_list[data_range_] = pred_h
-                end
-                @info "Predicting dynamics in time window $(ti)..."
+                
                 @info "Fitting model in time window $(ti)..."
                 stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ, outliers=outlier_frames)
 
