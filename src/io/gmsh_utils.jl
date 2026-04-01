@@ -2,7 +2,7 @@ using Gmsh
 
 # Global lock for thread-safe Gmsh operations
 # Gmsh is not thread-safe, so we serialize all access via this lock
-const GMSH_LOCK = Threads.Lock()
+const GMSH_LOCK = ReentrantLock()
 
 function _get_elements_for_physical(name, dim, tag_to_index::Dict{UInt64,Int})
     phys = gmsh.model.getPhysicalGroups()
