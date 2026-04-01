@@ -10,12 +10,12 @@ function main()
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Int = 16 # number of elements in the mesh for the ground truth
 
-    β_gt_list = [0.01, 10.0, 50.0, 1e2, 500.0, 1e3, 5e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
+    β_gt_list = [0.01, 10.0, 50.0] # 1e2, 500.0, 1e3, 5e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
 
     control = "force" # "force" or "velocity"
 
-    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
 
     F_ext::Float64 = 9.813e3*0.85 
@@ -28,7 +28,7 @@ function main()
     obj_pose[2,3] = -1.0
     obj_pose[3,2] = -1.0
     obj_pose[1:3,4] = [0.0, h/2, 150.0]
-    camera_matrix::AbstractMatrix{Float64} = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
+    camera_matrix::Matrix{Float64} = [2.39642674e+03  0.0  1.00429248e+03; 0.0  2.40565353e+03  7.57028161e+02; 0.0  0.0 1.0;]
 
     for viscosity_type in viscosity_type_list
         for FunctionClass_x in FunctionClass_x_gt_list

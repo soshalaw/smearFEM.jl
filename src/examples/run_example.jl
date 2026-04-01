@@ -146,11 +146,6 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
 
     q_d = (μu_btm*q_btm + μu_tp*q_tp + μu_side*q_side)      # apply the Dirichlet boundary conditions
 
-    if GRAD
-        dAdη = A_bar
-        dAdβ = b        
-    end
-
     A = η*A_bar + β*b
 
     C_Tu = transpose(C_uc)           # transpose the constraint matrix
@@ -172,6 +167,9 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     q_out = [q[ID_u[1,:]] q[ID_u[2,:]] q[ID_u[3,:]]]'
 
     if GRAD
+        dAdη = A_bar
+        dAdβ = b 
+
         dKdη = [C_Tu*dAdη*C_uc zeros(size(B_free)); zeros(size(B_free')) zeros(size(B,2),size(B,2))] # assemble the system of equations
         dKdβ = [C_Tu*dAdβ*C_uc zeros(size(B_free)); zeros(size(B_free')) zeros(size(B,2),size(B,2))] # assemble the system of equations
     

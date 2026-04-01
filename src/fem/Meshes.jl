@@ -1045,21 +1045,12 @@ function get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, FunctionCla
 
     node_iter = 1:nNodes
     ID = zeros(Int64, ndof, nNodes)
-    
-    p = sortperm(NodeList[3,:]) # sort the nodes based on their z-coordinate to ensure the correct ordering of node IDs
-    n = 1
-    for m in p
-        for l in 1:ndof
-            ID[l,m] = ndof*(n-1) + l
-        end
-        n = n + 1
-    end
 
-    # for m in 1:nNodes
-    #     for l in 1:ndof
-    #         ID[l,m] = ndof*(m-1) + l
-    #     end
-    # end
+    for m in 1:nNodes
+        for l in 1:ndof
+            ID[l,m] = ndof*(m-1) + l
+        end
+    end
 
     mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID, FunctionClass=FunctionClass,
             nNodes=nNodes, ne=ne, side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2])

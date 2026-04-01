@@ -6,6 +6,8 @@ using Distributions
 using HDF5
 using CSV
 using DataFrames
+using JLD2
+using FileIO
 
 """
     write_vtk(filepath, fieldName, NodeList, IEN, ne, ndim, q)
@@ -293,50 +295,106 @@ end
 """
 read_sparse_mat(filepath)
 
-Function to read the sparse matrix from a JSON file
+Function to read the sparse matrix from a JLD2 file
 
 # Arguments:
-- `filepath::String`: name of the JSON file.
+- `filepath::String`: path to the file (with or without .jld2 extension).
 
 # Returns:
-- `sparse_mat::SparseArrays`: sparse matrix.
+- `sparse_mat::SparseMatrixCSC`: sparse matrix.
 """
 function read_sparse_mat(filepath::String)
-    if !isfile(filepath)
-        throw(SystemError("Trying to read from $filepath, the directory does not exist."))
+    filepath_with_ext = endswith(filepath, ".jld2") ? filepath : string(filepath, ".jld2")
+    if !isfile(filepath_with_ext)
+        throw(SystemError("File not found: $filepath_with_ext"))
     end
-    # Read the JSON file
-    sparse_mat = JSON.parsefile(filepath)
-    row_ptr = [i + 1 for i in sparse_mat[:row]] # -1 for Python numbering
-    col_ptr = [i + 1 for i in sparse_mat[:col]]
-    values = sparse_mat[:data]
-    return sparse(col_ptr, row_ptr, values)
+    @load filepath_with_ext sparse_mat
+    return sparse_mat
 end
 
-"""
-write_json(filepath, sparse_mat)
+"""                                                                                                                                                                    
+    write_json(filepath, data)
 
-Function to write data to a JSON file
+Function to write data to a JLD2 file (preserves all Julia types and structures)
 
 # Arguments:
-- `filepath::String`: name of the JSON file.
-- `data::Dict`: dictionary to write to the JSON file.
+- `filepath::String`: path to the file (with .json or .jld2 extension, or without extension).
+- `data::Dict`: dictionary with mixed types (matrices, scalars, strings, etc.).
+
+# Example:
+```julia
+data = Dict("matrix" => rand(3,3), "scalar" => 42, "string" => "hello")
+write_json("results/mydata", data)  # saves as mydata.jld2
+write_json("results/mydata.json", data)  # saves as mydata.json
+```
 """
 function write_json(filepath::String, data::Dict)
     set_file(dirname(filepath))
-    open(string(filepath,".json"), "w") do io
-        JSON.print(io, data, 4)
+    # Add extension if not present
+    if !endswith(filepath, ".jld2") && !endswith(filepath, ".json")
+        filepath_with_ext = string(filepath, ".jld2")
+    else
+        filepath_with_ext = filepath
     end
-    @info "Data written to $(filepath)"
+    @save filepath_with_ext data
+    @info "Data written to $(filepath_with_ext)"
 end
 
+"""
+    read_json(filepath)
+
+Function to read data from a JLD2 or JSON file (auto-detects format)
+
+# Arguments:
+- `filepath::String`: path to the file (with .json or .jld2 extension, or without extension).
+
+# Returns:
+- `data::Dict`: dictionary with original Julia types preserved.
+
+# Example:
+```julia
+data = read_json("results/mydata")  # reads mydata.jld2 or mydata.json
+data = read_json("results/mydata.json")  # reads mydata.json (JSON format)
+```
+"""
 function read_json(filepath::String)
-    if !isfile(filepath)
-        throw(SystemError("Trying to read from $filepath, the directory does not exist."))
+    # Check for file with various extensions
+    filepath_with_ext = filepath
+    if !isfile(filepath_with_ext)
+        if !endswith(filepath, ".jld2") && !endswith(filepath, ".json")
+            # Try .jld2 first
+            filepath_with_ext = string(filepath, ".jld2")
+            if !isfile(filepath_with_ext)
+                # Try .json
+                filepath_with_ext = string(filepath, ".json")
+            end
+        end
     end
-    # Read the JSON file
-    data = JSON.parsefile(filepath)
-    return data
+    
+    if !isfile(filepath_with_ext)
+        throw(SystemError("File not found: $filepath"))
+    end
+    
+    # Detect file format by extension or content
+    if endswith(filepath_with_ext, ".json")
+        # Read as JSON
+        data = JSON.parsefile(filepath_with_ext)
+        return data
+    else
+        # Read as JLD2 - use load() which returns a dictionary
+        try
+            file_data = load(filepath_with_ext)
+            # If the file was saved with @save data, extract the data key
+            if haskey(file_data, "data")
+                return file_data["data"]
+            else
+                # If no "data" key, return the entire dictionary
+                return file_data
+            end
+        catch e
+            throw(SystemError("Failed to read JLD2 file $filepath_with_ext: $(e.msg)"))
+        end
+    end
 end
 
 """
@@ -400,9 +458,9 @@ end
 
 function read_perception_data(filepath::String)
     if !isfile(filepath)
-        throw(SystemError("Trying to read from $filepath, the directory does not exist."))
+        throw(SystemError("File not found: $filepath"))
     end
-    # Read the JSON file
+    # Read the HDF5 file
     h5file = h5open(filepath, "r")
     
     pose = read(h5file, "poses")

@@ -52,7 +52,7 @@ function next!(p::NonTtyProgress, n::Integer=1; kwargs...)
     # report if enough time passed or on completion
     if (now_ns - p.last_report_ns) >= p.interval_ns || p.count >= p.total
         try
-            @info "\e[32m$(isempty(p.desc) ? "Progress" : p.desc) | progress: $(round(p.count/p.total*100, digits=1))% | time/iter: $(time_per_iter_ms)s/iter\e[39m"
+            @info "\e[32m$(isempty(p.desc) ? "Progress" : p.desc) | progress: $(round(p.count/p.total*100, digits=1))% of $(p.total) steps| time/iter: $(time_per_iter_ms)s/iter\e[39m"
         catch
             # logging shouldn't break execution
         end

@@ -11,38 +11,39 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
   control::String = "force"            # "force" or "velocity"
   viscosity_type::String = "constant"  # "constant" or "bulk_viscosity"
 
-  sim_time::Float64 = 5.0           # simulation time in seconds
-  steps::Float64 = 50.0              # number of time steps
-  t_steps::Float64 = sim_time/steps
+  sim_time::Float64 = 2.0           # simulation time in seconds
+  t_steps::Float64 = 0.1              # number of time steps
+  steps::Float64 = sim_time/t_steps
     
-  β_gt = 50.0 # penalty parameter for the ground truth
-  η_gt =  50.0 # viscosity in (kg/(mm⋅s))
+  β_gt = 0.007 # penalty parameter for the ground truth
+  η_gt =  70.0 # viscosity in (kg/(mm⋅s))
 
-  if β_gt <= 1.0
-      F_ext = 9.813e3
-  elseif β_gt == 10.0
-      F_ext = 9.813e3*1.75 # force applied to the cylinder in kg.mm/s^2 (N)
-  elseif β_gt == 50.0
-      F_ext = 9.813e3*5.5 # force applied to the cylinder in kg.mm/s^2 (N)
-  elseif β_gt == 100.0
-      F_ext = 9.813e3*10 # force applied to the cylinder in kg.mm/s^2 (N)
-  elseif β_gt == 500.0
-      F_ext = 9.813e3*40 # force applied to the cylinder in kg.mm/s^2 (N)
-  elseif β_gt == 1e3
-      F_ext = 9.813e3*70 # force applied to the cylinder in kg.mm/s^2 (N)
-  elseif β_gt == 2e3
-      F_ext = 9.813e3*150 # force applied to the cylinder in kg.mm/s^2 (N)
-  elseif β_gt == 5e3
-      F_ext = 9.813e3*350 # force applied to the cylinder in kg.mm/s^2 (N)
-  elseif β_gt == 1e4
-      F_ext = 9.813e3*700 # force applied to the cylinder in kg.mm/s^2 (N)
-  elseif β_gt == 1e5
-      F_ext = 9.813e3*7e3 # force applied to the cylinder in kg.mm/s^2 (N)
-  elseif β_gt == 1e10
-      F_ext = 9.813e3*7e8 # force applied to the cylinder in kg.mm/s^2 (N)
-  end
+if β_gt <= 1.0
+    F_ext = 9.813e3*0.85
+elseif β_gt == 10.0
+    F_ext = 9.813e3*0.93
+elseif β_gt == 50.0
+    F_ext = 9.813e3*0.955
+elseif β_gt == 100.0
+    F_ext = 9.813e3*0.97
+elseif β_gt == 500.0
+    F_ext = 9.813e3*0.99
+elseif β_gt == 1e3
+    F_ext = 9.813e3*1.0
+elseif β_gt == 5e3
+    F_ext = 9.813e3*1.01 # force applied to the cylinder in kg.mm/s^2 (N)
 
-  F_ext = 1e4 # force applied to the cylinder in kg.mm/s^2 (N)
+elseif β_gt == 2e3
+    F_ext = 9.813e3*0.995 # force applied to the cylinder in kg.mm/s^2 (N)
+elseif β_gt == 1e4
+    F_ext = 9.813e3*0.85*700 # force applied to the cylinder in kg.mm/s^2 (N)
+elseif β_gt == 1e5
+    F_ext = 9.813e3*0.85*7e3 # force applied to the cylinder in kg.mm/s^2 (N)
+elseif β_gt == 1e10
+    F_ext = 9.813e3*0.85*7e8 # force applied to the cylinder in kg.mm/s^2 (N)
+end
+
+  F_ext = 9.813e3 # force applied to the cylinder in kg.mm/s^2 (N)
   F::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
 #   F::Vector{Float64} = -0.6*ones(Float64, round(Int, (sim_time/t_steps))) # force applied to the cylinder in N
 
@@ -57,7 +58,7 @@ end
 function main()
 
   r::Float64 = 25   # radius of the cylinder in mm
-  h::Float64 = 40     # height of the cylinder in mm
+  h::Float64 = 38.5     # height of the cylinder in mm
   ndim::Int = 3
   FunctionClass_x::String = "Q2"
   FunctionClass_u::String = "Q2"
