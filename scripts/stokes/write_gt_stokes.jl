@@ -62,7 +62,7 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     params_list = Dict[]
     for viscosity_type in viscosity_type_list
         for FunctionClass_x in FunctionClass_x_gt_list
-            run_id = 4
+            run_id = 1
             for β_gt in β_gt_list
                 for η_gt in η_gt_list
                     F_ext = _get_F_ext(β_gt)
@@ -93,12 +93,23 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
         end
     end
 
+    @info "Built parameter list with $(length(params_list)) experiment configurations"
+    if !isempty(params_list)
+        @info "First experiment: η=$(params_list[1]["η_gt"]), β=$(params_list[1]["β_gt"]), filepath=$(params_list[1]["filepath_gt"])"
+    end
+
     # Run experiments in parallel or sequentially based on use_parallel flag
     if use_parallel
         run_param_list(params_list; max_workers=max_workers)
     else
-        for params in params_list
-            write_gt_data(params)
+        for (i, params) in enumerate(params_list)
+            @info "Sequential execution: calling write_gt_data for index $i / $(length(params_list))"
+            try
+                write_gt_data(params)
+                @info "Completed write_gt_data for index $i"
+            catch err
+                _handle_worker_error(err, i, params)
+            end
         end
         println("All experiments completed.")
     end
@@ -123,17 +134,22 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8)
         
         for w in 1:workers
             Threads.@spawn begin
-                while isopen(ch)
-                    idx = try
-                        take!(ch)
-                    catch
-                        break
+                try
+                    while true
+                        idx = take!(ch)  # Blocks until item available or channel closed
+                        
+                        try
+                            @info "Worker $w calling write_gt_data for index $idx"
+                            write_gt_data(params_list[idx])
+                            @info "Worker $w completed write_gt_data for index $idx"
+                        catch err
+                            _handle_worker_error(err, idx, params_list[idx])
+                        end
                     end
-                    
-                    try
-                        write_gt_data(params_list[idx])
-                    catch err
-                        _handle_worker_error(err, idx, params_list[idx])
+                catch e
+                    # EOFError is thrown when taking from closed channel with no items left
+                    if !isa(e, EOFError)
+                        @error "Worker $w encountered unexpected error" exception=e
                     end
                 end
             end

@@ -352,21 +352,21 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         H_β = abs(t∂2d[2,2])       # ∂²cost/∂β²
         
         # Geometric mean as a balanced reference scale
-        # α_i = min(1, H_geom_mean / H_i) means:
-        #  - If H_i ≈ H_geom_mean → α_i ≈ 1 (no damping)
-        #  - If H_i ≪ H_geom_mean → α_i ≪ 1 (heavy damping) ✓
-        #  - If H_i ≫ H_geom_mean → α_i ≈ 1 (clipped, no damping) ✓
+        # α_i = clamp(H_i / H_geom_mean, 0.1, 2.0) means:
+        #  - Never damp below 10% (min 0.1): prevents over-aggressive damping
+        #  - Allow up to 2x amplification (max 2.0): lets strong parameters take larger steps
+        #  - Armijo line search validates if oversized step works
         H_geom_mean = sqrt(H_η * H_β + 1e-20)  # Avoid underflow
         
-        α_η = min(1.0, H_geom_mean / (H_η + 1e-12))
-        α_β = min(1.0, H_geom_mean / (H_β + 1e-12))
+        α_η = clamp(H_η / (H_geom_mean + 1e-12), 0.1, 2.0)
+        α_β = clamp(H_β / (H_geom_mean + 1e-12), 0.1, 2.0)
         
-        # Log warnings if damping is significant
+        # Log whenever damping bounds are actually applied (α_i ≠ 1.0)
+        # This provides visibility into every iteration where step size is modified by clamping,
+        # not just at extreme Hessian ratios. Clamping bounds [0.1, 2.0] are applied every iteration.
         H_ratio = H_η / (H_β + 1e-12)
-        if H_ratio > 1e2
-            printstyled("  → β Hessian diagonal weak (H_η/H_β = $(round(H_ratio, sigdigits=3))), damping β step: α_β = $(round(α_β, sigdigits=3))\n", color=:yellow)
-        elseif H_ratio < 1e-2
-            printstyled("  → η Hessian diagonal weak (H_η/H_β = $(round(H_ratio, sigdigits=3))), damping η step: α_η = $(round(α_η, sigdigits=3))\n", color=:yellow)
+        if α_η < 0.99 || α_η > 1.01 || α_β < 0.99 || α_β > 1.01
+            printstyled("  Damping applied: α_η = $(round(α_η, sigdigits=3)), α_β = $(round(α_β, sigdigits=3)) (H_ratio = $(round(H_ratio, sigdigits=3)))\n", color=:yellow)
         end
         
         # Apply individual damping to each parameter's Newton step
