@@ -3,6 +3,7 @@ using Dates
 using Plots, Plots.PlotMeasures
 using LaTeXStrings
 using StatsPlots
+using LinearAlgebra
 
 # Helper function to compute F_ext based on penalty parameter
 function _get_F_ext(β_gt::Real)::Float64
