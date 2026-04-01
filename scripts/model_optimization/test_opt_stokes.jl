@@ -339,83 +339,83 @@ function optimize(exp_params::Dict)
                 β_start = β-dev_β
             end
 
-            # sampleNo = 7
-            # ηList = collect(range(η_start, stop=ηStop, length=sampleNo))
-            # βList = collect(range(β_start, stop=βStop, length=sampleNo))
-            # CostMat = zeros(size(ηList,1),size(βList,1))
-            # ∂CostMat = zeros(2,size(ηList,1),size(βList,1))
-            # ∂2CostMat = zeros(2,2,size(ηList,1),size(βList,1))
+            sampleNo = 7
+            ηList = collect(range(η_start, stop=ηStop, length=sampleNo))
+            βList = collect(range(β_start, stop=βStop, length=sampleNo))
+            CostMat = zeros(size(ηList,1),size(βList,1))
+            ∂CostMat = zeros(2,size(ηList,1),size(βList,1))
+            ∂2CostMat = zeros(2,2,size(ηList,1),size(βList,1))
 
-            # costη = zeros(size(ηList,1))
-            # costβ = zeros(size(βList,1))
+            costη = zeros(size(ηList,1))
+            costβ = zeros(size(βList,1))
 
-            # η_iter = 1:size(ηList,1)
-            # β_iter = 1:size(βList,1)
+            η_iter = 1:size(ηList,1)
+            β_iter = 1:size(βList,1)
 
-            # for i::Int in η_iter
-            #     η = ηList[i]
-            #     for j::Int in β_iter
-            #         β = βList[j]
-            #         reset_model!(model)
-            #         model.η = [η]
-            #         scene.β = [β]
-            #         μ_list, gradList, simBorderPts, fields_, pos3D_, pos2D_, splinex_, spliney_ = simulate(model, scene, conditions)
+            for i::Int in η_iter
+                η = ηList[i]
+                for j::Int in β_iter
+                    β = βList[j]
+                    reset_model!(model)
+                    model.η = [η]
+                    scene.β = [β]
+                    μ_list, gradList, simBorderPts, fields_, pos3D_, pos2D_, splinex_, spliney_ = simulate(model, scene, conditions)
                     
-            #         # test the closest point function
-            #         d, pairs = closest_point(simBorderPts, obs_border_pt_lst)
+                    # test the closest point function
+                    d, pairs = closest_point(simBorderPts, obs_border_pt_lst)
                     
-            #         CostMat[i,j] = sum(d)/length(d)
-            #     end
-            # end
+                    CostMat[i,j] = sum(d)/length(d)
+                end
+            end
             
-            # # Plot the cost function surface (interactive GLMakie)
-            # # set_plot(fs, sz=(plt_width, plt_height))
-            # # # CostMat is constructed as CostMat[i_eta, j_beta]; Makie expects Z with
-            # # # size (length(beta), length(eta)) => transpose CostMat for plotting.
-            # # # First attempt: save an interactive PlotlyJS HTML (avoids creating Makie figures)
-            # # try
-            # #     htmlpath = joinpath(exp_path, "Results", "plots", "cost_surface_iter_interactive.html")
-            # #     # compute overlay z-values for estimator path
-            # #     Z_for_interp = CostMat'
-            # #     zs_est = [interp_z_at(a, b, ηList, βList, Z_for_interp) for (a,b) in zip(ηpList, βpList)]
-            # #     # compute ground-truth z for legend/marker overlay
-            # #     z_gt = interp_z_at(η_gt, β_gt, ηList, βList, Z_for_interp)
-            # #     saved = save_plotly_surface_html(htmlpath, ηList, βList, CostMat'; xs=ηpList, ys=βpList, zs=zs_est, title="Cost surface (iter)", gt_x=η_gt, gt_y=β_gt, gt_z=z_gt, x_label = "\$\\eta\\;\\mathrm{(kPa\\, s)}\$", y_label = "\$\\beta\\;\\mathrm{(L/mm^{-1})}\$", font_size = fs, latex_labels=true)
-            # #     if saved
-            # #         @info "Saved interactive PlotlyJS HTML: $htmlpath"
-            # #     else
-            # #         @warn "PlotlyJS HTML not created; skipping interactive output. To enable interactive PNGs with GLMakie re-enable GLMakie manually."
-            # #     end
-            # # catch err
-            # #     @warn "PlotlyJS path failed; skipping interactive output. Error: $err"
-            # # end
+            # Plot the cost function surface (interactive GLMakie)
+            # set_plot(fs, sz=(plt_width, plt_height))
+            # # CostMat is constructed as CostMat[i_eta, j_beta]; Makie expects Z with
+            # # size (length(beta), length(eta)) => transpose CostMat for plotting.
+            # # First attempt: save an interactive PlotlyJS HTML (avoids creating Makie figures)
+            # try
+            #     htmlpath = joinpath(exp_path, "Results", "plots", "cost_surface_iter_interactive.html")
+            #     # compute overlay z-values for estimator path
+            #     Z_for_interp = CostMat'
+            #     zs_est = [interp_z_at(a, b, ηList, βList, Z_for_interp) for (a,b) in zip(ηpList, βpList)]
+            #     # compute ground-truth z for legend/marker overlay
+            #     z_gt = interp_z_at(η_gt, β_gt, ηList, βList, Z_for_interp)
+            #     saved = save_plotly_surface_html(htmlpath, ηList, βList, CostMat'; xs=ηpList, ys=βpList, zs=zs_est, title="Cost surface (iter)", gt_x=η_gt, gt_y=β_gt, gt_z=z_gt, x_label = "\$\\eta\\;\\mathrm{(kPa\\, s)}\$", y_label = "\$\\beta\\;\\mathrm{(L/mm^{-1})}\$", font_size = fs, latex_labels=true)
+            #     if saved
+            #         @info "Saved interactive PlotlyJS HTML: $htmlpath"
+            #     else
+            #         @warn "PlotlyJS HTML not created; skipping interactive output. To enable interactive PNGs with GLMakie re-enable GLMakie manually."
+            #     end
+            # catch err
+            #     @warn "PlotlyJS path failed; skipping interactive output. Error: $err"
+            # end
 
-            # # # Also produce static PDF outputs with Plots (preserve previous behavior)
-            # # try
-            # #     plt = set_plot(fs, sz=(plt_width, plt_height))
-            # #     Plots.contour!(plt, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
-            # #     Plots.plot!(plt, ηpList, βpList, label="Estimations", ms=:4, m=:x, color=:red)
-            # #     Plots.plot!(plt, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=def_red)
-            # #     Plots.xlabel!(plt, L"\eta\;\mathrm{[kPa\, s]}")
-            # #     Plots.ylabel!(plt, L"\beta\;\mathrm{(L/mm^{-1})}")
-            # #     Plots.savefig(plt, joinpath(exp_path,"Results","plots","cost_surface_iter.pdf"))
+            # # Also produce static PDF outputs with Plots (preserve previous behavior)
+            # try
+            #     plt = set_plot(fs, sz=(plt_width, plt_height))
+            #     Plots.contour!(plt, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
+            #     Plots.plot!(plt, ηpList, βpList, label="Estimations", ms=:4, m=:x, color=:red)
+            #     Plots.plot!(plt, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=def_red)
+            #     Plots.xlabel!(plt, L"\eta\;\mathrm{[kPa\, s]}")
+            #     Plots.ylabel!(plt, L"\beta\;\mathrm{(L/mm^{-1})}")
+            #     Plots.savefig(plt, joinpath(exp_path,"Results","plots","cost_surface_iter.pdf"))
 
-            # #     plt2 = set_plot(fs, sz=(plt_width, plt_height))
-            # #     Plots.contourf!(plt2, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
-            # #     Plots.plot!(plt2, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=def_red)
-            # #     Plots.xlabel!(plt2, L"\eta\;\mathrm{[kPa\, s]}")
-            # #     Plots.ylabel!(plt2, L"\beta\;\mathrm{(L/mm^{-1})}")
-            # #     Plots.savefig(plt2, joinpath(exp_path,"Results","plots","cost_surface.pdf"))
-            # # catch err
-            # #     @warn "Failed to produce static PDF contour outputs: $err"
-            # # end
+            #     plt2 = set_plot(fs, sz=(plt_width, plt_height))
+            #     Plots.contourf!(plt2, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
+            #     Plots.plot!(plt2, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=def_red)
+            #     Plots.xlabel!(plt2, L"\eta\;\mathrm{[kPa\, s]}")
+            #     Plots.ylabel!(plt2, L"\beta\;\mathrm{(L/mm^{-1})}")
+            #     Plots.savefig(plt2, joinpath(exp_path,"Results","plots","cost_surface.pdf"))
+            # catch err
+            #     @warn "Failed to produce static PDF contour outputs: $err"
+            # end
 
-            # # Write the results to files
-            # contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
+            # Write the results to files
+            contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
 
-            # write_json(joinpath(exp_path,"Results","data","contour_plot_params"), contour_plot_params)
+            write_json(joinpath(exp_path,"Results","data","contour_plot_params"), contour_plot_params)
 
-            # @save joinpath(exp_path,"Results","data","sim_data","Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
+            # @save joinpath(exp_path,"Results","data","sim_data","Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat 
         else
             n_samples = 10
             η_pred = zeros(Float64, n_samples)
@@ -4056,7 +4056,7 @@ function optimize_sim()
             filepath_gt = string(_filepath_gt,"/",dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
-                    noise_level_list = [0.0]
+                    noise_level_list = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
                 else
                     noise_level_list = [0.0]
                 end
