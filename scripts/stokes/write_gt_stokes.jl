@@ -121,6 +121,7 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8)
     
     workers = max(1, min(Threads.nthreads(), max_workers))
     @info "Running $(length(params_list)) experiments with $workers workers"
+    @warn "Note: Gmsh is not thread-safe. All Gmsh operations (mesh loading) are serialized via a lock.\n         If mesh generation is the bottleneck, consider using sequential execution: main(use_parallel=false)"
     
     # Set BLAS threads once before spawning tasks (not inside threads)
     LinearAlgebra.BLAS.set_num_threads(max(1, div(Threads.nthreads(), workers)))
