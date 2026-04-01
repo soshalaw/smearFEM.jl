@@ -146,17 +146,19 @@ function init_cylinder()
     d, ∂d, ∂2d, pairs = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
     totdinit::Float64 = sum(d)/length(d)
 
-    println("Ground truth : r = $r_gt, h = $h_gt")
+    printstyled("Ground truth: r = $(round(r_gt, sigdigits=4)), h = $(round(h_gt, sigdigits=4))\n", color=:green)
     θ = vcat(r,h)
     iter::Int = 1
     c_grad::Float64 = 1.0
-    println("Initial Error: ", totdinit)
+    printstyled("Initial error = $(round(totdinit, sigdigits=4))\n", color=:yellow)
     while true
+        printstyled("\n================ Iteration $iter ================", color=:blue)
+        println()
 
         t∂2d = zeros(size(∂2d[1]))
         t∂d = zeros(size(∂d[1]))
         
-        println("r: ", θ[1], " h: ", θ[2])
+        println("Current parameters: r = $(round(θ[1], sigdigits=4)), h = $(round(θ[2], sigdigits=4)), cost = $(round(totdinit, sigdigits=4))")
 
         len_d = length(d)
         szd = 1:len_d
@@ -167,12 +169,12 @@ function init_cylinder()
         end
 
         p = t∂2d\t∂d
-        α = 1
+        println("Newton step: [$(round(p[1], sigdigits=4)), $(round(p[2], sigdigits=4))]")
         
+        α = 1
         θ = θ - α*p
-
         val_check(θ)
-        # update the model parameters
+        
         r = θ[1]
         h = θ[2]
 
@@ -183,6 +185,7 @@ function init_cylinder()
 
         totd = sum(d)/len_d
         c_grad = abs(totdinit - totd)
+        c_grad_rel = c_grad / (abs(totdinit) + 1e-12)
         totdinit = totd
 
         iter = iter + 1
@@ -191,16 +194,18 @@ function init_cylinder()
         push!(hList,θ[2])
         push!(cost_list,totd)
         push!(iterList,iter)
-        println("iteration $iter: steps : $p, Error = $totd, Error gradient : $c_grad")
-        println(" ... ")
+        println("Result: r = $(round(θ[1], sigdigits=4)), h = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))")
+        println("Delta: Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))")
 
         if c_grad < 0.05
+            printstyled("[CONVERGED] Cost change = $(round(c_grad, sigdigits=3))\n", color=:green)
             break
         elseif iter ≥ 100
+            printstyled("[WARNING] MAX ITERATIONS (100) REACHED\n", color=:yellow)
             break
         end
-
     end
+    printstyled("\n========== Optimization Complete =========\n", color=:blue)
 end
 
 function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray},
@@ -227,6 +232,9 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
     ∂2d = zeros(0)  # Will be overwritten
     cost_trial = cost_prev
     
+    println("      Trial α    | Cost         | Δcost        | Required Decrease | Status")
+    println("      " * "-"^73)
+    
     for backtrack_iter in 1:max_backtracks
         θ_trial = θ_prev - α * p_damped
         val_check(θ_trial)
@@ -238,16 +246,23 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
         cost_trial = sum(d_trial) / len_d
         
         # Armijo condition: cost_trial ≤ cost_prev - c·α·||∇||²
+        Δcost = cost_prev - cost_trial
         sufficient_decrease = c * α * grad_prod
+        
+        status = Δcost ≥ sufficient_decrease ? "[ACCEPT]" : "[REJECT]"
+        println("      $(round(α, sigdigits=5)) | $(round(cost_trial, sigdigits=3)) | $(round(Δcost, sigdigits=3)) | $(round(sufficient_decrease, sigdigits=3)) | $status")
+        
         if cost_trial ≤ cost_prev - sufficient_decrease
+            println("      " * "-"^73)
+            printstyled("      [ACCEPT] Step accepted: α = $(round(α, sigdigits=5)), cost = $(round(cost_trial, sigdigits=4))\n", color=:green)
             return θ_trial, d_trial, ∂d, ∂2d, cost_trial, true
         end
         
         α *= 0.5  # Halve step size and retry
     end
     
-    # If all backtracks failed, accept last trial anyway (theoretical guarantee of bounded steps)
-    printstyled("⚠ Armijo: max backtracks reached, accepting last trial with α=$(round(α, sigdigits=3))\n", color=:yellow)
+    println("      " * "-"^73)
+    printstyled("      [WARNING] Max backtracks reached. Accepting last trial (α=$(round(α, sigdigits=5)), cost=$(round(cost_trial, sigdigits=4)))\n", color=:yellow)
     return θ_trial, d_trial, ∂d, ∂2d, cost_trial, false
 end
 
@@ -259,7 +274,10 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     """
     len_d_calc = 0
     
+    println("      Strategy: Try α=1.0 (full), then α=0.5 (half)")
+    
     # Try full step
+    println("      Trying α = 1.0 (full step)...")
     θ_trial = θ_prev - p_damped
     val_check(θ_trial)
     model.η = [θ_trial[1]]
@@ -268,12 +286,16 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     len_d_calc = length(d_trial)
     cost_trial = sum(d_trial) / len_d_calc
+    Δcost_full = cost_prev - cost_trial
+    println("        cost = $(round(cost_trial, sigdigits=4)), Δcost = $(round(Δcost_full, sigdigits=4))")
     
     if cost_trial < cost_prev
+        printstyled("        [ACCEPT] Cost decreased, accepting\n", color=:green)
         return θ_trial, d_trial, ∂d, ∂2d, cost_trial, true
     end
     
     # Try half step
+    println("      Trying α = 0.5 (half step)...")
     θ_trial = θ_prev - 0.5 * p_damped
     val_check(θ_trial)
     model.η = [θ_trial[1]]
@@ -281,12 +303,14 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
     d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     cost_trial_half = sum(d_trial) / len_d_calc
+    Δcost_half = cost_prev - cost_trial_half
+    println("        cost = $(round(cost_trial_half, sigdigits=4)), Δcost = $(round(Δcost_half, sigdigits=4))")
     
     if cost_trial_half < cost_prev
-        printstyled("  Line search: backtracked to α=0.5\n", color=:yellow)
+        printstyled("        [ACCEPT] Cost decreased, accepting\n", color=:green)
         return θ_trial, d_trial, ∂d, ∂2d, cost_trial_half, true
     else
-        printstyled("  ⚠ Warning: Full and half steps both increased cost, accepting half step\n", color=:yellow)
+        printstyled("        [WARNING] Neither step decreased cost. Accepting half step anyway.\n", color=:yellow)
         return θ_trial, d_trial, ∂d, ∂2d, cost_trial_half, false
     end
 end
@@ -302,7 +326,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
     cost_list = Vector{Float64}(undef,0)
     iterList = Vector{Float64}(undef,0)
     
-    @info "Initializing simulation with η: $(θ[1]), β: $(θ[2])"
+    printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
     μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
     d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     totdinit::Float64 = sum(d)/length(d)
@@ -314,19 +338,19 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
 
     iter::Int = 1
     c_grad::Float64 = 1.0
-    θ_prev = copy(θ)  # Track previous parameters for convergence check
     printstyled("Initial error = $totdinit\n", color=:yellow)
     while true
+        printstyled("\n==================== Iteration $iter ===================\n", color=:blue)
 
         reset_model!(model)
         t∂2d = zeros(size(∂2d[1]))
         t∂d = zeros(size(∂d[1]))
 
+        # Current state
         if iter == 1
-            printstyled("Starting optimization with η: $(θ[1]), β: $(θ[2])\n", color=:yellow)
-        else
-            printstyled("η: $(θ[1]), β: $(θ[2])\n", color=:yellow)
+            printstyled("Starting optimization\n", color=:yellow)
         end
+        println("Current parameters: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totdinit, sigdigits=4))")
 
         len_d = length(d)
         szd = 1:len_d
@@ -336,8 +360,11 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
             t∂d = t∂d + ∂d[i]
         end
 
+        # Compute Newton step
         p = t∂2d\t∂d
+        println("Newton step (undamped): [$(round(p[1], sigdigits=4)), $(round(p[2], sigdigits=4))]")
         
+        # Compute Hessian diagnostics and damping
         # Parameter-specific damping: avoid global condition number damping which over-constrains
         # well-conditioned directions. Instead, only damp directions with weak Hessian curvature.
         # 
@@ -350,57 +377,59 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         
         H_η = abs(t∂2d[1,1])       # ∂²cost/∂η²  
         H_β = abs(t∂2d[2,2])       # ∂²cost/∂β²
-        
-        # Geometric mean as a balanced reference scale
-        # α_i = clamp(H_i / H_geom_mean, 0.1, 2.0) means:
-        #  - Never damp below 10% (min 0.1): prevents over-aggressive damping
-        #  - Allow up to 2x amplification (max 2.0): lets strong parameters take larger steps
-        #  - Armijo line search validates if oversized step works
         H_geom_mean = sqrt(H_η * H_β + 1e-20)  # Avoid underflow
-        
-        α_η = clamp(H_η / (H_geom_mean + 1e-12), 0.1, 2.0)
-        α_β = clamp(H_β / (H_geom_mean + 1e-12), 0.1, 2.0)
-        
-        # Log whenever damping bounds are actually applied (α_i ≠ 1.0)
-        # This provides visibility into every iteration where step size is modified by clamping,
-        # not just at extreme Hessian ratios. Clamping bounds [0.1, 2.0] are applied every iteration.
         H_ratio = H_η / (H_β + 1e-12)
+        
+        # Apply clamping-based damping
+        # Damping factor: α = (target_relative_step × parameter) / |step|
+        # This ensures: |α × step| / parameter ≈ target_relative_step
+        target_rel_step = 0.15  # Target 15% relative change
+        scale_η = abs(θ[1]) + 1e-12
+        scale_β = abs(θ[2]) + 1e-12
+
+        # Relative Newton step (as % of parameter)
+        rel_step_η = abs(p[1]) / scale_η
+        rel_step_β = abs(p[2]) / scale_β
+
+        # Damping: if relative step is huge, clamp it, otherwise trust Hessian
+        α_η = clamp(target_rel_step / (rel_step_η + 1e-12), 0.01, 1.0)
+        α_β = clamp(target_rel_step / (rel_step_β + 1e-12), 0.01, 1.0)
+
+        println("Hessian diagnostics:")
+        println("  H_η = $(round(H_η, sigdigits=3)), H_β = $(round(H_β, sigdigits=3)), H_ratio = $(round(H_ratio, sigdigits=3))")
+        
+        # Log damping if applied
         if α_η < 0.99 || α_η > 1.01 || α_β < 0.99 || α_β > 1.01
-            printstyled("  Damping applied: α_η = $(round(α_η, sigdigits=3)), α_β = $(round(α_β, sigdigits=3)) (H_ratio = $(round(H_ratio, sigdigits=3)))\n", color=:yellow)
+            printstyled("  [WARNING] Damping factors: α_η = $(round(α_η, sigdigits=3)), α_β = $(round(α_β, sigdigits=3))\n", color=:yellow)
+        else
+            println("  Damping factors: α_η = $(round(α_η, sigdigits=3)), α_β = $(round(α_β, sigdigits=3)) (no damping needed)")
         end
         
-        # Apply individual damping to each parameter's Newton step
+        # Apply damping to Newton step
         p_damped = [α_η * p[1]; α_β * p[2]]
-        
-        println("iteration $iter: step = ", p, " (α_η = $(round(α_η, sigdigits=3)), α_β = $(round(α_β, sigdigits=3)))")
+        println("Damped step: [$(round(p_damped[1], sigdigits=4)), $(round(p_damped[2], sigdigits=4))]")
         
         # Store state before step for line search
         θ_prev = copy(θ)
         cost_prev = totdinit
         
-        # ============ LINE SEARCH (Armijo or Backtracking) ============
+        # ============ LINE SEARCH ============
+        println("Line search ($line_search_method):")
         if lowercase(line_search_method) == "armijo"
-            # Armijo line search with sufficient descent condition
             θ, d, ∂d, ∂2d, totd, ls_accepted = armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, ∂d, cost_prev, outliers=outliers)
-            if !ls_accepted
-                printstyled("  (Armijo condition: cost ≤ cost_prev - $(1e-4)·α·||∇||²)\n", color=:cyan)
-            end
         else
-            # Legacy backtracking line search (2 trials: full step, then half step)
             θ, d, ∂d, ∂2d, totd, ls_accepted = backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, cost_prev, outliers=outliers)
-            if !ls_accepted
-                printstyled("  (Backtracking: purely greedy criterion)\n", color=:magenta)
-            end
         end
-        # ========================================================
+        # ===============================
+        
         c_grad = abs(cost_prev - totd)
         c_grad_rel = c_grad / (abs(cost_prev) + 1e-12)  # Relative cost change
         totdinit = totd
         
-        # Compute relative parameter changes for convergence monitoring
+        # Compute relative parameter changes
         Δη_rel = abs(θ[1] - θ_prev[1]) / (abs(θ_prev[1]) + 1e-12)
         Δβ_rel = abs(θ[2] - θ_prev[2]) / (abs(θ_prev[2]) + 1e-12)
-        Δθ_max = max(Δη_rel, Δβ_rel)  # Maximum relative change
+        Δθ_max = max(Δη_rel, Δβ_rel)
 
         iter = iter + 1
         
@@ -409,36 +438,34 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         push!(cost_list,totd)
         push!(iterList,iter)
         
-        println("iteration $iter: steps : $p, Error = $totd, Error gradient : $c_grad (rel: $(round(c_grad_rel, sigdigits=3)))")
-        println("         | Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), max(Δθ) = $(round(Δθ_max, sigdigits=3))")
-        println(" ... ")
+        # Results summary
+        println("Result: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))")
+        println("Deltas: Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))")
 
-        # Convergence criteria: BOTH cost gradient AND parameter change must be small
-        # Use BOTH absolute and relative cost changes for robustness
-        cost_converged = (c_grad < 1e-3) && (c_grad_rel < 1e-4)  # Absolute AND relative
-        param_converged = Δθ_max < 1e-2                          # Relative parameter change < 1% excluded
+        # Check convergence
+        cost_converged = c_grad_rel < 1e-4  # Relative cost change < 0.01%
         
-        if cost_converged # && param_converged
-            printstyled("✓ Converged: cost_grad = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3))), max_param_change = $(round(Δθ_max, sigdigits=3))\n", color=:green)
+        if cost_converged
+            printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n", color=:green)
             break
-        elseif c_grad < 1e-3 && !cost_converged
-            printstyled("⚠ Absolute cost converged but relative cost still changing (c_grad_rel = $(round(c_grad_rel, sigdigits=3)))\n", color=:yellow)
         end
         
         if iter ≥ 100
-            printstyled("⚠ Max iterations reached (100)\n", color=:yellow)
+            printstyled("[WARNING] MAX ITERATIONS (100) REACHED\n", color=:yellow)
             break
         end
     end
+    
+    printstyled("\n========= Optimization Complete =========\n", color=:blue)
 
-    stats = Dict("η" => θ[1],
-                 "β" => θ[2],
-                 "ηList" => ηpList, 
-                 "βList" => βpList,
-                 "cost_list" => cost_list,
-                 "iterList" => iterList,
-                 "η" => θ[1],
-                 "β" => θ[2])
+    stats = Dict(
+        "η" => θ[1],
+        "β" => θ[2],
+        "ηList" => ηpList, 
+        "βList" => βpList,
+        "cost_list" => cost_list,
+        "iterList" => iterList
+    )
     return stats
 end
 
@@ -454,26 +481,26 @@ function val_check(v::Vector{Float64})
         if i == 1  # η parameter
             if v[i] < 0 
                 v[i] = abs(v[i])
-                printstyled("Warning: Negative η corrected to positive\n", color=:yellow)
+                printstyled("  [WARNING] η: Negative value corrected to positive\n", color=:yellow)
             end
             if v[i] < η_min
                 v[i] = η_min
-                printstyled("Warning: η below minimum, clamped to $η_min\n", color=:yellow)
+                printstyled("  [WARNING] η: Below minimum ($η_min), clamped\n", color=:yellow)
             elseif v[i] > η_max
                 v[i] = η_max
-                printstyled("Warning: η above maximum, clamped to $η_max\n", color=:yellow)
+                printstyled("  [WARNING] η: Above maximum ($η_max), clamped\n", color=:yellow)
             end
         elseif i == 2  # β parameter (penalty for slip condition)
             if v[i] < 0 
                 v[i] = abs(v[i])
-                printstyled("Warning: Negative β corrected to positive\n", color=:yellow)
+                printstyled("  [WARNING] β: Negative value corrected to positive\n", color=:yellow)
             end
             if v[i] < β_min
                 v[i] = β_min
-                printstyled("Warning: β below minimum, clamped to $β_min\n", color=:yellow)
+                printstyled("  [WARNING] β: Below minimum ($β_min), clamped\n", color=:yellow)
             elseif v[i] > β_max
                 v[i] = β_max
-                printstyled("Warning: β above maximum (no-slip limit), clamped to $β_max\n", color=:yellow)
+                printstyled("  [WARNING] β: Above maximum ($β_max, no-slip limit), clamped\n", color=:yellow)
             end
         end
     end
