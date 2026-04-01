@@ -39,7 +39,7 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Int = 16 # number of elements in the mesh for the ground truth
 
-    β_gt_list = [1e2, 500.0, 1e3, 5e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
+    β_gt_list = [0.01, 10.0, 50.0, 1e2, 500.0, 1e3, 5e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
 
     control = "force" # "force" or "velocity"
