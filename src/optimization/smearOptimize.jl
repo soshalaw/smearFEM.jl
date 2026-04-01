@@ -338,41 +338,41 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
 
         p = t∂2d\t∂d
         
-        # Check Hessian conditioning and apply parameter-specific damping
-        cond_H = cond(t∂2d)
+        # Parameter-specific damping: avoid global condition number damping which over-constrains
+        # well-conditioned directions. Instead, only damp directions with weak Hessian curvature.
+        # 
+        # Each Newton step is: p_i = (∂J/∂θ_i) / (∂²J/∂θ_i²)
+        # If ∂²J/∂θ_i² is small → p_i is large → needs damping
+        # If ∂²J/∂θ_i² is reasonable → p_i is reasonable → no damping needed
+        # 
+        # This avoids the issue with global κ(H) damping: if one parameter has huge curvature,
+        # it shouldn't penalize other parameters with normal curvature.
         
-        # Compute individual damping for η and β based on Hessian scaling
-        # If one parameter has much weaker second derivative, it needs more damping
         H_η = abs(t∂2d[1,1])       # ∂²cost/∂η²  
         H_β = abs(t∂2d[2,2])       # ∂²cost/∂β²
-        H_ratio = H_η / (H_β + 1e-12)  # Avoid division by zero
         
-        # Base damping from global condition number
-        α_base = 1.0
-        if cond_H > 1e4
-            α_base = 1.0 / sqrt(cond_H)
-            printstyled("Warning: Ill-conditioned Hessian κ(H) = $(round(cond_H, sigdigits=3))\n", color=:red)
-        elseif cond_H > 1e3
-            α_base = 1.0 / cbrt(cond_H)
-            printstyled("Hessian moderately ill-conditioned κ(H) = $(round(cond_H, sigdigits=3))\n", color=:yellow)
+        # Geometric mean as a balanced reference scale
+        # α_i = min(1, H_geom_mean / H_i) means:
+        #  - If H_i ≈ H_geom_mean → α_i ≈ 1 (no damping)
+        #  - If H_i ≪ H_geom_mean → α_i ≪ 1 (heavy damping) ✓
+        #  - If H_i ≫ H_geom_mean → α_i ≈ 1 (clipped, no damping) ✓
+        H_geom_mean = sqrt(H_η * H_β + 1e-20)  # Avoid underflow
+        
+        α_η = min(1.0, H_geom_mean / (H_η + 1e-12))
+        α_β = min(1.0, H_geom_mean / (H_β + 1e-12))
+        
+        # Log warnings if damping is significant
+        H_ratio = H_η / (H_β + 1e-12)
+        if H_ratio > 1e2
+            printstyled("  → β Hessian diagonal weak (H_η/H_β = $(round(H_ratio, sigdigits=3))), damping β step: α_β = $(round(α_β, sigdigits=3))\n", color=:yellow)
+        elseif H_ratio < 1e-2
+            printstyled("  → η Hessian diagonal weak (H_η/H_β = $(round(H_ratio, sigdigits=3))), damping η step: α_η = $(round(α_η, sigdigits=3))\n", color=:yellow)
         end
         
-        # Parameter-specific damping: if one Hessian diagonal dominates, damp that parameter more
-        α_η = α_base
-        α_β = α_base
-        
-        if H_ratio > 1e2  # η much larger than β in Hessian → β needs extra damping
-            α_β = α_base / sqrt(min(H_ratio, 1e4))  # Additional damp factor for β
-            printstyled("  → β gradient sensitivity weak (ratio H_η/H_β = $(round(H_ratio, sigdigits=3))), extra damping for β\n", color=:yellow)
-        elseif H_ratio < 1e-2  # β much larger than η in Hessian → η needs extra damping  
-            α_η = α_base / sqrt(min(1e4/H_ratio, 1e4))  # Additional damp factor for η
-            printstyled("  → η gradient sensitivity weak (ratio H_η/H_β = $(round(H_ratio, sigdigits=3))), extra damping for η\n", color=:yellow)
-        end
-        
-        # Apply parameter-specific damping
+        # Apply individual damping to each parameter's Newton step
         p_damped = [α_η * p[1]; α_β * p[2]]
         
-        println("iteration $iter: step = ", p, " (α_η = $(round(α_η, sigdigits=3)), α_β = $(round(α_β, sigdigits=3)), κ(H) = $(round(cond_H, sigdigits=3)))")
+        println("iteration $iter: step = ", p, " (α_η = $(round(α_η, sigdigits=3)), α_β = $(round(α_β, sigdigits=3)))")
         
         # Store state before step for line search
         θ_prev = copy(θ)
