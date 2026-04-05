@@ -49,7 +49,7 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
     
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
-    steps_gt::Int = 30 # number of time steps
+    steps_gt::Int = 30 # number of time steps[]
 
     obj_pose = zeros(Float64, 4, 4)
     obj_pose[1, 1] = -1.0
@@ -136,22 +136,25 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8)
         
         for w in 1:workers
             Threads.@spawn begin
-                try
-                    while true
+                while true
+                    try
                         idx = take!(ch)  # Blocks until item available or channel closed
-                        
-                        try
-                            @info "Worker $w calling write_gt_data for index $idx"
-                            write_gt_data(params_list[idx])
-                            @info "Worker $w completed write_gt_data for index $idx"
-                        catch err
-                            _handle_worker_error(err, idx, params_list[idx])
+                    catch e
+                        # EOFError or InvalidStateException when taking from closed/empty channel
+                        if isa(e, EOFError) || isa(e, InvalidStateException)
+                            break
+                        else
+                            @error "Worker $w encountered unexpected error" exception=e
+                            break
                         end
                     end
-                catch e
-                    # EOFError is thrown when taking from closed channel with no items left
-                    if !isa(e, EOFError)
-                        @error "Worker $w encountered unexpected error" exception=e
+                    
+                    try
+                        @info "Worker $w calling write_gt_data for index $idx"
+                        write_gt_data(params_list[idx])
+                        @info "Worker $w completed write_gt_data for index $idx"
+                    catch err
+                        _handle_worker_error(err, idx, params_list[idx])
                     end
                 end
             end
