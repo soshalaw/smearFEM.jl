@@ -3,13 +3,19 @@ using Plots
 using ArgCheck
 using NearestNeighbors
 
+"""
+    match_points(p_sim::AbstractMatrix{Float64}, p_obs::AbstractMatrix{Float64})
+
+Match simulation points to observation points using KDTree spatial indexing.
+
+# Arguments:
+- `p_sim::AbstractMatrix{Float64}` : Simulation points matrix of size [2 × n_sim]
+- `p_obs::AbstractMatrix{Float64}` : Observation points matrix of size [2 × n_obs]
+
+# Returns:
+- `pairs::Matrix{Int64}` : Point pairs array of size [n_sim × 2] where pairs[i,:] = [i, j] matches sim point i to obs point j
+"""
 function match_points(p_sim::AbstractMatrix{Float64},p_obs::AbstractMatrix{Float64})
-    """
-    Match simulation points to observation points using KDTree spatial indexing.
-    
-    Uses NearestNeighbors.jl KDTree for O(n log m) complexity instead of O(n*m) nested loop.
-    Speedup: 50-1000x faster than naive O(n²) search for point clouds with 100-10000+ points.
-    """
     simSize = size(p_sim,2)
     obsSize = size(p_obs,2)
     pairs = zeros(Int64, simSize, 2)
@@ -32,6 +38,22 @@ function match_points(p_sim::AbstractMatrix{Float64},p_obs::AbstractMatrix{Float
     return pairs
 end
 
+"""
+    closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; outliers::AbstractArray=[])
+
+Compute point-wise distance between simulation and observation frames without gradient information.
+
+For each frame pair, matches simulation points to observation points and computes the mean squared error.
+
+# Arguments:
+- `sim_frames::AbstractArray` : Vector of simulation point coordinates [2 × n_points for each frame]
+- `obs_frames::AbstractArray` : Vector of observation point coordinates [2 × n_points for each frame]
+- `outliers::AbstractArray` : Frame indices to skip
+
+# Returns:
+- `cost_list::Vector{Float64}` : Mean squared error for each frame
+- `[pairsList, norm_cost_list]` : Tuple containing point pairs and normalized costs for each frame
+"""
 function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; outliers::AbstractArray=[])
     # Define the cost function
     cost_list = Float64[]
@@ -66,6 +88,26 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; out
     return cost_list, [pairsList, norm_cost_list]
 end
 
+"""
+    closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dudθ::AbstractArray; outliers::AbstractArray=[])
+
+Compute point-wise distance with first and second derivatives for gradient-based optimization.
+
+For each frame pair, matches simulation points to observation points and computes the mean squared error
+along with its first and second derivatives with respect to optimization parameters.
+
+# Arguments:
+- `sim_frames::AbstractArray` : Vector of simulation point coordinates
+- `obs_frames::AbstractArray` : Vector of observation point coordinates
+- `dudθ::AbstractArray` : Gradient of simulation points w.r.t. parameters [2 × n_points × n_params per frame]
+- `outliers::AbstractArray` : Frame indices to skip
+
+# Returns:
+- `cost_list::Vector{Float64}` : Mean squared error for each frame
+- `dcost_list::Vector{Matrix}` : First derivative (gradient) w.r.t. parameters for each frame
+- `dcost2List::Vector{Matrix}` : Second derivative (Hessian) w.r.t. parameters for each frame
+- `pairsList` : Point correspondence pairs for each frame
+"""
 function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dudθ::AbstractArray; outliers::AbstractArray=[])
     # Define the cost function 
     cost_list = Float64[]
@@ -116,6 +158,17 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dud
     return cost_list, dcost_list, dcost2List, pairsList
 end
 
+"""
+    init_cylinder()
+
+Initialize and run a complete optimization cycle for cylinder geometry fitting.
+
+Creates a ground truth cylinder, initializes an optimization model, and iteratively refines
+cylinder radius and height using Newton's method until convergence or max iterations.
+
+# Returns:
+None. Prints optimization progress and final results to console.
+"""
 function init_cylinder()             
     scale = 100
     ne::Int = 4 # number of elements in the mesh for the ground truth
@@ -208,19 +261,40 @@ function init_cylinder()
     printstyled("\n========== Optimization Complete =========\n", color=:blue)
 end
 
+"""
+    armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, ∂d_prev, cost_prev; c=1e-4, max_backtracks=10, outliers=Int[])
+
+Armijo line search with sufficient descent condition for optimization.
+
+Implements Armijo backtracking to ensure acceptable step sizes that satisfy:
+cost(θ - α·p) ≤ cost_prev - c·α·||∇cost||²
+
+# Arguments:
+- `model::Stokes` : Finite element model
+- `scene::SqueezeFlow` : Squeeze flow problem setup
+- `conditions::Conditions` : Simulation conditions and settings
+- `obsBorderPts::Vector{AbstractArray}` : Observed border points
+- `θ_prev::Vector{Float64}` : Previous parameter values
+- `p_damped::Vector{Float64}` : Damped Newton step direction
+- `∂d_prev::Vector` : Previous gradient of cost
+- `cost_prev::Float64` : Previous cost value
+- `c::Float64` : Sufficient decrease parameter (default 1e-4, range [1e-4, 0.1])
+- `max_backtracks::Int` : Maximum backtracking iterations (default 10)
+- `outliers::Vector{Int}` : Frame indices to skip
+
+# Returns:
+- `θ_trial::Vector{Float64}` : New parameter values
+- `d_trial::Vector{Float64}` : Cost values at new point
+- `∂d::Vector` : Gradient of cost at new point
+- `∂2d::Vector` : Hessian of cost at new point
+- `cost_trial::Float64` : Cost value at trial point
+- `accepted::Bool` : Whether step was accepted by Armijo condition
+"""
 function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray},
                             θ_prev::Vector{Float64}, p_damped::Vector{Float64}, ∂d_prev::Vector, cost_prev::Float64;
                             c::Float64=1e-4, max_backtracks::Int=10, outliers::Vector{Int}=Int[])
-    """
-    Armijo line search with sufficient descent condition.
-    Accepts step if: cost(θ - α·p) ≤ cost_prev - c·α·||∇cost||²
-    
-    Parameters:
-      c: sufficient decrease parameter (default 1e-4, range [1e-4, 0.1])
-      max_backtracks: maximum backtracking iterations
-    
-    Returns: (θ_new, d_new, ∂d_new, ∂2d_new, cost_new, accepted)
-    """
+    # Armijo line search with sufficient descent condition.
+    # Accepts step if: cost(θ - α·p) ≤ cost_prev - c·α·||∇cost||²
     len_d = length(∂d_prev)
     α = 1.0
     grad_prod = sum(j -> dot(∂d_prev[j], ∂d_prev[j]), 1:len_d)  # ||∇cost||²
@@ -266,12 +340,36 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
     return θ_trial, d_trial, ∂d, ∂2d, cost_trial, false
 end
 
+"""
+    backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, cost_prev; outliers=Int[])
+
+Simple backtracking line search that tries full step, then half steps.
+
+A basic line search method for reference and comparison. Attempts α=1.0, then α=0.5 if cost didn't improve.
+No principled descent guarantee like Armijo condition.
+
+# Arguments:
+- `model::Stokes` : Finite element model
+- `scene::SqueezeFlow` : Squeeze flow problem setup
+- `conditions::Conditions` : Simulation conditions and settings  
+- `obsBorderPts::Vector{AbstractArray}` : Observed border points
+- `θ_prev::Vector{Float64}` : Previous parameter values
+- `p_damped::Vector{Float64}` : Damped Newton step direction
+- `cost_prev::Float64` : Previous cost value
+- `outliers::Vector{Int}` : Frame indices to skip
+
+# Returns:
+- `θ_trial::Vector{Float64}` : New parameter values
+- `d_trial::Vector{Float64}` : Cost values at new point
+- `∂d::Vector` : Gradient of cost at new point
+- `∂2d::Vector` : Hessian of cost at new point
+- `cost_trial::Float64` : Cost value at trial point
+- `accepted::Bool` : Whether step was accepted
+"""
 function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray},
                                θ_prev::Vector{Float64}, p_damped::Vector{Float64}, cost_prev::Float64; outliers::Vector{Int}=Int[])
-    """
-    Simple backtracking line search (original method - kept for reference/comparison).
-    Takes full step, then half step if needed. No principled descent guarantee.
-    """
+    # Simple backtracking line search (original method - kept for reference/comparison).
+    # Takes full step, then half step if needed. No principled descent guarantee.
     len_d_calc = 0
     
     println("      Strategy: Try α=1.0 (full), then α=0.5 (half)")
@@ -315,6 +413,32 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     end
 end
 
+"""
+    fit_model(model, scene, conditions, obsBorderPts, θ; outliers=Int[], line_search_method="armijo")
+
+Fit model parameters (viscosity and slip penalty) to observation data using Newton's method with damping.
+
+Performs iterative optimization using Newton steps with adaptive parameter-wise damping and line search
+to minimize the distance between simulated and observed border points.
+
+# Arguments:
+- `model::Stokes` : Finite element model to optimize
+- `scene::SqueezeFlow` : Squeeze flow problem setup
+- `conditions::Conditions` : Simulation conditions and output settings
+- `obsBorderPts::Vector{AbstractArray}` : Observed border points at each timestep
+- `θ::Vector{Float64}` : Initial parameter values [η, β] (viscosity, slip penalty)
+- `outliers::Vector{Int}` : Frame indices to exclude from cost computation
+- `line_search_method::String` : Line search strategy ("armijo" or "backtrack")
+
+# Returns:
+- `stats::Dict` : Optimization statistics containing:
+  - "η" : Final viscosity parameter
+  - "β" : Final slip penalty parameter
+  - "ηList" : History of viscosity values
+  - "βList" : History of slip penalty values
+  - "cost_list" : History of cost values
+  - "iterList" : Iteration numbers
+"""
 function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64};
                    outliers::Vector{Int}=Int[], line_search_method::String="armijo")
     reset_model!(model)
@@ -375,6 +499,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         # This avoids the issue with global κ(H) damping: if one parameter has huge curvature,
         # it shouldn't penalize other parameters with normal curvature.
         
+        condition_number = cond(t∂2d)
         H_η = abs(t∂2d[1,1])       # ∂²cost/∂η²  
         H_β = abs(t∂2d[2,2])       # ∂²cost/∂β²
         H_geom_mean = sqrt(H_η * H_β + 1e-20)  # Avoid underflow
@@ -383,20 +508,20 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         # Apply clamping-based damping
         # Damping factor: α = (target_relative_step × parameter) / |step|
         # This ensures: |α × step| / parameter ≈ target_relative_step
-        target_rel_step = 0.15  # Target 15% relative change
+        target_rel_step = 1.0 # Target 100% relative change
         scale_η = abs(θ[1]) + 1e-12
         scale_β = abs(θ[2]) + 1e-12
 
         # Relative Newton step (as % of parameter)
-        rel_step_η = abs(p[1]) / scale_η
-        rel_step_β = abs(p[2]) / scale_β
+        rel_step_η = 1 / scale_η
+        rel_step_β = 1 / scale_β
 
         # Damping: if relative step is huge, clamp it, otherwise trust Hessian
         α_η = clamp(target_rel_step / (rel_step_η + 1e-12), 0.01, 1.0)
         α_β = clamp(target_rel_step / (rel_step_β + 1e-12), 0.01, 1.0)
 
         println("Hessian diagnostics:")
-        println("  H_η = $(round(H_η, sigdigits=3)), H_β = $(round(H_β, sigdigits=3)), H_ratio = $(round(H_ratio, sigdigits=3))")
+        println("κ(H) = $(round(condition_number, sigdigits=3)), H_η = $(round(H_η, sigdigits=3)), H_β = $(round(H_β, sigdigits=3)), H_ratio = $(round(H_ratio, sigdigits=3))")
         
         # Log damping if applied
         if α_η < 0.99 || α_η > 1.01 || α_β < 0.99 || α_β > 1.01
@@ -469,10 +594,27 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
     return stats
 end
 
+"""
+    val_check(v::Vector{Float64})
+
+Enforce physical bounds on optimization parameters to prevent unbounded growth.
+
+Clamps parameter values to physically reasonable ranges and corrects negative values.
+
+# Arguments:
+- `v::Vector{Float64}` : Parameter vector [η, β] where:
+  - η is viscosity (Pa·s): clamped to [1e-3, 1e5]
+  - β is slip penalty parameter (L/mm): clamped to [1e-3, 1e8]
+
+# Returns:
+- `v::Vector{Float64}` : Bounded parameter vector
+
+# Bounds:
+- η (viscosity): typically 1e-3 to 1e5 Pa·s
+- β (penalty parameter): can be very large in no-slip cases (1e-3 to 1e8 L/mm)
+"""
 function val_check(v::Vector{Float64})
     # Enforce physical bounds on parameters to prevent unbounded growth
-    # η (viscosity): typically 1e-3 to 1e5 Pa·s
-    # β (penalty parameter): can be very large in no-slip cases (1e-3 to 1e8 L/mm)
     η_min, η_max = 1e-3, 1e5
     β_min, β_max = 1e-3, 1e8  # Allow very large β for strong no-slip conditions
     
@@ -506,38 +648,3 @@ function val_check(v::Vector{Float64})
     end
     return v
 end
-
-
-function height_sample(sim_frames::Vector{AbstractArray}, obs_frames::Vector{AbstractArray})
-
-    xSimintlst = AbstractArray[]
-    ySimintlst = AbstractArray[]
-    xObsintlst = AbstractArray[]
-    cost_list = Float64[]
-    for (obs_data, sim_data) in zip(obs_frames, sim_frames) # iterate over the scenes
-
-        xSim, ySim = filter_points(sim_data, 2048/2)
-        xObs, yObs = filter_points(obs_data, 2048/2)
-
-        xObsint = fit_curve(borderx=xObs, bordery=yObs, samples=ySim)
-
-        cost = 0
-        iter = 1:length(ySim)
-        for i in iter
-            error = (xSim[i] - xObsint[i])^2
-            cost += error
-        end
-
-        totPts = length(ySim)
-        mCost = cost/totPts
-
-        push!(cost_list, mCost)
-        push!(xSimintlst, xSim)
-        push!(ySimintlst, ySim)
-        push!(xObsintlst, xObsint)
-    end
-    return cost_list, xObsintlst, xSimintlst, ySimintlst
-end
-# animate_fields(filepath = string(conditions.filepath,"/Results/images"),fields2D=borderPts2DList, pObs=splinexObs, qObs=splineyObs)
-
-# init_cylinder()

@@ -38,7 +38,7 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     # parameters for the optimization
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
-    ne_gt::Int = 16 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 6 # number of elements in the mesh for the ground truth
 
     β_gt_list = [0.01, 10.0, 50.0, 1e2, 500.0, 1e3, 5e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
@@ -49,7 +49,7 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
     
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
-    steps_gt::Int = 300 # number of time steps
+    steps_gt::Int = 30 # number of time steps
 
     obj_pose = zeros(Float64, 4, 4)
     obj_pose[1, 1] = -1.0
@@ -84,7 +84,8 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
                         "steps_gt" => steps_gt,
                         "r" => r,
                         "h" => h,
-                        "camera_matrix" => camera_matrix
+                        "camera_matrix" => camera_matrix,
+                        "animate" => !use_parallel
                     )
                     push!(params_list, exp_params)
                     run_id = run_id + 1

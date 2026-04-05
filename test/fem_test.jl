@@ -33,13 +33,23 @@ using smearFEM
                 iter = 1:size(IEN,2)
                 for i in iter
                     coord = NodeList[:,IEN[i]]
-                    println(FunctionClass)
-                    N, dN = basis_function(coord[1],coord[2],coord[3], FunctionClass)
+                    ζ = (2 * coord[3] / lz) - 1
+                    N, dN = basis_function(coord[1],coord[2],ζ, FunctionClass)
                     @test findall(x->x==1,N)==[i]
                 end 
             end
         end
     end
+end
+
+@testset "testing basis function second derivatives" begin
+    N, dN, d2N = basis_function(0.0, nothing, nothing, "Q2"; second_derivatives=true)
+    @test d2N == [1.0, 1.0, -2.0]
+
+    N, dN, d2N = basis_function(0.0, 0.0, nothing, "Q1"; second_derivatives=true)
+    @test size(d2N) == (4, 3)
+    @test d2N[:, 1] == [0.0, 0.0, 0.0, 0.0]
+    @test d2N[:, 2] == [0.25, -0.25, 0.25, -0.25]
 end
 
 # test gaussian quadrature

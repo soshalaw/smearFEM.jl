@@ -5,13 +5,13 @@ using Parameters
 """ 
     assemble_system_A(mdl::Stokes)
 
-Assembles the finite element system. # Returns the global stiffness matrix
+Assembles the finite element system matrix for the velocity field.
 
 # Arguments:
 - `mdl::Stokes` : Material model
 
 # Returns:
-- `K::SparseMatrixCSC{Float64,Int64}{ndof,ndof}` : sparse stiffness matrix 
+- `K::SparseMatrixCSC{Float64,Int64}` : Sparse stiffness matrix
 """
 function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     # unpack the model parameters to local variables
@@ -229,6 +229,17 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     return K
 end
 
+"""
+    assemble_system_A_dense(mdl::Stokes)
+
+Assembles the finite element system matrix (dense format) for the velocity field.
+
+# Arguments:
+- `mdl::Stokes` : Material model
+
+# Returns:
+- `K::Matrix{Float64}` : Dense stiffness matrix of size [ndof, ndof]
+"""
 function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
     C::Matrix{Float64} = get_cMat(1.0,0.0,type="standard")
     IEN_u_rows::Int = size(IEN,1)
@@ -380,6 +391,17 @@ function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
     return K
 end
 
+"""
+    assemble_system_B(mdl::Stokes)
+
+Assembles the pressure-velocity coupling matrix (B matrix) for the Stokes system.
+
+# Arguments:
+- `mdl::Stokes` : Material model
+
+# Returns:
+- `K::SparseMatrixCSC{Float64,Int64}` : Sparse coupling matrix relating velocity and pressure degrees of freedom
+"""
 function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     # unpack the model parameters to local variables
     # this is done to avoid the need to pass the model object around
@@ -576,6 +598,17 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     return K
 end
 
+"""
+    assemble_system_B_dense(mdl::Stokes)
+
+Assembles the pressure-velocity coupling matrix (B matrix) in dense format for the Stokes system.
+
+# Arguments:
+- `mdl::Stokes` : Material model
+
+# Returns:
+- `K::Matrix{Float64}` : Dense coupling matrix of size [ndof_u, ndof_p]
+"""
 function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
 
     @unpack ne, ndim, nDof_u = mdl
@@ -729,14 +762,16 @@ function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
     return K
 end
 
-""" Apply the Neumann slip boundary conditions to the global stiffness matrix
+"""
+    apply_boundary_conditions(mdl::Stokes)
+
+Apply the Neumann slip boundary conditions to the global stiffness matrix.
 
 # Arguments:
 - `mdl::Stokes` : Material model
 
 # Returns:
-- `K: {[ndof,ndof] SparseMatrixCSC{Float64,Int64}}` : sparse stiffness matrix with the boundary conditions applied
-- `F: {[ndof] Vector{Float64}}` : force vector
+- `K::SparseMatrixCSC{Float64,Int64}` : Sparse stiffness matrix with boundary conditions applied
 """
 function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
 
@@ -904,6 +939,17 @@ function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     return  K
 end
 
+"""
+    apply_boundary_conditions_dense(mdl::Stokes)
+
+Applies the Neumann slip boundary conditions to the global stiffness matrix (dense format).
+
+# Arguments:
+- `mdl::Stokes` : Material model
+
+# Returns:
+- `K::Matrix{Float64}` : Dense stiffness matrix with boundary conditions applied
+"""
 function apply_boundary_conditions_dense(mdl::Stokes)::Matrix{Float64}
     @unpack ne, ndim, nDof_u = mdl
     @unpack NodeList, IEN_top, IEN_bottom, ID, FunctionClass, C_top, C_btm, W = mdl.mesh_u
@@ -1049,17 +1095,19 @@ function apply_boundary_conditions_dense(mdl::Stokes)::Matrix{Float64}
 end
 
 """
-set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
-Set the Dirichlet boundary conditions for the problem
+    set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
+
+Set the Dirichlet boundary conditions for the problem.
 
 # Arguments:
 - `mdl::Stokes` : Material model
 - `DENSE::Bool` : Flag to use dense matrices or sparse matrices
 
 # Returns:
-- `q_upper::Vector{Float64}` : vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-- `q_lower::Vector{Float64}` : vector of the Neumann boundary conditions (for ndof = 1) / Dirichlet boundary conditions lower surface (for ndof > 1)
-- `C_uc_cached::SparseMatrixCSC{Float64,Int64}` : onstraint matrix
+- `q_upper::Vector{Float64}` : Dirichlet boundary conditions upper surface
+- `q_side::Vector{Float64}` : Dirichlet boundary conditions side surface
+- `q_lower::Vector{Float64}` : Dirichlet boundary conditions lower surface
+- `C_uc::SparseMatrixCSC{Float64,Int64}` : Constraint matrix
 """
 function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
 
@@ -1143,19 +1191,21 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
 end
 
 """
-    get_η_power_law(t::Float64, F::Float64, R_0::Float64, H_0::Float64, η_0::Float64, n::Float64, K::Float64)
-Calculate the shear viscosity of the fluid.
+    get_η_power_law(t, F, R_0, H_0, η_0, n, K)
+
+Calculate the shear viscosity using the power law viscosity model.
+
 # Arguments:
-- `t` : time
-- `F::Float64` : force
-- `R_0::Float64` : initial radius
-- `H_0::Float64` : initial height
-- `η_0::Float64` : initial viscosity
-- `n::Float64` : power law index
-- `K::Float64` : consistency index
+- `t::Number` : time
+- `F::Number` : applied force
+- `R_0::Number` : initial radius
+- `H_0::Number` : initial height
+- `η_0::Number` : initial viscosity
+- `n::Number` : power law index
+- `K::Number` : consistency index
 
 # Returns:
-- `η::Float64` : shear viscosity
+- `η::Number` : shear viscosity
 """
 function get_η_power_law(t::T, F::U, R_0::V, H_0::W, η_0::X, n::Y, K::Z) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
 
@@ -1172,18 +1222,33 @@ function get_η_power_law(t::T, F::U, R_0::V, H_0::W, η_0::X, n::Y, K::Z) where
     return η(t)
 end
 
-function get_η_carraeu(H::T, H_dot::T, F::U, R::V) where {T<:Number,U<:Number,V<:Number}
-
-    η = 8/3*F*H^3/(π*R^4*H_dot)
-
-    return η
-end
-
 """
-function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                    nDof_p::Int64, β::Float64, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
+    def_problem(r, h, ne, η_0, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, cParam, control, viscosity_type, sim_time, t_steps; viscosity_model="power_law")
 
-Define the conditions and the parameters of the squueze flow problem considered.
+Define the conditions and parameters of the squeeze flow problem.
+
+# Arguments:
+- `r::Number` : Cylinder radius
+- `h::Number` : Cylinder height
+- `ne::Int64` : Number of elements in each direction
+- `η_0::Number` : Initial viscosity
+- `ndim::Int64` : Number of dimensions
+- `FunctionClass_u::String` : Basis function type for velocity field
+- `nDof_u::Int64` : Degrees of freedom per node for velocity
+- `FunctionClass_p::String` : Basis function type for pressure field
+- `nDof_p::Int64` : Degrees of freedom per node for pressure
+- `FunctionClass_x::String` : Basis function type for geometry
+- `β::Number` : Slip boundary condition parameter
+- `cParam::Vector{Float64}` : Control parameters (force or velocity)
+- `control::String` : Control type ("force" or "velocity")
+- `viscosity_type::String` : Viscosity type ("bulk_viscosity" or other)
+- `sim_time::Number` : Total simulation time
+- `t_steps::Number` : Time step size
+- `viscosity_model::String` : Viscosity model ("power_law" or "carreau")
+
+# Returns:
+- `stokes::Stokes` : The finite element model
+- `squeeze::SqueezeFlow` : The squeeze flow problem setup
 """
 function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
                     nDof_p::Int64, FunctionClass_x::String, β::Y, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X; viscosity_model::String="power_law") where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number}
@@ -1221,22 +1286,25 @@ return stokes, squeeze
 end
 
 """
-set_model(ne, NodeList, IEN, ndim, FunctionClass=FunctionClass_p_cached, nDof=1, ID=nothing, Young=1, ν=0.3)
+    set_model(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x; GMESH_MESH=true)
 
-Sets the model for the finite element method.
+Sets up the Stokes model for the finite element method.
+
 # Arguments:
-- `r::Number`: radius of the cylinder
-- `h::Number`: height of the cylinder
-- `ne::Int64`: number of elements in each direction
-- `η::Number`: dynamic viscosity
-- `ndim::Int64`: number of dimensions
-- `FunctionClass_u::String`: type of basis functions to be considered for the velocity field (Q1:quadratic or Q2:Lagrange)
-- `nDof_u::Int64`: number of degree of freedom per node for the velocity field
-- `FunctionClass_p::String`: type of basis functions to be considered for the pressure field (Q1:quadratic or Q2:Lagrange)
-- `nDof_p::Int64`: number of degree of freedom per node for the pressure field
+- `r::Number`: Radius of the cylinder
+- `h::Number`: Height of the cylinder
+- `ne::Int64`: Number of elements in each direction
+- `η::Vector{Float64}`: Dynamic viscosity values
+- `ndim::Int64`: Number of dimensions
+- `FunctionClass_u::String`: Type of basis functions for velocity field (Q1, Q2, S2)
+- `nDof_u::Int64`: Degrees of freedom per node for velocity field
+- `FunctionClass_p::String`: Type of basis functions for pressure field (Q1, Q2, S2)
+- `nDof_p::Int64`: Degrees of freedom per node for pressure field
+- `FunctionClass_x::String`: Type of basis functions for geometry (Q1, Q2, S2)
+- `GMESH_MESH::Bool`: Whether to use Gmsh for mesh generation
 
 # Returns:
-- `mdl::Stokes`: model for the finite element method
+- `mdl::Stokes`: The Stokes model for finite element analysis
 """ 
 function set_model(r::R, h::H, ne::Int64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
                 nDof_p::Int64, FunctionClass_x::String; GMESH_MESH::Bool=true)::Stokes where {R<:Number,H<:Number}
@@ -1268,23 +1336,28 @@ function set_model(r::R, h::H, ne::Int64, η::Vector{Float64}, ndim::Int64, Func
 end
 
 """
-simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
+    simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
-Simulate the Stokes problem for a given mesh over a given time period. 
+Simulate the Stokes problem for a given mesh over a given time period.
 
 # Arguments:
-- `mdl::Stokes`: Material model
-- `scene::SqueezeFlow`: Parameters for the squeeze flow problem
-- `conditions::Conditions` : External environmental conditions
+- `mdl::Stokes` : Finite element model
+- `scene::SqueezeFlow` : Parameters for the squeeze flow problem
+- `conditions::Conditions` : External environmental conditions and output settings
 
 # Returns:
-- `output::Vector{Float64}` : output of the simulation
-- `gradList`::Vector{Float64}` : gradient of the solution
-- `borderPts2DList::Vector{Matrix{Float64}}` : border points in 2D 
-- `displacement::Vector{Matrix{Float64}}` : displacement of the nodal points at each timestep
-- `surface_pts_3D::Vector{Matrix{Float64}}` : 3D ccordinates of the surface nodes at each timestep
-- `pos2D::Vector{Matrix{Float64}}` : 2D projection of the surface nodes at each timestep
-
+- `output::Vector{Float64}` : Output displacement values
+- `gradList::Vector{Matrix{Float64}}` : Gradient of the solution at each time step
+- `borderPts2DList::Vector{Matrix{Float64}}` : Border points in 2D at each time step
+- `displacement::Vector{Matrix{Float64}}` : Displacement of nodal points at each timestep
+- `surface_pts_3D::Vector{Matrix{Float64}}` : 3D coordinates of surface nodes at each timestep
+- `pos2D::Vector{Matrix{Float64}}` : 2D projection of surface nodes at each timestep
+- `pos3D::Vector{Matrix{Float64}}` : 3D mesh coordinates at each timestep
+- `splinep::Vector{Vector{Float64}}` : Spline x-coordinate samples
+- `splineq::Vector{Vector{Float64}}` : Spline y-coordinate samples
+- `velocity::Vector{Matrix{Float64}}` : Velocity field at each timestep
+- `pressure::Vector{Vector{Float64}}` : Pressure field at each timestep
+- `gradList_3d::Vector{Array{Float64,3}}` : 3D gradient tensor at each timestep
 """
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
@@ -1695,6 +1768,10 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         write_stokes_scene(string(conditions.filepath,"/data"), mdl.mesh_u.NodeList, mdl.mesh_u.IEN, NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, velocity, pressure, pos3D=pos3D)
     end
 
+    if conditions.WRITECONTOUR
+        write_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)
+    end
+    
     # write the data to a file
     if conditions.ANIMATE
         animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=IEN_u_cached, BorderNodes2D=borderPts2DList, fields2D=pos2D)
@@ -1702,9 +1779,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         if FunctionClass_x_cached == "S2"
             animate_fields(filepath = string(conditions.filepath,"/Results/images/cp"), Nodes=pos3D_cp, IEN=IEN_x_cp_cached)
         end
-    end
-    if conditions.WRITECONTOUR
-        write_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)
     end
     
     # plt = set_plot(12,legend_column=4)

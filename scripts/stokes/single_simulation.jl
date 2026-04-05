@@ -58,7 +58,7 @@ end
 function main()
 
   r::Float64 = 25   # radius of the cylinder in mm
-  h::Float64 = 38.5     # height of the cylinder in mm
+  h::Float64 = 40.0     # height of the cylinder in mm
   ndim::Int = 3
   FunctionClass_x::String = "Q2"
   FunctionClass_u::String = "Q2"

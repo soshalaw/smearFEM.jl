@@ -72,21 +72,6 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
         push!(right_border_nodes, max_node)
         left_border_pts[:,layers] = surface_pts_2d[:,min_node]         # left border nodes
         right_border_pts[:,layers] = surface_pts_2d[:,max_node]        # right border nodes
-        # if Layers == nNodes
-        #     nodeIdi = 1:size(nodes,2)
-        #     for nodeId in nodeIdi
-        #         if nodes[2,nodeId] > surface_pts_2d[2,min_node]    
-        #             push!(TopBorderNodes, (Layers-1)*szSide+nodeId)
-        #         end
-        #     end 
-        # elseif Layers == 1
-        #     nodeIdi = 1:size(nodes,2)
-        #     for nodeId in nodeIdi
-        #         if nodes[2,nodeId] < surface_pts_2d[2,min_node] 
-        #             push!(BottomBorderNodes, nodeId)
-        #         end
-        #     end 
-        # end
     end  
 
     border_pt_ids = vcat(left_border_nodes, top_bottom_nodes, right_border_nodes)
@@ -143,8 +128,11 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
     end
 
     hull = ch.ConvexHull(p)
-
-    border_pt_ids = ch.indices(hull)
+    hull_vertex_ids = ch.indices(hull)
+    
+    # Get all points on the convex hull boundary (including points on edges)
+    border_pt_ids = get_convex_hull_boundary_points(surface_pts_2d, hull_vertex_ids)
+    
     border_pts = surface_pts_2d[:,border_pt_ids]
     border_pts_sorted, border_pts_sorted_ids = sort_points(border_pts)
 
@@ -173,6 +161,63 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
             return border_pts_sorted, surface_pts_2d
         end
     end
+end
+
+function get_convex_hull_boundary_points(surface_pts_2d::AbstractMatrix{Float64}, hull_vertex_ids::Vector{Int64}; tol::Float64=1e-6)
+    """
+    Find all points on the convex hull boundary, including points on straight edges.
+    
+    For each edge of the hull, finds points that lie on (or very close to) that edge.
+    Returns: Sorted vector of all boundary point indices
+    """
+    n_vertices = length(hull_vertex_ids)
+    all_boundary_ids = Set(hull_vertex_ids)
+    
+    # Check each edge of the hull
+    for i in 1:n_vertices
+        v1_id = hull_vertex_ids[i]
+        v2_id = hull_vertex_ids[mod(i, n_vertices) + 1]
+        
+        v1 = surface_pts_2d[:, v1_id]
+        v2 = surface_pts_2d[:, v2_id]
+        
+        edge_vec = v2 - v1
+        edge_len = norm(edge_vec)
+        
+        if edge_len < tol
+            continue
+        end
+        
+        edge_dir = edge_vec / edge_len
+        
+        # Check all points to see if they lie on this edge
+        for j in 1:size(surface_pts_2d, 2)
+            if j == v1_id || j == v2_id
+                continue
+            end
+            
+            pt = surface_pts_2d[:, j]
+            
+            # Vector from v1 to point
+            to_pt = pt - v1
+            
+            # Project onto edge
+            proj_len = dot(to_pt, edge_dir)
+            
+            # Check if projection is within edge bounds and point is on the line
+            if proj_len >= -tol && proj_len <= edge_len + tol
+                # Point perpendicular distance to edge
+                proj_pt = v1 + proj_len * edge_dir
+                perp_dist = norm(pt - proj_pt)
+                
+                if perp_dist < tol
+                    push!(all_boundary_ids, j)
+                end
+            end
+        end
+    end
+    
+    return sort(collect(all_boundary_ids))
 end
 
 function get_sides(Data::Matrix{Float64})
