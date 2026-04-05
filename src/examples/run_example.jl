@@ -668,7 +668,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_data(string(filepath,"/data/sim_data/velocity_fields"), velocity)
     write_data(string(filepath,"/data/sim_data/pressure_fields"), pressure)
 
-    if _scene.viscosity_type == "bulk_viscosity"
+    if _scene.viscosity_type == "bulk_viscosity" && ANIMATE
         time = collect(Float64, range(scene.t_steps, stop=scene.sim_time, step=scene.t_steps))
         # println(size(model.η))
         # println(size(time))
