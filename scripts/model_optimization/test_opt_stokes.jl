@@ -682,7 +682,7 @@ function predict(filepath, filepath_gt)
     elem_size_folders = readdir(joinpath(filepath))
     println("Element size folders: $(elem_size_folders)")
     
-    sim_params = read_json(joinpath(filepath_gt,"data","sim_params.jld2")) 
+    sim_params = read_json(joinpath(filepath_gt,"data","sim_params")) 
 
     r::Float64 = sim_params["r"]
     h::Float64 = sim_params["h"]
@@ -4035,7 +4035,7 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise","1","2", "3", "5","4","7"]
+    avoid_dirs = ["3_less_noise", "7"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -4059,7 +4059,7 @@ function optimize_sim()
                         sim_time_exp_list = [5.0] #, 2.0, 10.0] # simulation time in seconds
                         # sim_time_exp_list = [20.0, 30.0] # simulation time in seconds
                     elseif noise_level == 0.0 && viscosity_type == "bulk_viscosity"
-                        sim_time_exp_list = [2.0, 5.0, 10.0] # simulation time in seconds
+                        sim_time_exp_list = [5.0] # simulation time in seconds
                     else
                         sim_time_exp_list = [5.0]  # simulation time in seconds
                     end
@@ -4170,7 +4170,7 @@ function optimize_real()
     window = "multi_window" # "multi_window" or "single_window"
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    avoid_dirs = ["3_less_noise","s","1","2","3"] #, "6", "7", "8", "9"]
+    avoid_dirs = ["3_less_noise","s"] #, "6", "7", "8", "9"]
 
     if model_type == "carreau" && viscosity_type == "bulk_viscosity"
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Carreau")
@@ -4230,9 +4230,9 @@ end
 function plot_()
     control::String = "force" # "force" or "velocity"
     viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
-    model_type::String = "Stokes" # "carreau" or "Stokes"
+    model_type::String = "carreau" # "carreau" or "Stokes"
     avoid_dirs = ["3_less_noise", "s","7"] #, "6", "7", "8", "9"]
-    data_type_list = ["physical"] # "synthetic", "simulated", "physical"
+    data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
 
     for data_type in data_type_list
         if data_type == "synthetic"
@@ -4267,7 +4267,7 @@ function plot_()
                 end
                 filepath_gt_dir = string(filepath_gt,"/$dir/")
                 filepath_res_dir = string(filepath_res,"/$dir/")
-                predict(filepath_res_dir, filepath_gt_dir)
+                # predict(filepath_res_dir, filepath_gt_dir)
                 replot(filepath_res_dir, filepath_gt_dir)
             end
             if viscosity_type == "constant"
@@ -4285,4 +4285,4 @@ end
 optimize_sim()
 # optimize_syn()
 # optimize_real()
-plot_()
+# plot_()

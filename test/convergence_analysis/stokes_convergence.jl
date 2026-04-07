@@ -1,6 +1,7 @@
-# test 3D FEM solution for 2x2x2 elements
-using smearFEM
+# Convergence analysis for 3D Stokes FEM solutions
+# Analyzes both mesh convergence and time integration convergence
 
+using smearFEM
 using Plots
 using LinearAlgebra
 using DelimitedFiles
@@ -10,229 +11,197 @@ using Plots.PlotMeasures
 using LaTeXStrings
 using Dates
 using Statistics
-using LaTeXStrings
+using Printf
 
-global fs::Int = 10
-global plt_height::Int = 360
-global plt_width::Int = 330
-global plt_lft_margin = -6pt
-global plt_right_margin = 10pt
-global plt_top_margin = -3pt
+# ============================================================================
+# Plot configuration constants
+# ============================================================================
+const PLOT_CONFIG = Dict(
+    :font_size => 10,
+    :plot_height => 360,
+    :plot_width => 330,
+    :left_margin => -6pt,
+    :right_margin => 10pt,
+    :top_margin => -3pt
+)
 
 
-function main()
-    # test case 
-    scale = 50
-    r = 0.5*scale  # radius of the cylinder in mm
-    h = 1*scale  # height of the cylinder in mm
-    ne = 4
-    ndim = 3
-    FunctionClass_x = "Q2"
-    FunctionClass_u = "Q2"
-    FunctionClass_p = "Q1"
-    nDof_u = ndim  # number of degree of freedom per node
-    nDof_p = 1
+# ============================================================================
+# Simulation configuration helpers
+# ============================================================================
 
-    # β_list = [1e-5 10 100 500 1000 1e5]
-    β_list = [1e1, 1e2, 1e3, 1e5]
-    exp_ne = [2, 4, 8]  # number of elements in radial and height directions,
-
-    ν = 40.0
-    μu_tp = -1.0
-    μu_btm = 0
-    μu_side = 0
-
-    camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-    camera_pose = scale*[0 -0.5 2.75]'   # camera position in mm
-
-    # error_iga_list = zeros(length(exp_ne),length(β_list))
-    # error_fem_list = zeros(length(exp_ne),length(β_list))
-    error_dif_list = zeros(length(exp_ne),length(β_list))
-
-    contour_error_list = zeros(length(exp_ne),length(β_list))
-    contour_error_list_iga = zeros(length(exp_ne),length(β_list))
-    contour_error_list_fem = zeros(length(exp_ne),length(β_list))
-
-    contour_pts_error_list = zeros(length(exp_ne),length(β_list))
-    contour_pts_error_list_iga = zeros(length(exp_ne),length(β_list))
-    contour_pts_error_list_fem = zeros(length(exp_ne),length(β_list))
-
-    # q_ref, model_ref = simulate_single_tstep_stokes(r, h, 16, ν, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-                                            # μu_side, FunctionClass_x="Q2")
-    set_plot(22)
-    filepath = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/convergence_analysis/stokes_convergence/single_step"
-    counter::Int = 1
-    for (j,β) in enumerate(β_list)  
-        # read nutils data
-        gt_filepath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen/slip_$counter/"
-        @info "reading nutils files from $gt_filepath"
-        
-        sol_u_df = CSV.read(string(gt_filepath,"sol_u.csv"), DataFrame; header=false)
-        sol_u = Matrix{Float64}(sol_u_df)
-
-        node_list_df = CSV.read(string(gt_filepath,"node_list.csv"), DataFrame; header=false)
-        node_list = Matrix{Float64}(node_list_df)
-
-        new_node_list = node_list + sol_u
-
-        BorderPts2D, SurfacePts2D_fem = extract_borders(new_node_list', camera_matrix, camera_pose)
-        
-        # display(Plots.plot!(BorderPts2D[1,:],BorderPts2D[2,:],label="gt"))
-        pi, qi = fit_curve(border=BorderPts2D)
-        # set_plot(22)
-        display(Plots.plot!(pi,qi,label="gt"))
-        for (i, ne) in enumerate(exp_ne)     
-            
-            println("Running for ne = $ne and β = $β")
-
-            # check if the nodes are the same
-            q_fem, model_fem = simulate_single_tstep_stokes(r, h, ne, ν, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-                                                    μu_side, FunctionClass_x="Q2")
-
-            new_nodes_FEM = model_fem.mesh_x.NodeList + q_fem
-
-            BorderPts2D_fem, SurfacePts2D_fem = extract_borders(new_nodes_FEM, camera_matrix, camera_pose, BorderNodesList = model_fem.mesh_u.side_nodes)
-            pi_fem, qi_fem = fit_curve(border=BorderPts2D_fem)
-
-            q_iga, model_iga = simulate_single_tstep_stokes(r, h, ne, ν, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-                                                    μu_side, FunctionClass_x="S2")
-
-            T = Matrix{Float64}(I, size(model_iga.mesh_u.NodeList,2), size(model_iga.mesh_u.NodeList,2))
-            if model_iga.mesh_x.FunctionClass == "S2" && model_iga.mesh_u.FunctionClass != "S2"
-                T = get_nurbs_2_lagrange_proj(model_iga.mesh_x.IEN, model_iga.mesh_u.IEN, model_iga.mesh_x.C_vol, model_iga.mesh_x.NodeList, model_iga.mesh_x.W)
-            end
-            T_ = T'*inv((T*T'))
-
-            q_iga_proj = q_iga*T_*T
-            NodeList_iga_proj = model_iga.mesh_x.NodeList*T
-            IEN_iga_proj = model_iga.mesh_u.IEN
-
-            new_nodes_iga = (model_iga.mesh_x.NodeList + q_iga*T_)*T
-
-            BorderPts2D_iga, SurfacePts2D_iga = extract_borders(new_nodes_iga, camera_matrix, camera_pose, BorderNodesList = model_iga.mesh_u.side_nodes)
-            pi_iga, qi_iga = fit_curve(border=BorderPts2D_iga)
-
-            @assert size(model_fem.mesh_x.NodeList) == size(NodeList_iga_proj) "NodeList sizes do not match"
-            iter = 1:size(NodeList_iga_proj, 2)
-
-            # display(Plots.plot!(pi_iga,qi_iga,label="IGA, ne = $ne"))
-            d, pairs = closest_point([vcat(pi_iga', qi_iga')], [vcat(pi_fem', qi_fem')])
-            d_iga, pairs_iga = closest_point([vcat(pi_iga', qi_iga')], [vcat(pi', qi')])
-            d_fem, pairs_fem = closest_point([vcat(pi_fem', qi_fem')], [vcat(pi', qi')])
-            
-            pts_d, pts_pairs = closest_point([BorderPts2D_iga], [vcat(pi_fem', qi_fem')])
-            pts_d_iga, pts_pairs_iga = closest_point([BorderPts2D_iga], [vcat(pi', qi')])
-            pts_d_fem, pts_pairs_fem = closest_point([BorderPts2D_fem], [vcat(pi', qi')])
-
-            norm_cost = pairs[2]
-            norm_cost_iga = pairs_iga[2]
-            norm_cost_fem = pairs_fem[2]
-
-            norm_pts_cost = pts_pairs[2]
-            norm_pts_cost_iga = pts_pairs_iga[2]
-            norm_pts_cost_fem = pts_pairs_fem[2]
-            
-            error_iga = 0.0
-            error_fem = 0.0
-            error_dif = 0.0
-            for i in iter
-                # if β == 1e-5
-                #     r_iga = sqrt(NodeList_iga_proj[1,i]^2 + NodeList_iga_proj[2,i]^2)
-                #     r_fem = sqrt(model_fem.mesh_x.NodeList[1,i]^2 + model_fem.mesh_x.NodeList[2,i]^2)
-
-                #     error_iga = error_iga + abs(sqrt(q_iga_proj[1,i]^2 + q_iga_proj[2,i]^2) + 0.5*μu_tp*r_iga/h)
-                #     error_fem = error_fem + abs(sqrt(q_fem[1,i]^2 + q_fem[2,i]^2) + 0.5*μu_tp*r_fem/h)
-                # else
-                # error_iga = error_iga + abs(sqrt(q_iga_proj[1,i]^2 + q_iga_proj[2,i]^2) - sqrt(q_ref[1,i]^2 + q_ref[2,i]^2))
-                # error_fem = error_fem + abs(sqrt(q_fem[1,i]^2 + q_fem[2,i]^2) - sqrt(q_ref[1,i]^2 + q_ref[2,i]^2))
-                # end
-
-                # compare with the solution from the compatible Lagrange mesh
-                error_dif = error_dif + abs(sqrt(q_iga_proj[1,i]^2 + q_iga_proj[2,i]^2) - sqrt(q_fem[1,i]^2 + q_fem[2,i]^2))
-            end
-
-            # error_iga_list[i] = error_iga/length(iter)
-            # error_fem_list[i] = error_fem/length(iter)\
-            error_dif_list[i,j] = error_dif/length(iter)
-
-            contour_error_list[i,j] = sum(norm_cost)
-            contour_error_list_iga[i,j] = sum(norm_cost_iga)
-            contour_error_list_fem[i,j] = sum(norm_cost_fem)
-
-            contour_pts_error_list[i,j] = sum(norm_pts_cost)
-            contour_pts_error_list_iga[i,j] = sum(norm_pts_cost_iga)
-            contour_pts_error_list_fem[i,j] = sum(norm_pts_cost_fem)
-
-        end
-        counter = counter + 1
-    end
-    set_file(filepath)
-    write_csv(string(filepath,"/error_dif"),error_dif_list)
-    write_csv(string(filepath,"/contour_pts_error"),contour_pts_error_list)
-    write_csv(string(filepath,"/contour_pts_error_fem"),contour_pts_error_list_fem)
-    write_csv(string(filepath,"/contour_pts_error_iga"),contour_pts_error_list_iga)
-    write_csv(string(filepath,"/contour_error"),contour_error_list)
-    write_csv(string(filepath,"/contour_error_fem"),contour_error_list_fem)
-    write_csv(string(filepath,"/contour_error_iga"),contour_error_list_iga)
-
-    plotpath = string(filepath,"/plots")
-    set_file(plotpath) # create the directory to store the VTK files
-
-    # set_plot(22)
-    # Plots.plot!(exp_ne, error_iga_list, label="IGA", marker_shape=:circle, yscale=:log10, xlabel="Number of elements (ne)", ylabel="Average error")
-    # Plots.plot!(exp_ne, error_fem_list, label="FEM", marker_shape=:diamond, yscale=:log10, xlabel="Number of elements (ne)", ylabel="Average error")
-    # Plots.savefig(string(plotpath,"/stokes_convergence.pdf"))
-
-    plt1 = set_plot(22)
-    for (j,β) in enumerate(β_list)
-        Plots.plot!(plt1, exp_ne, error_dif_list[:,j], label="β=$(β)", yscale=:log10, xlabel="Number of elements (ne)", ylabel="normalized error")
-    end
-    Plots.savefig(plt1, string(plotpath,"/stokes_pts_convergence_difference.pdf"))
-
-    plt2 = set_plot(22)
-    for (j,β) in enumerate(β_list)
-        Plots.plot!(plt2, exp_ne, contour_pts_error_list[:,j], label="β=$(β)", yscale=:log10, xlabel="Number of elements (ne)", ylabel="Normalized error")
-    end
-    Plots.savefig(plt2, string(plotpath,"/stokes_pts_contour_convergence_difference.pdf"))
-
-    plt3 = set_plot(22)
-    for (j,β) in enumerate(β_list)
-        Plots.plot!(plt3, exp_ne, contour_pts_error_list_iga[:,j], label="IGA, β=$(β)", yscale=:log10, legend_column=2)
-        Plots.plot!(plt3, exp_ne, contour_pts_error_list_fem[:,j], label="FEM, β=$(β)", yscale=:log10, legend_column=2)
-        Plots.xlabel!(plt3, "Number of elements (ne)")
-        Plots.ylabel!(plt3, "Normalized error")
-    end
-    Plots.savefig(plt3, string(plotpath,"/stokes_pts_contour_convergence.pdf"))
-
-    plt5 = set_plot(22)
-    for (j,β) in enumerate(β_list)
-        Plots.plot!(plt5, exp_ne, contour_error_list[:,j], label="β=$(β)", yscale=:log10, xlabel="Number of elements (ne)", ylabel="Normalized error")
-    end
-    Plots.savefig(plt5, string(plotpath,"/stokes_contour_convergence_difference.pdf"))
-
-    plt4 = set_plot(22)
-    for (j,β) in enumerate(β_list)
-        Plots.plot!(plt4, exp_ne, contour_error_list_iga[:,j], label="IGA, β=$(β)", yscale=:log10, legend_column=2)
-        Plots.plot!(plt4, exp_ne, contour_error_list_fem[:,j], label="FEM, β=$(β)", yscale=:log10, legend_column=2)
-        Plots.xlabel!(plt4, "Number of elements (ne)")
-        Plots.ylabel!(plt4, "Normalized error")
-    end
-    Plots.savefig(plt4, string(plotpath,"/stokes_contour_convergence.pdf"))
-
+function get_object_pose(height::Float64)
+    """Returns object pose matrix."""
+    obj_pose = zeros(Float64, 4, 4)
+    obj_pose[1,1] = -1.0
+    obj_pose[2,3] = -1.0
+    obj_pose[3,2] = -1.0
+    obj_pose[1:3,4] = [0.0, height/2, 150.0]
+    return obj_pose
 end
 
-function mesh_convergence_analysis()
+function get_camera_matrix()
+    """Returns camera matrix for rendering."""
+    return [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+end
+
+# ============================================================================
+# Plotting utilities
+# ============================================================================
+
+function setup_plot_config(; left_margin=nothing, right_margin=nothing, top_margin=nothing)
+    """Configure plot with standard settings."""
+    figsize = (PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height])
+    lm = left_margin !== nothing ? left_margin : PLOT_CONFIG[:left_margin]
+    rm = right_margin !== nothing ? right_margin : PLOT_CONFIG[:right_margin]
+    tm = top_margin !== nothing ? top_margin : PLOT_CONFIG[:top_margin]
+    
+    return Plots.set_plot(PLOT_CONFIG[:font_size], 
+                          sz=figsize, 
+                          left_margin=lm,
+                          right_margin=rm,
+                          top_margin=tm)
+end
+
+function fit_convergence_rate(x_vals::Vector, y_vals::Vector)
+    """Fit convergence rate using linear regression in log-log space.
+    
+    Returns: (intercept, convergence_rate)
+    """
+    log_x = log.(x_vals)
+    log_y = log.(y_vals)
+    A = [ones(length(log_x)) log_x]
+    coeffs = A \ log_y
+    return coeffs[1], coeffs[2]
+end
+
+function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::String, 
+                                  output_path::String, filename::String; 
+                                  reference_shift::Float64=0.4)
+    """Generic function to plot convergence with fitted line.
+    
+    Arguments:
+    - x_vals: x-axis values (h for mesh, Δt for time)
+    - y_vals: error values
+    - x_label: label for x-axis
+    - output_path: directory to save plot
+    - filename: output filename
+    - reference_shift: factor to shift reference line
+    """
+    # Filter valid data
+    valid_idx = findall(x -> !isnan(x) && !isinf(x) && x > 0, y_vals)
+    y_vals_clean = y_vals[valid_idx]
+    x_vals_clean = x_vals[valid_idx]
+    
+    if length(y_vals_clean) < 2
+        @warn "Not enough valid data points for plotting"
+        return
+    end
+    
+    # Fit convergence rate
+    intercept, convergence_rate = fit_convergence_rate(x_vals_clean, y_vals_clean)
+    
+    # Generate reference line
+    x_min = minimum(x_vals_clean)
+    x_max = maximum(x_vals_clean)
+    x_line = range(x_min, x_max, length=100)
+    y_ref_line = exp.(intercept .+ convergence_rate .* log.(x_line))
+    x_line_offset = x_line .* reference_shift
+    
+    # Create plot
+    conv_rate_str = @sprintf("%.2f", convergence_rate)
+    plt = setup_plot_config()
+    
+    Plots.plot!(plt, x_vals_clean, y_vals_clean, 
+                label="Error", mode="markers",
+                xlabel=x_label, ylabel="Absolute Relative Error",
+                marker=:circle, markersize=4, markerstrokewidth=1.5, color=:steelblue,
+                yscale=:log10, xscale=:log10)
+    Plots.plot!(plt, x_line_offset, y_ref_line, 
+                label=latexstring("O(\$h^{$conv_rate_str}\$)"),
+                line=2, linewidth=2.5, color=:darkorange, 
+                yscale=:log10, xscale=:log10, linestyle=:dot)
+    
+    @info "Convergence rate: O(h^$(conv_rate_str))"
+    
+    # Save plot
+    mkpath(output_path)
+    Plots.savefig(plt, joinpath(output_path, filename))
+end
+
+# ============================================================================
+# Main analysis functions
+# ============================================================================
+
+function generate_mesh_geo(radius::Float64, height::Float64, elem_size::Float64, output_path::String, template_path::String)
+    """Generate mesh.geo file from template with specified parameters.
+    
+    Returns true if a new mesh.geo was generated, false if existing file has correct parameters.
+    """
+    # Check if file already exists with correct parameters
+    if isfile(output_path)
+        try
+            content = read(output_path, String)
+            has_radius = contains(content, "radius = $radius;")
+            has_height = contains(content, "height = $height;")
+            has_elem_size = contains(content, "elem_size_2d = $elem_size;")
+            
+            if has_radius && has_height && has_elem_size
+                @info "mesh.geo already exists with correct parameters (radius=$radius, height=$height, elem_size=$elem_size), skipping generation"
+                return false
+            end
+        catch
+            # If error reading, regenerate
+        end
+    end
+    
+    # Read the template mesh.geo file
+    template_content = read(template_path, String)
+    
+    # Replace parameters in the template
+    geo_content = replace(template_content, 
+        "radius = 25.0;" => "radius = $radius;",
+        "height = 40.0;" => "height = $height;",
+        "elem_size_2d = 10;" => "elem_size_2d = $elem_size;")
+    
+    # Write the modified content to the output path
+    write(output_path, geo_content)
+    @info "Generated mesh.geo at $output_path from template $template_path"
+    return true
+end
+
+function run_gmsh(geo_path::String, msh_path::String, mesh_order::Int=2)
+    """Run gmsh to generate mesh from .geo file"""
+    # Check if gmsh is available
+    gmsh_path = Sys.which("gmsh")
+    if gmsh_path === nothing
+        @warn "gmsh executable not found in PATH. Please install gmsh or add it to PATH."
+        return false
+    end
+    
+    cmd = `$gmsh_path $geo_path -3 -format msh -order $mesh_order -o $msh_path`
+    @info "Running gmsh: $cmd"
+    try
+        run(cmd)
+        @info "Mesh generated: $msh_path"
+        return true
+    catch e
+        @error "Failed to run gmsh: $e"
+        return false
+    end
+end
+
+function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, elem_sizes::Vector=[10, 8, 6, 4], 
+                                  template_mesh_geo_path::String="/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/test/convergence_analysis/mesh.geo")
 
     height_list = AbstractArray[]
-    height_error_list = AbstractArray[]
-    border_error_list = Float16[]
+    height_error_list = Float64[]
+    border_error_list = Float64[]
+    effective_element_size_list = Float64[]
     μ_list = AbstractArray[]
     time_list = []
 
-    r::Float64 = 25.0  # radius of the cylinder in mm
-    h::Float64 = 40.0  # height of the cylinder in mm
-
-    β::Float64 = 1e3 # penalty parameter for the ground truth
+    β::Float64 = 100.0 # penalty parameter for the ground truth
     η::Float64 = 100.0
 
     viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
@@ -240,116 +209,206 @@ function mesh_convergence_analysis()
     FunctionClass_p::String = "Q1"
     FunctionClass_u::String = "Q2"
     control::String = "force" # "force" or "velocity"
-    nDof_u::Int = 3
-    nDof_p::Int = 1
-    ndim::Int = 3
 
-    F_ext::Float64 = 9.813e3*1.75 # force applied to the cylinder in N
-    sim_time::Float64 = 1.0 # simulation time in seconds
-    step_size = 1.0 # time step size in seconds
+    F_ext::Float64 = 9518.61 # force applied to the cylinder in N
+    sim_time::Float64 = 5.0 # simulation time in seconds
+    step_size = 0.1 # time step size in seconds
     steps = round(Int, sim_time/step_size)  
 
-    obj_pose = zeros(Float64, 4, 4)
-    obj_pose[1,1] = -1.0
-    obj_pose[2,3] = -1.0
-    obj_pose[3,2] = -1.0
-    obj_pose[1:3,4] = [0.0, h/2, 150.0]
-    camera_matrix::AbstractMatrix{Float64} = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
+    obj_pose = get_object_pose(height)
+    camera_matrix = get_camera_matrix()
     filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis")
 
-    conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=false, filepath=filepath, ANIMATE=true)
-    F = -F_ext*ones(Float64, round(Int, steps)) # force applied to the cylinder in N
+    volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
 
-    # model_ref, scene_ref = def_problem(r, h, 2, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
-    #                                     sim_time, step_size)
-
-    # est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model_ref, scene_ref, conditions)   
-
-    mesh_sz_ = [2, 4, 6, 8, 10] # number of elements in the mesh for the convergence analysis, ne = ne_exp^refine
-    mesh_sz = reverse(mesh_sz_)
+    mesh_dir = dirname(filepath)
+    set_file(mesh_dir)  # create the directory if it doesn't exist
+    
     iter_index = 1
-    h_ref = 0.0
+    h_ref = 37.514580952625970
     border_ref = []
-    for mesh in mesh_sz
-        println("Running for mesh size = $mesh")
+    
+    for elem_size in Float64.(elem_sizes)
+        println("Running for element size = $elem_size")
         t_start = Dates.now()
-        # run the simulation for the given mesh size and store the results
-        # model, scene = def_problem(r, h, mesh, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
-                                    # sim_time, step_size)
-                                    # conditions.filepath = filepath
-                                    # est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq, elapsed_time = stokes_single_step_force(model, scene, conditions)
-                                    # est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(model, scene, conditions)   
-        filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/convergence_analysis/mesh_$mesh")
-        exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_gt" => mesh, "β_gt" => β, 
-                    "η_gt" => η, "filepath_gt"=>filepath, "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
-                    "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, "r" => r, "h" => h, "camera_matrix" => camera_matrix)
+        
+        # Define mesh paths
+        mesh_path = joinpath(mesh_dir, "convergence_analysis","mesh_convergence_analysis","mesh_$elem_size", "mesh.geo")
+        mesh_msh_path_x = joinpath(dirname(mesh_path), "cylinder_x_$elem_size.msh")
+        mesh_msh_path_p = joinpath(dirname(mesh_path), "cylinder_p_$elem_size.msh")
+        
+        # Create directory and check/generate mesh.geo (returns true if newly generated)
+        set_file(dirname(mesh_path))
+        mesh_generated = generate_mesh_geo(radius, height, elem_size, mesh_path, template_mesh_geo_path)
+        
+        # Only run gmsh if mesh.geo was newly generated or msh files don't exist
+        if mesh_generated || !isfile(mesh_msh_path_x) || !isfile(mesh_msh_path_p)
+            if !run_gmsh(mesh_path, mesh_msh_path_x, 2) || !run_gmsh(mesh_path, mesh_msh_path_p, 1) 
+                @error "Mesh generation failed for element size $elem_size"
+                continue
+            end
+        else
+            @info "Mesh files already exist with correct parameters, skipping gmsh"
+        end
+        
+        # Run simulation with the generated mesh
+        mesh_filepath = dirname(mesh_path)
+        exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => FunctionClass_u, "FunctionClass_p" => FunctionClass_p, 
+                         "ne_gt" => elem_size, "β_gt" => β, "η_gt" => η, "filepath_gt" => joinpath(mesh_filepath, "simulation"), 
+                         "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
+                         "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
+                         "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => true, "mesh_path" => mesh_filepath)
 
-        write_gt_data(exp_params)
+        try
+            write_gt_data(exp_params)
+        catch e
+            @error "Simulation failed for element size $elem_size" exception=e
+            continue
+        end
 
         t_end = Dates.now()
         elapsed_time = t_end - t_start
         
-        h_mesh = readdlm(joinpath(filepath,"data","h.csv"), ',', Float64)
-        symBorderPts, _, _ = read_csv(joinpath(filepath,"data","sim_data","2D_border_points"))
-
-        if iter_index == 1
-            @info "Setting reference height and border points for error calculation"
-            h_ref = h_mesh
-            border_ref = symBorderPts
-        end
-        δh = abs.(h_ref - h_mesh)
-        d, _ = closest_point(symBorderPts, border_ref)
-
-        println("Height error: ", δh)
-        push!(height_list, h_mesh)
-        push!(height_error_list, δh)
-        push!(border_error_list, sum(d)/length(d))
-        # push!(μ_list, est_μ_list)
-        push!(time_list, elapsed_time.value/steps)
-        iter_index += 1
+        # Read results
+        # try
+            exp_params = read_json(joinpath(mesh_filepath, "simulation", "data", "sim_params.jld2"))
+            h_mesh = readdlm(joinpath(mesh_filepath, "simulation", "data","h.csv"), ',', Float64)
+            symBorderPts, _, _ = read_csv(joinpath(mesh_filepath, "simulation", "data","sim_data","2D_border_points"))
+            
+            ne = exp_params["ne"]
+            effective_element_size = (volume / ne)^(1/3)
+            
+            δh = abs(h_mesh[end] - h_ref) / h_ref
+            
+            println("Height error: ", δh)
+            push!(effective_element_size_list, effective_element_size)
+            push!(height_list, h_mesh)
+            push!(height_error_list, δh)
+            # push!(border_error_list, sum(d)/length(d))
+            push!(time_list, elapsed_time.value/steps)
+            iter_index += 1
+        # catch e
+        #     @warn "Failed to read results for element size $elem_size: $e"
+        # end
     end
-
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/effective_element_size", effective_element_size_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_list", height_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_error_list", height_error_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/border_error_list", border_error_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/μ_list", μ_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/mesh_sz", mesh_sz)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/elem_sizes", elem_sizes)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/time_list", time_list)
 end
 
-function plot_convergence(file_path::String)
-    height_list = readdlm(joinpath(file_path,"height_list.csv"), ',', Float64)
-    height_error_list = readdlm(joinpath(file_path,"height_error_list.csv"), ',', Float64)
-    border_error_list = readdlm(joinpath(file_path,"border_error_list.csv"), ',', Float64)
-    mesh_sz = readdlm(joinpath(file_path,"mesh_sz.csv"), ',', Float64)
-    time_list = readdlm(joinpath(file_path,"time_list.csv"), ',', Float64)
-    time_list_sec = time_list ./ 1e3 # convert time from milliseconds to seconds
-    plot_path = joinpath(file_path, "plots")
-    set_file(plot_path) # create the directory to store the plots
+function time_intergration_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, dt_list::Vector=[0.5, 0.1, 0.05, 0.025, 0.0125], 
+                                  template_mesh_geo_path::String="/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/test/convergence_analysis/mesh.geo")    
+    height_list = AbstractArray[]
+    height_error_list = Float64[]
+    effective_element_size_list = Float64[]
 
-    mesh_sz = mesh_sz[2:(end-1),:]
-    height_error_list = height_error_list[2:(end-1),:]
-    height_list = height_list[2:(end-1),:]
-    time_list_sec = time_list_sec[2:(end-1),:]
-    border_error_list = border_error_list[2:(end-1),:]
+    β::Float64 = 100.0 # penalty parameter for the ground truth
+    η::Float64 = 100.0
 
-    mean_height_error = mean(height_error_list, dims=2)
-    mean_height = mean(height_list, dims=2)
-    plt1 = set_plot(fs, sz=(plt_width, plt_height))
-    Plots.plot!(plt1, mesh_sz, (mean_height_error[:,1]/mean_height[1,1])*100, label=false, xlabel="Mesh size", ylabel=latexstring("Relative height error \$[\\%]\$"), marker=:circle, ms=2, yscale=:log10)
-    Plots.xticks!(plt1, mesh_sz[:,1])
-    Plots.savefig(plt1, string(plot_path,"/height_convergence.pdf"))
+    viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
+    FunctionClass_x::String = "Q2" # Function space for the ground truth
+    FunctionClass_p::String = "Q1"
+    FunctionClass_u::String = "Q2"
+    control::String = "force" # "force" or "velocity"
 
-    plt2 = set_plot(fs, sz=(plt_width, plt_height))
-    Plots.plot!(plt2, mesh_sz, border_error_list, label=false, xlabel="Mesh size", ylabel="Error", marker=:circle, ms=2)
-    Plots.xticks!(plt2, mesh_sz[:,1])
-    Plots.savefig(plt2, string(plot_path,"/border_convergence.pdf"))
+    F_ext::Float64 = 9518.61 # force applied to the cylinder in N
+    sim_time::Float64 = 5.0 # simulation time in seconds
 
-    plt3 = set_plot(fs, sz=(plt_width, plt_height))
-    Plots.plot!(plt3, mesh_sz, time_list_sec, label=false, xlabel="Mesh size", ylabel="Time (s)", yscale=:log10, marker=:circle, ms=2)
-    Plots.xticks!(plt3, mesh_sz[:,1])
-    Plots.savefig(plt3, string(plot_path,"/time_convergence.pdf"))
+    obj_pose = get_object_pose(height)
+    camera_matrix = get_camera_matrix()
+    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis")
+ 
+    volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
+    
+    mesh_dir = dirname(filepath)
+    set_file(mesh_dir)  # create the directory if it doesn't exist
+    
+    iter_index = 1
+    h_ref = 37.514669827538519
+    
+    mesh_filepath = joinpath(mesh_dir, "convergence_analysis", "mesh_convergence_analysis", "mesh_4.0")
+    filepath = joinpath(mesh_dir, "convergence_analysis", "time_integration_convergence_analysis")
+    
+    for step_size in Float64.(dt_list)
+        println("Running for time step size = $step_size")
+        steps = round(Int, sim_time/step_size)
+        
+        # Run simulation with the generated mesh
+        exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => FunctionClass_u, "FunctionClass_p" => FunctionClass_p, 
+                         "ne_gt" => 4, "β_gt" => β, "η_gt" => η, "filepath_gt" => joinpath(filepath, "step_$step_size", "simulation"), 
+                         "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
+                         "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
+                         "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => true, "mesh_path" => mesh_filepath)
+
+        # try
+            write_gt_data(exp_params)
+        # catch e
+        #     @error "Simulation failed for time step size $step_size" exception=e
+        #     continue
+        # end
+        
+        # Read results
+        try
+            exp_params = read_json(joinpath(mesh_filepath, "simulation", "data", "sim_params.jld2"))
+            h_mesh = readdlm(joinpath(mesh_filepath, "simulation", "data","h.csv"), ',', Float64)
+            
+            ne = exp_params["ne"]
+            effective_element_size = (volume / ne)^(1/3)
+
+            δh = abs(h_mesh[end] - h_ref) / h_ref
+            
+            println("Height error: ", δh)
+            push!(effective_element_size_list, effective_element_size)
+            push!(height_list, h_mesh[end])
+            push!(height_error_list, δh)
+            iter_index += 1
+        catch e
+            @warn "Failed to read results for time step size $step_size: $e"
+        end
+    end
+
+    write_csv(string(filepath,"/height_list"), height_list)
+    write_csv(string(filepath,"/height_error_list"), height_error_list)
 end
 
-mesh_convergence_analysis()
-plot_convergence("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 
+function plot_convergence_mesh(file_path::String)
+    """Plot mesh convergence analysis results."""
+    try
+        height_error_list = readdlm(joinpath(file_path, "height_error_list.csv"), ',', Float64)
+        elem_sizes = readdlm(joinpath(file_path, "effective_element_size.csv"), ',', Float64)
+        
+        relative_error = vec(height_error_list[:, end])
+        elem_sizes_flat = vec(elem_sizes[:, 1])
+        
+        plot_path = joinpath(file_path, "plots")
+        plot_convergence_generic(elem_sizes_flat, relative_error, "Effective element size (h)", 
+                                plot_path, "height_convergence.pdf")
+    catch e
+        @warn "Failed to plot mesh convergence: $e"
+    end
+end
+
+function plot_convergence_time(file_path::String, dt_list::Vector=[0.5, 0.1, 0.05, 0.025, 0.0125])
+    """Plot convergence results for time integration analysis."""
+    try
+        height_error_list = readdlm(joinpath(file_path, "height_error_list.csv"), ',', Float64)
+        
+        relative_error = vec(height_error_list[:])
+        dt_sizes = Float64.(dt_list)
+        
+        plot_path = joinpath(file_path, "plots")
+        plot_convergence_generic(dt_sizes, relative_error, "Time step size (Δt)", 
+                                plot_path, "time_integration_convergence.pdf")
+    catch e
+        @warn "Failed to plot time integration convergence: $e"
+    end
+end
+
+time_intergration_convergence_analysis()
+plot_convergence_time("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/constant/Q2/convergence_analysis/time_integration_convergence_analysis")
+# mesh_convergence_analysis()
+# plot_convergence_mesh("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 

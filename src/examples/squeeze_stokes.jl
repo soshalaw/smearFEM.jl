@@ -106,63 +106,39 @@ function assemble_system_A(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     
     # Pre-compute basis function class flags (moved out of loop to avoid repeated string conversions)
     use_QQ_basis = (string(FunctionClass_x_cached[1]) == "Q" && string(FunctionClass_u_cached[1]) == "Q")
-    use_SS_basis = (string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "S")
-    use_SQ_basis = (string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "Q")
     
-    # element loop
-    for e::Int in e_iter
-        coords::Matrix{Float64} = NodeList_x_cached[:, IEN_x_cached[:, e]]  # Get the coordinates of the nodes of the element
-        # integration loop
-        for gp::Int in gpiter
-            if ndim_cached == 1
-                N_u, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached) # add function type
-            elseif ndim_cached == 2
-                if use_QQ_basis
-                    # basis functions for fields
-                    N_u, ΔN = basis_function(x[gp], y[gp], FunctionClass_u_cached) 
-                    # basis functions for geometry
-                    N_x, ΔN_x = N_u, ΔN
-                elseif use_SS_basis
-                    # basis functions for geometry
-                    N_x, ΔN_x = basis_function(x[gp], y[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached)
-                    # basis functions for fields
-                    N_u, ΔN_u = basis_function(x[gp], y[gp], C_vol_u_cached[:,:,e], W_u_cached[IEN_u_cached[:,e]], FunctionClass_u_cached)
-                elseif use_SQ_basis
-                    # basis functions for geometry
-                    N_x, ΔN_x = basis_function(x[gp], y[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
-                    # basis functions for fields
-                    N_u, ΔN_u = basis_function(x[gp], y[gp], FunctionClass_u_cached) 
-                end
-            elseif ndim_cached == 3
-                if use_QQ_basis
-                    # basis functions for fields
-                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached) 
-                    # basis functions for geometry
-                    N_x, ΔN_x = N_u, ΔN_u
-                elseif use_SS_basis
-                    # basis functions for geometry
-                    N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached)
-                    # basis functions for fields
-                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], C_vol_u_cached[:,:,e], W_u_cached[IEN_u_cached[:,e]], FunctionClass_u_cached)
-                elseif use_SQ_basis
-                    # basis functions for geometry
-                    N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
-                    # basis functions for fields
-                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached) 
-                end
-            end
+    # integration loop
+    for gp::Int in gpiter
+        if ndim_cached == 1
+            N_u, ΔN_u = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached) # add function type
+            N_x, ΔN_x = N_u, ΔN_u
+        elseif ndim_cached == 2
+            # basis functions for fields
+            N_u, ΔN_u = basis_function(x[gp], y[gp], FunctionClass_u_cached) 
+            # basis functions for geometry
+            N_x, ΔN_x = N_u, ΔN_u
+        elseif ndim_cached == 3
+            # basis functions for fields
+            N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached) 
+            # basis functions for geometry
+            N_x, ΔN_x = N_u, ΔN_u
+        end
 
-            dNdX_u = zeros(Float64, size(N_u, 1), ndim_cached) # Gradient of basis functions
-            if nDof_u_cached == 2
-                B = zeros(Float64, ndim*length(N_u), 3)
-            elseif nDof_u_cached == 3
-                B = zeros(Float64, ndim*length(N_u), 6)
-            end
+        dNdX_u = zeros(Float64, size(N_u, 1), ndim_cached) # Gradient of basis functions
+        if nDof_u_cached == 2
+            B = zeros(Float64, ndim_cached*length(N_u), 3)
+        elseif nDof_u_cached == 3
+            B = zeros(Float64, ndim_cached*length(N_u), 6)
+        end
 
-            szB::Int = size(B, 1)  # Number of basis functions
-            Ke = zeros(Float64, szB, szB)  # Element stiffness matrix
-            Ke_row::Int, Ke_col::Int = szB, szB
-            Ke_len::Int = length(Ke)  
+        szB::Int = size(B, 1)  # Number of basis functions
+        Ke = zeros(Float64, szB, szB)  # Element stiffness matrix
+        Ke_row::Int, Ke_col::Int = szB, szB
+        Ke_len::Int = length(Ke) 
+
+        # element loop
+        for e::Int in e_iter
+            coords::Matrix{Float64} = NodeList_x_cached[:, IEN_x_cached[:, e]]  # Get the coordinates of the nodes of the element
 
             mul!(Jac, coords, ΔN_x)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
             w::Float64 = wpoints[gp] * abs(det(Jac))
@@ -241,6 +217,9 @@ Assembles the finite element system matrix (dense format) for the velocity field
 - `K::Matrix{Float64}` : Dense stiffness matrix of size [ndof, ndof]
 """
 function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
+    @unpack ne, ndim, nDof_u = mdl
+    @unpack NodeList, IEN, ID, FunctionClass, C_vol, C_top, C_btm, W = mdl.mesh_u
+    
     C::Matrix{Float64} = get_cMat(1.0,0.0,type="standard")
     IEN_u_rows::Int = size(IEN,1)
     ID_u_rows::Int = size(ID,1)
@@ -249,7 +228,7 @@ function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
         sz = ne^ndim*IEN_u_rows # no elements x no nodes
         K = zeros(Float64, sz,sz)
     else
-        sz = nDof_u*(nNodes)^ndim # no elements x no nodes x no dofs
+        sz = nDof_u*(ne)^ndim # no elements x no nodes x no dofs
         K = zeros(Float64, sz,sz)  
     end
 
@@ -503,56 +482,41 @@ function assemble_system_B(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     e_iter = 1:ne_cached    # iterator for elements loop
     gpiter = 1:length(wpoints)  # iterator for integration loop
     
-    # Pre-compute basis function class flags for 3D case (moved out of loop to avoid repeated string conversions)
-    use_QQQ_basis = (ndim_cached == 3 && string(FunctionClass_x_cached[1]) == "Q" && string(FunctionClass_u_cached[1]) == "Q" && string(FunctionClass_p_cached[1]) == "Q")
-    use_SSS_basis = (ndim_cached == 3 && string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "S" && string(FunctionClass_p_cached[1]) == "S")
-    use_SQQ_basis = (ndim_cached == 3 && string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "Q" && string(FunctionClass_p_cached[1]) == "Q")
-    
-    # element loop
     vol = 0.0
-    for e::Int in e_iter
-        # println("IEN_x_cached[:, $e]: ", IEN_x_cached[:, e])
-        coords::Matrix{Float64} = NodeList_x_cached[:, IEN_x_cached[:, e]]  # Get the coordinates of the nodes of the element
-        # integration loop
-        for gp::Int in gpiter
-            if ndim_cached == 1
-                N_u, ΔN_u = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
-                N_p, ΔN_p = basis_function(x[gp], nothing, nothing, FunctionClass_p_cached)
-            elseif ndim_cached == 2
-                N_u, ΔN_u = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached)
-                N_p, ΔN_p = basis_function(x[gp], y[gp], nothing, FunctionClass_p_cached)
-            elseif ndim_cached == 3
-                if use_QQQ_basis
-                    # basis functions for fields
-                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached)
-                    N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
-                    # basis functions for geometry
-                    N_x, ΔN_x = N_u, ΔN_u 
-                elseif use_SSS_basis
-                    # basis functions for geometry
-                    N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
-                    # basis functions for fields
-                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], C_vol_u_cached[:,:,e], W_u_cached[IEN_u_cached[:,e]], FunctionClass_u_cached) 
-                    N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], C_vol_p_cached[:,:,e], W_p_cached[IEN_p_cached[:,e]], FunctionClass_p_cached) 
-                elseif use_SQQ_basis
-                    # basis functions for geometry
-                    N_x, ΔN_x = basis_function(x[gp], y[gp], z[gp], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached) 
-                    # basis functions for fields
-                    N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached)
-                    N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
-                end
-            end
-            dNdX_u = zeros(Float64, size(ΔN_u, 1), ndim_cached) # Gradient of basis functions
-            Be = zeros(Float64, 1, 3*size(dNdX_u, 1)) # Gradient of basis functions
-            colB::Int = size(Be, 2)  # Number of basis functions
-            rowNp::Int = size(N_p, 1)  # Number of basis functions
-            Ke = zeros(Float64, rowNp, colB)  # Element stiffness matrix
-            Ke_row::Int, Ke_col::Int = rowNp, colB
+    # integration loop
+    for gp::Int in gpiter
+        if ndim_cached == 1
+            N_u, ΔN_u = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
+            N_p, ΔN_p = basis_function(x[gp], nothing, nothing, FunctionClass_p_cached)
+            N_x, ΔN_x = N_u, ΔN_u
+        elseif ndim_cached == 2
+            N_u, ΔN_u = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached)
+            N_p, ΔN_p = basis_function(x[gp], y[gp], nothing, FunctionClass_p_cached)
+            N_x, ΔN_x = N_u, ΔN_u
+        elseif ndim_cached == 3
+            # basis functions for fields
+            N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached)
+            N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
+            # basis functions for geometry
+            N_x, ΔN_x = N_u, ΔN_u 
+        end
+        
+        dNdX_u = zeros(Float64, size(ΔN_u, 1), ndim_cached) # Gradient of basis functions
+        Be = zeros(Float64, 1, 3*size(dNdX_u, 1)) # Gradient of basis functions
+        colB::Int = size(Be, 2)  # Number of basis functions
+        rowNp::Int = size(N_p, 1)  # Number of basis functions
+        Ke = zeros(Float64, rowNp, colB)  # Element stiffness matrix
+        Ke_row::Int, Ke_col::Int = rowNp, colB
+
+        # element loop
+        for e::Int in e_iter
+
+            coords::Matrix{Float64} = NodeList_x_cached[:, IEN_x_cached[:, e]]  # Get the coordinates of the nodes of the element
 
             mul!(Jac, coords, ΔN_x)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
             w::Float64 = wpoints[gp] * abs(det(Jac))
             vol = vol + w
-            dNdX_u .= ΔN_u / Jac  # Solve Jac * X = ΔN_u' via LU (5-10x faster than inv())
+            dNdX_u .= ΔN_u / Jac  # Compute ΔN_u * inv(Jac) via right division
 
             if nDof_u_cached == 1
                 szN = size(N_u,1) # number of basis functions
@@ -721,7 +685,7 @@ function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
 
             mul!(Jac, coords_u, ΔN_u)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
             w::Float64 = wpoints[gp] * abs(det(Jac))
-            dNdX .= ΔN_u / Jac  # Solve Jac * X = ΔN_u' (5-10x faster than inv())
+            dNdX .= ΔN_u / Jac # Solve Jac * X = ΔN_u' (5-10x faster than inv())
 
             if nDof_u_cached == 1
                 szN = size(N_u,1) # number of basis functions
@@ -786,9 +750,6 @@ function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
     FunctionClass_u_cached::String = FunctionClass
-    C_top_u_cached = C_top
-    C_btm_u_cached = C_btm
-    W_u_cached = W
 
     @unpack NodeList, IEN_top, IEN_bottom, ID, FunctionClass, C_top, C_btm, W = mdl.mesh_x
 
@@ -829,54 +790,34 @@ function apply_boundary_conditions(mdl::Stokes)::SparseMatrixCSC{Float64,Int64}
     
     e_iter = 1:size(IEN_u_top_cached, 2)   # iterator for elements loop
     gpiter = 1:length(wpoints) # iterator for integration loop
-    
-    # Pre-compute basis function class flags for surface extraction (moved out of loop to avoid repeated string conversions)
-    use_QQ_basis_surf = (ndim_cached == 3 && string(FunctionClass_x_cached[1]) == "Q" && string(FunctionClass_u_cached[1]) == "Q")
-    use_SS_basis_surf = (ndim_cached == 3 && string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "S")
-    use_SQ_basis_surf = (ndim_cached == 3 && string(FunctionClass_x_cached[1]) == "S" && string(FunctionClass_u_cached[1]) == "Q")
-    
+
     # element loop
     A_btm = 0
     A_top = 0
-    for e::Int in e_iter
-        coords_top::Matrix{Float64} = NodeList_x_cached[:,IEN_x_top_cached[:,e]] # get the coordinates of the nodes of the element
-        coords_btm::Matrix{Float64} = NodeList_x_cached[:,IEN_x_btm_cached[:,e]] # get the coordinates of the nodes of the element
-        # integration loop
-        for gp::Int in gpiter
-            if ndim_cached == 2
-                N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
-            elseif ndim_cached == 3
-                if use_QQ_basis_surf
-                    # fields
-                    N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached) 
-                    N_u_btm, ΔN_u_btm = N_u_top, ΔN_u_top
-                    # geometry
-                    N_x_top, ΔN_x_top = N_u_top, ΔN_u_top
-                    N_x_btm, ΔN_x_btm = N_u_top, ΔN_u_top
-                elseif use_SS_basis_surf
-                    # geometry
-                    N_x_top, ΔN_x_top = basis_function(x[gp], y[gp], C_top_x_cached[:,:,e], W_x_cached[IEN_x_top_cached[:,e]], FunctionClass_x_cached)
-                    N_x_btm, ΔN_x_btm = basis_function(x[gp], y[gp], C_btm_x_cached[:,:,e], W_x_cached[IEN_x_btm_cached[:,e]], FunctionClass_x_cached)
-                    # fields
-                    N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], C_top_u_cached[:,:,e], W_u_cached[IEN_u_top_cached[:,e]], FunctionClass_u_cached)
-                    N_u_btm, ΔN_u_btm = basis_function(x[gp], y[gp], C_btm_u_cached[:,:,e], W_u_cached[IEN_u_btm_cached[:,e]], FunctionClass_u_cached)
-                elseif use_SQ_basis_surf
-                    # geometry
-                    N_x_top, ΔN_x_top = basis_function(x[gp], y[gp], C_top_x_cached[:,:,e], W_x_cached[IEN_x_top_cached[:,e]], FunctionClass_x_cached) 
-                    N_x_btm, ΔN_x_btm = basis_function(x[gp], y[gp], C_btm_x_cached[:,:,e], W_x_cached[IEN_x_btm_cached[:,e]], FunctionClass_x_cached)
-                    # fields
-                    N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached) 
-                    N_u_btm, ΔN_u_btm = N_u_top, ΔN_u_top
-                end
-            end
+    # integration loop
+    for gp::Int in gpiter
+        if ndim_cached == 2
+            N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
+        elseif ndim_cached == 3
+            # fields
+            N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached) 
+            N_u_btm, ΔN_u_btm = N_u_top, ΔN_u_top
+            # geometry
+            N_x_top, ΔN_x_top = N_u_top, ΔN_u_top
+            N_x_btm, ΔN_x_btm = N_u_btm, ΔN_u_btm
+        end
+            
+        M_top = zeros(Float64, 3, ndim_cached*length(N_u_top))
+        M_btm = zeros(Float64, 3, ndim_cached*length(N_u_top))
+        rowM::Int = size(M_top,2)
+        be_row::Int, be_col::Int = rowM, rowM
+        be_top = zeros(Float64, be_col, be_row)
+        be_btm = zeros(Float64, be_col, be_row)
+        len_be::Int = length(be_top)
 
-            M_top = zeros(Float64, 3, ndim_cached*length(N_u_top))
-            M_btm = zeros(Float64, 3, ndim_cached*length(N_u_top))
-            rowM::Int = size(M_top,2)
-            be_row::Int, be_col::Int = rowM, rowM
-            be_top = zeros(Float64, be_col, be_row)
-            be_btm = zeros(Float64, be_col, be_row)
-            len_be::Int = length(be_top)
+        for e::Int in e_iter
+            coords_top::Matrix{Float64} = NodeList_x_cached[:,IEN_x_top_cached[:,e]] # get the coordinates of the nodes of the element
+            coords_btm::Matrix{Float64} = NodeList_x_cached[:,IEN_x_btm_cached[:,e]] # get the coordinates of the nodes of the element
 
             dxdξ_top = coords_top*ΔN_x_top         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
             dxdξ_btm = coords_btm*ΔN_x_btm         # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta; dz/dxi dz/deta]
@@ -1004,40 +945,26 @@ function apply_boundary_conditions_dense(mdl::Stokes)::Matrix{Float64}
     
     e_iter = 1:size(IEN_u_top_cached, 2)   # iterator for elements loop
     gpiter = 1:length(wpoints) # iterator for integration loop
-    # element loop
     A_btm = 0
     A_top = 0
-    for e::Int in e_iter
-        coords_top::Matrix{Float64} = NodeList_x_cached[:,IEN_x_top_cached[:,e]] # get the coordinates of the nodes of the element
-        coords_btm::Matrix{Float64} = NodeList_x_cached[:,IEN_x_btm_cached[:,e]] # get the coordinates of the nodes of the element
-        # integration loop
-        for gp::Int in gpiter
-            if ndim_cached == 2
-                N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
-            elseif ndim_cached == 3
-                if use_QQ_basis_surf
-                    # fields
-                    N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached) 
-                    N_u_btm, ΔN_u_btm = N_u_top, ΔN_u_top
-                    # geometry
-                    N_x_top, ΔN_x_top = N_u_top, ΔN_u_top
-                    N_x_btm, ΔN_x_btm = N_u_top, ΔN_u_top
-                elseif use_SS_basis_surf
-                    # geometry
-                    N_x_top, ΔN_x_top = basis_function(x[gp], y[gp], C_top_x_cached[:,:,e], W_x_cached[IEN_x_top_cached[:,e]], FunctionClass_x_cached)
-                    N_x_btm, ΔN_x_btm = basis_function(x[gp], y[gp], C_btm_x_cached[:,:,e], W_x_cached[IEN_x_btm_cached[:,e]], FunctionClass_x_cached)
-                    # fields
-                    N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], C_top_u_cached[:,:,e], W_u_cached[IEN_u_top_cached[:,e]], FunctionClass_u_cached)
-                    N_u_btm, ΔN_u_btm = basis_function(x[gp], y[gp], C_btm_u_cached[:,:,e], W_u_cached[IEN_u_btm_cached[:,e]], FunctionClass_u_cached)
-                elseif use_SQ_basis_surf
-                    # geometry
-                    N_x_top, ΔN_x_top = basis_function(x[gp], y[gp], C_top_x_cached[:,:,e], W_x_cached[IEN_x_top_cached[:,e]], FunctionClass_x_cached) 
-                    N_x_btm, ΔN_x_btm = basis_function(x[gp], y[gp], C_btm_x_cached[:,:,e], W_x_cached[IEN_x_btm_cached[:,e]], FunctionClass_x_cached)
-                    # fields
-                    N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached) 
-                    N_u_btm, ΔN_u_btm = N_u_top, ΔN_u_top
-                end
+    # integration loop
+    for gp::Int in gpiter
+        if ndim_cached == 2
+            N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
+        elseif ndim_cached == 3
+            if use_QQ_basis_surf
+                # fields
+                N_u_top, ΔN_u_top = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached) 
+                N_u_btm, ΔN_u_btm = N_u_top, ΔN_u_top
+                # geometry
+                N_x_top, ΔN_x_top = N_u_top, ΔN_u_top
+                N_x_btm, ΔN_x_btm = N_u_top, ΔN_u_top
             end
+        end
+        # element loop
+        for e::Int in e_iter
+            coords_top::Matrix{Float64} = NodeList_x_cached[:,IEN_x_top_cached[:,e]] # get the coordinates of the nodes of the element
+            coords_btm::Matrix{Float64} = NodeList_x_cached[:,IEN_x_btm_cached[:,e]] # get the coordinates of the nodes of the element
 
             M_top = zeros(Float64, 3, ndim_cached*length(N_u_top))
             M_btm = zeros(Float64, 3, ndim_cached*length(N_u_top))
@@ -1207,7 +1134,9 @@ Calculate the shear viscosity using the power law viscosity model.
 # Returns:
 - `η::Number` : shear viscosity
 """
-function get_η_power_law(t::T, F::U, R_0::V, H_0::W, η_0::X, n::Y, K::Z) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
+function get_η_power_law(t::T, F::U, R_0::V, H_0::W, η_0::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
+    n::Float64 = 0.9
+    K::Float64 = 100.0
 
     H(t) = H_0*(1+8*H_0^2*F*t/(3*π*η_0*R_0^4))^(-1/4) # height with time
     
@@ -1250,10 +1179,11 @@ Define the conditions and parameters of the squeeze flow problem.
 - `stokes::Stokes` : The finite element model
 - `squeeze::SqueezeFlow` : The squeeze flow problem setup
 """
-function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                    nDof_p::Int64, FunctionClass_x::String, β::Y, cParam::Vector{Float64}, control::String, viscosity_type::String, sim_time::W, t_steps::X; viscosity_model::String="power_law") where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number}
-    n::Float64 = 0.9
-    K::Float64 = 100.0
+function def_problem(r::T, h::U, ne::Z, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
+                    nDof_p::Int64, FunctionClass_x::String, β::Y, cParam::Vector{Float64}, control::String, viscosity_type::String, 
+                    sim_time::W, t_steps::X; viscosity_model::String="power_law",
+                    mesh_path::String = joinpath("/home","soshala","SMEAR-PhD","smear-modules","smear-meshes")) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
+
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
     len_t::Int = length(time)
     @info "Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(round(Int, sim_time/t_steps))"
@@ -1264,18 +1194,13 @@ function def_problem(r::T, h::U, ne::Int64, η_0::V, ndim::Int64, FunctionClass_
     end
 
     η = [η_0]
-    if viscosity_type == "bulk_viscosity"
-        if viscosity_model == "power_law"
-            @info "Using power law viscosity model"
-            η = get_η_power_law.(time, -cParam[1:len_t], r, h, η_0, n, K)
-        elseif viscosity_model == "carreau"
-            @info "Using Carreau viscosity model reading data from file"
-            η = [η_0]
-        end
+    if viscosity_type == "bulk_viscosity" && viscosity_model == "power_law"
+        @info "Using power law viscosity model"
+        η = get_η_power_law.(time, -cParam[1:len_t], r, h, η_0)
     end 
 
     # define the model
-    stokes = set_model(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x) # define the model    
+    stokes = set_model(r, h, float(ne), η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, filepath_mesh=mesh_path) # define the model    
     # set the boundary conditions
     q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes) 
     # define with problem scenario
@@ -1296,38 +1221,32 @@ Sets up the Stokes model for the finite element method.
 - `ne::Int64`: Number of elements in each direction
 - `η::Vector{Float64}`: Dynamic viscosity values
 - `ndim::Int64`: Number of dimensions
-- `FunctionClass_u::String`: Type of basis functions for velocity field (Q1, Q2, S2)
+- `FunctionClass_u::String`: Type of basis functions for velocity field (Q1, Q2)
 - `nDof_u::Int64`: Degrees of freedom per node for velocity field
-- `FunctionClass_p::String`: Type of basis functions for pressure field (Q1, Q2, S2)
+- `FunctionClass_p::String`: Type of basis functions for pressure field (Q1, Q2)
 - `nDof_p::Int64`: Degrees of freedom per node for pressure field
-- `FunctionClass_x::String`: Type of basis functions for geometry (Q1, Q2, S2)
+- `FunctionClass_x::String`: Type of basis functions for geometry (Q1, Q2)
 - `GMESH_MESH::Bool`: Whether to use Gmsh for mesh generation
 
 # Returns:
 - `mdl::Stokes`: The Stokes model for finite element analysis
 """ 
-function set_model(r::R, h::H, ne::Int64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                nDof_p::Int64, FunctionClass_x::String; GMESH_MESH::Bool=true)::Stokes where {R<:Number,H<:Number}
+function set_model(r::R, h::H, ne::Float64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
+                nDof_p::Int64, FunctionClass_x::String; GMESH_MESH::Bool=true,
+                filepath_mesh::String = "")::Stokes where {R<:Number,H<:Number}
 
     filePath = joinpath("home", "soshala", "SMEAR-PhD", "smear-modules", "smearFEM.jl", "cylindergen")
 
-    if FunctionClass_x == "S2"
-        mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
-        mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
-        mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
+    if GMESH_MESH == true
+        @info "Using Gmsh to generate the mesh"
+        mesh_u = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_x_$(ne).msh"), nDof_u, r, h, FunctionClass_u)  # generate the mesh grid for velocity field
+        mesh_p = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_p_$(ne).msh"), nDof_p, r, h, FunctionClass_p)  # generate the mesh grid for pressure field
+        mesh_x = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_x_$(ne).msh"), 1, r, h, FunctionClass_x)      # generate the mesh grid for geometry
     else
-        if GMESH_MESH == true
-            @info "Using Gmsh to generate the mesh"
-            filepath_mesh = joinpath("/home", "soshala", "SMEAR-PhD", "smear-modules", "smear-meshes")
-            mesh_u = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_x_$(ne).msh"), nDof_u, r, h, FunctionClass_u)  # generate the mesh grid for velocity field
-            mesh_p = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_p_$(ne).msh"), nDof_p, r, h, FunctionClass_p)  # generate the mesh grid for pressure field
-            mesh_x = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_x_$(ne).msh"), 1, r, h, FunctionClass_x)      # generate the mesh grid for geometry
-        else
-            @info "Using Julia to generate the mesh"
-            mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry
-            mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
-            mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
-        end
+        @info "Using Julia to generate the mesh"
+        mesh_x = meshgrid_cylinder(r, h, round(Int, ne), FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry
+        mesh_u = meshgrid_cylinder(r, h, round(Int, ne), FunctionClass=FunctionClass_u)  # generate the mesh grid
+        mesh_p = meshgrid_cylinder(r, h, round(Int, ne), FunctionClass=FunctionClass_p)  # generate the mesh grid
     end
     
     mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
@@ -1412,18 +1331,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     
     NodeList_cached::Matrix{Float64} = NodeList_u_cached
     ID_cached::Matrix{Int} = ID_u_cached
-    T = Matrix{Float64}(I, size(NodeList_x_cached,2), size(NodeList_u_cached,2)) # projection matrix from geometry to field mesh
-
     time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
     len_t = length(time)
 
-    if FunctionClass_x_cached == "S2" && FunctionClass_u_cached != "S2"
-        # ID_cached = ID_x_cached
-        T = get_nurbs_2_lagrange_proj(IEN_x_cached, IEN_u_cached, C_vol_x_cached, NodeList_x_cached, W_x_cached)
-        NodeList_cached = NodeList_x_cached
-    end
-
-    T_ = T'*inv(T*T')
     C_Tu = transpose(C_uc_cached) # transpose the constraint matrix
 
     if conditions.filepath != ""
@@ -1433,25 +1343,23 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     μu_btm = 0  
     μu_side = 0
-    
-    NodeList_proj = NodeList_cached*T # project the motion on the geometry mesh grid
             
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, 13, BorderNodesList=side_node_list_cached)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, 13, BorderNodesList=side_node_list_cached)
     pi, qi = fit_curve(border=BorderPts2D)
     
     dqdη = zeros(Float64, size(q_d_cached_top))
     dqdβ = zeros(Float64, size(q_d_cached_top))
 
-    velocity = AbstractArray[zeros(Float64,size(NodeList_proj,1),size(NodeList_proj,2))] # store the velocity of the mesh in 3D
-    pressure = AbstractArray[zeros(Float64,size(NodeList_proj,1),1)] # store the pressure of the mesh in 3D
-    displacement = AbstractArray[zeros(Float64,size(NodeList_proj,1),size(NodeList_proj,2))] # store the displacement of the mesh in 3D
+    velocity = AbstractArray[zeros(Float64,size(NodeList_cached,1),size(NodeList_cached,2))] # store the velocity of the mesh in 3D
+    pressure = AbstractArray[zeros(Float64,size(NodeList_cached,1),1)] # store the pressure of the mesh in 3D
+    displacement = AbstractArray[zeros(Float64,size(NodeList_cached,1),size(NodeList_cached,2))] # store the displacement of the mesh in 3D
     surface_fields = AbstractArray[]
-    surface_pts_3D = AbstractArray[vcat(NodeList_proj[:,top_node_list_cached]', 
-                                        NodeList_proj[:,bottom_node_list_cached]', 
-                                        NodeList_proj[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
+    surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', 
+                                        NodeList_cached[:,bottom_node_list_cached]', 
+                                        NodeList_cached[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
     gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)] # store the solution fields of the border nodes in 2D 
-    gradList_3d = AbstractArray[zeros(Float64, size(NodeList_proj,1),size(NodeList_proj,2),2)] # store the solution fields of the border nodes in 3D
-    pos3D = AbstractArray[NodeList_proj]       # store the solution fields of the mesh in 3D
+    gradList_3d = AbstractArray[zeros(Float64, size(NodeList_cached,1),size(NodeList_cached,2),2)] # store the solution fields of the border nodes in 3D
+    pos3D = AbstractArray[NodeList_cached]       # store the solution fields of the mesh in 3D
     pos3D_cp = AbstractArray[NodeList_cached]  
     pos2D = AbstractArray[SurfacePts2D]          # store the solution fields of the mesh in 2D
     borderPts2DList = AbstractArray[BorderPts2D] # store the solution fields of the surfaces in 2D
@@ -1617,30 +1525,25 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             mdl.mesh_x.NodeList = NodeList_cached      # update the mesh grid
             dNodeList_dη += dmdη
             dNodeList_dβ += dmdβ
-
-            NodeList_proj = NodeList_cached # project the motion on the geometry mesh grid
-            dmdη_out_proj = dNodeList_dη
-            dmdβ_out_proj = dNodeList_dβ
-            motion_proj = motion
             
             mat_nan_inf_check(dvdη)
             mat_nan_inf_check(dvdβ)
             
-            dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
+            dmdθ_out = @views cat(dNodeList_dη,dNodeList_dβ,dims=3) # concatenate the gradients in to a tensor
 
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
             
             push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(velocity, velocity_field) # store the velocity of the mesh in 3D
             push!(pressure, p) # store the pressure of the mesh in 3D
-            push!(displacement, motion_proj)
-            push!(surface_fields, motion_proj[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(NodeList_proj[:,top_node_list_cached]', NodeList_proj[:,bottom_node_list_cached]', NodeList_proj[:,side_node_list_cached]')')
+            push!(displacement, motion)
+            push!(surface_fields, motion[:,side_node_list_cached])
+            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
             push!(gradList,dudθ)
             push!(gradList_3d, dmdθ_out)
             push!(pos2D, SurfacePts2D)
-            push!(pos3D, NodeList_proj)
+            push!(pos3D, NodeList_cached)
             push!(pos3D_cp, NodeList_cached)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, BorderPts2D[1,:])
@@ -1656,12 +1559,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             B .= assemble_system_B(mdl)         # assemble the stiffness matrix
             b = apply_boundary_conditions(mdl) # apply the neumann boundary conditions
             q_d .= (μu_btm*q_d_cached_btm + cParam_cached[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
-
-            # println("Norm of _A_bar: ", size(_A_bar), " ", norm(_A_bar))
-            # println("Norm of b: ", size(b), " ", norm(b))
-        
-            # display(_A_bar)
-            # display(b)
 
             if viscosity_type_cached == "bulk_viscosity"
                 if length(β_cached) == 1
@@ -1727,29 +1624,24 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             mdl.mesh_x.NodeList = NodeList_cached      # update the mesh grid
             dNodeList_dη += dmdη
             dNodeList_dβ += dmdβ
-            
-            NodeList_proj = NodeList_cached # project the motion on the geometry mesh grid
-            dmdη_out_proj = dNodeList_dη
-            dmdβ_out_proj = dNodeList_dβ
-            motion_proj = motion
-            
+  
             mat_nan_inf_check(dvdη)
             mat_nan_inf_check(dvdβ)
             
-            dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
+            dmdθ_out = @views cat(dNodeList_dη,dNodeList_dβ,dims=3) # concatenate the gradients in to a tensor
 
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_proj, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
+            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
             pi, qi = fit_curve(border=BorderPts2D)
             
             # push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(velocity, velocity_field) # store the velocity of the mesh in 3D
             push!(pressure, p) # store the pressure of the mesh in 3D
-            push!(displacement, motion_proj)
-            push!(surface_fields, motion_proj[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(NodeList_proj[:,top_node_list_cached]', NodeList_proj[:,bottom_node_list_cached]', NodeList_proj[:,side_node_list_cached]')')
+            push!(displacement, motion)
+            push!(surface_fields, motion[:,side_node_list_cached])
+            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
             push!(gradList,dudθ)
             push!(pos2D, SurfacePts2D)
-            push!(pos3D, NodeList_proj)
+            push!(pos3D, NodeList_cached)
             push!(pos3D_cp, NodeList_cached)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, BorderPts2D[1,:])

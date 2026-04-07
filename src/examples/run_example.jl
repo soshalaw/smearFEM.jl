@@ -589,7 +589,7 @@ function write_gt_data(exp_params::Dict)
 
     β_gt::Float64 = exp_params["β_gt"]
     η_gt::Float64 = exp_params["η_gt"]
-    ne_gt::Int = exp_params["ne_gt"] # number of elements in the mesh for the ground truth
+    ne_gt::Float64 = exp_params["ne_gt"] # number of elements in the mesh for the ground truth
 
     F_ext::Float64 = exp_params["F_ext"]
 
@@ -597,11 +597,15 @@ function write_gt_data(exp_params::Dict)
 
     ANIMATE = exp_params["animate"]
     
-    println(ANIMATE)
     # Write the ground truth
     printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
-    model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+    if haskey(exp_params, "mesh_path")
+        model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+                    sim_time_gt, t_steps_gt, mesh_path=exp_params["mesh_path"])
+    else
+        model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
                     sim_time_gt, t_steps_gt)
+    end
 
     @info "Writing ground truth gt data to with $ne_gt elements to $filepath_gt"
     write_sim_data(model_gt, scene_gt, camera_matrix, obj_pose, filepath_gt, ANIMATE=ANIMATE)
@@ -654,7 +658,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     h_, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, pos3D, splinep, splineq, velocity, pressure = simulate(model, scene, conditions) # run the simulation
     
     h = get_height(h_, model.mesh_u.h) # get the mesh height with time
-    params = Dict("r"=>model.mesh_u.r, "h"=>model.mesh_u.h, "η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "obj_pose" => conditions.obj_pose, 
+    params = Dict("r"=>model.mesh_u.r, "h"=>model.mesh_u.h, "ne" => model.mesh_x.ne, "η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "obj_pose" => conditions.obj_pose, 
                     "control_type"=>scene.control, "cParam"=>scene.cParam, "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps, 
                     "viscosity_type"=>scene.viscosity_type)
 
