@@ -3988,6 +3988,15 @@ function display_batch_info(n_experiments::Int, n_cores::Int=Threads.nthreads())
     return n_batches
 end
 
+# Helper: Print animated spinner with progress
+function print_progress_spinner(completed::Int, total::Int, spinner_idx::Int)
+    spinners = ['◐', '◓', '◑', '◒']  # Smooth rotating spinner
+    spinner = spinners[mod(spinner_idx, 4) + 1]
+    pct = round(Int, (completed / total) * 100)
+    print("\r$spinner Experiments: $completed / $total ($pct%)")
+    flush(stdout)
+end
+
 # helper: run a vector of parameter Dicts with limited concurrent workers
 function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1, base_seed::Int=12345)
 
@@ -4011,6 +4020,7 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1, base_see
 
     # Atomic counter for tracking completed experiments
     completed = Threads.Atomic{Int}(0)
+    spinner_idx = Threads.Atomic{Int}(0)  # For animating spinner
 
     ch = Channel{Int}(nparams)
     @sync begin
@@ -4075,9 +4085,12 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1, base_see
                             @error "Failed to write error log: $ewrite"
                         end
                     finally
-                        # Increment completed counter and show progress
+                        # Increment completed counter and show progress with animated spinner
                         Threads.atomic_add!(completed, 1)
-                        @info "Experiments completed: $(completed[]) / $nparams"
+                        Threads.atomic_add!(spinner_idx, 1)
+                        if mod(completed[], 2) == 0
+                            print_progress_spinner(completed[], nparams, spinner_idx[])
+                        end
                     end
                 end
             end
@@ -4088,7 +4101,8 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1, base_see
             wait(t)
         end
     end
-    # signal completion for this batch
+    # Final completion message
+    print("\r✓ Experiments: $(completed[]) / $nparams (100%)\n")
     println("All experiments in this run_param_list completed.")
 end
 

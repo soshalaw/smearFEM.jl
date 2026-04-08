@@ -135,6 +135,15 @@ function display_batch_info(n_experiments::Int, n_cores::Int=Threads.nthreads())
     return n_batches
 end
 
+# Helper: Print animated spinner with progress
+function print_progress_spinner(completed::Int, total::Int, spinner_idx::Int)
+    spinners = ['◐', '◓', '◑', '◒']  # Smooth rotating spinner
+    spinner = spinners[mod(spinner_idx, 4) + 1]
+    pct = round(Int, (completed / total) * 100)
+    print("\r$spinner Experiments: $completed / $total ($pct%)")
+    flush(stdout)
+end
+
 # helper: run a vector of parameter Dicts with limited concurrent workers
 function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
     isempty(params_list) && return
@@ -155,6 +164,7 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
     
     # Atomic counter for tracking completed experiments
     completed = Threads.Atomic{Int}(0)
+    spinner_idx = Threads.Atomic{Int}(0)  # For animating spinner
     
     # Set BLAS threads once before spawning tasks (not inside threads)
     LinearAlgebra.BLAS.set_num_threads(max(1, div(Threads.nthreads(), workers)))
@@ -181,9 +191,12 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
                             end
                             # Force garbage collection to free memory immediately
                             GC.collect()
-                            # Report progress without clutter
+                            # Report progress with animated spinner (update every 2 experiments)
                             Threads.atomic_add!(completed, 1)
-                            @info "Experiments completed: $(completed[]) / $(length(params_list))"
+                            Threads.atomic_add!(spinner_idx, 1)
+                            if mod(completed[], 2) == 0
+                                print_progress_spinner(completed[], length(params_list), spinner_idx[])
+                            end
                         catch err
                             _handle_worker_error(err, idx, params_list[idx])
                         end
@@ -200,6 +213,8 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
             end
         end
     end
+    # Final completion message
+    print("\r✓ Experiments: $(completed[]) / $(length(params_list)) (100%)\n")
     println("All experiments completed.")
 end
 
