@@ -12,7 +12,6 @@ using LaTeXStrings
 using Dates
 using Statistics
 using Printf
-
 # ============================================================================
 # Plot configuration constants
 # ============================================================================
@@ -56,11 +55,12 @@ function setup_plot_config(; left_margin=nothing, right_margin=nothing, top_marg
     rm = right_margin !== nothing ? right_margin : PLOT_CONFIG[:right_margin]
     tm = top_margin !== nothing ? top_margin : PLOT_CONFIG[:top_margin]
     
-    return Plots.set_plot(PLOT_CONFIG[:font_size], 
+    return set_plot(PLOT_CONFIG[:font_size], 
                           sz=figsize, 
                           left_margin=lm,
                           right_margin=rm,
-                          top_margin=tm)
+                          top_margin=tm,
+                          legend_column=2)
 end
 
 function fit_convergence_rate(x_vals::Vector, y_vals::Vector)
@@ -273,8 +273,7 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
         # try
             exp_params = read_json(joinpath(mesh_filepath, "simulation", "data", "sim_params.jld2"))
             h_mesh = readdlm(joinpath(mesh_filepath, "simulation", "data","h.csv"), ',', Float64)
-            symBorderPts, _, _ = read_csv(joinpath(mesh_filepath, "simulation", "data","sim_data","2D_border_points"))
-            
+
             ne = exp_params["ne"]
             effective_element_size = (volume / ne)^(1/3)
             
@@ -284,7 +283,6 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
             push!(effective_element_size_list, effective_element_size)
             push!(height_list, h_mesh)
             push!(height_error_list, δh)
-            # push!(border_error_list, sum(d)/length(d))
             push!(time_list, elapsed_time.value/steps)
             iter_index += 1
         # catch e
@@ -294,17 +292,17 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/effective_element_size", effective_element_size_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_list", height_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_error_list", height_error_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/border_error_list", border_error_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/μ_list", μ_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/elem_sizes", elem_sizes)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/time_list", time_list)
 end
 
-function time_intergration_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, dt_list::Vector=[0.5, 0.1, 0.05, 0.025, 0.0125], 
+function time_intergration_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, dt_list::Vector=[2, 1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001], 
                                   template_mesh_geo_path::String="/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/test/convergence_analysis/mesh.geo")    
     height_list = AbstractArray[]
+    final_height_list = Float64[]
     height_error_list = Float64[]
     effective_element_size_list = Float64[]
+    _dt_list = []
 
     β::Float64 = 100.0 # penalty parameter for the ground truth
     η::Float64 = 100.0
@@ -331,15 +329,15 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
     h_ref = 37.514669827538519
     
     mesh_filepath = joinpath(mesh_dir, "convergence_analysis", "mesh_convergence_analysis", "mesh_4.0")
-    filepath = joinpath(mesh_dir, "convergence_analysis", "time_integration_convergence_analysis")
     
     for step_size in Float64.(dt_list)
+        filepath = joinpath(mesh_dir, "convergence_analysis", "time_integration_convergence_analysis","step_$step_size", "simulation")
         println("Running for time step size = $step_size")
         steps = round(Int, sim_time/step_size)
         
         # Run simulation with the generated mesh
         exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => FunctionClass_u, "FunctionClass_p" => FunctionClass_p, 
-                         "ne_gt" => 4, "β_gt" => β, "η_gt" => η, "filepath_gt" => joinpath(filepath, "step_$step_size", "simulation"), 
+                         "ne_gt" => 4, "β_gt" => β, "η_gt" => η, "filepath_gt" => filepath, 
                          "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
                          "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
                          "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => true, "mesh_path" => mesh_filepath)
@@ -353,26 +351,34 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
         
         # Read results
         try
-            exp_params = read_json(joinpath(mesh_filepath, "simulation", "data", "sim_params.jld2"))
-            h_mesh = readdlm(joinpath(mesh_filepath, "simulation", "data","h.csv"), ',', Float64)
-            
+            exp_params = read_json(joinpath(filepath, "data", "sim_params.jld2"))
+            h_mesh = readdlm(joinpath(filepath, "data","h.csv"), ',', Float64)
+
+            dt = exp_params["time_steps"]
+
             ne = exp_params["ne"]
             effective_element_size = (volume / ne)^(1/3)
 
             δh = abs(h_mesh[end] - h_ref) / h_ref
+            _δh = (h_mesh[end] - h_ref) / h_ref
             
-            println("Height error: ", δh)
+            println("Height error: ", _δh)
             push!(effective_element_size_list, effective_element_size)
-            push!(height_list, h_mesh[end])
+            push!(height_list, h_mesh)
             push!(height_error_list, δh)
+            push!(_dt_list, dt)
+            push!(final_height_list, h_mesh[end])
             iter_index += 1
         catch e
             @warn "Failed to read results for time step size $step_size: $e"
         end
     end
-
-    write_csv(string(filepath,"/height_list"), height_list)
-    write_csv(string(filepath,"/height_error_list"), height_error_list)
+    println("Final height list: ", final_height_list)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/effective_element_size", effective_element_size_list)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/height_list", height_list)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/height_error_list", height_error_list)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/t_steps", dt_list)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/final_height_list", final_height_list)
 end
 
 function plot_convergence_mesh(file_path::String)
@@ -392,23 +398,29 @@ function plot_convergence_mesh(file_path::String)
     end
 end
 
-function plot_convergence_time(file_path::String, dt_list::Vector=[0.5, 0.1, 0.05, 0.025, 0.0125])
+function plot_convergence_time(file_path::String)
     """Plot convergence results for time integration analysis."""
-    try
+    # try
         height_error_list = readdlm(joinpath(file_path, "height_error_list.csv"), ',', Float64)
+        dt_list = readdlm(joinpath(file_path, "t_steps.csv"), ',', Float64)
+        h_end_list = readdlm(joinpath(file_path, "final_height_list.csv"), ',', Float64)
         
+        Plots.plot(dt_list, h_end_list, label="Final height", xlabel="Time step size (Δt)", ylabel="Final height", yscale=:linear, xscale=:log10, marker=:circle)
+        Plots.savefig(Plots.current(), joinpath(file_path, "plots", "final_height_vs_dt.pdf"))
+        
+        println("Height error list: ", height_error_list)
         relative_error = vec(height_error_list[:])
-        dt_sizes = Float64.(dt_list)
+        dt_sizes = vec(dt_list)
         
         plot_path = joinpath(file_path, "plots")
         plot_convergence_generic(dt_sizes, relative_error, "Time step size (Δt)", 
                                 plot_path, "time_integration_convergence.pdf")
-    catch e
-        @warn "Failed to plot time integration convergence: $e"
-    end
+    # catch e
+    #     @warn "Failed to plot time integration convergence: $e"
+    # end
 end
 
 time_intergration_convergence_analysis()
-plot_convergence_time("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/constant/Q2/convergence_analysis/time_integration_convergence_analysis")
+plot_convergence_time("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis")
 # mesh_convergence_analysis()
 # plot_convergence_mesh("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 
