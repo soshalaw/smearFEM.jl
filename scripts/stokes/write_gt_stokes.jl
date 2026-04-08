@@ -179,6 +179,8 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
                                     write_gt_data(params_list[idx])
                                 end
                             end
+                            # Force garbage collection to free memory immediately
+                            GC.collect()
                             # Report progress without clutter
                             Threads.atomic_add!(completed, 1)
                             @info "Experiments completed: $(completed[]) / $(length(params_list))"
@@ -214,4 +216,5 @@ function _handle_worker_error(err::Exception, idx::Int, params::Dict)
     end
 end
 
-main()
+# Option B: Maximum speed with garbage collection (8 cores, ~4GB memory, 8x speedup)
+main(use_parallel=true, max_workers=8)
