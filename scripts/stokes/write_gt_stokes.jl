@@ -116,13 +116,45 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     end
 end
 
+# Helper: Display available cores and calculate batch information
+function display_batch_info(n_experiments::Int, n_cores::Int=Threads.nthreads())
+    n_batches = ceil(Int, n_experiments / n_cores)
+    experiments_per_batch = n_experiments ÷ n_batches
+    remaining = n_experiments % n_batches
+    
+    @info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    @info "CPU CORES AVAILABLE: $n_cores cores"
+    @info "TOTAL EXPERIMENTS: $n_experiments"
+    @info "NUMBER OF BATCHES: $n_batches"
+    if n_batches > 1
+        @info "EXPERIMENTS PER BATCH: $experiments_per_batch (batch 1-$n_batches each have $(experiments_per_batch + (remaining > 0 ? 1 : 0)) experiments max)"
+        @info "BATCH DISTRIBUTION: $remaining batch(es) with extra experiment(s)"
+    end
+    @info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    return n_batches
+end
+
 # helper: run a vector of parameter Dicts with limited concurrent workers
-function run_param_list(params_list::Vector{Dict}; max_workers::Int=8)
+function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
     isempty(params_list) && return
     
-    workers = max(1, min(Threads.nthreads(), max_workers))
+    # Auto-detect available cores if max_workers not specified (default -1)
+    n_available_cores = Threads.nthreads()
+    if max_workers <= 0
+        workers = n_available_cores
+    else
+        workers = max(1, min(n_available_cores, max_workers))
+    end
+    
+    # Display batch information
+    display_batch_info(length(params_list), workers)
+    
     @info "Running $(length(params_list)) experiments with $workers workers"
     @warn "Note: Gmsh is not thread-safe. All Gmsh operations (mesh loading) are serialized via a lock.\n         If mesh generation is the bottleneck, consider using sequential execution: main(use_parallel=false)"
+    
+    # Atomic counter for tracking completed experiments
+    completed = Threads.Atomic{Int}(0)
     
     # Set BLAS threads once before spawning tasks (not inside threads)
     LinearAlgebra.BLAS.set_num_threads(max(1, div(Threads.nthreads(), workers)))
@@ -141,9 +173,15 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8)
                         idx = take!(ch)  # Blocks until item available or channel closed
                         
                         try
-                            @info "Worker $w calling write_gt_data for index $idx"
-                            write_gt_data(params_list[idx])
-                            @info "Worker $w completed write_gt_data for index $idx"
+                            # Suppress output from write_gt_data
+                            redirect_stdout(devnull) do
+                                redirect_stderr(devnull) do
+                                    write_gt_data(params_list[idx])
+                                end
+                            end
+                            # Report progress without clutter
+                            Threads.atomic_add!(completed, 1)
+                            @info "Experiments completed: $(completed[]) / $(length(params_list))"
                         catch err
                             _handle_worker_error(err, idx, params_list[idx])
                         end
