@@ -305,6 +305,8 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
     ∂d = similar(∂d_prev)
     ∂2d = zeros(0)  # Will be overwritten
     cost_trial = cost_prev
+    simBorderPts_accepted = nothing
+    gradList_accepted = nothing
     
     println("      Trial α    | Cost         | Δcost        | Required Decrease | Status")
     println("      " * "-"^73)
@@ -316,8 +318,10 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
         model.η = [θ_trial[1]]
         scene.β = [θ_trial[2]]
         μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-        d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
-        cost_trial = sum(d_trial) / len_d
+        
+        # Use cost-only version during line search (fast)
+        d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
+        cost_trial = sum(d_trial_costs) / len_d
         
         # Armijo condition: cost_trial ≤ cost_prev - c·α·||∇||²
         Δcost = cost_prev - cost_trial
@@ -327,6 +331,8 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
         println("      $(round(α, sigdigits=5)) | $(round(cost_trial, sigdigits=3)) | $(round(Δcost, sigdigits=3)) | $(round(sufficient_decrease, sigdigits=3)) | $status")
         
         if cost_trial ≤ cost_prev - sufficient_decrease
+            # Compute full gradients/Hessians only for accepted step
+            d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
             println("      " * "-"^73)
             printstyled("      [ACCEPT] Step accepted: α = $(round(α, sigdigits=5)), cost = $(round(cost_trial, sigdigits=4))\n", color=:green)
             return θ_trial, d_trial, ∂d, ∂2d, cost_trial, true
@@ -334,6 +340,12 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
         
         α *= 0.5  # Halve step size and retry
     end
+    
+    # Fallback: compute gradients/Hessians for final trial (even if rejected)
+    model.η = [θ_trial[1]]
+    scene.β = [θ_trial[2]]
+    μ_list, gradList, simBorderPts, _ , _ , _ = simulate(model, scene, conditions)
+    d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     
     println("      " * "-"^73)
     printstyled("      [WARNING] Max backtracks reached. Accepting last trial (α=$(round(α, sigdigits=5)), cost=$(round(cost_trial, sigdigits=4)))\n", color=:yellow)
@@ -381,13 +393,17 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
     μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-    d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
-    len_d_calc = length(d_trial)
-    cost_trial = sum(d_trial) / len_d_calc
+    
+    # Use cost-only version first (fast)
+    d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
+    len_d_calc = length(d_trial_costs)
+    cost_trial = sum(d_trial_costs) / len_d_calc
     Δcost_full = cost_prev - cost_trial
     println("        cost = $(round(cost_trial, sigdigits=4)), Δcost = $(round(Δcost_full, sigdigits=4))")
     
     if cost_trial < cost_prev
+        # Compute full gradients/Hessians only for accepted step
+        d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
         printstyled("        [ACCEPT] Cost decreased, accepting\n", color=:green)
         return θ_trial, d_trial, ∂d, ∂2d, cost_trial, true
     end
@@ -399,10 +415,15 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
     μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-    d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
-    cost_trial_half = sum(d_trial) / len_d_calc
+    
+    # Use cost-only version first (fast)
+    d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
+    cost_trial_half = sum(d_trial_costs) / len_d_calc
     Δcost_half = cost_prev - cost_trial_half
     println("        cost = $(round(cost_trial_half, sigdigits=4)), Δcost = $(round(Δcost_half, sigdigits=4))")
+    
+    # Compute full gradients/Hessians for final result (accepted or rejected)
+    d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     
     if cost_trial_half < cost_prev
         printstyled("        [ACCEPT] Cost decreased, accepting\n", color=:green)

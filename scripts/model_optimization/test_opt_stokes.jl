@@ -425,6 +425,19 @@ function optimize(exp_params::Dict)
             est_h_list = Matrix{Float64}(undef, n_samples, round(Int,sim_time_gt/t_steps_exp)+1)
             ANIMATED = false
 
+            # Pre-allocate containers for batch file I/O (collect phase)
+            sim_params_list = Vector{Dict}(undef, n_samples)
+            pos2D_list = Vector{Any}(undef, n_samples)
+            pos3D_list = Vector{Any}(undef, n_samples)
+            fields_list = Vector{Any}(undef, n_samples)
+            borderPts2D_list = Vector{Any}(undef, n_samples)
+            splinep_list = Vector{Any}(undef, n_samples)
+            splineq_list = Vector{Any}(undef, n_samples)
+            η_steps_list = Vector{Vector}(undef, n_samples)
+            β_steps_list = Vector{Vector}(undef, n_samples)
+            cost_steps_list = Vector{Vector}(undef, n_samples)
+            iter_steps_list = Vector{Vector}(undef, n_samples)
+
             set_file(joinpath(exp_path,"Results","plots"))
             for n::Int in 1:n_samples
                 obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
@@ -459,28 +472,43 @@ function optimize(exp_params::Dict)
                 costnList[n] = costList
                 iternList[n] = iterList
 
+                # Collect phase: Store all data in memory instead of writing immediately
                 sim_params = Dict("gt_η" => η_gt,
                 "gt_β" => β_gt,
                 "η" => η,
                 "β" => β,
                 "η_accuracy" => η_accuracy,
                 "β_accuracy" => β_accuracy)
+                
+                sim_params_list[n] = sim_params
+                cost_steps_list[n] = costList
+                η_steps_list[n] = ηpList
+                β_steps_list[n] = βpList
+                iter_steps_list[n] = iterList
+                pos2D_list[n] = pos2D
+                pos3D_list[n] = pos3D
+                fields_list[n] = fields
+                borderPts2D_list[n] = borderPts2DList
+                splinep_list[n] = splinep
+                splineq_list[n] = splineq
 
-                write_json(joinpath(exp_path,"Results","data","stats","run_$n"), sim_params)
+            end
 
-                write_csv(joinpath(exp_path,"Results","data","opt_data","cost_steps","run_$n"), costList)
-                write_csv(joinpath(exp_path,"Results","data","opt_data","eta_steps","run_$n"), ηpList)
-                write_csv(joinpath(exp_path,"Results","data","opt_data","beta_steps","run_$n"), βpList)
-                write_csv(joinpath(exp_path,"Results","data","opt_data","iter","run_$n"), iterList)
-                write_csv(joinpath(exp_path,"Results","data","opt_data","est_height","run_$n"), est_h)
-
-                write_data(joinpath(exp_path,"Results","data","sim_data","2D_points","run_$n"), pos2D)
-                write_data(joinpath(exp_path,"Results","data","sim_data","3D_points","run_$n"), pos3D)
-                write_data(joinpath(exp_path,"Results","data","sim_data","motion_fields ","run_$n"), fields)
-                write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points","run_$n"), borderPts2DList)
-                write_data(joinpath(exp_path,"Results","data","sim_data","spline_p","run_$n"), splinep)
-                write_data(joinpath(exp_path,"Results","data","sim_data","spline_q","run_$n"), splineq)
-
+            # Write phase: Batch write all collected data at once (after loop completes)
+            @info "Beginning batch file write phase ($n_samples runs)..."
+            for n::Int in 1:n_samples
+                write_json(joinpath(exp_path,"Results","data","stats","run_$n"), sim_params_list[n])
+                write_csv(joinpath(exp_path,"Results","data","opt_data","cost_steps","run_$n"), cost_steps_list[n])
+                write_csv(joinpath(exp_path,"Results","data","opt_data","eta_steps","run_$n"), η_steps_list[n])
+                write_csv(joinpath(exp_path,"Results","data","opt_data","beta_steps","run_$n"), β_steps_list[n])
+                write_csv(joinpath(exp_path,"Results","data","opt_data","iter","run_$n"), iter_steps_list[n])
+                write_csv(joinpath(exp_path,"Results","data","opt_data","est_height","run_$n"), est_h_list[n,:])
+                write_data(joinpath(exp_path,"Results","data","sim_data","2D_points","run_$n"), pos2D_list[n])
+                write_data(joinpath(exp_path,"Results","data","sim_data","3D_points","run_$n"), pos3D_list[n])
+                write_data(joinpath(exp_path,"Results","data","sim_data","motion_fields ","run_$n"), fields_list[n])
+                write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points","run_$n"), borderPts2D_list[n])
+                write_data(joinpath(exp_path,"Results","data","sim_data","spline_p","run_$n"), splinep_list[n])
+                write_data(joinpath(exp_path,"Results","data","sim_data","spline_q","run_$n"), splineq_list[n])
             end
 
             write_csv(joinpath(exp_path,"Results","data","eta_est"), η_pred)
@@ -3941,16 +3969,45 @@ function set_time_window(time_step_len::Float64, data::AbstractArray; method::St
     return time_windows, windows, data_ranges, t_windows
 end
 
+# Helper: Display available cores and calculate batch information
+function display_batch_info(n_experiments::Int, n_cores::Int=Threads.nthreads())
+    n_batches = ceil(Int, n_experiments / n_cores)
+    experiments_per_batch = n_experiments ÷ n_batches
+    remaining = n_experiments % n_batches
+    
+    @info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    @info "CPU CORES AVAILABLE: $n_cores cores"
+    @info "TOTAL EXPERIMENTS: $n_experiments"
+    @info "NUMBER OF BATCHES: $n_batches"
+    if n_batches > 1
+        @info "EXPERIMENTS PER BATCH: $experiments_per_batch (batch 1-$n_batches each have $(experiments_per_batch + (remaining > 0 ? 1 : 0)) experiments max)"
+        @info "BATCH DISTRIBUTION: $remaining batch(es) with extra experiment(s)"
+    end
+    @info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    return n_batches
+end
+
 # helper: run a vector of parameter Dicts with limited concurrent workers
-function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed::Int=12345)
+function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1, base_seed::Int=12345)
 
     nparams = length(params_list)
     if nparams == 0
         return
     end
 
-    workers = max(1, min(Threads.nthreads(), max_workers))
-    @info "Running $nparams experiments with $workers workers (Threads.nthreads()=$(Threads.nthreads()))"
+    # Auto-detect available cores if max_workers not specified (default -1)
+    n_available_cores = Threads.nthreads()
+    if max_workers <= 0
+        workers = n_available_cores
+    else
+        workers = max(1, min(n_available_cores, max_workers))
+    end
+    
+    # Display batch information
+    display_batch_info(nparams, workers)
+    
+    @info "Running $nparams experiments with $workers workers (Threads.nthreads()=$(n_available_cores))"
 
     # Atomic counter for tracking completed experiments
     completed = Threads.Atomic{Int}(0)
