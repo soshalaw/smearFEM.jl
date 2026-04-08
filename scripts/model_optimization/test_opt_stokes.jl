@@ -3952,6 +3952,9 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed
     workers = max(1, min(Threads.nthreads(), max_workers))
     @info "Running $nparams experiments with $workers workers (Threads.nthreads()=$(Threads.nthreads()))"
 
+    # Atomic counter for tracking completed experiments
+    completed = Threads.Atomic{Int}(0)
+
     ch = Channel{Int}(nparams)
     @sync begin
         # enqueue indices
@@ -3976,7 +3979,12 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed
                     try
                         # Avoid BLAS thread oversubscription per worker
                         LinearAlgebra.BLAS.set_num_threads(max_workers)
-                        optimize(params)
+                        # Suppress all output from optimize and its called functions
+                        redirect_stdout(devnull) do
+                            redirect_stderr(devnull) do
+                                optimize(params)
+                            end
+                        end
                     catch err
                         # capture backtrace and format similar to native Julia error output
                         bt = catch_backtrace()
@@ -4009,6 +4017,10 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=8, base_seed
                         catch ewrite
                             @error "Failed to write error log: $ewrite"
                         end
+                    finally
+                        # Increment completed counter and show progress
+                        Threads.atomic_add!(completed, 1)
+                        @info "Experiments completed: $(completed[]) / $nparams"
                     end
                 end
             end
