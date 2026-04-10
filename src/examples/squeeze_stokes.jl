@@ -3,6 +3,9 @@ using SparseArrays
 using ProgressMeter
 using Parameters
 
+# Performance optimization: enable multi-threaded BLAS
+BLAS.set_num_threads(Threads.nthreads())
+
 """
     assemble_system_A(mdl::Stokes, cache::BasisFunctionCache)
 
@@ -90,7 +93,7 @@ function assemble_system_A(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrix
             if nDof_u_cached == 1
                 szN::Int = size(N_u, 1)  # Number of basis functions
                 # Loop between basis functions of the element
-                for i::Int in 1:szN
+                @inbounds @fastmath for i::Int in 1:szN
                     for j::Int in 1:szN
                         inz::Int = (szN)^2 * (e - 1) + szN * (i - 1) + j  # Index for the COO sparse matrix
                         E[inz] = IEN_u_cached[i, e]  # Row index
@@ -125,7 +128,7 @@ function assemble_system_A(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrix
                 iDofs = 1:ID_rows
                 jDofs = 1:ID_rows
                 
-                for iNode::Int in iNodes
+                @inbounds @fastmath for iNode::Int in iNodes
                     for jNode::Int in jNodes
                         for iDof::Int in iDofs
                             for jDof::Int in jDofs
@@ -409,7 +412,7 @@ function assemble_system_B(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrix
             if nDof_u_cached == 1
                 szN = size(N_u,1) # number of basis functions
                 # loop between basis functions of the element
-                for i::Int in 1:szN
+                @inbounds @fastmath for i::Int in 1:szN
                     for j::Int in 1:szN
                         inz::Int = (szN)^2*(e-1) + szN*(i-1) + j # index for the COO sparse matrix
                         E[inz] = IEN_u_cached[i,e] # row index 
@@ -430,7 +433,7 @@ function assemble_system_B(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrix
                 iDofs = 1:ID_u_rows # column dof index
                 jNodes = 1:Ke_row # row index
 
-                for iNode::Int in iNodes 
+                @inbounds @fastmath for iNode::Int in iNodes 
                     for jNode::Int in jNodes 
                         for iDof::Int in iDofs
                             i::Int = (iNode-1)*nDof_u_cached + iDof
@@ -721,7 +724,7 @@ function apply_boundary_conditions(mdl::Stokes, cache::BasisFunctionCache)::Spar
             iDofs = 1:ID_u_rows
             jDofs = 1:ID_u_rows
 
-            for iNode::Int in iNodes
+            @inbounds @fastmath for iNode::Int in iNodes
                 for jNode::Int in jNodes
                     for iDof::Int in iDofs
                         for jDof::Int in jDofs
