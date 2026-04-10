@@ -190,7 +190,7 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
                                 end
                             end
                             # Force garbage collection to free memory immediately
-                            Base.GC.collect()
+                            Base.GC.gc()
                             # Report progress with animated spinner (update every 2 experiments)
                             Threads.atomic_add!(completed, 1)
                             Threads.atomic_add!(spinner_idx, 1)
