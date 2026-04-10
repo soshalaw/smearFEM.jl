@@ -124,7 +124,7 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     
     filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
 
-    mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
+    mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry
     mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
