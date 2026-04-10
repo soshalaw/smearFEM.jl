@@ -4053,7 +4053,7 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1, base_see
                             end
                         end
                         # Force garbage collection to free memory immediately
-                        GC.collect()
+                        Base.GC.gc()
                     catch err
                         # capture backtrace and format similar to native Julia error output
                         bt = catch_backtrace()

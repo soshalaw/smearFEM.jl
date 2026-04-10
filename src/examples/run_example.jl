@@ -259,7 +259,7 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     ID_cached::Matrix{Int} = ID_u_cached
     T = Matrix{Float64}(I, size(NodeList_x_cached,2), size(NodeList_u_cached,2)) # projection matrix from geometry to field mesh
 
-    time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
+        time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
     len_t = length(time)
 
     if FunctionClass_x_cached == "S2" && FunctionClass_u_cached != "S2"
