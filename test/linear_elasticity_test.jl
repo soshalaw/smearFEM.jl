@@ -26,10 +26,10 @@ using Test
 
     iter = 1:size(model.NodeList, 2)
     for i in iter
-        r = sqrt(model.NodeList[1,i]^2 + model.NodeList[2,i]^2)
+        r_ = sqrt(model.NodeList[1,i]^2 + model.NodeList[2,i]^2)
         h_ = model.NodeList[3,i]
 
-        @test sqrt(q[1,i]^2 + q[2,i]^2) + ν*μ_tp*r/H ≈ 0 atol=10^(-5)
+        @test sqrt(q[1,i]^2 + q[2,i]^2) + ν*μ_tp*r_/H ≈ 0 atol=10^(-5)
         @test q[3,i] - μ_tp*h_/H ≈ 0 atol=10^(-5)
     end
 

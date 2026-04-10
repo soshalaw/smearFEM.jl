@@ -15,7 +15,7 @@ using LinearAlgebra
     FunctionClass_p = "Q1"
     nDof_u = ndim  # number of degree of freedom per node
     nDof_p = 1
-    β = 0.0
+    β = 1e-5
     ν = 70.0
     μu_tp = -1.0
     μu_btm = 0
@@ -30,17 +30,11 @@ using LinearAlgebra
     IEN = model.mesh_u.IEN
 
     iter = 1:size(NodeList, 2)
-
-    r_list = zeros(iter)
-    h_list = zeros(iter)
     for i in iter
         r_ = sqrt(NodeList[1,i]^2 + NodeList[2,i]^2)
         h_ = NodeList[3,i]
 
-        r_list[i] = r_
-        h_list[i] = h_
-
-        @test sqrt(q[1,i]^2 + q[2,i]^2) + 0.5*μu_tp*r/h ≈ 0 atol=acc
+        @test sqrt(q[1,i]^2 + q[2,i]^2) + 0.5*μu_tp*r_/h ≈ 0 atol=acc
         @test q[3,i] - μu_tp*h_/h ≈ 0 atol=acc
     end
 end

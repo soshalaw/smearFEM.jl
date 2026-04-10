@@ -666,7 +666,6 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
                     "viscosity_type"=>scene.viscosity_type)
 
     # write results to files
-    write_json(string(filepath,"/data/sim_params"), params)
     write_csv(string(filepath,"/data/h"), h)
     write_data(string(conditions.filepath,"/data/sim_data/2D_surface_points"), pos2D)
     write_data(string(filepath,"/data/sim_data/node_points"), pos3D)
@@ -674,6 +673,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     write_data(string(filepath,"/data/sim_data/2D_border_points"), borderPts2DList)
     write_data(string(filepath,"/data/sim_data/velocity_fields"), velocity)
     write_data(string(filepath,"/data/sim_data/pressure_fields"), pressure)
+    write_json(string(filepath,"/data/sim_params"), params)
 
     if _scene.viscosity_type == "bulk_viscosity" && ANIMATE
         time = collect(Float64, range(scene.t_steps, stop=scene.sim_time, step=scene.t_steps))
@@ -688,59 +688,6 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
 
     @info "Data written to $filepath"
 
-end
-
-"""
-    compare(r, h, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, endTime, tSteps, Control, mode, ObsData; SIDES=false, PLOT=false, filepath="nothing")
-
-Compares the simulation results with observation data.
-
-# Arguments
-- `r::Number`: Radius of the cylinder.
-- `h::Number`: Height of the cylinder.
-- `ne::Int64`: Number of elements.
-- `Young::Number`: Young's modulus.
-- `ν::Number`: Poisson's ratio.
-- `ndim::Int64`: Number of dimensions.
-- `FunctionClass::String`: Type of basis function.
-- `nDof::Int64`: Number of degrees of freedom per node.
-- `β::Number`: Friction parameter.
-- `CameraMatrix::AbstractMatrix{Float64}`: Camera matrix.
-- `endTime::Number`: End time of the simulation.
-- `tSteps::Number`: Number of time steps.
-- `Control::String`: Type of control ("force" or "displacement").
-- `mode::String`: Type of constitutive matrix.
-- `ObsData::AbstractArray`: Observation data.
-
-# Keyword Arguments
-- `SIDES::Bool`: Whether to include side boundaries (default: `false`).
-- `PLOT::Bool`: Whether to generate plots (default: `false`).
-- `filepath::String`: Path to the output file (default: `"nothing"`).
-
-# Returns
-- `d_cp::Vector{Float64}`: Closest point distances between borders at each timestep.
-"""
-function compare(r::Number, h::Number, ne::Int64, Young::Number, ν::Number, ndim::Int64, FunctionClass::String, nDof::Int64, β::Number, CameraMatrix::AbstractMatrix{Float64}, 
-                endTime::Number, tSteps::Number, Control::String, mode::String, ObsData::AbstractArray, SIDES::Bool=false, PLOT::Bool=false, 
-                filepath::String="nothing")
-
-    μ_list, gradList, simBorderPts, splinex, spliney, mdl, SurfacePt2D = test(r, h, ne, Young, ν, ndim, FunctionClass, nDof, β, CameraMatrix, 
-                                                                            endTime, tSteps, Control, mode=mode, SIDES=SIDES)    
-
-    obsBorderPts = ObsData[1]
-    splinexObs = ObsData[2]
-    splineyObs = ObsData[3]
-    
-    # test the closest point function
-    
-    d_cp, pairs = closest_point(simBorderPts, obsBorderPts)
-    
-    if PLOT
-        @assert !isnothing(filepath) "File path not provided"
-        plot_matches(simBorderPts, splinex, spliney, splinexObs, splineyObs, pairs, string(filepath,"/Results/images/"))
-    end
-    d_h = 0
-    return d_h, d_cp
 end
 
 """

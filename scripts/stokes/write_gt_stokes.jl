@@ -40,7 +40,7 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Int = 16 # number of elements in the mesh for the ground truth
 
-    β_gt_list = [0.01, 10.0, 50.0, 1e2, 500.0, 1e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
+    β_gt_list = [0.01, 10.0] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
 
     control = "force" # "force" or "velocity"
@@ -190,7 +190,7 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
                                 end
                             end
                             # Force garbage collection to free memory immediately
-                            GC.collect()
+                            Base.GC.collect()
                             # Report progress with animated spinner (update every 2 experiments)
                             Threads.atomic_add!(completed, 1)
                             Threads.atomic_add!(spinner_idx, 1)
@@ -216,6 +216,22 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
     # Final completion message
     print("\r✓ Experiments: $(completed[]) / $(length(params_list)) (100%)\n")
     println("All experiments completed.")
+end
+
+# Helper function to write error logs to file
+function write_error_log(err::Exception, bt::Vector; params::Dict=Dict(), dest_dir::String=".")
+    mkpath(dest_dir)
+    log_file = joinpath(dest_dir, "error_log_$(now()).txt")
+    open(log_file, "w") do f
+        write(f, "Error Log\n")
+        write(f, "=========\n\n")
+        write(f, "Timestamp: $(now())\n")
+        write(f, "Error: $(err)\n\n")
+        write(f, "Parameters: $params\n\n")
+        write(f, "Stacktrace:\n")
+        write(f, string(bt))
+    end
+    @info "Error log written to $log_file"
 end
 
 # Helper function for consistent error handling in worker threads

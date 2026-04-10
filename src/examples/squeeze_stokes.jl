@@ -1044,7 +1044,7 @@ function def_problem(r::T, h::U, ne::Z, η_0::V, ndim::Int64, FunctionClass_u::S
                     sim_time::W, t_steps::X; viscosity_model::String="power_law",
                     mesh_path::String = joinpath("/home","soshala","SMEAR-PhD","smear-modules","smear-meshes")) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
 
-    time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
+    time = Float64.(collect(range(start=t_steps, stop=sim_time, step=t_steps)))
     len_t::Int = length(time)
     @info "Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(round(Int, sim_time/t_steps))"
     @info "Length of time array: $(len_t)"
@@ -1191,7 +1191,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     
     NodeList_cached::Matrix{Float64} = NodeList_u_cached
     ID_cached::Matrix{Int} = ID_u_cached
-    time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
+    time = Float64.(collect(range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached)))
     len_t = length(time)
 
     C_Tu = transpose(C_uc_cached) # transpose the constraint matrix
