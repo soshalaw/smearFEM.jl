@@ -4045,13 +4045,15 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1, base_see
                     params = params_list[idx]
                     try
                         # Avoid BLAS thread oversubscription per worker
-                        LinearAlgebra.BLAS.set_num_threads(max_workers)
+                        LinearAlgebra.BLAS.set_num_threads(max(1, div(Threads.nthreads(), workers)))
                         # Suppress all output from optimize and its called functions
                         redirect_stdout(devnull) do
                             redirect_stderr(devnull) do
                                 optimize(params)
                             end
                         end
+                        # Force garbage collection to free memory immediately
+                        GC.collect()
                     catch err
                         # capture backtrace and format similar to native Julia error output
                         bt = catch_backtrace()

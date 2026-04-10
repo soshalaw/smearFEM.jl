@@ -1,32 +1,43 @@
 using LinearAlgebra
 using SparseArrays
+using Parameters
 
-
-""" 
-    smearFEM.gaussian_quadrature(a,b,nGaussPoints)
-
-Compute the nodes and weights for the Gaussian quadrature of order 2
-    
-# Arguments:    
-- `a,b::Integer` : the limits of the integration interval
-- `nGaussPoints::Integer` : number of Gauss points to be considered (2 or 3)
-
-# Returns:    
-- `ξ::Vector{Float64}{,nGaussPoints}`: nodes.
-- `w::Vector{Float64}{,nGaussPoints}`: weights 
 """
-function gaussian_quadrature(a::Int64,b::Int64;nGaussPoints::Int64=2)
-  
-    if nGaussPoints == 2
-        ξ = [-(b-a)/(2*sqrt(3))+(b+a)/2, (b-a)/(2*sqrt(3))+(b+a)/2]
-        w = [(b-a)/2, (b-a)/2]
-    elseif nGaussPoints == 3
-        ξ = [-(b-a)/(2*sqrt(5/3))+(b+a)/2, 0, (b-a)/(2*sqrt(5/3))+(b+a)/2]
-        w = [(b-a)/2*5/9, (b-a)/2*8/9, (b-a)/2*5/9]
+    BasisFunctionCache
+
+Structure to store pre-computed basis functions for volume and surface integration.
+
+# Fields:
+- `bf_volume` : Tuple of (N_u_gp, ΔN_u_gp, N_p_gp, ΔN_p_gp, N_x_gp, ΔN_x_gp, wpoints) for volume integration
+- `bf_surface` : Tuple of (N_u_surf_gp, ΔN_u_surf_gp, wpoints) for surface integration
+"""
+struct BasisFunctionCache
+    bf_volume::NTuple{7, Any}
+    bf_surface::NTuple{3, Any}
+    
+    function BasisFunctionCache(bf_vol::NTuple{7, Any}, bf_surf::NTuple{3, Any})
+        new(bf_vol, bf_surf)
     end
-    return ξ, w
 end
 
+"""
+    BasisFunctionCache(mdl::Stokes)
+
+Construct a BasisFunctionCache by pre-computing basis functions for the given Stokes model.
+
+# Arguments:
+- `mdl::Stokes` : Material model
+
+# Returns:
+- `BasisFunctionCache` : Cache containing pre-computed basis functions
+"""
+function BasisFunctionCache(mdl::Stokes)
+    bf_volume = get_basis_volume_functions(mdl)
+    bf_surface = get_surface_basis_functions(mdl)
+    return BasisFunctionCache(bf_volume, bf_surface)
+end
+
+# Node index pairs for tensor-product basis functions
 const _Q1_2D_NODE_PAIRS = ((1, 1), (2, 1), (2, 2), (1, 2))
 const _Q2_2D_NODE_PAIRS = ((1, 1), (2, 1), (2, 2), (1, 2), (3, 1), (2, 3), (3, 2), (1, 3), (3, 3))
 
@@ -37,6 +48,31 @@ const _Q2_3D_NODE_TRIPLES = ((1, 1, 1), (2, 1, 1), (2, 2, 1), (1, 2, 1), (1, 1, 
     (1, 1, 3), (2, 1, 3), (2, 2, 3), (1, 2, 3),
     (3, 1, 3), (2, 3, 3), (3, 2, 3), (1, 3, 3),
     (3, 3, 1), (3, 3, 2), (3, 3, 3))
+
+""" 
+    smearFEM.gaussian_quadrature(a,b,n_gauss_pts)
+
+Compute the nodes and weights for the Gaussian quadrature of order 2
+    
+# Arguments:    
+- `a,b::Integer` : the limits of the integration interval
+- `n_gauss_pts::Integer` : number of Gauss points to be considered (2 or 3)
+
+# Returns:    
+- `ξ::Vector{Float64}{,n_gauss_pts}`: nodes.
+- `w::Vector{Float64}{,n_gauss_pts}`: weights 
+"""
+function gaussian_quadrature(a::Int64,b::Int64,n_gauss_pts::Int64=2)
+  
+    if n_gauss_pts == 2
+        ξ = [-(b-a)/(2*sqrt(3))+(b+a)/2, (b-a)/(2*sqrt(3))+(b+a)/2]
+        w = [(b-a)/2, (b-a)/2]
+    elseif n_gauss_pts == 3
+        ξ = [-(b-a)/(2*sqrt(5/3))+(b+a)/2, 0, (b-a)/(2*sqrt(5/3))+(b+a)/2]
+        w = [(b-a)/2*5/9, (b-a)/2*8/9, (b-a)/2*5/9]
+    end
+    return ξ, w
+end
 
 """
     _basis_1d_components(ξ, FunctionClass)
@@ -338,4 +374,179 @@ function basis_function(ξ::Float64, η::Float64, ζ::Float64, Ce::Matrix{Float6
 
     # return Be, ΔBe
     return Re, ΔRe
+end
+
+"""
+    get_basis_volume_functions(mdl::Stokes)
+
+Pre-compute basis functions at all Gauss points in volume elements for assembly.
+
+# Arguments:
+- `mdl::Stokes` : Material model
+
+# Returns:
+- `N_u_gp` : Velocity basis function values at each volume GP
+- `ΔN_u_gp` : Velocity basis function derivatives at each volume GP
+- `N_p_gp` : Pressure basis function values at each volume GP
+- `ΔN_p_gp` : Pressure basis function derivatives at each volume GP
+- `N_x_gp` : Geometry basis function values at each volume GP
+- `ΔN_x_gp` : Geometry basis function derivatives at each volume GP
+- `wpoints` : Quadrature weights for volume integration
+"""
+function get_basis_volume_functions(mdl::Stokes)
+    
+    @unpack ndim, ne = mdl
+    FunctionClass_u = mdl.mesh_u.FunctionClass
+    FunctionClass_p = mdl.mesh_p.FunctionClass
+    FunctionClass_x = mdl.mesh_x.FunctionClass
+
+    ndim_cached = ndim
+    FunctionClass_u_cached = FunctionClass_u
+    FunctionClass_p_cached = FunctionClass_p
+    FunctionClass_x_cached = FunctionClass_x
+
+    if ndim_cached == 1
+        # gaussian quadrature points for the element [-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1,3)
+    
+        wpoints = [w_ξ[1], w_ξ[2]]
+        
+        x = [ξ[1], ξ[2]]
+    elseif ndim_cached == 2
+        # gaussian quadrature points for the element [-1,1]x[-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1,3)
+        η, w_η = gaussian_quadrature(-1,1,3)
+
+        # Pre-allocate arrays for efficiency (faster than push!)
+        npts = size(ξ,1) * size(η,1)
+        x = Vector{Float64}(undef, npts)
+        y = Vector{Float64}(undef, npts)
+        wpoints = Vector{Float64}(undef, npts)
+        
+        idx = 1
+        size_η = size(η,1)
+        size_ξ = size(ξ,1)
+        for j in 1:size_η
+            for i in 1:size_ξ
+                x[idx] = ξ[i]
+                y[idx] = η[j]
+                wpoints[idx] = w_ξ[i]*w_η[j]
+                idx += 1
+            end
+        end
+
+    elseif ndim_cached == 3
+        # gaussian quadrature points for the element [-1,1]x[-1,1]x[-1,1] 
+        ξ, w_ξ = gaussian_quadrature(-1,1,3)
+        η, w_η = gaussian_quadrature(-1,1,3)
+        ζ, w_ζ = gaussian_quadrature(-1,1,3)
+
+        # Pre-allocate arrays for efficiency (faster than push!)
+        npts = size(ξ,1) * size(η,1) * size(ζ,1)
+        x = Vector{Float64}(undef, npts)
+        y = Vector{Float64}(undef, npts)
+        z = Vector{Float64}(undef, npts)
+        wpoints = Vector{Float64}(undef, npts)
+        
+        idx = 1
+        size_ζ = size(ζ,1)
+        size_η = size(η,1)
+        size_ξ = size(ξ,1)
+        for k::Int in 1:size_ζ
+            for j::Int in 1:size_η
+                for i::Int in 1:size_ξ
+                    x[idx] = ξ[i]
+                    y[idx] = η[j]
+                    z[idx] = ζ[k]
+                    wpoints[idx] = w_ξ[i]*w_η[j]*w_ζ[k]
+                    idx += 1
+                end
+            end
+        end
+    end
+
+    gpiter = 1:length(wpoints)  # iterator for integration loop
+    
+    # Pre-allocate vectors for storing basis functions at all Gauss points
+    N_u_gp = Vector{Vector{Float64}}(undef, length(wpoints))
+    ΔN_u_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
+    N_p_gp = Vector{Vector{Float64}}(undef, length(wpoints))
+    ΔN_p_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
+    N_x_gp = Vector{Vector{Float64}}(undef, length(wpoints))
+    ΔN_x_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
+    
+    # Compute and store basis functions at all Gauss points
+    for gp::Int in gpiter
+        if ndim_cached == 1
+            N_u_gp[gp], ΔN_u_gp[gp] = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
+            N_p_gp[gp], ΔN_p_gp[gp] = basis_function(x[gp], nothing, nothing, FunctionClass_p_cached)
+            N_x_gp[gp], ΔN_x_gp[gp] = basis_function(x[gp], nothing, nothing, FunctionClass_x_cached)
+        elseif ndim_cached == 2
+            N_u_gp[gp], ΔN_u_gp[gp] = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached)
+            N_p_gp[gp], ΔN_p_gp[gp] = basis_function(x[gp], y[gp], nothing, FunctionClass_p_cached)
+            N_x_gp[gp], ΔN_x_gp[gp] = basis_function(x[gp], y[gp], nothing, FunctionClass_x_cached)
+        elseif ndim_cached == 3
+            N_u_gp[gp], ΔN_u_gp[gp] = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached)
+            N_p_gp[gp], ΔN_p_gp[gp] = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
+            N_x_gp[gp], ΔN_x_gp[gp] = basis_function(x[gp], y[gp], z[gp], FunctionClass_x_cached)
+        end
+    end
+    
+    return N_u_gp, ΔN_u_gp, N_p_gp, ΔN_p_gp, N_x_gp, ΔN_x_gp, wpoints
+end
+
+"""
+    get_surface_basis_functions(mdl::Stokes)
+
+Pre-compute basis functions at all Gauss points on surfaces for boundary condition assembly.
+For 2D problems: computes 1D basis functions for edge integration.
+For 3D problems: computes 2D basis functions for surface integration.
+
+# Arguments:
+- `mdl::Stokes` : Material model
+
+# Returns:
+- `N_u_surf_gp` : Velocity basis function values at each surface GP
+- `ΔN_u_surf_gp` : Velocity basis function derivatives at each surface GP
+- `wpoints` : Quadrature weights for surface integration
+"""
+function get_surface_basis_functions(mdl::Stokes)
+    
+    @unpack ndim = mdl
+    FunctionClass_u = mdl.mesh_u.FunctionClass
+
+    ndim_cached = ndim
+    FunctionClass_u_cached = FunctionClass_u
+
+    if ndim_cached == 2
+        # 1D Gauss quadrature for edge integration
+        ξ, w_ξ = gaussian_quadrature(-1, 1)
+        x = [ξ[1], ξ[2]]
+        wpoints = [w_ξ[1], w_ξ[2]]
+        
+    elseif ndim_cached == 3
+        # 2D Gauss quadrature for surface integration
+        ξ, w_ξ = gaussian_quadrature(-1, 1)
+        η, w_η = gaussian_quadrature(-1, 1)
+        
+        x = [ξ[1], ξ[2], ξ[2], ξ[1]]
+        y = [η[1], η[1], η[2], η[2]]
+        wpoints = [w_ξ[1]*w_η[1], w_ξ[2]*w_η[1], w_ξ[2]*w_η[2], w_ξ[1]*w_η[2]]
+    else
+        error("Surface basis functions only supported for ndim >= 2")
+    end
+    
+    # Pre-allocate and compute basis functions at all surface Gauss points
+    N_u_surf_gp = Vector{Vector{Float64}}(undef, length(wpoints))
+    ΔN_u_surf_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
+    
+    for gp in 1:length(wpoints)
+        if ndim_cached == 2
+            N_u_surf_gp[gp], ΔN_u_surf_gp[gp] = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
+        elseif ndim_cached == 3
+            N_u_surf_gp[gp], ΔN_u_surf_gp[gp] = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached)
+        end
+    end
+    
+    return N_u_surf_gp, ΔN_u_surf_gp, wpoints
 end

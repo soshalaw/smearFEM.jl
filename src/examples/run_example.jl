@@ -124,7 +124,7 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     
     filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
 
-    mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
+    mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry
     mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
@@ -134,14 +134,17 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     
     q_tp, q_side, q_btm, C_uc = set_boundary_cond(mdl)
 
+    # Pre-compute basis functions
+    cache = BasisFunctionCache(mdl)
+
     if DENSE == true
-        A_bar = assemble_system_A(mdl)               # assemble the stiffness matrix
-        B = assemble_system_B(mdl)                   # assemble the stiffness matrix
-        b = apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
+        A_bar = assemble_system_A(mdl, cache)               # assemble the stiffness matrix
+        B = assemble_system_B(mdl, cache)                   # assemble the stiffness matrix
+        b = apply_boundary_conditions_dense(mdl, cache)           # apply the neumann boundary conditions
     else
-        A_bar = assemble_system_A(mdl)               # assemble the stiffness matrix
-        B = assemble_system_B(mdl)                   # assemble the stiffness matrix
-        b = apply_boundary_conditions(mdl)           # apply the neumann boundary conditions
+        A_bar = assemble_system_A(mdl, cache)               # assemble the stiffness matrix
+        B = assemble_system_B(mdl, cache)                   # assemble the stiffness matrix
+        b = apply_boundary_conditions(mdl, cache)           # apply the neumann boundary conditions
     end
 
     q_d = (μu_btm*q_btm + μu_tp*q_tp + μu_side*q_side)      # apply the Dirichlet boundary conditions

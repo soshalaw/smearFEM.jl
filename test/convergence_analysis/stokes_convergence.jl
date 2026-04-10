@@ -330,7 +330,8 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
     
     mesh_filepath = joinpath(mesh_dir, "convergence_analysis", "mesh_convergence_analysis", "mesh_4.0")
     
-    for step_size in Float64.(dt_list)
+    for (idx,step_size) in enumerate(Float64.(reverse(dt_list)))
+
         filepath = joinpath(mesh_dir, "convergence_analysis", "time_integration_convergence_analysis","step_$step_size", "simulation")
         println("Running for time step size = $step_size")
         steps = round(Int, sim_time/step_size)
@@ -343,7 +344,7 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
                          "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => true, "mesh_path" => mesh_filepath)
 
         # try
-            write_gt_data(exp_params)
+            # write_gt_data(exp_params)
         # catch e
         #     @error "Simulation failed for time step size $step_size" exception=e
         #     continue
@@ -353,12 +354,15 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
         try
             exp_params = read_json(joinpath(filepath, "data", "sim_params.jld2"))
             h_mesh = readdlm(joinpath(filepath, "data","h.csv"), ',', Float64)
-
             dt = exp_params["time_steps"]
-
             ne = exp_params["ne"]
             effective_element_size = (volume / ne)^(1/3)
 
+            if idx == 1
+                h_ref = h_mesh[end] # use the finest time step solution as reference for error calculation
+                continue
+            end
+            
             δh = abs(h_mesh[end] - h_ref) / h_ref
             _δh = (h_mesh[end] - h_ref) / h_ref
             
@@ -377,7 +381,7 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/effective_element_size", effective_element_size_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/height_list", height_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/height_error_list", height_error_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/t_steps", dt_list)
+    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/t_steps", _dt_list)
     write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/final_height_list", final_height_list)
 end
 
@@ -405,17 +409,21 @@ function plot_convergence_time(file_path::String)
         dt_list = readdlm(joinpath(file_path, "t_steps.csv"), ',', Float64)
         h_end_list = readdlm(joinpath(file_path, "final_height_list.csv"), ',', Float64)
         
-        Plots.plot(dt_list, h_end_list, label="Final height", xlabel="Time step size (Δt)", ylabel="Final height", yscale=:linear, xscale=:log10, marker=:circle)
-        Plots.savefig(Plots.current(), joinpath(file_path, "plots", "final_height_vs_dt.pdf"))
-        
-        println("Height error list: ", height_error_list)
         relative_error = vec(height_error_list[:])
         dt_sizes = vec(dt_list)
         
         plot_path = joinpath(file_path, "plots")
-        plot_convergence_generic(dt_sizes, relative_error, "Time step size (Δt)", 
-                                plot_path, "time_integration_convergence.pdf")
-    # catch e
+        plot_convergence_generic(dt_sizes, relative_error, "Time step size (Δt)", plot_path, "time_integration_convergence.pdf")
+        
+        plt = set_plot(PLOT_CONFIG[:font_size], 
+                          sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
+                          left_margin=PLOT_CONFIG[:left_margin],
+                          right_margin=PLOT_CONFIG[:right_margin],
+                          top_margin=PLOT_CONFIG[:top_margin],
+                          legend_column=2)
+        Plots.plot(dt_list, h_end_list, label="Final height", xlabel="Time step size (Δt)", ylabel="Final height", yscale=:log10, xscale=:log10, marker=:circle)
+        Plots.savefig(Plots.current(), joinpath(file_path, "plots", "final_height_vs_dt.pdf"))
+        # catch e
     #     @warn "Failed to plot time integration convergence: $e"
     # end
 end

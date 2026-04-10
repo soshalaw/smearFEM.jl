@@ -6,7 +6,7 @@ file = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_functi
 
 # test case 
 r::Float64 = 25  # radius of the cylinder in mm
-h::Float64 = 38.5  # height of the cylinder in mm
+h::Float64 = 40.0  # height of the cylinder in mm
 ndim::Int = 3
 FunctionClass_x::String = "Q2"
 FunctionClass_u::String = "Q2"
@@ -46,7 +46,7 @@ rel_error_tol = 1e-4
 
 filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
 
-mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x, filePath=filePath)  # generate the mesh grid for geometry
+mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry
 mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
 mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
