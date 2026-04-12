@@ -1,5 +1,10 @@
 module smearFEM
 
+using LinearAlgebra
+
+# Performance optimization: enable multi-threaded BLAS at module load time
+BLAS.set_num_threads(Threads.nthreads())
+
 abstract type AbstractMeshgrid end
 
 # abstract type model end

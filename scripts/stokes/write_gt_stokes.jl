@@ -166,8 +166,10 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
     completed = Threads.Atomic{Int}(0)
     spinner_idx = Threads.Atomic{Int}(0)  # For animating spinner
     
-    # Set BLAS threads once before spawning tasks (not inside threads)
-    LinearAlgebra.BLAS.set_num_threads(max(1, div(Threads.nthreads(), workers)))
+    # Allocate 4 BLAS threads per worker for balanced performance
+    # Prevents thread oversubscription while maintaining good linear algebra performance
+    BLAS_THREADS_PER_WORKER = 4
+    LinearAlgebra.BLAS.set_num_threads(BLAS_THREADS_PER_WORKER)
     
     ch = Channel{Int}(length(params_list))
     @sync begin

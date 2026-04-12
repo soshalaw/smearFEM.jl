@@ -3,7 +3,7 @@ using Dates
 using Plots, Plots.PlotMeasures
 using LaTeXStrings
 using StatsPlots
-using Dates
+
 
 function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, nDof_u::Int, FunctionClass_p::String, nDof_p::Int, FunctionClass_x::String, ne::Int, 
                     camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractMatrix{Float64})
