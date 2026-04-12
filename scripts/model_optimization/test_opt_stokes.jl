@@ -4193,7 +4193,6 @@ function optimize_syn()
                 continue
                 println("Skipping dir $dir")
             end
-            @info "Processing ground truth directory: $dir for $viscosity_type viscosity with model type $model_type ..."
             filepath_gt = string(_filepath_gt,"/",dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
