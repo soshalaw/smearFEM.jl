@@ -4367,6 +4367,6 @@ end
 
 # main()
 # optimize_sim()
-# optimize_syn()
+optimize_syn()
 # optimize_real()
-plot_()
+# plot_()
