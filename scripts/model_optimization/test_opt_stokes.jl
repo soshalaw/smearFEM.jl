@@ -4179,8 +4179,8 @@ function optimize_syn()
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"]
-    window = "multi_window"
+    viscosity_type_list = ["bulk_viscosity"] # ["constant", "bulk_viscosity"]
+    window = "multi_window" 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
@@ -4316,7 +4316,7 @@ function plot_()
     viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
     model_type::String = "Stokes" # "carreau" or "Stokes"
     avoid_dirs = ["3_less_noise", "s","7"] #, "6", "7", "8", "9"]
-    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
+    data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
 
     for data_type in data_type_list
         if data_type == "synthetic"
@@ -4367,6 +4367,6 @@ end
 
 # main()
 # optimize_sim()
-optimize_syn()
+# optimize_syn()
 # optimize_real()
-# plot_()
+plot_()
