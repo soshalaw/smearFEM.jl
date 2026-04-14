@@ -172,11 +172,11 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
                     Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathcal{B}_{k,j}", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
                 end
                 if !isnothing(fields2D)
-                    Plots.scatter!(plt, fields2D[i][1,:], fields2D[i][2,:], ms=:2, mc=:royalblue, ma=:0.7, legend=true, labels=L"\hat{\mathcal{B}}_{k,j}", aspect_ratio = :equal, 
+                    Plots.scatter!(plt, fields2D[i][1,:], fields2D[i][2,:], ms=:2, mc=:royalblue, ma=:0.7, legend=true, labels=L"\mathcal{U}_{k,j}", aspect_ratio = :equal, 
                                     dpi=:400)
                 end
                 if !isnothing(BorderNodes2D)
-                    Plots.scatter!(plt, BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:3, mc=:indianred2, legend=true, labels=L"\bar{\mathcal{B}}_{k,j}", aspect_ratio = :equal, 
+                    Plots.scatter!(plt, BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:3, mc=:indianred2, legend=true, labels=L"\widehat{\mathcal{B}}_{k,j}", aspect_ratio = :equal, 
                                     dpi=:400)
                 end
             end

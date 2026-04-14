@@ -40,12 +40,12 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Int = 16 # number of elements in the mesh for the ground truth
 
-    β_gt_list = [0.01] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
+    β_gt_list = [0.01, 0.1, 1, 10, 50, 100, 500, 1e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
 
     control = "force" # "force" or "velocity"
 
-    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["constant","bulk_viscosity"] # "constant" or "bulk_viscosity"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
     
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
