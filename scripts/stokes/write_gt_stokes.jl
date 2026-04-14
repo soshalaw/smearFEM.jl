@@ -59,7 +59,7 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     camera_matrix::Matrix{Float64} = [2.39642674e+03  0.0  1.00429248e+03; 0.0  2.40565353e+03  7.57028161e+02; 0.0  0.0 1.0;]
 
     # Build list of all experiment parameters
-    params_list = Dict[]
+    param_list = Dict[]
     for viscosity_type in viscosity_type_list
         for FunctionClass_x in FunctionClass_x_gt_list
             run_id = 1
@@ -87,24 +87,24 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
                         "camera_matrix" => camera_matrix,
                         "animate" => !use_parallel
                     )
-                    push!(params_list, exp_params)
+                    push!(param_list, exp_params)
                     run_id = run_id + 1
                 end
             end
         end
     end
 
-    @info "Built parameter list with $(length(params_list)) experiment configurations"
-    if !isempty(params_list)
-        @info "First experiment: η=$(params_list[1]["η_gt"]), β=$(params_list[1]["β_gt"]), filepath=$(params_list[1]["filepath_gt"])"
+    @info "Built parameter list with $(length(param_list)) experiment configurations"
+    if !isempty(param_list)
+        @info "First experiment: η=$(param_list[1]["η_gt"]), β=$(param_list[1]["β_gt"]), filepath=$(param_list[1]["filepath_gt"])"
     end
 
     # Run experiments in parallel or sequentially based on use_parallel flag
     if use_parallel
-        run_param_list(params_list; max_workers=max_workers)
+        run_param_list(param_list; max_workers=max_workers)
     else
-        for (i, params) in enumerate(params_list)
-            @info "Sequential execution: calling write_gt_data for index $i / $(length(params_list))"
+        for (i, params) in enumerate(param_list)
+            @info "Sequential execution: calling write_gt_data for index $i / $(length(param_list))"
             try
                 write_gt_data(params)
                 @info "Completed write_gt_data for index $i"
@@ -145,8 +145,8 @@ function print_progress_spinner(completed::Int, total::Int, spinner_idx::Int)
 end
 
 # helper: run a vector of parameter Dicts with limited concurrent workers
-function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
-    isempty(params_list) && return
+function run_param_list(param_list::Vector{Dict}; max_workers::Int=-1)
+    isempty(param_list) && return
     
     # Auto-detect available cores if max_workers not specified (default -1)
     n_available_cores = Threads.nthreads()
@@ -157,9 +157,9 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
     end
     
     # Display batch information
-    display_batch_info(length(params_list), workers)
+    display_batch_info(length(param_list), workers)
     
-    @info "Running $(length(params_list)) experiments with $workers workers"
+    @info "Running $(length(param_list)) experiments with $workers workers"
     @warn "Note: Gmsh is not thread-safe. All Gmsh operations (mesh loading) are serialized via a lock.\n         If mesh generation is the bottleneck, consider using sequential execution: main(use_parallel=false)"
     
     # Atomic counter for tracking completed experiments
@@ -171,9 +171,9 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
     BLAS_THREADS_PER_WORKER = 4
     LinearAlgebra.BLAS.set_num_threads(BLAS_THREADS_PER_WORKER)
     
-    ch = Channel{Int}(length(params_list))
+    ch = Channel{Int}(length(param_list))
     @sync begin
-        for i in 1:length(params_list)
+        for i in 1:length(param_list)
             put!(ch, i)
         end
         close(ch)
@@ -188,7 +188,7 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
                             # Suppress output from write_gt_data
                             redirect_stdout(devnull) do
                                 redirect_stderr(devnull) do
-                                    write_gt_data(params_list[idx])
+                                    write_gt_data(param_list[idx])
                                 end
                             end
                             # Force garbage collection to free memory immediately
@@ -197,10 +197,10 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
                             Threads.atomic_add!(completed, 1)
                             Threads.atomic_add!(spinner_idx, 1)
                             if mod(completed[], 2) == 0
-                                print_progress_spinner(completed[], length(params_list), spinner_idx[])
+                                print_progress_spinner(completed[], length(param_list), spinner_idx[])
                             end
                         catch err
-                            _handle_worker_error(err, idx, params_list[idx])
+                            _handle_worker_error(err, idx, param_list[idx])
                         end
                     catch e
                         # EOFError or InvalidStateException when taking from closed/empty channel
@@ -216,7 +216,7 @@ function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1)
         end
     end
     # Final completion message
-    print("\r✓ Experiments: $(completed[]) / $(length(params_list)) (100%)\n")
+    print("\r✓ Experiments: $(completed[]) / $(length(param_list)) (100%)\n")
     println("All experiments completed.")
 end
 

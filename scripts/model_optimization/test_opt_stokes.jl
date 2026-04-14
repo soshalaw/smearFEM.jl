@@ -61,7 +61,7 @@ function optimize(exp_params::Dict)
     sim_time_gt::Float64 = 0.0
     t_steps_gt::Float64 = 0.0
     steps_exp::Float64 = 0.0
-    outlier_frames::Vector{Int} = Int[1]
+    outlier_frames::Vector{Int} = Int[]
 
     ndim::Int = 3
     nDof_p::Int = 1  # number of degree of freedom per node
@@ -103,7 +103,7 @@ function optimize(exp_params::Dict)
         
         WRITE_GT = exp_params["WRITE_GT"] 
         noiseLevel = exp_params["noise_level"]
-        outlier_frames = Int[1]
+        outlier_frames = Int[]
         
         if WRITE_GT == true # write the ground truth data
             @info "Writing ground truth gt data to with $ne_gt elements to $filepath_res"
@@ -533,9 +533,9 @@ function optimize(exp_params::Dict)
         
         set_file(joinpath(exp_path,"Results","plots"))
         
-        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obs_border_pt_lst, method="quadratic", window_size=sim_time_exp)
-        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="quadratic", window_size=sim_time_exp)
-        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="quadratic", window_size=sim_time_exp)
+        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obs_border_pt_lst, method="linear", window_size=sim_time_exp)
+        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="linear", window_size=sim_time_exp)
+        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="linear", window_size=sim_time_exp)
         println("Time windows: $(time_windows)")
         obs_time = sum(time_windows)
 
@@ -1659,7 +1659,7 @@ function replot(filepath, filepath_gt)
                                 prev_β = est_βpList[data_range_[end]]
                                 t_prev = t+t_steps
                             end
-                            if data_type != "physical" && viscosity_model != "carreau"
+                            if data_type != "physical"
                                 Plots.hline!(plt_β, β_gt, label=L"\beta_{\mathrm{gt}}", color=def_green)
                             end
                             # Plots.ylims!(plt_β, max(minimum(est_βpList)*0.8,0), min((maximum(est_βpList)*1.1),(maximum(est_βpList)+10)))
@@ -4173,18 +4173,18 @@ function optimize_sim()
     end
 end
 
-function optimize_syn()
+function optimize_syn(use_parallel::Bool=true)
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["bulk_viscosity"] # ["constant", "bulk_viscosity"]
+    viscosity_type_list = ["constant"] # ["constant", "bulk_viscosity"]
     window = "multi_window" 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    avoid_dirs = ["3_less_noise","7"]
+    avoid_dirs = ["3_less_noise","7","1","2","3","4"] # avoid_dirs = ["3_less_noise", "7"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -4232,7 +4232,20 @@ function optimize_syn()
                 end
             end
         end
-        run_param_list(param_list; max_workers=15)
+        if use_parallel
+            run_param_list(param_list; max_workers=15)
+        else
+            for (i, params) in enumerate(param_list)
+                @info "Sequential execution: calling write_gt_data for index $i / $(length(param_list))"
+                try
+                    optimize(params)
+                    @info "Completed write_gt_data for index $i"
+                catch err
+                    _handle_worker_error(err, i, params)
+                end
+            end
+            println("All experiments completed.")
+        end
     end
 end
 
@@ -4313,7 +4326,7 @@ function plot_cost_contours(cost_array::AbstractArray, x_range::AbstractVector, 
 end
 function plot_()
     control::String = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
     model_type::String = "Stokes" # "carreau" or "Stokes"
     avoid_dirs = ["3_less_noise", "s","7"] #, "6", "7", "8", "9"]
     data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
@@ -4351,8 +4364,8 @@ function plot_()
                 end
                 filepath_gt_dir = string(filepath_gt,"/$dir/")
                 filepath_res_dir = string(filepath_res,"/$dir/")
-                # predict(filepath_res_dir, filepath_gt_dir)
-                # replot(filepath_res_dir, filepath_gt_dir)
+                predict(filepath_res_dir, filepath_gt_dir)
+                replot(filepath_res_dir, filepath_gt_dir)
             end
             if viscosity_type == "constant"
                 post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
@@ -4367,6 +4380,6 @@ end
 
 # main()
 # optimize_sim()
-optimize_syn()
+# optimize_syn(false)
 # optimize_real()
-# plot_()
+plot_()
