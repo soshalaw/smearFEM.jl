@@ -4365,15 +4365,15 @@ function plot_()
                 filepath_gt_dir = string(filepath_gt,"/$dir/")
                 filepath_res_dir = string(filepath_res,"/$dir/")
                 predict(filepath_res_dir, filepath_gt_dir)
-                # replot(filepath_res_dir, filepath_gt_dir)
+                replot(filepath_res_dir, filepath_gt_dir)
             end
-            # if viscosity_type == "constant"
-            #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
-            # elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
-            #     post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
-            # elseif data_type == "physical"
-            #     post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
-            # end
+            if viscosity_type == "constant"
+                post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
+            elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
+                post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
+            elseif data_type == "physical"
+                post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
+            end
         end
     end
 end
