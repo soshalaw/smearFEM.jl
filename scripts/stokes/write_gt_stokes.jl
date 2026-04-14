@@ -48,8 +48,8 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     viscosity_type_list = ["constant","bulk_viscosity"] # "constant" or "bulk_viscosity"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
     
-    sim_time_gt::Float64 = 5.0 # simulation time in seconds
-    steps_gt::Int = 50 # number of time steps[]
+    sim_time_gt::Float64 = 30.0 # simulation time in seconds
+    steps_gt::Int = 300 # number of time steps[]
 
     obj_pose = zeros(Float64, 4, 4)
     obj_pose[1, 1] = -1.0
