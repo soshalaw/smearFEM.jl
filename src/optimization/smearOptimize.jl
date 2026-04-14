@@ -591,7 +591,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
         # Check convergence
         cost_converged = c_grad_rel < 1e-4  # Relative cost change < 0.01%
         
-        if cost_converged && iter ≥ 20  # Require minimum iterations to avoid false convergence
+        if cost_converged # && iter ≥ 20  # Require minimum iterations to avoid false convergence
             printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n", color=:green)
             break
         end
