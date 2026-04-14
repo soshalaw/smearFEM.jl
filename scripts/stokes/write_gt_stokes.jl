@@ -48,8 +48,8 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     viscosity_type_list = ["constant","bulk_viscosity"] # "constant" or "bulk_viscosity"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
     
-    sim_time_gt::Float64 = 30.0 # simulation time in seconds
-    steps_gt::Int = 300 # number of time steps[]
+    sim_time_gt::Float64 = 5.0 # simulation time in seconds
+    steps_gt::Int = 50 # number of time steps[]
 
     obj_pose = zeros(Float64, 4, 4)
     obj_pose[1, 1] = -1.0
@@ -116,23 +116,14 @@ function main(; use_parallel::Bool=true, max_workers::Int=8)
     end
 end
 
-# Helper: Display available cores and calculate batch information
-function display_batch_info(n_experiments::Int, n_cores::Int=Threads.nthreads())
-    n_batches = ceil(Int, n_experiments / n_cores)
-    experiments_per_batch = n_experiments ÷ n_batches
-    remaining = n_experiments % n_batches
-    
+# Helper: Display available cores and work distribution model
+function display_worker_info(n_experiments::Int, n_workers::Int=Threads.nthreads())
     @info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    @info "CPU CORES AVAILABLE: $n_cores cores"
+    @info "CPU WORKERS AVAILABLE: $n_workers"
     @info "TOTAL EXPERIMENTS: $n_experiments"
-    @info "NUMBER OF BATCHES: $n_batches"
-    if n_batches > 1
-        @info "EXPERIMENTS PER BATCH: $experiments_per_batch (batch 1-$n_batches each have $(experiments_per_batch + (remaining > 0 ? 1 : 0)) experiments max)"
-        @info "BATCH DISTRIBUTION: $remaining batch(es) with extra experiment(s)"
-    end
+    @info "WORK DISTRIBUTION: Dynamic queue-based (work-stealing model)"
+    @info "Each worker pulls experiments on-demand from shared queue"
     @info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    return n_batches
 end
 
 # Helper: Print animated spinner with progress
@@ -156,8 +147,8 @@ function run_param_list(param_list::Vector{Dict}; max_workers::Int=-1)
         workers = max(1, min(n_available_cores, max_workers))
     end
     
-    # Display batch information
-    display_batch_info(length(param_list), workers)
+    # Display worker and distribution information
+    display_worker_info(length(param_list), workers)
     
     @info "Running $(length(param_list)) experiments with $workers workers"
     @warn "Note: Gmsh is not thread-safe. All Gmsh operations (mesh loading) are serialized via a lock.\n         If mesh generation is the bottleneck, consider using sequential execution: main(use_parallel=false)"
@@ -250,4 +241,4 @@ function _handle_worker_error(err::Exception, idx::Int, params::Dict)
 end
 
 # Option B: Maximum speed with garbage collection (8 cores, ~4GB memory, 8x speedup)
-main(use_parallel=true, max_workers=8)
+main(use_parallel=true, max_workers=16)
