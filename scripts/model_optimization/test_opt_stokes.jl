@@ -4380,6 +4380,6 @@ end
 
 # main()
 # optimize_sim()
-optimize_syn(false)
+optimize_syn(true)
 # optimize_real()
 plot_()
