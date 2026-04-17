@@ -392,7 +392,7 @@ function read_json(filepath::String)
                 return file_data
             end
         catch e
-            throw(SystemError("Failed to read JLD2 file $filepath_with_ext: $(e.msg)"))
+            throw(SystemError("Failed to read JLD2 file $filepath_with_ext: $(string(e))"))
         end
     end
 end
