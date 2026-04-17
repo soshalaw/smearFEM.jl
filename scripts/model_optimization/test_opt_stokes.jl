@@ -16,14 +16,16 @@ using Random
 using Colors
 
 using Dates
-# using JLD2
 using Plots.PlotMeasures
+
+include("../ParallelExecution.jl")
+using .ParallelExecution
 
 global def_orange = RGB(245/255,118/255,0)
 global def_blue = RGB(5/255,79/255,185/255)
 global def_red = RGB(196/255,70/255,1/255)
 global def_green = RGB(2/255,147/255,86/255)
-global end_obs_win = 25.1
+global end_obs_win = 20.1
 
 # for 1/2 linewidth
 # fs::Int = 12
@@ -50,7 +52,7 @@ global y_lims_h_norm = (0.97, 1.02)
 global y_lims_rel_error = (-0.1, 3.0)
 
 # for sim data
-# global y_lims_h_norm = (0.999, 1.001)
+# global y_lims_h_norm = (0.995, 1.005)
 # global y_lims_rel_error = (-0.05, 0.1)
 
 function optimize(exp_params::Dict)
@@ -103,7 +105,7 @@ function optimize(exp_params::Dict)
         
         WRITE_GT = exp_params["WRITE_GT"] 
         noiseLevel = exp_params["noise_level"]
-        outlier_frames = Int[]
+        outlier_frames = Int[1]
         
         if WRITE_GT == true # write the ground truth data
             @info "Writing ground truth gt data to with $ne_gt elements to $filepath_res"
@@ -272,7 +274,7 @@ function optimize(exp_params::Dict)
         if noiseLevel == 0.0
                 
             obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
-            stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ, outliers=outlier_frames)
+            stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ, outliers=outlier_frames, method=:gn)
 
             iterList = stats["iterList"]
             costList = stats["cost_list"]
@@ -1829,6 +1831,8 @@ end
 function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     dir_list = readdir(filepath)
 
+    # figure for legend
+
     # plot for convergence per slip case
     plot_conv_2 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, legend_column=3)
     Plots.plot!(plot_conv_2, [],  label=false)
@@ -1958,6 +1962,8 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
     # height plots
     h_glob_plot_2 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, legend_column=3)
+    Plots.plot([5,end_obs_win],[0.998,0.998], arrow=arrow(:closed, :both), color=:black, label=false)
+    Plots.annotate!(h_glob_plot_2, 15, 0.997, ("Prediction",:black, :center,10,"computer modern"))
     Plots.xlabel!(h_glob_plot_2,L"\mathrm{Time\;[s]}")
     Plots.ylabel!(h_glob_plot_2,L"h_{\mathrm{est}}\;\mathrm{[mm]}")
     Plots.xlims!(h_glob_plot_2, 0, end_obs_win)
@@ -1976,6 +1982,8 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
     h_norm_plot_2 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, legend_column=3)
     Plots.hline!(h_norm_plot_2, [1.0],  left_margin=plt_lft_margin, linestyle=:dash, label=false, color=:black)
+    Plots.plot!(h_norm_plot_2,[5,end_obs_win],[0.998,0.998], arrow=arrow(:closed, :both), color=:black, label=false)
+    Plots.annotate!(h_norm_plot_2, 15, 0.997, ("Prediction",:black, :center,10,"computer modern"))
     Plots.xlabel!(h_norm_plot_2,L"\mathrm{Time\;[s]}")
     Plots.ylabel!(h_norm_plot_2,L"h_{\mathrm{est}}/h_{\mathrm{gt}}")
     Plots.xlims!(h_norm_plot_2, 0, end_obs_win)
@@ -1983,6 +1991,11 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
     h_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, legend_column=3)
     Plots.hline!(h_norm_plot_5, [1.0],  left_margin=plt_lft_margin, linestyle=:dash, label=false, color=:black)
+    Plots.plot!(h_norm_plot_5,[5,end_obs_win],[0.998,0.998], arrow=arrow(:closed, :both), color=:black, label=false)
+    Plots.annotate!(h_norm_plot_5, 15, 0.9975, ("Prediction",:black, :center, 8,"computer modern"))
+
+    # Plots.plot!(h_norm_plot_5,[5,end_obs_win],[1.01,1.01], arrow=arrow(:closed, :both), color=:black, label=false)
+    # Plots.annotate!(h_norm_plot_5, 15, 1.0125, ("Prediction",:black, :center, 8,"computer modern"))
     Plots.vline!(h_norm_plot_5, [5.0], color=:black, linestyle=:dash, label=false)
     Plots.xlabel!(h_norm_plot_5,L"\mathrm{Time\;[s]}")
     Plots.ylabel!(h_norm_plot_5,L"h_{\mathrm{est}}/h_{\mathrm{gt}}")  
@@ -2006,6 +2019,11 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
     rel_height_error_glob_plot_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, legend_column=3)
     Plots.vline!(rel_height_error_glob_plot_5, [5.0], color=:black, linestyle=:dash, label=false)
+    # Plots.plot!(rel_height_error_glob_plot_5,[5,end_obs_win],[-0.04,-0.04], arrow=arrow(:closed, :both), color=:black, label=false)
+    # Plots.annotate!(rel_height_error_glob_plot_5, 15, -0.03, ("Prediction",:black, :center, 8,"computer modern"))
+
+    Plots.plot!(rel_height_error_glob_plot_5,[5,end_obs_win],[1.01,1.01], arrow=arrow(:closed, :both), color=:black, label=false)
+    Plots.annotate!(rel_height_error_glob_plot_5, 15, 1.0175, ("Prediction",:black, :center, 8,"computer modern"))
     Plots.xlabel!(rel_height_error_glob_plot_5, L"\mathrm{Time\;[s]}")
     Plots.ylabel!(rel_height_error_glob_plot_5, latexstring("Relative Height Error [\$\\%\$]"))
     Plots.xlims!(rel_height_error_glob_plot_5, 0, end_obs_win)
@@ -2110,6 +2128,15 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
     cont_plt_legend = set_plot(fs, sz=(cnt_plt_width, plt_height), legend=:outertopright)
 
+    # Create a thin horizontal legend strip for the outer loop (directory/viscosity slip case legend)
+    slip_case_legend = set_plot(11, sz=(round(Int, plt_width*1.7), 50), legend=:bottom, legend_column=3, bottom_margin=-35mm, top_margin=2mm, left_margin=-25mm, right_margin=-15mm)
+    Plots.plot!(slip_case_legend, [0, 1], [0, 0], label=false, color=:white, linewidth=0)  # Hidden base plot for axes
+    Plots.xlims!(slip_case_legend, -0.2, 1.2)
+    Plots.ylims!(slip_case_legend, -0.5, 0.5)
+    
+    # Color palette excluding yellow
+    color_palette = [palette(:Set1)[i] for i in [1, 2, 3, 4, 5, 7, 8, 9]]  # Skip index 6 (yellow)
+
     max_iter = 1
     for dir in dir_list
     
@@ -2131,6 +2158,9 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
         time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
 
         println("Ground truth η: ", η_gt[1])
+
+        # Add entry to slip case legend
+        Plots.plot!(slip_case_legend, [0, 0.2], [0, 0], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linewidth=2, markerstrokewidth=0)
 
         elem_size_folders = readdir(filepath_dir)
 
@@ -2277,7 +2307,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                 covarience_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=noise_cols)
                 Plots.xlabel!(covarience_plt, L"\eta/\eta_{\mathrm{gt}}")
                 Plots.ylabel!(covarience_plt, L"\beta/\beta_{\mathrm{gt}}")
-                Plots.xlims!(covarience_plt, 0.98, 1.1)
+                Plots.xlims!(covarience_plt, 0.95, 1.05)
                 Plots.ylims!(covarience_plt, 0.0, 1.75)
                 
                 # parameter distribution plots
@@ -2427,61 +2457,61 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
                         if sim_time == 2.0
                             if ne == 6
-                                Plots.plot!(η_norm_plot_2, iter, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(η_norm_plot_2, iter, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 Plots.xticks!(η_norm_plot_2, 0:2:(max_iter+1))
 
-                                Plots.plot!(β_norm_plot_2, iter, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(β_norm_plot_2, iter, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 Plots.xticks!(β_norm_plot_2, 0:2:(max_iter+1))
 
-                                Plots.plot!(plot_conv_2, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(plot_conv_2, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 Plots.xticks!(plot_conv_2, 0:2:(max_iter+1))
                                 
-                                Plots.plot!(plot_conv_log_2, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1], xscale=:log10, yscale=:log10)
+                                Plots.plot!(plot_conv_log_2, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], xscale=:log10, yscale=:log10)
                                 Plots.xticks!(plot_conv_log_2, 1:10:max_iter)
                                 
-                                Plots.plot!(ratio_plot_2, iter, ratio_est, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1], yscale=:log10)
+                                Plots.plot!(ratio_plot_2, iter, ratio_est, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], yscale=:log10)
                                 Plots.xticks!(ratio_plot_2, 0:2:(max_iter+1))
                                 Plots.hline!(ratio_plot_2, [ratio_gt], linestyle=:dash, label=false, color=:black, yscale=:log10)
 
-                                Plots.plot!(ratio_norm_plot_2, iter, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(ratio_norm_plot_2, iter, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 Plots.xticks!(ratio_norm_plot_2, 0:2:(max_iter+1))
                                 
-                                Plots.plot!(rel_height_error_glob_plot_2, time_h, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                Plots.plot!(h_norm_plot_2, h_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(rel_height_error_glob_plot_2, time_h, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(h_norm_plot_2, h_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                             end
                         elseif sim_time == 5.0
                             if ne == 6
-                                Plots.plot!(η_norm_plot_5, iter, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(η_norm_plot_5, iter, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 Plots.xticks!(η_norm_plot_5, 0:2:(max_iter+1))
                                 
-                                Plots.plot!(β_norm_plot_5, iter, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(β_norm_plot_5, iter, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 Plots.xticks!(β_norm_plot_5, 0:2:(max_iter+1))
 
-                                Plots.plot!(plot_conv_5, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(plot_conv_5, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 Plots.xticks!(plot_conv_5, 0:2:(max_iter+1))
 
-                                Plots.plot!(plot_conv_log_5, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1], xscale=:log10, yscale=:log10)
+                                Plots.plot!(plot_conv_log_5, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], xscale=:log10, yscale=:log10)
                                 Plots.xticks!(plot_conv_log_5, 1:10:max_iter)
 
-                                Plots.plot!(ratio_plot_5, iter, ratio_est, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1], yscale=:log10)
+                                Plots.plot!(ratio_plot_5, iter, ratio_est, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], yscale=:log10)
                                 Plots.hline!(ratio_plot_5, [ratio_gt], linestyle=:dash, label=false, color=:black, yscale=:log10)
                                 Plots.xticks!(ratio_plot_5, 0:2:(max_iter+1))
 
-                                Plots.plot!(ratio_norm_plot_5, iter, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(ratio_norm_plot_5, iter, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 Plots.xticks!(ratio_norm_plot_5, 0:2:(max_iter+1))
 
-                                Plots.plot!(rel_height_error_glob_plot_5, time_h[1:51], rel_height_error[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                Plots.plot!(rel_height_error_glob_plot_5, time_h, rel_height_error, label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1], linestyle=:dash)
+                                Plots.plot!(rel_height_error_glob_plot_5, time_h[1:51], rel_height_error[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(rel_height_error_glob_plot_5, time_h, rel_height_error, label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linestyle=:dash)
                                 
-                                Plots.plot!(h_norm_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                Plots.plot!(h_norm_plot_5, time_h, h_norm[1:n_time], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1], linestyle=:dash)
+                                Plots.plot!(h_norm_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(h_norm_plot_5, time_h, h_norm[1:n_time], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linestyle=:dash)
                                 
-                                Plots.plot!(h_glob_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                Plots.plot!(h_glob_plot_5, time_h, h_norm[1:n_time], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1], linestyle=:dash)
-                                Plots.plot!(h_glob_plot_5, time_h, gt_h[1:n_time], label=false, style=:dash, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(h_glob_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(h_glob_plot_5, time_h, h_norm[1:n_time], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linestyle=:dash)
+                                Plots.plot!(h_glob_plot_5, time_h, gt_h[1:n_time], label=false, style=:dash, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 
-                                Plots.plot!(contour_plt, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                Plots.plot!(contour_plt_zoom, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                Plots.plot!(contour_plt, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(contour_plt_zoom, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                             end
                             println(size(height_error, 1), " vs ", size(gt_h), " vs ", size(time_h), " vs ", length(rel_height_error))
                             Plots.plot!(height_error_plt, time_h, height_error[1:n_time], label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
@@ -2557,14 +2587,14 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                         plot_covariance!(covarience_plt, η_pred[:,1]./η_gt, β_pred[:,1]./β_gt, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), legend_column=noise_cols, color_ellipse=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1])
 
                         if noise_level == 0.5
-                            Plots.plot!(contour_plt_zoom_05, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(cont_plt_legend, [], [], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(contour_plt_zoom_05, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(cont_plt_legend, [], [], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                         elseif noise_level == 1.0
-                            Plots.plot!(contour_plt_zoom_10, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(contour_plt_zoom_10, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                         elseif noise_level == 1.5
-                            Plots.plot!(contour_plt_zoom_15, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(contour_plt_zoom_15, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                         elseif noise_level == 2.0
-                            Plots.plot!(contour_plt_zoom_20, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(contour_plt_zoom_20, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                         end
 
                         n_time = min(length(time), size(h_pred, 2), length(gt_h))
@@ -2583,9 +2613,9 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                             h_pred = h_pred[:,1:min_length]
                             gt_h = gt_h[1:min_length]
                         end
-                        Plots.plot!(height_noise_plt, time_h, gt_h[1:n_time], style=:dash, label=false)
+                        Plots.plot!(height_noise_plt, time_h[1:n_time], gt_h[1:n_time], style=:dash, label=false)
+                        StatsPlots.errorline!(height_noise_plt, time_h[1:n_time], h_pred[:,1:n_time]', label=false, groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1], linestyle=:dash)
                         StatsPlots.errorline!(height_noise_plt, time_h[1:51], h_pred'[1:51,:], label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1])
-                        StatsPlots.errorline!(height_noise_plt, time_h, h_pred[1:n_time]', label=false, groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1], linestyle=:dash)
                      
                         StatsPlots.errorline!(height_error_noise_plt, time_h, height_error', label=false, groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1], linestyle=:dash)
                         StatsPlots.errorline!(height_error_noise_plt, time_h[1:51], height_error[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), color=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1])
@@ -2606,7 +2636,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                 ylims = [min_β_norm, max_β_norm]
                 Plots.hline!(covarience_plt, [1], linestyle=:dash, label=false, color=:black)
                 Plots.vline!(covarience_plt, [1], linestyle=:dash, label=false, color=:black)
-                Plots.lens!(covarience_plt, xlims, ylims, inset = (1, bbox(0.45, 0.3, 0.5, 0.4)), label=false)
+                # Plots.lens!(covarience_plt, xlims, ylims, inset = (1, bbox(0.45, 0.3, 0.5, 0.4)), label=false)
                 Plots.plot!(covarience_plt, bottom_margin=-20mm)
 
                 plot_path_noise = joinpath(sim_time_folder,"post_analysis_noise","plots")
@@ -2673,6 +2703,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.savefig(contour_plt_zoom_15, joinpath(plot_path_global,"contour_comparison_zoom_15.pdf"))
     Plots.savefig(contour_plt_zoom_20, joinpath(plot_path_global,"contour_comparison_zoom_20.pdf"))
     Plots.savefig(cont_plt_legend, joinpath(plot_path_global,"slip_legend_vertical.pdf"))
+    Plots.savefig(slip_case_legend, joinpath(plot_path_global,"slip_case_legend.pdf"))
     @info "Saved plots to $plot_path_global"
 end
 
@@ -3024,19 +3055,19 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                                 Plots.vline!(ratio_norm_plot_5, [t], color=:gray, linestyle=:dash, label=false)
 
                                 if ti == 1
-                                    Plots.plot!(η_norm_plot_5, t_win, est_η_norm[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(β_norm_plot_5, t_win, est_β_norm[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(ratio_plot_5, t_win, ratio_est[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), yscale=:log10, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(product_plot_5, t_win, est_ηpList[data_range_].*est_βpList[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(sum_plot_5, t_win, est_ηpList[data_range_].+est_βpList[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(ratio_norm_plot_5, t_win, normalized_ratio[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                    Plots.plot!(η_norm_plot_5, t_win, est_η_norm[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(β_norm_plot_5, t_win, est_β_norm[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(ratio_plot_5, t_win, ratio_est[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), yscale=:log10, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(product_plot_5, t_win, est_ηpList[data_range_].*est_βpList[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(sum_plot_5, t_win, est_ηpList[data_range_].+est_βpList[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(ratio_norm_plot_5, t_win, normalized_ratio[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 else
-                                    Plots.plot!(η_norm_plot_5, t_win, est_η_norm[data_range_], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(β_norm_plot_5, t_win, est_β_norm[data_range_], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(ratio_plot_5, t_win, ratio_est[data_range_], label=false, yscale=:log10, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(product_plot_5, t_win, est_ηpList[data_range_].*est_βpList[data_range_], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(sum_plot_5, t_win, est_ηpList[data_range_].+est_βpList[data_range_], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(ratio_norm_plot_5, t_win, normalized_ratio[data_range_], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                    Plots.plot!(η_norm_plot_5, t_win, est_η_norm[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(β_norm_plot_5, t_win, est_β_norm[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(ratio_plot_5, t_win, ratio_est[data_range_], label=false, yscale=:log10, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(product_plot_5, t_win, est_ηpList[data_range_].*est_βpList[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(sum_plot_5, t_win, est_ηpList[data_range_].+est_βpList[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(ratio_norm_plot_5, t_win, normalized_ratio[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 end
                                 t_prev = t+t_steps
                             end
@@ -3044,12 +3075,12 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                             Plots.ylims!(β_norm_plot_5, 0, max(β_y_max*1.1, 2))
                             Plots.ylims!(ratio_norm_plot_5, 0, max(ratio_y_max*1.1, 2))
 
-                            Plots.plot!(h_plot_5, time, est_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(h_plot_5, time, gt_h, label=false, linestyle=:dash, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(h_plot_5, time, est_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(h_plot_5, time, gt_h, label=false, linestyle=:dash, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
 
                             t = collect(range(start=0, stop=sim_time, step=t_steps))
-                            Plots.plot!(rel_height_error_glob_plot_5, t, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(h_norm_plot_5, t, est_h./gt_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(rel_height_error_glob_plot_5, t, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(h_norm_plot_5, t, est_h./gt_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                             if dir == "1"
                                 for ti::Int in 1:(size(data_ranges_, 1)-1)
                                     t_win = t_windows[ti]
@@ -3059,7 +3090,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                                 end
                             end
                             
-                            # Plots.plot!(ratio_norm_plot_5, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
+                            # Plots.plot!(ratio_norm_plot_5, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
                         end
 
                         # Plots.plot!(height_error_plt, time, height_error, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
@@ -3079,16 +3110,16 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                     
                     elseif sim_time == 10.0
                         if ne == 6
-                            Plots.plot!(η_norm_plot_10, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(β_norm_plot_10, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(η_norm_plot_10, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(β_norm_plot_10, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                             
-                            Plots.plot!(ratio_plot_10, ratio_est, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, yscale=:log10, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(ratio_plot_10, ratio_est, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, yscale=:log10, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                             Plots.hline!(ratio_plot_10, [ratio_gt], linestyle=:dash, label=false, color=:black, yscale=:log10)
 
-                            Plots.plot!(h_plot_10, time, est_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(h_plot_10, time, gt_h, label=false, linestyle=:dash, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(rel_height_error_glob_plot_10, time, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(ratio_norm_plot_10, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(h_plot_10, time, est_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(h_plot_10, time, gt_h, label=false, linestyle=:dash, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(rel_height_error_glob_plot_10, time, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(ratio_norm_plot_10, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                         end
                     end
                 end
@@ -3393,27 +3424,27 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                                 Plots.vline!(ratio_plot_5, [t], color=:gray, linestyle=:dash, label=false)
 
                                 if ti == 1
-                                    Plots.plot!(η_plot_5, t_win, est_ηpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(β_plot_5, t_win, est_βpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(ratio_plot_5, t_win, ratio_est[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(product_plot_5, t_win, est_ηpList[data_range_].*est_βpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(sum_plot_5, t_win, est_ηpList[data_range_].+est_βpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                    Plots.plot!(η_plot_5, t_win, est_ηpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(β_plot_5, t_win, est_βpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(ratio_plot_5, t_win, ratio_est[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(product_plot_5, t_win, est_ηpList[data_range_].*est_βpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(sum_plot_5, t_win, est_ηpList[data_range_].+est_βpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 else
-                                    Plots.plot!(η_plot_5, t_win, est_ηpList[data_range_], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(β_plot_5, t_win, est_βpList[data_range_], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(ratio_plot_5, t_win, ratio_est[data_range_], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(product_plot_5, t_win, est_ηpList[data_range_].*est_βpList[data_range_], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                                    Plots.plot!(sum_plot_5, t_win, est_ηpList[data_range_].+est_βpList[data_range_], label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                                    Plots.plot!(η_plot_5, t_win, est_ηpList[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(β_plot_5, t_win, est_βpList[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(ratio_plot_5, t_win, ratio_est[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(product_plot_5, t_win, est_ηpList[data_range_].*est_βpList[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(sum_plot_5, t_win, est_ηpList[data_range_].+est_βpList[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                                 end
                                 t_prev = t+t_steps
                             end
                             
-                            Plots.plot!(rel_height_error_glob_plot_5, time, rel_height_error, label=string(L"\mathrm{Exp}:\;",dir), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(h_norm_plot_5, time, est_h./gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(h_plot_est_5, time, est_h, label=string(L"\mathrm{Exp}:\;",dir), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(gt_h_plot, time, gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
-                            Plots.plot!(h_plot_5, time, gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1], linestyle=:dash)
-                            Plots.plot!(h_plot_5, time, est_h, label=false, color=palette(:Set1)[(parse(Int, dir)-1) % length(palette(:Set1))+1])
+                            Plots.plot!(rel_height_error_glob_plot_5, time, rel_height_error, label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(h_norm_plot_5, time, est_h./gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(h_plot_est_5, time, est_h, label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(gt_h_plot, time, gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(h_plot_5, time, gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linestyle=:dash)
+                            Plots.plot!(h_plot_5, time, est_h, label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
                             if dir == "1"
                                 for ti::Int in 1:(size(data_ranges_, 1))
                                     t_win = t_windows[ti]
@@ -3425,9 +3456,9 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                                 end
                             end
                         
-                            # Plots.plot!(ratio_plot_5, ratio_est, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), legend=:outerbottom, legend_column=3, yscale=:log10)
+                            # Plots.plot!(ratio_plot_5, ratio_est, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), legend=:outerbottom, legend_column=3, yscale=:log10)
                             # Plots.hline!(ratio_plot_5, [ratio_gt], linestyle=:dash, label=false, color=:black, yscale=:log10)
-                            # Plots.plot!(ratio_norm_plot_5, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
+                            # Plots.plot!(ratio_norm_plot_5, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
                         end
 
                         Plots.plot!(height_error_plt, time, height_error, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
@@ -3435,14 +3466,14 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                         
                     elseif sim_time == 10.0
                         if ne == 6
-                            Plots.plot!(η_norm_plot_10, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
-                            Plots.plot!(β_norm_plot_10, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
+                            Plots.plot!(η_norm_plot_10, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
+                            Plots.plot!(β_norm_plot_10, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
                             
-                            Plots.plot!(ratio_plot_10, ratio_est, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, legend=:outerbottom, legend_column=3, yscale=:log10)
+                            Plots.plot!(ratio_plot_10, ratio_est, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, legend=:outerbottom, legend_column=3, yscale=:log10)
                             Plots.hline!(ratio_plot_10, [ratio_gt], linestyle=:dash, label=false, color=:black, yscale=:log10)
 
                             Plots.plot!(rel_height_error_glob_plot_10, time, rel_height_error, label=string("Window - $(sim_time)s"," - ne: ",ne), legend=:outerbottom, legend_column=2)
-                            Plots.plot!(ratio_norm_plot_10, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\mathrm{\\frac{Pa\\, s}{\\mathrm{m}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
+                            Plots.plot!(ratio_norm_plot_10, normalized_ratio, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
                         end
                     end
                 end
@@ -3528,14 +3559,7 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
 
     return obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney
 end
-# Note: GLMakie / Makie support was removed from automated paths; this script
-# now prefers PlotlyJS for saved interactive HTML output and keeps Plots for
-# static PDF output. If you need Makie-based interactive windows, re-enable
-# GLMakie imports and the helper function manually.
-
-# Helper: ensure xg, yg are Float64 vectors and Z is a dense Float64 matrix
-# shaped (ny, nx) where ny = length(yg), nx = length(xg). Returns (xg_arr, yg_arr, Zmat)
-function _ensure_grid_matrix(xg, yg, Z)
+function read_unstrcut_csv(file_path::String)
     xg_arr = Float64.(collect(xg))
     yg_arr = Float64.(collect(yg))
     nx = length(xg_arr); ny = length(yg_arr)
@@ -3566,8 +3590,7 @@ function _ensure_grid_matrix(xg, yg, Z)
     return xg_arr, yg_arr, Zmat
 end
 
-# PlotlyJS exporter: create a Plotly surface and optional scatter overlays,
-# then save as a self-contained HTML file.
+# Save Plotly surface with optional scatter overlays to interactive HTML file
 function save_plotly_surface_html(filename::AbstractString, xg, yg, Z; xs=AbstractVector[], ys=AbstractVector[], zs=AbstractVector[],
                                   title="", colormap="Viridis",
                                   surface_label::AbstractString = "Cost surface",
@@ -3774,13 +3797,7 @@ function save_plotly_surface_html(filename::AbstractString, xg, yg, Z; xs=Abstra
     end
 end
 
-# GLMakie helper removed: this project now uses PlotlyJS for saved
-# interactive HTML output. If you previously relied on the Makie helper,
-# use `save_plotly_surface_html` above to write interactive HTML files.
-
-## Bilinear interpolation helper: given vectors xg (length nx), yg (length ny)
-## and a Z matrix of size (ny, nx) (rows->y, cols->x), return interpolated
-## z value at (x, y). Values outside the grid are clamped to the edges.
+# Bilinear interpolation: return z value at (x, y) using vectors xg, yg and matrix Z (ny, nx)
 function interp_z_at(x::Real, y::Real, xg::AbstractVector, yg::AbstractVector, Z::AbstractMatrix)
     # Coerce grid vectors and Z to concrete Float64 arrays/matrix and
     # normalize shapes. This avoids errors when Z is an Adjoint, 1D Vec,
@@ -3855,7 +3872,6 @@ function interp_z_at(x::Real, y::Real, xg::AbstractVector, yg::AbstractVector, Z
     return z
 end
 
-# Overload to accept vector inputs (single-element vectors or paired vectors)
 function interp_z_at(xs::AbstractVector{<:Real}, ys::AbstractVector{<:Real}, xg::AbstractVector, yg::AbstractVector, Z::AbstractMatrix)
     # If single-element vectors, delegate to scalar version
     if length(xs) == 1 && length(ys) == 1
@@ -3868,7 +3884,6 @@ function interp_z_at(xs::AbstractVector{<:Real}, ys::AbstractVector{<:Real}, xg:
     error("interp_z_at: expecting scalar x,y or vectors of equal length")
 end
 
-# Ensure a numeric scalar Float64 is returned for numbers or single-element containers
 function _ensure_scalar_float(x)
     if isa(x, Number)
         return Float64(x)
@@ -3969,7 +3984,7 @@ function set_time_window(time_step_len::Float64, data::AbstractArray; method::St
     return time_windows, windows, data_ranges, t_windows
 end
 
-# Helper: Display available cores and calculate batch information
+# Display batch information
 function display_batch_info(n_experiments::Int, n_cores::Int=Threads.nthreads())
     n_batches = ceil(Int, n_experiments / n_cores)
     experiments_per_batch = n_experiments ÷ n_batches
@@ -3988,125 +4003,7 @@ function display_batch_info(n_experiments::Int, n_cores::Int=Threads.nthreads())
     return n_batches
 end
 
-# Helper: Print animated spinner with progress
-function print_progress_spinner(completed::Int, total::Int, spinner_idx::Int)
-    spinners = ['◐', '◓', '◑', '◒']  # Smooth rotating spinner
-    spinner = spinners[mod(spinner_idx, 4) + 1]
-    pct = round(Int, (completed / total) * 100)
-    print("\r$spinner Experiments: $completed / $total ($pct%)")
-    flush(stdout)
-end
 
-# helper: run a vector of parameter Dicts with limited concurrent workers
-function run_param_list(params_list::Vector{Dict}; max_workers::Int=-1, base_seed::Int=12345)
-
-    nparams = length(params_list)
-    if nparams == 0
-        return
-    end
-
-    # Auto-detect available cores if max_workers not specified (default -1)
-    n_available_cores = Threads.nthreads()
-    if max_workers <= 0
-        workers = n_available_cores
-    else
-        workers = max(1, min(n_available_cores, max_workers))
-    end
-    
-    # Display batch information
-    display_batch_info(nparams, workers)
-    
-    @info "Running $nparams experiments with $workers workers (Threads.nthreads()=$(n_available_cores))"
-
-    # Atomic counter for tracking completed experiments
-    completed = Threads.Atomic{Int}(0)
-    spinner_idx = Threads.Atomic{Int}(0)  # For animating spinner
-
-    ch = Channel{Int}(nparams)
-    @sync begin
-        # enqueue indices
-        for i in 1:nparams
-            put!(ch, i)
-        end
-
-        # close the channel so workers can exit when it's empty
-        close(ch)
-
-        tasks = Vector{Task}(undef, workers)
-        for w in 1:workers
-            tasks[w] = Threads.@spawn begin
-                while true
-                    idx = try
-                        take!(ch)
-                    catch
-                        # channel closed and empty -> exit loop
-                        break
-                    end
-                    params = params_list[idx]
-                    try
-                        # Allocate 4 BLAS threads per worker for balanced performance
-                        LinearAlgebra.BLAS.set_num_threads(4)
-                        # Suppress all output from optimize and its called functions
-                        redirect_stdout(devnull) do
-                            redirect_stderr(devnull) do
-                                optimize(params)
-                            end
-                        end
-                        # Force garbage collection to free memory immediately
-                        Base.GC.gc()
-                    catch err
-                        # capture backtrace and format similar to native Julia error output
-                        bt = catch_backtrace()
-                        formatted = sprint(io -> begin
-                            try
-                                println("Error during optimize for params $params:")
-                                showerror(io, err, bt)
-                            catch
-                                # fallback to simple show if showerror with bt fails
-                                println("Error during optimize for params $params:")
-                                showerror(io, err)
-                            end
-                            try
-                                println("Error during optimize for params $params:")
-                                Base.show_backtrace(io, bt)
-                            catch
-                            end
-                        end)
-                        println("Error during optimize for params $params:")
-                        @error "optimize failed for params index $idx:\n$formatted"
-                        # Attempt to write a detailed error log next to the experiment results
-                        try
-                            dest_dir = "."
-                            if isa(params, AbstractDict) && haskey(params, "filepath_res")
-                                dest_dir = joinpath(params["filepath_res"], "Results", "logs")
-                            else
-                                dest_dir = "./logs"
-                            end
-                            write_error_log(err, bt; params=params, dest_dir=dest_dir)
-                        catch ewrite
-                            @error "Failed to write error log: $ewrite"
-                        end
-                    finally
-                        # Increment completed counter and show progress with animated spinner
-                        Threads.atomic_add!(completed, 1)
-                        Threads.atomic_add!(spinner_idx, 1)
-                        if mod(completed[], 2) == 0
-                            print_progress_spinner(completed[], nparams, spinner_idx[])
-                        end
-                    end
-                end
-            end
-        end
-
-        # wait for all worker tasks to complete
-        for t in tasks
-            wait(t)
-        end
-    end
-    # Final completion message
-    print("\r✓ Experiments: $(completed[]) / $nparams (100%)\n")
-    println("All experiments in this run_param_list completed.")
-end
 
 function optimize_sim()
 
@@ -4120,9 +4017,9 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise", "7"]
+    avoid_dirs = ["3_less_noise"]
     for viscosity_type in viscosity_type_list
-        _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
+        _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes", control, viscosity_type, "Q2_16")
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             if dir in avoid_dirs
@@ -4130,7 +4027,7 @@ function optimize_sim()
                 println("Skipping dir $dir")
             end
             @info "Processing ground truth directory: $dir for $viscosity_type viscosity ..."
-            filepath_gt = string(_filepath_gt,"/",dir)
+            filepath_gt = joinpath(_filepath_gt, dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
                     noise_level_list = [0.0, 0.5, 1.0, 1.5, 2.0]
@@ -4156,7 +4053,7 @@ function optimize_sim()
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
+                            filepath_res = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes", control, viscosity_type, "Q2_16", dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
@@ -4169,7 +4066,7 @@ function optimize_sim()
                 end
             end
         end
-        run_param_list(param_list; max_workers=30)
+        run_parallel_tasks(param_list, optimize; max_workers=30)
     end
 end
 
@@ -4179,21 +4076,21 @@ function optimize_syn(use_parallel::Bool=true)
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["bulk_viscosity"] # ["constant", "bulk_viscosity"]
+    viscosity_type_list = ["constant"] # ["constant", "bulk_viscosity"]
     window = "multi_window" 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    avoid_dirs = ["3_less_noise","7"] # avoid_dirs = ["3_less_noise", "7"]
+    avoid_dirs = ["3_less_noise","7","2","3","4","5","6","8"] # avoid_dirs = ["3_less_noise", "7"]
     for viscosity_type in viscosity_type_list
-        _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
+        _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes", control, viscosity_type, "Q2_16")
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             if dir in avoid_dirs
                 continue
                 println("Skipping dir $dir")
             end
-            filepath_gt = string(_filepath_gt,"/",dir)
+            filepath_gt = joinpath(_filepath_gt, dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
                     noise_level_list = [0.0]
@@ -4219,7 +4116,7 @@ function optimize_syn(use_parallel::Bool=true)
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)/$window")
+                            filepath_res = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes", control, viscosity_type, "Q2_16", "lm", dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
@@ -4233,7 +4130,7 @@ function optimize_syn(use_parallel::Bool=true)
             end
         end
         if use_parallel
-            run_param_list(param_list; max_workers=15)
+            run_parallel_tasks(param_list, optimize; max_workers=15)
         else
             for (i, params) in enumerate(param_list)
                 @info "Sequential execution: calling write_gt_data for index $i / $(length(param_list))"
@@ -4270,11 +4167,11 @@ function optimize_real()
     avoid_dirs = ["3_less_noise","s"] #, "6", "7", "8", "9"]
 
     if model_type == "carreau" && viscosity_type == "bulk_viscosity"
-        _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Carreau")
+        _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Carreau")
         sim_time_exp_list = [5.0]
         F_ext = 1e4 # force applied to the cylinder in N
     else
-        _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data")
+        _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data")
         sim_time_exp_list = [0.5] # simulation time in seconds
         F_ext = 9.812*1e3 # force applied to the cylinder in N
         η_start = 10.0
@@ -4283,6 +4180,11 @@ function optimize_real()
         #TODO change the mesh to *_pys.msh before running the simulation
     end
 
+    # Extract base paths to variables using joinpath for cross-platform compatibility
+    data_root = joinpath(homedir(), "SMEAR-PhD", "SMEAR-DataFiles", "Data")
+    base_experiments_path = joinpath(data_root, "experiments")
+    base_gt_path = joinpath(data_root, "ground_truth")
+    
     dir_list = readdir(_filepath_gt)
     for dir in dir_list
         if dir in avoid_dirs
@@ -4290,7 +4192,7 @@ function optimize_real()
             println("Skipping dir $dir")
         end
         @info "Processing ground truth directory: $dir for $viscosity_type viscosity ..."
-        filepath_gt = string(_filepath_gt,"/",dir)
+        filepath_gt = joinpath(_filepath_gt, dir)
         for ne in refine_list
             println("Simulation time experiments to run: $sim_time_exp_list")
             for sim_time_exp in sim_time_exp_list
@@ -4298,13 +4200,13 @@ function optimize_real()
                 for ne in refine_list
                     for FunctionClass_x in FunctionClass_x_List
                         if model_type == "carreau" && viscosity_type == "bulk_viscosity"
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Carreau/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_0.0/$window")
+                            filepath_res = joinpath(base_experiments_path, "syn_data", "optimization", "Carreau", dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_0.0", window)
                             
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
                             "η_start" => η_start, "β_start" => β_start, "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"synthetic", 
                             "camera_matrix" => camera_matrix, "WRITE_GT"=> false, "noise_level"=>0.0, "mode"=>window)
                          else
-                            filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/physical_data/optimization/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_0.0/$window")
+                            filepath_res = joinpath(base_experiments_path, "physical_data", "optimization", dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_0.0", window)
                             
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
                             "η_start" => η_start, "β_start" => β_start, "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "viscosity_type"=>viscosity_type, 
@@ -4318,7 +4220,7 @@ function optimize_real()
             end
         end
     end
-    run_param_list(param_list; max_workers=5)
+    run_parallel_tasks(param_list, optimize; max_workers=5)
 end
 
 function plot_cost_contours(cost_array::AbstractArray, x_range::AbstractVector, y_range::AbstractVector)
@@ -4326,33 +4228,37 @@ function plot_cost_contours(cost_array::AbstractArray, x_range::AbstractVector, 
 end
 function plot_()
     control::String = "force" # "force" or "velocity"
-    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
     model_type::String = "Stokes" # "carreau" or "Stokes"
-    avoid_dirs = ["3_less_noise", "s","7"] #, "6", "7", "8", "9"]
-    data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
+    avoid_dirs = ["3_less_noise", "s","2","3"] #, "6", "7", "8", "9"]
+    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
 
     for data_type in data_type_list
+        data_root = joinpath(homedir(), "SMEAR-PhD", "SMEAR-DataFiles", "Data")
+        base_experiments_path = joinpath(data_root, "experiments")
+        base_gt_path = joinpath(data_root, "ground_truth")
+        
         if data_type == "synthetic"
             if model_type == "carreau"
-                base_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Carreau")
+                base_path = joinpath(base_experiments_path, "syn_data", "optimization", "Carreau")
             else
-                base_path = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes"
+                base_path = joinpath(base_experiments_path, "syn_data", "optimization", "Stokes")
             end
         elseif data_type == "simulated"
-            base_path = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes"
+            base_path = joinpath(base_experiments_path, "sim_data", "optimization", "Stokes")
         elseif data_type == "physical"
-            base_path = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/physical_data/optimization"
+            base_path = joinpath(base_experiments_path, "physical_data", "optimization")
         end
         for viscosity_type::String in viscosity_type_list
             if data_type == "physical"
-                filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data")
+                filepath_gt = joinpath(base_gt_path, "physical_data")
                 filepath_res = base_path
             else
-                filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
-                filepath_res = string("$base_path/$control/$viscosity_type/Q2_16")
+                filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Q2_16")
+                filepath_res = joinpath(base_path, control, viscosity_type, "Q2_16")
             end
             if model_type == "carreau" && viscosity_type == "bulk_viscosity"
-                filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Carreau")
+                filepath_gt = joinpath(base_gt_path, "sim_data", "Carreau")
                 filepath_res = base_path
             end
             
@@ -4362,10 +4268,10 @@ function plot_()
                     continue
                     println("Skipping dir $dir")
                 end
-                filepath_gt_dir = string(filepath_gt,"/$dir/")
-                filepath_res_dir = string(filepath_res,"/$dir/")
+                filepath_gt_dir = joinpath(filepath_gt, dir)
+                filepath_res_dir = joinpath(filepath_res, dir)
                 # predict(filepath_res_dir, filepath_gt_dir)
-                replot(filepath_res_dir, filepath_gt_dir)
+                # replot(filepath_res_dir, filepath_gt_dir)
             end
             if viscosity_type == "constant"
                 post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
@@ -4378,8 +4284,8 @@ function plot_()
     end
 end
 
-# main()
-# optimize_sim()
-# optimize_syn(true)
+
+optimize_sim()
+# optimize_syn(false)
 # optimize_real()
-plot_()
+# plot_()

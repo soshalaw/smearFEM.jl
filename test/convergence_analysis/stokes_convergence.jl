@@ -217,54 +217,39 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
 
     obj_pose = get_object_pose(height)
     camera_matrix = get_camera_matrix()
-    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis")
+    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis/mesh_convergence_analysis")
 
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
 
-    mesh_dir = dirname(filepath)
-    set_file(mesh_dir)  # create the directory if it doesn't exist
+    set_file(filepath)  # create the directory if it doesn't exist
     
     iter_index = 1
     h_ref = 37.514580952625970
-    border_ref = []
-    
-    for elem_size in Float64.(elem_sizes)
+    dirs = readdir(filepath)
+    for dir in dirs
+        if !startswith(dir, "mesh_")            
+            continue
+        end
+        # Extract element size from directory name
+        elem_size = parse(Float64, split(dir, "_")[end])
         println("Running for element size = $elem_size")
         t_start = Dates.now()
-        
-        # Define mesh paths
-        mesh_path = joinpath(mesh_dir, "convergence_analysis","mesh_convergence_analysis","mesh_$elem_size", "mesh.geo")
-        mesh_msh_path_x = joinpath(dirname(mesh_path), "cylinder_x_$elem_size.msh")
-        mesh_msh_path_p = joinpath(dirname(mesh_path), "cylinder_p_$elem_size.msh")
-        
-        # Create directory and check/generate mesh.geo (returns true if newly generated)
-        set_file(dirname(mesh_path))
-        mesh_generated = generate_mesh_geo(radius, height, elem_size, mesh_path, template_mesh_geo_path)
-        
-        # Only run gmsh if mesh.geo was newly generated or msh files don't exist
-        if mesh_generated || !isfile(mesh_msh_path_x) || !isfile(mesh_msh_path_p)
-            if !run_gmsh(mesh_path, mesh_msh_path_x, 2) || !run_gmsh(mesh_path, mesh_msh_path_p, 1) 
-                @error "Mesh generation failed for element size $elem_size"
-                continue
-            end
-        else
-            @info "Mesh files already exist with correct parameters, skipping gmsh"
-        end
-        
+
         # Run simulation with the generated mesh
-        mesh_filepath = dirname(mesh_path)
+        mesh_filepath = joinpath(filepath, dir)
+        println("Mesh filepath: ", mesh_filepath)
         exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => FunctionClass_u, "FunctionClass_p" => FunctionClass_p, 
                          "ne_gt" => elem_size, "β_gt" => β, "η_gt" => η, "filepath_gt" => joinpath(mesh_filepath, "simulation"), 
                          "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
                          "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
                          "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => true, "mesh_path" => mesh_filepath)
 
-        try
+        # try
             write_gt_data(exp_params)
-        catch e
-            @error "Simulation failed for element size $elem_size" exception=e
-            continue
-        end
+        # catch e
+        #     @error "Simulation failed for element size $elem_size" exception=e
+        #     continue
+        # end
 
         t_end = Dates.now()
         elapsed_time = t_end - t_start
@@ -428,7 +413,7 @@ function plot_convergence_time(file_path::String)
     # end
 end
 
-time_intergration_convergence_analysis()
-plot_convergence_time("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis")
-# mesh_convergence_analysis()
-# plot_convergence_mesh("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 
+# time_intergration_convergence_analysis()
+# plot_convergence_time("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis")
+mesh_convergence_analysis()
+plot_convergence_mesh("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 
