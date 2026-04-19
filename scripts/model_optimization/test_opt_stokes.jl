@@ -54,6 +54,7 @@ global plt_top_margin = 0pt
 # for sim data
 global y_lims_h_norm = (0.995, 1.005)
 global y_lims_rel_error = (-0.05, 0.1)
+global color_palette = [palette(:Set1)[i] for i in [1, 2, 3, 4, 5, 7, 8, 9]]  # Skip index 6 (yellow)
 
 function optimize(exp_params::Dict)
     
@@ -2134,8 +2135,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.xlims!(slip_case_legend, -0.2, 1.2)
     Plots.ylims!(slip_case_legend, -0.5, 0.5)
     
-    # Color palette excluding yellow
-    color_palette = [palette(:Set1)[i] for i in [1, 2, 3, 4, 5, 7, 8, 9]]  # Skip index 6 (yellow)
+    global color_palette
 
     max_iter = 1
     for dir in dir_list
@@ -2584,7 +2584,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                             push!(η_β_norm_list, normalized_ratio[end])
                             push!(iter_list, iter)
                         end
-                        plot_covariance!(covarience_plt, η_pred[:,1]./η_gt, β_pred[:,1]./β_gt, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), legend_column=noise_cols, color_ellipse=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1])
+                        plot_covariance!(covarience_plt, η_pred[:,1]./η_gt, β_pred[:,1]./β_gt, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), legend_column=noise_cols, color_ellipse=color_palette[(noise_iter) % length(color_palette)+1])
 
                         if noise_level == 0.5
                             Plots.plot!(contour_plt_zoom_05, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
@@ -2614,17 +2614,17 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                             gt_h = gt_h[1:min_length]
                         end
                         Plots.plot!(height_noise_plt, time_h[1:n_time], gt_h[1:n_time], style=:dash, label=false)
-                        StatsPlots.errorline!(height_noise_plt, time_h[1:n_time], h_pred[:,1:n_time]', label=false, groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1], linestyle=:dash)
-                        StatsPlots.errorline!(height_noise_plt, time_h[1:51], h_pred'[1:51,:], label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1])
+                        StatsPlots.errorline!(height_noise_plt, time_h[1:n_time], h_pred[:,1:n_time]', label=false, groupcolor=color_palette[(noise_iter) % length(color_palette)+1], linestyle=:dash)
+                        StatsPlots.errorline!(height_noise_plt, time_h[1:51], h_pred'[1:51,:], label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=color_palette[(noise_iter) % length(color_palette)+1])
                      
-                        StatsPlots.errorline!(height_error_noise_plt, time_h, height_error', label=false, groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1], linestyle=:dash)
-                        StatsPlots.errorline!(height_error_noise_plt, time_h[1:51], height_error[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), color=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1])
+                        StatsPlots.errorline!(height_error_noise_plt, time_h, height_error', label=false, groupcolor=color_palette[(noise_iter) % length(color_palette)+1], linestyle=:dash)
+                        StatsPlots.errorline!(height_error_noise_plt, time_h[1:51], height_error[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), color=color_palette[(noise_iter) % length(color_palette)+1])
                         
-                        StatsPlots.errorline!(rel_height_error_noise_plt, time_h, rel_height_error', label=false, groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1], linestyle=:dash)
-                        StatsPlots.errorline!(rel_height_error_noise_plt, time_h[1:51], rel_height_error[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1])
+                        StatsPlots.errorline!(rel_height_error_noise_plt, time_h, rel_height_error', label=false, groupcolor=color_palette[(noise_iter) % length(color_palette)+1], linestyle=:dash)
+                        StatsPlots.errorline!(rel_height_error_noise_plt, time_h[1:51], rel_height_error[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=color_palette[(noise_iter) % length(color_palette)+1])
                         
-                        StatsPlots.errorline!(normalized_height_noise_plt, time_h, normalized_height', label=false, groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1], linestyle=:dash)
-                        StatsPlots.errorline!(normalized_height_noise_plt, time_h[1:51], normalized_height[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=palette(:Set1)[(noise_iter) % length(palette(:Set1))+1])
+                        StatsPlots.errorline!(normalized_height_noise_plt, time_h, normalized_height', label=false, groupcolor=color_palette[(noise_iter) % length(color_palette)+1], linestyle=:dash)
+                        StatsPlots.errorline!(normalized_height_noise_plt, time_h[1:51], normalized_height[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=color_palette[(noise_iter) % length(color_palette)+1])
                         
                         # StatsPlots.errorline!(ratio_noise_plt, iter_list, η_β_list, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "))
                         # StatsPlots.errorline!(η_noise_norm_plt, iter_list, η_β_norm_list, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "))
@@ -2705,6 +2705,178 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.savefig(cont_plt_legend, joinpath(plot_path_global,"slip_legend_vertical.pdf"))
     Plots.savefig(slip_case_legend, joinpath(plot_path_global,"slip_case_legend.pdf"))
     @info "Saved plots to $plot_path_global"
+end
+
+function plot_contours(filepath_gt_::String, filepath::String, avoid_list)
+    """
+    Extracts and plots contours from post-analysis data for different viscosity slip cases.
+    
+    Similar to post_analysis_const but only creates and populates contour plots.
+    """
+    dir_list = readdir(filepath)
+
+    # Initialize contour plots
+    cont_y_lims = [400, 1200] 
+    cont_x_lims = [1380, 1430]
+    contour_plt = set_plot(fs, sz=(round(Int,plt_width*1.5), plt_height), legend_column=3)
+    Plots.yflip!(true)
+    Plots.xlims!(contour_plt, 480, 1520)
+    Plots.xlabel!(contour_plt, L"x\;\mathrm{[px]}")
+    Plots.ylabel!(contour_plt, L"y\;\mathrm{[px]}")
+
+    cnt_plt_width = 179
+    contour_plt_zoom = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
+    Plots.xticks!(contour_plt_zoom, 1100:200:1520)
+    Plots.yflip!(true)
+    Plots.xlims!(contour_plt_zoom, cont_x_lims[1], cont_x_lims[2])
+    Plots.xlabel!(contour_plt_zoom, L"x\;\mathrm{[px]}")
+    Plots.ylabel!(contour_plt_zoom, L"y\;\mathrm{[px]}")
+
+    contour_plt_zoom_05 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
+    Plots.xticks!(contour_plt_zoom_05, 1100:200:1520)
+    Plots.yflip!(true)
+    Plots.xlims!(contour_plt_zoom_05, cont_x_lims[1], cont_x_lims[2])
+    Plots.xlabel!(contour_plt_zoom_05, L"x\;\mathrm{[px]}")
+    Plots.ylabel!(contour_plt_zoom_05, L"y\;\mathrm{[px]}")
+
+    contour_plt_zoom_10 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
+    Plots.xticks!(contour_plt_zoom_10, 1100:200:1520)
+    Plots.yflip!(true)
+    Plots.xlims!(contour_plt_zoom_10, cont_x_lims[1], cont_x_lims[2])
+    Plots.xlabel!(contour_plt_zoom_10, L"x\;\mathrm{[px]}")
+    Plots.ylabel!(contour_plt_zoom_10, L"y\;\mathrm{[px]}")
+
+    contour_plt_zoom_15 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
+    Plots.xticks!(contour_plt_zoom_15, 1100:200:1520)
+    Plots.yflip!(true)
+    Plots.xlims!(contour_plt_zoom_15, cont_x_lims[1], cont_x_lims[2])
+    Plots.xlabel!(contour_plt_zoom_15, L"x\;\mathrm{[px]}")
+    Plots.ylabel!(contour_plt_zoom_15, L"y\;\mathrm{[px]}")
+
+    contour_plt_zoom_20 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
+    Plots.xticks!(contour_plt_zoom_20, 1100:200:1520)
+    Plots.yflip!(true)
+    Plots.xlims!(contour_plt_zoom_20, cont_x_lims[1], cont_x_lims[2])
+    Plots.xlabel!(contour_plt_zoom_20, L"x\;\mathrm{[px]}")
+    Plots.ylabel!(contour_plt_zoom_20, L"y\;\mathrm{[px]}")
+
+    cont_plt_legend = set_plot(fs, sz=(cnt_plt_width, plt_height), legend=:outertopright)
+
+    # Create a thin horizontal legend strip for the outer loop (directory/viscosity slip case legend)
+    slip_case_legend = set_plot(11, sz=(round(Int, plt_width*1.7), 50), legend=:bottom, legend_column=3, bottom_margin=-35mm, top_margin=2mm, left_margin=-25mm, right_margin=-15mm)
+    Plots.plot!(slip_case_legend, [0, 1], [0, 0], label=false, color=:white, linewidth=0)
+    Plots.xlims!(slip_case_legend, -0.2, 1.2)
+    Plots.ylims!(slip_case_legend, -0.5, 0.5)
+    
+    global color_palette
+
+    for dir in dir_list
+        if dir in avoid_list || dir == "post_analysis_global"
+            println("Skipping directory: ", dir)
+            continue
+        end
+        
+        filepath_dir = joinpath(filepath, dir)
+        filepath_gt = joinpath(filepath_gt_, dir)
+
+        printstyled("Processing directory: $(filepath_dir)\n", color=:green)
+        sim_params = read_json(joinpath(filepath_gt,"data","sim_params"))
+        η_gt = sim_params["η"]
+        β_gt = sim_params["β"]  
+        sim_time = sim_params["simulation_time"]    
+        t_steps = sim_params["time_steps"]
+        gt_h = readdlm(joinpath(filepath_gt,"data","h.csv"), ',', Float64)
+
+        time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
+
+        println("Ground truth η: ", η_gt[1])
+
+        # Add entry to slip case legend
+        Plots.plot!(slip_case_legend, [0, 0.2], [0, 0], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linewidth=2, markerstrokewidth=0)
+
+        elem_size_folders = readdir(filepath_dir)
+
+        for elem_size_folder_ in elem_size_folders
+            if elem_size_folder_ == "post_analysis" || elem_size_folder_ == "Q2_16"
+                continue
+            end
+            
+            elem_size_folder = joinpath(filepath_dir, elem_size_folder_)
+            printstyled("Processing element size folder: $(elem_size_folder)\n", color=:blue)  
+            sim_time_folders = readdir(elem_size_folder)
+            
+            for sim_time_folder_ in sim_time_folders
+                if sim_time_folder_ == "post_analysis" || sim_time_folder_ == "post_analysis_noise" || sim_time_folder_ == "post_analysis_time"
+                    continue
+                end
+                
+                sim_time_folder = joinpath(elem_size_folder, sim_time_folder_)
+                printstyled("Processing time folder: $(sim_time_folder)\n", color=:yellow)
+                
+                # Find all simulation folders (1, 2, 3, etc.)
+                sim_folders = [f for f in readdir(sim_time_folder) if isdir(joinpath(sim_time_folder, f)) && tryparse(Int, f) !== nothing]
+                sort!(sim_folders, by=x->parse(Int, x))
+                
+                for sim_folder in sim_folders
+                    exp_path = joinpath(sim_time_folder, sim_folder)
+                    printstyled("Processing experiment: $(exp_path)\n", color=:cyan)
+                    
+                    # Check for optimized files
+                    gt_file_path = joinpath(exp_path,"Results","data","optimized_border_contour.h5")
+                    if !isfile(gt_file_path)
+                        @warn "Ground truth optimized border contour file not found at $gt_file_path"
+                        continue
+                    end
+                    
+                    obs_border_pt_lst = readdlm(joinpath(exp_path,"Results","data","optimized_border.csv"), ',', Float64)
+                    gt_Splinex, gt_Spliney = load_h5_sparse_matrix(gt_file_path)
+                    
+                    # Process for different noise levels if available
+                    noise_levels = [0.5, 1.0, 1.5, 2.0]
+                    
+                    for noise_level in noise_levels
+                        noise_path = joinpath(exp_path,"Results","data","optimized_border_contour_noise_$(noise_level).h5")
+                        
+                        if isfile(noise_path)
+                            n_obs_border_pt_lst, n_gt_Splinex, n_gt_Spliney = add_noise(obs_border_pt_lst, nFactor=noise_level)
+                            
+                            if noise_level == 0.5
+                                Plots.plot!(contour_plt_zoom_05, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(cont_plt_legend, [], [], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            elseif noise_level == 1.0
+                                Plots.plot!(contour_plt_zoom_10, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            elseif noise_level == 1.5
+                                Plots.plot!(contour_plt_zoom_15, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            elseif noise_level == 2.0
+                                Plots.plot!(contour_plt_zoom_20, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            end
+                        end
+                    end
+                    
+                    # Plot main contours
+                    Plots.plot!(contour_plt, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                    Plots.plot!(contour_plt_zoom, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                end
+            end
+        end
+    end
+    
+    # Save contour plots
+    plot_path_global = joinpath(filepath,"post_analysis_global","plots")
+    set_file(plot_path_global)
+
+    @info "Saving contour plots to $plot_path_global"
+    
+    Plots.savefig(contour_plt, joinpath(plot_path_global,"contour_comparison_5.pdf"))
+    Plots.savefig(contour_plt_zoom, joinpath(plot_path_global,"contour_comparison_5_zoomed.pdf"))
+    Plots.savefig(contour_plt_zoom_05, joinpath(plot_path_global,"contour_comparison_zoom_05.pdf"))
+    Plots.savefig(contour_plt_zoom_10, joinpath(plot_path_global,"contour_comparison_zoom_10.pdf"))
+    Plots.savefig(contour_plt_zoom_15, joinpath(plot_path_global,"contour_comparison_zoom_15.pdf"))
+    Plots.savefig(contour_plt_zoom_20, joinpath(plot_path_global,"contour_comparison_zoom_20.pdf"))
+    Plots.savefig(cont_plt_legend, joinpath(plot_path_global,"slip_legend_vertical.pdf"))
+    Plots.savefig(slip_case_legend, joinpath(plot_path_global,"slip_case_legend.pdf"))
+    
+    @info "Saved contour plots to $plot_path_global"
 end
 
 function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
@@ -4005,7 +4177,7 @@ end
 
 
 
-function optimize_sim()
+function optimize_sim(use_parallel::Bool=true)
 
     FunctionClass_x_List = ["Q2"]
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
@@ -4017,7 +4189,7 @@ function optimize_sim()
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise"]
+    avoid_dirs = ["3_less_noise","1","2","3","4","5","6","7"] # avoid_dirs = ["3_less_noise", "7"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes", control, viscosity_type, "Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -4026,11 +4198,10 @@ function optimize_sim()
                 continue
                 println("Skipping dir $dir")
             end
-            @info "Processing ground truth directory: $dir for $viscosity_type viscosity ..."
             filepath_gt = joinpath(_filepath_gt, dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
-                    noise_level_list = [0.5, 1.0, 1.5, 2.0]
+                    noise_level_list = [2.0]
                 else
                     noise_level_list = [0.0]
                 end
@@ -4066,7 +4237,20 @@ function optimize_sim()
                 end
             end
         end
-        run_parallel_tasks(param_list, optimize; max_workers=30)
+        if use_parallel
+            run_parallel_tasks(param_list, optimize; max_workers=15)
+        else
+            for (i, params) in enumerate(param_list)
+                @info "Sequential execution: calling write_gt_data for index $i / $(length(param_list))"
+                try
+                    optimize(params)
+                    @info "Completed write_gt_data for index $i"
+                catch err
+                    _handle_worker_error(err, i, params)
+                end
+            end
+            println("All experiments completed.")
+        end
     end
 end
 
@@ -4226,6 +4410,7 @@ end
 function plot_cost_contours(cost_array::AbstractArray, x_range::AbstractVector, y_range::AbstractVector)
 
 end
+
 function plot_()
     control::String = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
@@ -4271,7 +4456,7 @@ function plot_()
                 filepath_gt_dir = joinpath(filepath_gt, dir)
                 filepath_res_dir = joinpath(filepath_res, dir)
                 # predict(filepath_res_dir, filepath_gt_dir)
-                # replot(filepath_res_dir, filepath_gt_dir)
+                replot(filepath_res_dir, filepath_gt_dir)
             end
             if viscosity_type == "constant"
                 post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
@@ -4285,7 +4470,7 @@ function plot_()
 end
 
 
-# optimize_sim()
+optimize_sim(false)
 # optimize_syn(false)
 # optimize_real()
 plot_()

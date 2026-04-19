@@ -11,19 +11,19 @@ using .ParallelExecution
 function _get_F_ext(β_gt::Real)::Float64
     if β_gt <= 1.0
         return 9.813e3 * 0.85
-    elseif β_gt == 10.0
+    elseif β_gt <= 10.0
         return 9.813e3 * 0.93
-    elseif β_gt == 50.0
+    elseif β_gt <= 50.0
         return 9.813e3 * 0.955
-    elseif β_gt == 100.0
+    elseif β_gt <= 100.0
         return 9.813e3 * 0.97
-    elseif β_gt == 500.0
+    elseif β_gt <= 500.0
         return 9.813e3 * 0.99
-    elseif β_gt == 1e3
+    elseif β_gt <= 1e3
         return 9.813e3 * 1.0
-    elseif β_gt == 5e3
+    elseif β_gt <= 5e3
         return 9.813e3 * 1.01
-    elseif β_gt == 2e3
+    elseif β_gt <= 2e3
         return 9.813e3 * 0.995
     elseif β_gt == 1e4
         return 9.813e3 * 0.85 * 700
@@ -177,7 +177,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Int = 6 # number of elements in the mesh for the ground truth
 
-    β_gt_list = [0.01, 0.1, 1, 10, 50, 100, 500, 1e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
+    β_gt_list = [0.01, 0.1, 1, 2, 4, 6, 8, 10, 50, 100, 200, 300, 400,500, 1e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
 
     control = "force" # "force" or "velocity"
@@ -185,8 +185,8 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
     FunctionClass_x_gt_list = ["Q2"] # Function space for the ground truth
     
-    sim_time_gt::Float64 = 30.0 # simulation time in seconds
-    steps_gt::Int = 2 # number of time steps[]
+    sim_time_gt::Float64 = 5.0 # simulation time in seconds
+    steps_gt::Int =  50 # number of time steps[]
 
     obj_pose = zeros(Float64, 4, 4)
     obj_pose[1, 1] = -1.0
