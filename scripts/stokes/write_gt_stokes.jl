@@ -203,7 +203,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
             for β_gt in β_gt_list
                 for η_gt in η_gt_list
                     F_ext = _get_F_ext(β_gt)
-                    filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$(FunctionClass_x)_$(ne_gt)/$run_id")
+                    filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/borders/$(FunctionClass_x)_$(ne_gt)/$run_id")
 
                     exp_params = Dict(
                         "FunctionClass_x" => FunctionClass_x,
