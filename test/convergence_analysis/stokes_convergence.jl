@@ -242,7 +242,7 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
                          "ne_gt" => elem_size, "β_gt" => β, "η_gt" => η, "filepath_gt" => joinpath(mesh_filepath, "simulation"), 
                          "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
                          "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
-                         "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => true, "mesh_path" => mesh_filepath)
+                         "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => false, "mesh_path" => mesh_filepath)
 
         # try
             write_gt_data(exp_params)

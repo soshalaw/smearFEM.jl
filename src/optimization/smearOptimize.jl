@@ -482,6 +482,14 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         else
             p = t∂2d \ t∂d
         end
+
+        ratio_η = abs(p[1]) / abs(θ[1] + 1e-12)
+        ratio_β = abs(p[2]) / abs(θ[2] + 1e-12)
+
+        α_η = clamp(1/ratio_η, 0.1, 1.0)
+        α_β = clamp(1/ratio_β, 0.1, 1.0)
+
+        p = [α_η * p[1], α_β * p[2]]
         # Compute Newton step
         println("Newton step (undamped): [$(round(p[1], sigdigits=4)), $(round(p[2], sigdigits=4))]")
         

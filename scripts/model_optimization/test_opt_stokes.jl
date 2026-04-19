@@ -48,12 +48,12 @@ global plt_top_margin = 0pt
 # global y_lims_rel_error = (-0.05, 20)
 
 # for synthetic data
-global y_lims_h_norm = (0.97, 1.02)
-global y_lims_rel_error = (-0.1, 3.0)
+# global y_lims_h_norm = (0.97, 1.02)
+# global y_lims_rel_error = (-0.1, 3.0)
 
 # for sim data
-# global y_lims_h_norm = (0.995, 1.005)
-# global y_lims_rel_error = (-0.05, 0.1)
+global y_lims_h_norm = (0.995, 1.005)
+global y_lims_rel_error = (-0.05, 0.1)
 
 function optimize(exp_params::Dict)
     
@@ -4285,7 +4285,7 @@ function plot_()
 end
 
 
-optimize_sim()
+# optimize_sim()
 # optimize_syn(false)
 # optimize_real()
-# plot_()
+plot_()

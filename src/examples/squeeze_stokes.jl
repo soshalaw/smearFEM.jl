@@ -353,8 +353,6 @@ function assemble_system_B(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrix
     NodeList_x_cached::Matrix{Float64} = NodeList
     IEN_x_cached::Matrix{Int} = IEN
     FunctionClass_x_cached::String = FunctionClass
-    C_vol_x_cached = C_vol
-    W_x_cached = W
 
     # (I,J,V) vectors for COO sparse matrix
     IEN_u_rows::Int = size(IEN_u_cached,1)
