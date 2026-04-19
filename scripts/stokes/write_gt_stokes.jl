@@ -175,9 +175,9 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     # parameters for the optimization
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
-    ne_gt::Int = 6 # number of elements in the mesh for the ground truth
+    ne_gt::Int = 16 # number of elements in the mesh for the ground truth
 
-    β_gt_list = [0.01, 0.1, 1, 2, 4, 6, 8, 10, 50, 100, 200, 300, 400,500, 1e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
+    β_gt_list = [0.01, 0.1, 1, 2, 4, 6, 8, 10, 20, 30, 40, 50, 100, 200, 300, 400,500, 1e3, 2e3, 5e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
 
     control = "force" # "force" or "velocity"

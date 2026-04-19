@@ -28,20 +28,20 @@ global def_green = RGB(2/255,147/255,86/255)
 global end_obs_win = 20.1
 
 # for 1/2 linewidth
-fs::Int = 12
-plt_height::Int = 350
-plt_width ::Int = 477
-plt_lft_margin = 1pt
-plt_right_margin = 5pt
-plt_top_margin = 1pt
+# fs::Int = 12
+# plt_height::Int = 350
+# plt_width ::Int = 477
+# plt_lft_margin = 1pt
+# plt_right_margin = 5pt
+# plt_top_margin = 1pt
 
 # for 1/3 linewidth
-# global fs::Int = 10
-# global plt_height::Int = 360
-# global plt_width::Int = 330
-# global plt_lft_margin = -6pt
-# global plt_right_margin = 10pt
-# global plt_top_margin = 0pt
+global fs::Int = 10
+global plt_height::Int = 360
+global plt_width::Int = 330
+global plt_lft_margin = -6pt
+global plt_right_margin = 10pt
+global plt_top_margin = 0pt
 
 # for 1/4 linewidth
 # global fs::Int = 10
@@ -2752,14 +2752,14 @@ function plot_contours(filepath_gt_::String, time_point::Int=0)
     cont_y_lims = [400, 1200] 
     cont_x_lims = [1380, 1430]
     
-    contour_plt = set_plot(fs, sz=(round(Int,plt_width*1.5), plt_height), legend_column=3)
+    contour_plt = set_plot(fs, sz=(round(Int,plt_width*1.5), plt_height), legend_column=1, legend=:outertopright, bottom_margin=0mm, top_margin=0mm)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt, 480, 1520)
     Plots.xlabel!(contour_plt, L"x\;\mathrm{[px]}")
     Plots.ylabel!(contour_plt, L"y\;\mathrm{[px]}")
 
-    cnt_plt_width = 179
-    contour_plt_zoom = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
+    cnt_plt_width = 400
+    contour_plt_zoom = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=1, legend=:outertopright, bottom_margin=0mm, top_margin=0mm)
     Plots.xticks!(contour_plt_zoom, 1100:200:1520)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt_zoom, cont_x_lims[1], cont_x_lims[2])
@@ -2773,12 +2773,10 @@ function plot_contours(filepath_gt_::String, time_point::Int=0)
     
     global color_palette
 
-    for (idx, dir) in enumerate(sort(dir_list))
-        # Skip if not a numeric directory (slip case)
-        if tryparse(Int, dir) === nothing
-            println("Skipping non-numeric directory: ", dir)
-            continue
-        end
+    # Sort directories numerically
+    numeric_dirs = sort([d for d in dir_list if tryparse(Int, d) !== nothing], by=x->parse(Int, x))
+    println("Found directories in ground truth path: ", numeric_dirs)
+    for (idx, dir) in enumerate(numeric_dirs)
         
         filepath_gt = joinpath(filepath_gt_, dir)
         if !isdir(filepath_gt)
@@ -2789,10 +2787,10 @@ function plot_contours(filepath_gt_::String, time_point::Int=0)
         
         # Load ground truth parameters
         sim_params_path = joinpath(filepath_gt, "data", "sim_params")
-        if !isfile(sim_params_path * ".json") && !isfile(sim_params_path)
-            @warn "sim_params not found for $dir"
-            continue
-        end
+        # if (!isfile(sim_params_path * ".json") || !isfile(sim_params_path * ".jld2")) && !isfile(sim_params_path)
+        #     @warn "sim_params not found for $dir"
+        #     continue
+        # end
         
         sim_params = read_json(sim_params_path)
         η_gt = sim_params["η"]
@@ -2808,7 +2806,7 @@ function plot_contours(filepath_gt_::String, time_point::Int=0)
                     color=color_palette[(idx-1) % length(color_palette)+1], linewidth=2, markerstrokewidth=0)
 
         # Load contour data
-        contour_data_path = joinpath(filepath_gt, "data", "img_data", "contour_data")
+        contour_data_path = joinpath(filepath_gt, "data", "sim_data", "contour_data")
         try
             ObsDataList, splinexObs, splineyObs = read_csv(contour_data_path)
             
@@ -2820,11 +2818,11 @@ function plot_contours(filepath_gt_::String, time_point::Int=0)
             # Plot ground truth contours
             Plots.plot!(contour_plt, splinexObs[plot_idx], splineyObs[plot_idx], 
                         label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), 
-                        color=color_palette[(idx-1) % length(color_palette)+1], linewidth=2)
+                        color=color_palette[(idx-1) % length(color_palette)+1])
             
             Plots.plot!(contour_plt_zoom, splinexObs[plot_idx], splineyObs[plot_idx], 
                         label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), 
-                        color=color_palette[(idx-1) % length(color_palette)+1], linewidth=2)
+                        color=color_palette[(idx-1) % length(color_palette)+1])
             
         catch err
             @warn "Failed to load contour data for $dir: $err"
@@ -4435,9 +4433,9 @@ function plot_()
 end
 
 
-optimize_sim(false)
+# optimize_sim(false)
 # optimize_syn(false)
 # optimize_real()
 # plot_()
 # Plot ground truth contours at the last time point (time_point=0)
-# plot_contours(String("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/constant/Q2_16"), 5)
+plot_contours(String("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/constant/Q2_6"), 50)
