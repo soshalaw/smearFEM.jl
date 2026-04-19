@@ -407,7 +407,7 @@ function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String
     gif(animation, string(filepath,"/matches_h.gif"), fps=10)
 end
 
-function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1, right_margin=5pt, left_margin=-1pt, top_margin=1pt, bottom_margin=-20mm, frame=false, legend=:outerbottom)
+function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1, right_margin=0pt, left_margin=0pt, top_margin=0pt, bottom_margin=-20mm, frame=false, legend=:outerbottom)
 
     frame_brdr = nothing
     if frame
