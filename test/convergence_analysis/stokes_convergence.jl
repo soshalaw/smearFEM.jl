@@ -227,7 +227,7 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
     h_ref = 37.514580952625970
     dirs = readdir(filepath)
     for dir in dirs
-        if !startswith(dir, "mesh_")            
+        if !startswith(dir, "mesh_") || dir in avoid_dirs            
             continue
         end
         # Extract element size from directory name
