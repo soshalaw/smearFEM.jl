@@ -474,25 +474,16 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         
         if condition_number > 1e2 || H_ratio > 1e2
             printstyled("  [WARNING] Hessian: κ=$(round(condition_number, sigdigits=3)), H_β=$H_β, H_η=$H_η, ratio=$(round(H_ratio, sigdigits=3))\n", color=:yellow)
-            
-            reg_param = 1e-5 * norm(t∂2d, 2)
+            reg_param = 1e-6 * norm(t∂2d, 2)
             t∂2d_reg = t∂2d + reg_param * I
             p = t∂2d_reg \ t∂d
-             printstyled("  [DAMPED] Using regularized Hessian for step\n", color=:yellow)
+            printstyled("  [DAMPED] Using regularized Hessian for step\n", color=:yellow)
         else
             p = t∂2d \ t∂d
         end
 
-        ratio_η = abs(p[1]) / abs(θ[1] + 1e-12)
-        ratio_β = abs(p[2]) / abs(θ[2] + 1e-12)
-
-        α_η = clamp(1/ratio_η, 0.1, 1.0)
-        α_β = clamp(1/ratio_β, 0.1, 1.0)
-
-        p = [α_η * p[1], α_β * p[2]]
         # Compute Newton step
-        println("Newton step (undamped): [$(round(p[1], sigdigits=4)), $(round(p[2], sigdigits=4))]")
-        
+        println("Newton step (damped): [$(round(p[1], sigdigits=4)), $(round(p[2], sigdigits=4))]")
 
         θ_prev::Vector{Float64} = copy(θ)
         cost_prev::Float64 = totdinit
@@ -518,7 +509,7 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         println("Result: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))")
         println("Deltas: Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))")
         
-        if c_grad_rel < 1e-3 && c_grad < 1e-3
+        if c_grad_rel < 1e-3 && c_grad < 1e-3 # && iter >= 20
             printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n", color=:green)
             break
         end
@@ -763,13 +754,16 @@ Clamps parameter values to physically reasonable ranges and corrects negative va
 """
 function val_check(v::Vector{Float64})::Vector{Float64}
     # Enforce physical bounds on parameters
-    η_min::Float64, η_max::Float64 = 1e-3, 1e5
-    β_min::Float64, β_max::Float64 = 1e-3, 1e5
+    η_min::Float64, η_max::Float64 = 1e-12, 1e12
+    β_min::Float64, β_max::Float64 = 1e-12, 1e12
     
     sz::Int = size(v, 1)
     for i::Int in 1:sz
         if i == 1  # η parameter
-            if v[i] < η_min
+            if v[i] < 0
+                v[i] = abs(v[i])
+                printstyled("  [WARNING] η: Negative value, taking absolute\n", color=:yellow)
+            elseif v[i] < η_min
                 v[i] = η_min
                 printstyled("  [WARNING] η: Below minimum ($η_min), clamped\n", color=:yellow)
             elseif v[i] > η_max
@@ -777,7 +771,10 @@ function val_check(v::Vector{Float64})::Vector{Float64}
                 printstyled("  [WARNING] η: Above maximum ($η_max), clamped\n", color=:yellow)
             end
         elseif i == 2  # β parameter (penalty for slip condition)
-            if v[i] < β_min
+            if v[i] < 0
+                v[i] = abs(v[i])
+                printstyled("  [WARNING] β: Negative value, taking absolute\n", color=:yellow)
+            elseif v[i] < β_min
                 v[i] = β_min
                 printstyled("  [WARNING] β: Below minimum ($β_min), clamped\n", color=:yellow)
             elseif v[i] > β_max

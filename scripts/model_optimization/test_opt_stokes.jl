@@ -56,12 +56,13 @@ global plt_top_margin = 0pt
 # global y_lims_rel_error = (-0.05, 20)
 
 # for synthetic data
-# global y_lims_h_norm = (0.97, 1.02)
-# global y_lims_rel_error = (-0.1, 3.0)
+global y_lims_h_norm = (0.97, 1.02)
+global y_lims_rel_error = (-0.1, 3.0)
 
 # for sim data
-global y_lims_h_norm = (0.995, 1.005)
-global y_lims_rel_error = (-0.05, 0.1)
+# global y_lims_h_norm = (0.995, 1.005)
+# global y_lims_rel_error = (-0.05, 0.1)
+
 # Extended colorblind-friendly palette (20 colors, optimized for maximum distinction)
 # Colors are spaced across hue spectrum with varying brightness/saturation
 global color_palette = [
@@ -279,8 +280,14 @@ function optimize(exp_params::Dict)
         dev_η::Float64 = dev*η_gt
         η_start::Float64 = abs(η_gt - dev_η)
 
-        dev_β::Float64 = dev*β_gt
-        β_start::Float64 = abs(β_gt - dev_β)
+        if β_gt >= 200.0 # setting the slip to partial slip for no slip cases
+            β_start = 50.0
+        elseif β_gt <= 1 # setting the slip to partial slip for free slip cases
+            β_start = 3.0
+        else
+            dev_β::Float64 = dev*β_gt
+            β_start::Float64 = abs(β_gt - dev_β)
+        end
     end
 
     θ::Vector{Float64} = [η_start, β_start]
@@ -361,17 +368,17 @@ function optimize(exp_params::Dict)
                 η_start = η-dev_η
             end
 
-            if maximum(βpList) > β+dev_β
-                βStop = maximum(βpList)*1.1
-            else
-                βStop = β+dev_β
-            end
+            # if maximum(βpList) > β+dev_β
+            #     βStop = maximum(βpList)*1.1
+            # else
+            #     βStop = β+dev_β
+            # end
 
-            if minimum(βpList) < β-dev_β
-                β_start = minimum(βpList)*0.9
-            else
-                β_start = β-dev_β
-            end
+            # if minimum(βpList) < β-dev_β
+            #     β_start = minimum(βpList)*0.9
+            # else
+            #     β_start = β-dev_β
+            # end
 
             # sampleNo = 7
             # ηList = collect(range(η_start, stop=ηStop, length=sampleNo))
@@ -1932,7 +1939,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.ylabel!(η_norm_plot_5,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
     β_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-    Plots.hline!(β_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black)
+    Plots.hline!(β_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black, yscale=:log10)
     Plots.xlabel!(β_norm_plot_5, L"\mathrm{Iterations}")
     Plots.ylabel!(β_norm_plot_5, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
     
@@ -2023,11 +2030,11 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
     h_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
     Plots.hline!(h_norm_plot_5, [1.0],  left_margin=plt_lft_margin, linestyle=:dash, label=false, color=:black)
-    Plots.plot!(h_norm_plot_5,[5,end_obs_win],[0.998,0.998], arrow=arrow(:closed, :both), color=:black, label=false)
-    Plots.annotate!(h_norm_plot_5, 12, 0.9975, ("Prediction",:black, :center, 10,"computer modern"))
+    # Plots.plot!(h_norm_plot_5,[5,end_obs_win],[0.998,0.998], arrow=arrow(:closed, :both), color=:black, label=false)
+    # Plots.annotate!(h_norm_plot_5, 12, 0.9975, ("Prediction",:black, :center, 10,"computer modern"))
 
-    # Plots.plot!(h_norm_plot_5,[5,end_obs_win],[1.01,1.01], arrow=arrow(:closed, :both), color=:black, label=false)
-    # Plots.annotate!(h_norm_plot_5, 15, 1.0125, ("Prediction",:black, :center, 8,"computer modern"))
+    Plots.plot!(h_norm_plot_5,[5,end_obs_win],[1.01,1.01], arrow=arrow(:closed, :both), color=:black, label=false)
+    Plots.annotate!(h_norm_plot_5, 15, 1.0125, ("Prediction",:black, :center, 8,"computer modern"))
     Plots.vline!(h_norm_plot_5, [5.0], color=:black, linestyle=:dash, label=false)
     Plots.xlabel!(h_norm_plot_5,L"\mathrm{Time\;[s]}")
     Plots.ylabel!(h_norm_plot_5,L"h_{\mathrm{est}}/h_{\mathrm{gt}}")  
@@ -2713,6 +2720,37 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
         Plots.savefig(elem_height_plt, joinpath(plot_path_elems,"height_$dir.pdf"))
         @info "Saved plots to $plot_path_elems"
     end
+    # # Create inset plot showing early iterations in linear scale
+    # inset_β_plt = set_plot(fs-4, sz=(220, 160), legend=false, top_margin=1mm, left_margin=2mm, right_margin=1mm, bottom_margin=1mm, frame=:box, bg_inside=:white)
+    
+    # # Replot data from β_norm_plot_5 on the inset in linear scale (early iterations only)
+    # for series in β_norm_plot_5.series_list
+    #     if haskey(series.plotattributes, :x) && haskey(series.plotattributes, :y)
+    #         x = series.plotattributes[:x]
+    #         y = series.plotattributes[:y]
+    #         color_attr = get(series.plotattributes, :color, :auto)
+    #         if x !== nothing && y !== nothing && length(x) > 0
+    #             # Filter to early iterations only
+    #             mask = (x .>= 0) .& (x .<= 15)
+    #             if any(mask)
+    #                 Plots.plot!(inset_β_plt, x[mask], y[mask], label=false, 
+    #                            yscale=:identity, color=color_attr, linewidth=1.5, legend=false, markerstrokewidth=0)
+    #             end
+    #         end
+    #     end
+    # end
+    
+    # Set inset limits and add reference line
+    # Plots.xlims!(inset_β_plt, 0, 15)
+    # Plots.ylims!(inset_β_plt, 0.5, 4.0)
+    # Plots.plot!(inset_β_plt, [0, 15], [1.0, 1.0], label=false, color=:black, linestyle=:dash, linewidth=0.8)
+    # Plots.xticks!(inset_β_plt, [0, 5, 10, 15], fontsize=fs-6)
+    # Plots.yticks!(inset_β_plt, [1, 2, 3, 4], fontsize=fs-6)
+    # Plots.xlabel!(inset_β_plt, "Iterations", fontsize=fs-5)
+    # Plots.ylabel!(inset_β_plt, "β_est/β_gt", fontsize=fs-5)
+    
+    # Add inset to main plot positioned at lower right (non-overlapping)
+    # β_norm_plot_5 = Plots.plot(β_norm_plot_5; inset=(1, bbox(0.52, 0.08, 0.42, 0.38)), inset_subplots=[inset_β_plt])
     plot_path_global = joinpath(filepath,"post_analysis_global","plots")
     set_file(plot_path_global)
 
@@ -2758,8 +2796,8 @@ function plot_contours(filepath_gt_::String, time_point::Int=0)
     Plots.xlabel!(contour_plt, L"x\;\mathrm{[px]}")
     Plots.ylabel!(contour_plt, L"y\;\mathrm{[px]}")
 
-    cnt_plt_width = 400
-    contour_plt_zoom = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=1, legend=:outertopright, bottom_margin=0mm, top_margin=0mm)
+    cnt_plt_width = plt_width*2
+    contour_plt_zoom = set_plot(round(Int,fs*1.1),sz=(plt_width*2, plt_height), legend_column=2, legend=:outertopright, bottom_margin=1mm, top_margin=0mm)
     Plots.xticks!(contour_plt_zoom, 1100:200:1520)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt_zoom, cont_x_lims[1], cont_x_lims[2])
@@ -3696,37 +3734,6 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
     return obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney
 end
 
-function read_unstrcut_csv(file_path::String)
-    xg_arr = Float64.(collect(xg))
-    yg_arr = Float64.(collect(yg))
-    nx = length(xg_arr); ny = length(yg_arr)
-    Zmat = try
-        Array(Z) |> x -> Float64.(x)
-    catch err
-        error("_ensure_grid_matrix: Failed to coerce Z to dense Float64 matrix: $err")
-    end
-    if ndims(Zmat) == 1
-        if length(Zmat) == nx*ny
-            Zmat = reshape(Zmat, ny, nx)
-        else
-            error("_ensure_grid_matrix: Z is 1D with length=$(length(Zmat)) which is not nx*ny=$(nx*ny)")
-        end
-    elseif ndims(Zmat) == 2
-        if size(Zmat,1) == ny && size(Zmat,2) == nx
-            # ok
-        elseif size(Zmat,1) == nx && size(Zmat,2) == ny
-            Zmat = Zmat'
-        elseif prod(size(Zmat)) == nx*ny
-            Zmat = reshape(vec(Zmat), ny, nx)
-        else
-            @warn "_ensure_grid_matrix: Z matrix shape $(size(Zmat)) does not match (ny,nx)=($(ny),$(nx)). Attempting to continue but result may be wrong."
-        end
-    else
-        error("_ensure_grid_matrix: Z has unexpected dims: $(ndims(Zmat))")
-    end
-    return xg_arr, yg_arr, Zmat
-end
-
 # Save Plotly surface with optional scatter overlays to interactive HTML file
 function save_plotly_surface_html(filename::AbstractString, xg, yg, Z; xs=AbstractVector[], ys=AbstractVector[], zs=AbstractVector[],
                                   title="", colormap="Viridis",
@@ -4152,7 +4159,7 @@ function optimize_sim(use_parallel::Bool=true)
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
 
-    avoid_dirs = ["3_less_noise","1","2","3","4","5","6","7"] # avoid_dirs = ["3_less_noise", "7"]
+    avoid_dirs = ["post_analysis_global","2","3","4","5","6","7","8","9"] # avoid_dirs = ["3_less_noise", "7"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes", control, viscosity_type, "Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -4164,7 +4171,7 @@ function optimize_sim(use_parallel::Bool=true)
             filepath_gt = joinpath(_filepath_gt, dir)
             for ne in refine_list
                 if ne == 6 && viscosity_type == "constant"
-                    noise_level_list = [1.0]
+                    noise_level_list = [0.0]
                 else
                     noise_level_list = [0.0]
                 end
@@ -4228,7 +4235,7 @@ function optimize_syn(use_parallel::Bool=true)
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    avoid_dirs = ["3_less_noise","7","2","3","4","5","6","8"] # avoid_dirs = ["3_less_noise", "7"]
+    avoid_dirs = ["post_analysis_global","2","3","4","5","6","7","8"] # avoid_dirs = ["3_less_noise", "7"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes", control, viscosity_type, "Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -4376,10 +4383,11 @@ end
 
 function plot_()
     control::String = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
     model_type::String = "Stokes" # "carreau" or "Stokes"
-    avoid_dirs = ["3_less_noise", "s","2","3"] #, "6", "7", "8", "9"]
-    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
+    avoid_dirs = ["post_analysis_global", "1","2","3","4","5"] #, "6", "7", "8", "9"]
+    data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
+    base_path = ""
 
     for data_type in data_type_list
         data_root = joinpath(homedir(), "SMEAR-PhD", "SMEAR-DataFiles", "Data")
@@ -4403,7 +4411,7 @@ function plot_()
                 filepath_res = base_path
             else
                 filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Q2_16")
-                filepath_res = joinpath(base_path, control, viscosity_type, "Q2_16_old")
+                filepath_res = joinpath(base_path, control, viscosity_type, "Q2_16","lm")
             end
             if model_type == "carreau" && viscosity_type == "bulk_viscosity"
                 filepath_gt = joinpath(base_gt_path, "sim_data", "Carreau")
@@ -4419,7 +4427,7 @@ function plot_()
                 filepath_gt_dir = joinpath(filepath_gt, dir)
                 filepath_res_dir = joinpath(filepath_res, dir)
                 # predict(filepath_res_dir, filepath_gt_dir)
-                # replot(filepath_res_dir, filepath_gt_dir)
+                replot(filepath_res_dir, filepath_gt_dir)
             end
             if viscosity_type == "constant"
                 post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
@@ -4434,8 +4442,8 @@ end
 
 
 # optimize_sim(false)
-# optimize_syn(false)
+optimize_syn(false)
 # optimize_real()
-# plot_()
+plot_()
 # Plot ground truth contours at the last time point (time_point=0)
-plot_contours(String("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/constant/Q2_6"), 50)
+# plot_contours(String("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/constant/borders/Q2_16"), 50)

@@ -222,7 +222,7 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
 
     set_file(filepath)  # create the directory if it doesn't exist
-    
+    avoid_dirs = ["mesh_1", "mesh_2", "mesh_3", "mesh_4"] # directories to avoid when reading results (if any)
     iter_index = 1
     h_ref = 37.514580952625970
     dirs = readdir(filepath)
