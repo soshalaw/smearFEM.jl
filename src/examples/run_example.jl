@@ -657,15 +657,20 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
         @info "Removing previous results folder: $filepath"
         rm(string(filepath), recursive=true, force=true) # remove the previous results folder if it exists
     end
-
+    t_start = Dates.now()
     h_, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, pos3D, splinep, splineq, velocity, pressure = simulate(model, scene, conditions) # run the simulation
-    
+    t_end = Dates.now()
+    elapsed_time = t_end - t_start
+    t_per_step = elapsed_time.value/length(gradList)
+    printstyled("Simulation completed in $(elapsed_time) with an average time per step of $(t_per_step)\n"; color=:green)
+
     h = get_height(h_, model.mesh_u.h) # get the mesh height with time
     params = Dict("r"=>model.mesh_u.r, "h"=>model.mesh_u.h, "ne" => model.mesh_x.ne, "η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "obj_pose" => conditions.obj_pose, 
                     "control_type"=>scene.control, "cParam"=>scene.cParam, "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps, 
                     "viscosity_type"=>scene.viscosity_type)
 
     # write results to files
+    write_csv(string(filepath,"/data/avg_time"), t_per_step)
     write_csv(string(filepath,"/data/h"), h)
     write_data(string(conditions.filepath,"/data/sim_data/2D_surface_points"), pos2D)
     write_data(string(filepath,"/data/sim_data/node_points"), pos3D)

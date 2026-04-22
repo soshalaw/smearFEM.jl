@@ -229,31 +229,29 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
         # Extract element size from directory name
         elem_size = parse(Float64, split(dir, "_")[end])
         println("Running for element size = $elem_size")
-        t_start = Dates.now()
-
+        
         # Run simulation with the generated mesh
         mesh_filepath = joinpath(filepath, dir)
         println("Mesh filepath: ", mesh_filepath)
+        
         exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => FunctionClass_u, "FunctionClass_p" => FunctionClass_p, 
-                         "ne_gt" => elem_size, "β_gt" => β, "η_gt" => η, "filepath_gt" => joinpath(mesh_filepath, "simulation"), 
-                         "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
-                         "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
-                         "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => false, "mesh_path" => mesh_filepath)
-
+        "ne_gt" => elem_size, "β_gt" => β, "η_gt" => η, "filepath_gt" => joinpath(mesh_filepath, "simulation"), 
+        "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
+        "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
+        "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => false, "mesh_path" => mesh_filepath)
+        
         # try
             write_gt_data(exp_params)
         # catch e
         #     @error "Simulation failed for element size $elem_size" exception=e
         #     continue
         # end
-
-        t_end = Dates.now()
-        elapsed_time = t_end - t_start
         
         # Read results
         # try
             exp_params = read_json(joinpath(mesh_filepath, "simulation", "data", "sim_params.jld2"))
             h_mesh = readdlm(joinpath(mesh_filepath, "simulation", "data","h.csv"), ',', Float64)
+            elapsed_time = readdlm(joinpath(mesh_filepath, "simulation", "data","avg_time.csv"), ',', Float64)
 
             ne = exp_params["ne"]
             effective_element_size = (volume / ne)^(1/3)
@@ -264,7 +262,7 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
             push!(effective_element_size_list, effective_element_size)
             push!(height_list, h_mesh)
             push!(height_error_list, δh)
-            push!(time_list, elapsed_time.value/steps)
+            push!(time_list, elapsed_time)
             iter_index += 1
         # catch e
         #     @warn "Failed to read results for element size $elem_size: $e"
@@ -374,7 +372,7 @@ function plot_convergence_mesh(file_path::String)
         elem_sizes = readdlm(joinpath(file_path, "effective_element_size.csv"), ',', Float64)
         time_list_ = readdlm(joinpath(file_path, "time_list.csv"), ',', Float64)
         
-        list_end = size(height_error_list, 1)-1
+        list_end = size(height_error_list, 1)
         relative_error = vec(height_error_list[1:(list_end), end])
         height_list = vec(height_list_[1:(list_end), end])
         time_list = vec(time_list_[1:(list_end), end])
