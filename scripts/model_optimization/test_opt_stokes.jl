@@ -28,20 +28,20 @@ global def_green = RGB(2/255,147/255,86/255)
 global end_obs_win = 20.1
 
 # for 1/2 linewidth
-# fs::Int = 12
-# plt_height::Int = 350
-# plt_width ::Int = 477
-# plt_lft_margin = 1pt
-# plt_right_margin = 5pt
-# plt_top_margin = 1pt
+fs::Int = 12
+plt_height::Int = 350
+plt_width ::Int = 477
+plt_lft_margin = 1pt
+plt_right_margin = 5pt
+plt_top_margin = 1pt
 
 # for 1/3 linewidth
-global fs::Int = 10
-global plt_height::Int = 360
-global plt_width::Int = 330
-global plt_lft_margin = -6pt
-global plt_right_margin = 10pt
-global plt_top_margin = 0pt
+# global fs::Int = 10
+# global plt_height::Int = 360
+# global plt_width::Int = 330
+# global plt_lft_margin = -6pt
+# global plt_right_margin = 10pt
+# global plt_top_margin = 0pt
 
 # for 1/4 linewidth
 # global fs::Int = 10
@@ -56,12 +56,12 @@ global plt_top_margin = 0pt
 # global y_lims_rel_error = (-0.05, 20)
 
 # for synthetic data
-global y_lims_h_norm = (0.97, 1.02)
-global y_lims_rel_error = (-0.1, 3.0)
+# global y_lims_h_norm = (0.97, 1.02)
+# global y_lims_rel_error = (-0.1, 3.0)
 
 # for sim data
-# global y_lims_h_norm = (0.995, 1.005)
-# global y_lims_rel_error = (-0.05, 0.1)
+global y_lims_h_norm = (0.995, 1.005)
+global y_lims_rel_error = (-0.05, 0.1)
 
 # Extended colorblind-friendly palette (20 colors, optimized for maximum distinction)
 # Colors are spaced across hue spectrum with varying brightness/saturation
@@ -283,7 +283,7 @@ function optimize(exp_params::Dict)
         if β_gt >= 200.0 # setting the slip to partial slip for no slip cases
             β_start = 50.0
         elseif β_gt <= 1 # setting the slip to partial slip for free slip cases
-            β_start = 3.0
+            β_start = 10.0
         else
             dev_β::Float64 = dev*β_gt
             β_start::Float64 = abs(β_gt - dev_β)
@@ -2030,11 +2030,11 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
     h_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
     Plots.hline!(h_norm_plot_5, [1.0],  left_margin=plt_lft_margin, linestyle=:dash, label=false, color=:black)
-    # Plots.plot!(h_norm_plot_5,[5,end_obs_win],[0.998,0.998], arrow=arrow(:closed, :both), color=:black, label=false)
-    # Plots.annotate!(h_norm_plot_5, 12, 0.9975, ("Prediction",:black, :center, 10,"computer modern"))
+    Plots.plot!(h_norm_plot_5,[5,end_obs_win],[0.998,0.998], arrow=arrow(:closed, :both), color=:black, label=false)
+    Plots.annotate!(h_norm_plot_5, 12, 0.9975, ("Prediction",:black, :center, 10,"computer modern"))
 
-    Plots.plot!(h_norm_plot_5,[5,end_obs_win],[1.01,1.01], arrow=arrow(:closed, :both), color=:black, label=false)
-    Plots.annotate!(h_norm_plot_5, 15, 1.0125, ("Prediction",:black, :center, 8,"computer modern"))
+    # Plots.plot!(h_norm_plot_5,[5,end_obs_win],[1.01,1.01], arrow=arrow(:closed, :both), color=:black, label=false)
+    # Plots.annotate!(h_norm_plot_5, 15, 1.0125, ("Prediction",:black, :center, 8,"computer modern"))
     Plots.vline!(h_norm_plot_5, [5.0], color=:black, linestyle=:dash, label=false)
     Plots.xlabel!(h_norm_plot_5,L"\mathrm{Time\;[s]}")
     Plots.ylabel!(h_norm_plot_5,L"h_{\mathrm{est}}/h_{\mathrm{gt}}")  
@@ -4383,10 +4383,10 @@ end
 
 function plot_()
     control::String = "force" # "force" or "velocity"
-    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
     model_type::String = "Stokes" # "carreau" or "Stokes"
-    avoid_dirs = ["post_analysis_global", "1","2","3","4","5"] #, "6", "7", "8", "9"]
-    data_type_list = ["synthetic"] # "synthetic", "simulated", "physical"
+    avoid_dirs = ["post_analysis_global","2","3"] #, "6", "7", "8", "9"]
+    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
     base_path = ""
 
     for data_type in data_type_list
@@ -4411,7 +4411,7 @@ function plot_()
                 filepath_res = base_path
             else
                 filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Q2_16")
-                filepath_res = joinpath(base_path, control, viscosity_type, "Q2_16","lm")
+                filepath_res = joinpath(base_path, control, viscosity_type, "Q2_16")
             end
             if model_type == "carreau" && viscosity_type == "bulk_viscosity"
                 filepath_gt = joinpath(base_gt_path, "sim_data", "Carreau")
@@ -4442,7 +4442,7 @@ end
 
 
 # optimize_sim(false)
-optimize_syn(false)
+# optimize_syn(false)
 # optimize_real()
 plot_()
 # Plot ground truth contours at the last time point (time_point=0)

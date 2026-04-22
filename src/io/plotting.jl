@@ -159,7 +159,7 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
         iter = 1:sz
         animation2 = @animate for i in iter
             
-            plt = set_plot(12, frame=true)
+            plt = set_plot(12, frame=true, bottom_margin=0mm)
             if !isnothing(pObs) && !isnothing(p) && !isnothing(pgt)    
                 Plots.plot!(plt, p[i],q[i], labels=L"\mathrm{Lagrange basis}", aspect_ratio = :equal, dpi=:400, lw=2, color=:darkorange)
                 Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathrm{NURBS basis}", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
@@ -293,7 +293,7 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
         plt = Plots.plot(1, 
                             xlims=(xmin-fac*(xmax-xmin), xmax+fac*(xmax-xmin)),
                             ylims=(ymin-fac*(ymax-ymin), ymax+fac*(ymax-ymin)),
-                            zlims=(zmin, zmax+fac*(zmax-zmin)),
+                            zlims=(zmin, zmax+fac*(zmax-zmin)*0.1),
 
                             xlabel=L"x\;[\mathrm{mm}]",ylabel=L"y\;[\mathrm{mm}]",zlabel=L"z\;[\mathrm{mm}]",
 

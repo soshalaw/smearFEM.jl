@@ -12,7 +12,7 @@ function const_vel(r::Float64, h::Float64, ndim::Int, FunctionClass_u::String, n
   viscosity_type::String = "constant"  # "constant" or "bulk_viscosity"
 
   sim_time::Float64 = 20.0           # simulation time in seconds
-  t_steps::Float64 = 0.1              # number of time steps
+  t_steps::Float64 = 2              # number of time steps
   steps::Float64 = sim_time/t_steps
     
   β_gt = 500.0 # penalty parameter for the ground truth

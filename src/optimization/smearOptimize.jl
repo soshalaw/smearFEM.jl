@@ -509,7 +509,7 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         println("Result: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))")
         println("Deltas: Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))")
         
-        if c_grad_rel < 1e-3 && c_grad < 1e-3 # && iter >= 20
+        if c_grad_rel < 1e-3 && c_grad < 1e-3 && iter >= 20
             printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n", color=:green)
             break
         end

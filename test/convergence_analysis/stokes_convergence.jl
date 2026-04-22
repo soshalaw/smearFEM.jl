@@ -75,8 +75,7 @@ function fit_convergence_rate(x_vals::Vector, y_vals::Vector)
     return coeffs[1], coeffs[2]
 end
 
-function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::String, 
-                                  output_path::String, filename::String; 
+function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::String; 
                                   reference_shift::Float64=0.4)
     """Generic function to plot convergence with fitted line.
     
@@ -84,8 +83,6 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Strin
     - x_vals: x-axis values (h for mesh, Δt for time)
     - y_vals: error values
     - x_label: label for x-axis
-    - output_path: directory to save plot
-    - filename: output filename
     - reference_shift: factor to shift reference line
     """
     # Filter valid data
@@ -115,18 +112,17 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Strin
     Plots.plot!(plt, x_vals_clean, y_vals_clean, 
                 label="Error", mode="markers",
                 xlabel=x_label, ylabel="Absolute Relative Error",
-                marker=:circle, markersize=4, markerstrokewidth=1.5, color=:steelblue,
+                marker=:circle, markersize=4, markerstrokewidth=1.5, color="#FF7F0E",
                 yscale=:log10, xscale=:log10)
     Plots.plot!(plt, x_line_offset, y_ref_line, 
                 label=latexstring("O(\$h^{$conv_rate_str}\$)"),
-                line=2, linewidth=2.5, color=:darkorange, 
+                line=2, linewidth=2.5, color=:teal, 
                 yscale=:log10, xscale=:log10, linestyle=:dot)
     
     @info "Convergence rate: O(h^$(conv_rate_str))"
     
     # Save plot
-    mkpath(output_path)
-    Plots.savefig(plt, joinpath(output_path, filename))
+    return plt
 end
 
 # ============================================================================
@@ -222,7 +218,7 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
 
     set_file(filepath)  # create the directory if it doesn't exist
-    avoid_dirs = ["mesh_1", "mesh_2", "mesh_3", "mesh_4"] # directories to avoid when reading results (if any)
+    avoid_dirs = ["mesh_4"] # directories to avoid when reading results (if any)
     iter_index = 1
     h_ref = 37.514580952625970
     dirs = readdir(filepath)
@@ -374,14 +370,41 @@ function plot_convergence_mesh(file_path::String)
     """Plot mesh convergence analysis results."""
     try
         height_error_list = readdlm(joinpath(file_path, "height_error_list.csv"), ',', Float64)
+        height_list_ = readdlm(joinpath(file_path, "height_list.csv"), ',', Float64)
         elem_sizes = readdlm(joinpath(file_path, "effective_element_size.csv"), ',', Float64)
+        time_list_ = readdlm(joinpath(file_path, "time_list.csv"), ',', Float64)
         
-        relative_error = vec(height_error_list[:, end])
-        elem_sizes_flat = vec(elem_sizes[:, 1])
+        list_end = size(height_error_list, 1)-1
+        relative_error = vec(height_error_list[1:(list_end), end])
+        height_list = vec(height_list_[1:(list_end), end])
+        time_list = vec(time_list_[1:(list_end), end])
+        println(time_list)
+        elem_sizes_flat = vec(elem_sizes[1:(list_end), 1])
         
         plot_path = joinpath(file_path, "plots")
-        plot_convergence_generic(elem_sizes_flat, relative_error, "Effective element size (h)", 
-                                plot_path, "height_convergence.pdf")
+        plt1 = plot_convergence_generic(elem_sizes_flat, relative_error, "Effective element size (h)")
+        plt2 = plot_convergence_generic(elem_sizes_flat, height_list, "Effective element size (h)")
+
+        plt3 = set_plot(PLOT_CONFIG[:font_size], 
+                          sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
+                          left_margin=PLOT_CONFIG[:left_margin],
+                          right_margin=PLOT_CONFIG[:right_margin],
+                          top_margin=PLOT_CONFIG[:top_margin],
+                          legend_column=2)
+        Plots.plot!(plt3, elem_sizes_flat, height_list_[:, end], label="Height error", xlabel="Effective element size (h)", ylabel="Height error", marker=:circle)
+            
+        plt4 = set_plot(PLOT_CONFIG[:font_size], 
+                          sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
+                          left_margin=PLOT_CONFIG[:left_margin],
+                          right_margin=PLOT_CONFIG[:right_margin],
+                          top_margin=PLOT_CONFIG[:top_margin],
+                          legend_column=2)
+        Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (s)", marker=:circle)
+        
+        Plots.savefig(plt1, joinpath(plot_path, "height_convergence.pdf"))
+        Plots.savefig(plt2, joinpath(plot_path, "final_height_vs_h.pdf"))
+        Plots.savefig(plt3, joinpath(plot_path, "height_error_vs_elem_size.pdf"))
+        Plots.savefig(plt4, joinpath(plot_path, "time_per_step_vs_elem_size.pdf"))
     catch e
         @warn "Failed to plot mesh convergence: $e"
     end
