@@ -22,15 +22,20 @@ using Statistics
 using CSV
 using DataFrames
 using Logging
+using LinearAlgebra
+using SparseArrays
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
 
 const BENCHMARK_CONFIG = Dict(
-    :name => "50k_DOF_Stokes",
-    :mesh_size => (60, 60, 30),  # ~108k elements, ~54k DOF with linear elements
-    :n_iterations => 200,
+    :name => "20k_DOF_Stokes_Test",
+    :mesh_lx => 1.0,
+    :mesh_ly => 1.0,
+    :mesh_lz => 0.5,
+    :n_elements => 30,  # Total elements per dimension
+    :n_iterations => 50,
     :warmup_iterations => 5,
     :output_csv => "benchmark_results_50k.csv",
     :log_level => Logging.Info,
@@ -53,7 +58,7 @@ mutable struct TimingData
 end
 
 function profile_iteration(mdl::Stokes, cache::BasisFunctionCache, config::SolverConfig,
-                          A_storage::SparseMatrixCSC, b_storage::Vector)
+                          A_storage, b_storage::Vector)
     """
     Profile a single iteration and return timing data
     """
@@ -84,7 +89,8 @@ end
 
 function print_benchmark_config(config::Dict)
     println("\n[CONFIG] Benchmark Parameters:")
-    println("  Mesh Size:         $(config[:mesh_size])")
+    println("  Mesh Dimensions:   $(config[:mesh_lx]) × $(config[:mesh_ly]) × $(config[:mesh_lz])")
+    println("  Elements/Dimension: $(config[:n_elements])")
     println("  Iterations:        $(config[:n_iterations])")
     println("  Warmup:            $(config[:warmup_iterations])")
     println("  Output CSV:        $(config[:output_csv])")
@@ -112,19 +118,28 @@ function run_realistic_benchmark()
         # ─────────────────────────────────────────────────────────────────────
         
         println("\n[SETUP] Creating realistic mesh...")
-        mx, my, mz = BENCHMARK_CONFIG[:mesh_size]
-        mesh = meshgrid_cube(mx, my, mz)
-        n_elems = prod(BENCHMARK_CONFIG[:mesh_size])
-        n_nodes = (mx+1) * (my+1) * (mz+1)
+        lx, ly, lz = BENCHMARK_CONFIG[:mesh_lx], BENCHMARK_CONFIG[:mesh_ly], BENCHMARK_CONFIG[:mesh_lz]
+        ne = BENCHMARK_CONFIG[:n_elements]
+        mesh = meshgrid_cube(lx, ly, lz, ne)
         
         println("[SETUP] Mesh created:")
-        println("  Elements:      $n_elems")
-        println("  Nodes:         $n_nodes")
-        println("  Approx DOF:    ~$(div(n_nodes, 3))")  # 3 DOF per node for Stokes
+        println("  Dimensions:    $lx × $ly × $lz")
+        println("  Elements/dim:  $ne")
+        println("  Total elements:~$(ne^3)")
         
         # Create Stokes model
         println("[SETUP] Creating Stokes model...")
-        mdl = Stokes(mesh, viscosity_type=:constant, cParam=1e-3)
+        ndim = 3
+        mesh_u = meshgrid_cube(lx, ly, lz, ne, FunctionClass="Q1")
+        mesh_p = meshgrid_cube(lx, ly, lz, ne, FunctionClass="Q1")  # Use Q1 for pressure too
+        mesh_x = mesh_u  # Use same mesh for geometry
+        
+        nDof_u = size(mesh_u.coords, 2) * ndim
+        nDof_p = size(mesh_p.coords, 2)
+        η_val = 1.0  # Unit viscosity
+        
+        mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, 
+                     mesh_p=mesh_p, nDof_p=nDof_p, η=[η_val])
         
         # Prepare basis cache
         println("[SETUP] Preparing basis function cache...")
@@ -278,7 +293,7 @@ function run_realistic_benchmark()
         println("BENCHMARK COMPLETE")
         println("="^80)
         println("\nResults Summary:")
-        println("  System Size:       $(mx)×$(my)×$(mz) elements (~$(div(n_nodes,3))k DOF)")
+        println("  System Size:       $(ne) elements/dim (~$(ne^3) total, ~$(div(n_dof, 1000))k DOF)")
         println("  Iterations:        $(BENCHMARK_CONFIG[:n_iterations])")
         println("  Mean Time/Iter:    $(round(mean_total, digits=2))ms")
         println("  Assembly:          $(round(mean(asm_times), digits=2))ms ($(round((mean(asm_times)/mean_total)*100, digits=0))%)")
