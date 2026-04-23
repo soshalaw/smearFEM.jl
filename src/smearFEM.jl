@@ -48,6 +48,8 @@ export prepare_basis_cache
 export solve_system, assemble_and_solve, setup_solver_context
 export time_step_with_config!, enable_gpu_acceleration!, disable_gpu_acceleration!
 export print_real_time_report, @timing
+export assemble_system_A_routed, assemble_system_B_routed, apply_boundary_conditions_routed
+export simulate_with_gpu_integration, print_assembly_status
 
 # GPU acceleration utilities
 export has_gpu, alloc_gpu_storage, keep_on_gpu_strategy, setup_gpu_kernel_workspace, query_gpu_memory, log_gpu_status, reset_gpu_memory
@@ -77,6 +79,7 @@ include("fem/gpu_solver.jl")
 
 # GPU-FEM integration (Phase 4: router + utilities)
 include("fem/solver_integration.jl")
+include("fem/assembly_router.jl")
 
 # Example files are not auto-included to avoid importing unnecessary dependencies like LinearSolve
 # Users can include them explicitly when needed
