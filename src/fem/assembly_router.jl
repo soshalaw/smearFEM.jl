@@ -215,11 +215,9 @@ function simulate_with_gpu_integration(mdl::Stokes, scene::SqueezeFlow, conditio
         
         # Real-time monitoring
         if t_step_total_ms > 15.0  # 15ms exceeds 10ms budget
-            @warn @sprintf("[Step %3d] Exceeded budget: %.2fms (A: %.2f, S: %.2f)", 
-                           iter, t_step_total_ms, t_assem_ms, t_solve_ms)
+            @warn "[Step $(lpad(iter, 3))] Exceeded budget: $(round(t_step_total_ms, digits=2))ms (A: $(round(t_assem_ms, digits=2)), S: $(round(t_solve_ms, digits=2)))"
         elseif iter % 10 == 0  # Print every 10 steps
-            @debug @sprintf("[Step %3d] %.2fms (A: %.2f, S: %.2f)", 
-                            iter, t_step_total_ms, t_assem_ms, t_solve_ms)
+            @debug "[Step $(lpad(iter, 3))] $(round(t_step_total_ms, digits=2))ms (A: $(round(t_assem_ms, digits=2)), S: $(round(t_solve_ms, digits=2)))"
         end
         
         iter += 1
@@ -238,13 +236,13 @@ function simulate_with_gpu_integration(mdl::Stokes, scene::SqueezeFlow, conditio
     mean_total = mean(timings["Total"])
     max_total = maximum(timings["Total"])
     
-    @printf("Mean Assembly:      %7.2f ms (target: 3ms)\n", mean_assem)
-    @printf("Mean Solver:        %7.2f ms (target: 6ms)\n", mean_solve)
-    @printf("Mean Total:         %7.2f ms (target: <10ms)\n", mean_total)
-    @printf("Max Single Step:    %7.2f ms\n", max_total)
+    println("Mean Assembly:      $(lpad(round(mean_assem, digits=2), 7)) ms (target: 3ms)")
+    println("Mean Solver:        $(lpad(round(mean_solve, digits=2), 7)) ms (target: 6ms)")
+    println("Mean Total:         $(lpad(round(mean_total, digits=2), 7)) ms (target: <10ms)")
+    println("Max Single Step:    $(lpad(round(max_total, digits=2), 7)) ms")
     
     utilization = (mean_total / 10.0) * 100
-    @printf("Budget Utilization: %.1f%%\n", utilization)
+    println("Budget Utilization: $(round(utilization, digits=1))%")
     
     if utilization > 100
         println("\n✗ EXCEEDS real-time budget")
