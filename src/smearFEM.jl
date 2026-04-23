@@ -44,6 +44,11 @@ export solve_stokes_gpu!, solve_elasticity_gpu!
 export SolverConfig, realtime_config, cpu_fallback_config
 export prepare_basis_cache
 
+# GPU-FEM Integration (Phase 4)
+export solve_system, assemble_and_solve, setup_solver_context
+export time_step_with_config!, enable_gpu_acceleration!, disable_gpu_acceleration!
+export print_real_time_report, @timing
+
 # GPU acceleration utilities
 export has_gpu, alloc_gpu_storage, keep_on_gpu_strategy, setup_gpu_kernel_workspace, query_gpu_memory, log_gpu_status, reset_gpu_memory
 export GPUContext
@@ -69,6 +74,9 @@ include("utils/gpu_memory.jl")
 # GPU assembly and solver kernels (Phase 2 GPU acceleration)
 include("fem/gpu_assembly.jl")
 include("fem/gpu_solver.jl")
+
+# GPU-FEM integration (Phase 4: router + utilities)
+include("fem/solver_integration.jl")
 
 # Example files are not auto-included to avoid importing unnecessary dependencies like LinearSolve
 # Users can include them explicitly when needed

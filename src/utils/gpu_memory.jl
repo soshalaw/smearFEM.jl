@@ -22,7 +22,7 @@ Pre-allocates GPU arrays once and reuses them to avoid repeated allocations.
 - `viscosity_scale::Float64`: Last computed viscosity scale (detect viscosity changes)
 - `gpu_memory_info::NamedTuple`: Last queried GPU memory stats
 """
-struct GPUContext
+mutable struct GPUContext
     A_gpu::Union{Nothing, Any}  # CuSparseMatrix or CuMatrix (Any to avoid circular deps)
     b_gpu::Union{Nothing, Any}
     x_gpu::Union{Nothing, Any}
