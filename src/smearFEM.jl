@@ -33,6 +33,21 @@ export get_mesh_data # gmsh_utils.jl
 
 export mat_nan_inf_check, write_time_log, dataframe_2_vec
 
+# GPU acceleration utilities (Phase 1)
+export has_gpu, alloc_gpu_storage, keep_on_gpu_strategy, setup_gpu_kernel_workspace
+export query_gpu_memory, log_gpu_status, reset_gpu_memory
+export GPUContext, reset_gpu_context, is_gpu_available, need_precond_recompute
+
+# GPU assembly and solver (Phase 2)
+export assemble_stokes_gpu!, assemble_elasticity_gpu!
+export solve_stokes_gpu!, solve_elasticity_gpu!
+export SolverConfig, realtime_config, cpu_fallback_config
+export prepare_basis_cache
+
+# GPU acceleration utilities
+export has_gpu, alloc_gpu_storage, keep_on_gpu_strategy, setup_gpu_kernel_workspace, query_gpu_memory, log_gpu_status, reset_gpu_memory
+export GPUContext
+
 include("fem/models.jl")
 include("fem/fem.jl")
 include("fem/Meshes.jl")
@@ -47,10 +62,20 @@ include("io/gmsh_utils.jl")
 
 include("optimization/smearOptimize.jl")
 
-include("examples/squeeze_stokes.jl")
-include("examples/fluid_flow_stokes.jl")
-include("examples/squeeze_linear_elasticity.jl")
-include("examples/run_example.jl")
+# GPU acceleration utilities (must be before examples since they may use GPU features)
+include("utils/gpu_utils.jl")
+include("utils/gpu_memory.jl")
+
+# GPU assembly and solver kernels (Phase 2 GPU acceleration)
+include("fem/gpu_assembly.jl")
+include("fem/gpu_solver.jl")
+
+# Example files are not auto-included to avoid importing unnecessary dependencies like LinearSolve
+# Users can include them explicitly when needed
+# include("examples/squeeze_stokes.jl")
+# include("examples/fluid_flow_stokes.jl")
+# include("examples/squeeze_linear_elasticity.jl")
+# include("examples/run_example.jl")
 
 include("utils.jl")
 
@@ -71,6 +96,13 @@ if isdefined(Base, :isatty)
 	const isatty = Base.isatty
 else
 	const isatty = (io->false)
+end
+
+# GPU status reporting at module load
+try
+	log_gpu_status()
+catch e
+	# Silently ignore if GPU status reporting fails
 end
 
 end # module smearFem
