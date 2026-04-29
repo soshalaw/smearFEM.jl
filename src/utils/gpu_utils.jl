@@ -33,7 +33,16 @@ Detect if CUDA GPU is available and functional.
 - `false` otherwise
 """
 function has_gpu()::Bool
-    return CUDA_AVAILABLE
+    # Dynamic check avoids stale value from precompiled module state.
+    # CUDA can become available after artifacts/packages are installed.
+    try
+        if !isdefined(@__MODULE__, :CUDA)
+            Base.eval(@__MODULE__, :(import CUDA))
+        end
+        return CUDA.functional()
+    catch
+        return false
+    end
 end
 
 """

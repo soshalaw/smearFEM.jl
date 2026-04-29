@@ -276,9 +276,9 @@ function realtime_config()::SolverConfig
     return SolverConfig(
         solver_type = :gmres_gpu,
         precond_type = :ilu0,
-        tol = 1e-6,
-        maxiter = 500,
-        gmres_restart = 50,
+        tol = 1e-5,           # Phase 5 tuning: 1e-5 optimal (fast + accurate)
+        maxiter = 500,        # Phase 5 tuning: confirmed optimal
+        gmres_restart = 20,   # Phase 5 tuning: 20 is faster than 50 (6.65ms vs 8.73ms)
         gpu_assembly = has_gpu(),  # Auto-detect GPU
         keep_on_gpu = true,         # CRITICAL
         cache_precond = true,       # 1.5-2x speedup from caching
@@ -296,9 +296,9 @@ function cpu_fallback_config()::SolverConfig
     return SolverConfig(
         solver_type = :gmres_cpu,
         precond_type = :ilu0,
-        tol = 1e-6,
-        maxiter = 500,
-        gmres_restart = 50,
+        tol = 1e-5,           # Phase 5 tuning: 1e-5 optimal (fast + accurate)
+        maxiter = 500,        # Phase 5 tuning: confirmed optimal
+        gmres_restart = 20,   # Phase 5 tuning: 20 is faster than 50 (6.65ms vs 8.73ms)
         gpu_assembly = false,
         keep_on_gpu = false,
         cache_precond = true

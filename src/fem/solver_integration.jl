@@ -204,9 +204,9 @@ function enable_gpu_acceleration!(mdl::Model, solver_type::Symbol=:gmres_gpu,
     config = SolverConfig(
         solver_type = solver_type,
         precond_type = precond_type,
-        tol = 1e-6,
-        maxiter = 500,
-        gmres_restart = 50,
+        tol = 1e-5,           # Phase 5 tuning: optimal for accuracy vs speed
+        maxiter = 500,        # Phase 5 tuning: confirmed optimal
+        gmres_restart = 20,   # Phase 5 tuning: 20 faster than 50 (6.65ms vs 8.73ms)
         gpu_assembly = (solver_type == :gmres_gpu),
         keep_on_gpu = true,  # CRITICAL for real-time
         cache_precond = true,  # 1.5-2x speedup

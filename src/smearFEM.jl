@@ -81,12 +81,8 @@ include("fem/gpu_solver.jl")
 include("fem/solver_integration.jl")
 include("fem/assembly_router.jl")
 
-# Example files are not auto-included to avoid importing unnecessary dependencies like LinearSolve
-# Users can include them explicitly when needed
-# include("examples/squeeze_stokes.jl")
-# include("examples/fluid_flow_stokes.jl")
-# include("examples/squeeze_linear_elasticity.jl")
-# include("examples/run_example.jl")
+# Example files - run_example.jl provides example functions like simulate_single_tstep_stokes
+include("examples/run_example.jl")
 
 include("utils.jl")
 

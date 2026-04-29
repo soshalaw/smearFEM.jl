@@ -3,6 +3,10 @@ using SparseArrays
 using IterativeSolvers
 using Dates
 
+# Include helper functions from other example files
+include("squeeze_linear_elasticity.jl")
+include("squeeze_stokes.jl")
+
 """
     simulate_single_tstep(r, h, ne, c1, c2, ndim, FunctionClass, nDof, β, μ_tp, μ_btm; mode="lame", GRAD=false, DENSE=false, CG=false)
 
@@ -35,13 +39,22 @@ Simulates the deformation of the mesh for a single time step using the linear el
 function simulate_single_tstep(r::Number, h::Number, ne::Int64, c1::Number, c2::Number, ndim::Int64, FunctionClass::String, nDof::Int64, β::Number, μ_tp::Number, 
                             μ_btm::Number; mode::String="lame", GRAD::Bool=false, DENSE::Bool=false, CG::Bool=false)
 
-    cMat = get_cMat(mode, c1, c2)
-    dcdλ = get_cMat(mode, 1.0 , 0.0)
+    cMat = get_cMat(Float64(c1), Float64(c2); type=mode)
+    dcdλ = get_cMat(1.0 , 0.0; type=mode)
 
-    NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)  # generate the mesh grid
+    mesh_result = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)  # generate the mesh grid
+    NodeList = mesh_result.NodeList
+    IEN = mesh_result.IEN
+    ID = mesh_result.ID
+    IEN_top = mesh_result.IEN_top
+    IEN_btm = mesh_result.IEN_bottom
+    BorderNodesList = mesh_result.side_nodes
     
-    mdl = def_model("linear_elasticity", ne=ne, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID = ID,
-                        FunctionClass=FunctionClass, θ1=c1, θ2=c2, cMat=cMat, dcMatdθ1=dcdλ)
+    mdl = LinearElasticity(ne=ne, ndim=ndim, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top,
+                        IEN_btm=IEN_btm, IEN_border=mesh_result.IEN_sides, ID=ID, nDof=nDof,
+                        FunctionClass=FunctionClass, C=zeros(Float64, 1, 1, 1), C_top=zeros(Float64, 1, 1, 1),
+                        C_btm=zeros(Float64, 1, 1, 1), W=zeros(Float64, 1), θ1=Float64(c1), θ2=Float64(c2),
+                        cMat=cMat, dcMatdθ1=dcdλ, dcMatdθ2=zeros(size(dcdλ)))
 
     if DENSE == true
         q_tp, q_btm, C_uc = set_boundary_conditions_dense(mdl)
@@ -662,6 +675,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     t_end = Dates.now()
     elapsed_time = t_end - t_start
     t_per_step = elapsed_time.value/length(gradList)
+    
     printstyled("Simulation completed in $(elapsed_time) with an average time per step of $(t_per_step)\n"; color=:green)
 
     h = get_height(h_, model.mesh_u.h) # get the mesh height with time

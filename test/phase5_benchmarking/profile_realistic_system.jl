@@ -34,10 +34,10 @@ const BENCHMARK_CONFIG = Dict(
     :mesh_lx => 1.0,
     :mesh_ly => 1.0,
     :mesh_lz => 0.5,
-    :n_elements => 30,  # Total elements per dimension
-    :n_iterations => 50,
-    :warmup_iterations => 5,
-    :output_csv => "benchmark_results_50k.csv",
+    :n_elements => parse(Int, get(ENV, "PHASE6_BENCHMARK_N_ELEMENTS", "30")),  # Total elements per dimension
+    :n_iterations => parse(Int, get(ENV, "PHASE6_BENCHMARK_N_ITERATIONS", "50")),
+    :warmup_iterations => parse(Int, get(ENV, "PHASE6_BENCHMARK_WARMUP_ITERATIONS", "5")),
+    :output_csv => get(ENV, "PHASE6_BENCHMARK_OUTPUT_CSV", "benchmark_results_50k.csv"),
     :log_level => Logging.Info,
 )
 
@@ -65,13 +65,13 @@ function profile_iteration(mdl::Stokes, cache::BasisFunctionCache, config::Solve
     
     # Assembly timing
     t_asm_start = time()
-    A_storage .= assemble_system_A_routed(mdl, cache, config)
+    A = assemble_system_A_routed(mdl, cache, config)
     t_asm_end = time()
     
     # Solver timing (simplified: just solve Ax=b)
-    b_storage .= rand(size(A_storage, 1))  # Random RHS for profiling
+    b = rand(size(A, 1))  # Random RHS for profiling
     t_solve_start = time()
-    x = solve_system(A_storage, b_storage, config)
+    x = solve_system(A, b, config)
     t_solve_end = time()
     
     return (
@@ -118,32 +118,32 @@ function run_realistic_benchmark()
         # ─────────────────────────────────────────────────────────────────────
         
         println("\n[SETUP] Creating realistic mesh...")
-        lx, ly, lz = BENCHMARK_CONFIG[:mesh_lx], BENCHMARK_CONFIG[:mesh_ly], BENCHMARK_CONFIG[:mesh_lz]
+        r = 1.0
+        h = 0.5
         ne = BENCHMARK_CONFIG[:n_elements]
-        mesh = meshgrid_cube(lx, ly, lz, ne)
-        
+        mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass="Q1")
+        mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass="Q1")
+        mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass="Q1")
+
         println("[SETUP] Mesh created:")
-        println("  Dimensions:    $lx × $ly × $lz")
+        println("  Radius:        $r")
+        println("  Height:        $h")
         println("  Elements/dim:  $ne")
         println("  Total elements:~$(ne^3)")
-        
-        # Create Stokes model
+
         println("[SETUP] Creating Stokes model...")
         ndim = 3
-        mesh_u = meshgrid_cube(lx, ly, lz, ne, FunctionClass="Q1")
-        mesh_p = meshgrid_cube(lx, ly, lz, ne, FunctionClass="Q1")  # Use Q1 for pressure too
-        mesh_x = mesh_u  # Use same mesh for geometry
-        
-        nDof_u = size(mesh_u.coords, 2) * ndim
-        nDof_p = size(mesh_p.coords, 2)
+
+        nDof_u = ndim
+        nDof_p = 1
         η_val = 1.0  # Unit viscosity
-        
-        mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, 
+
+        mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u,
                      mesh_p=mesh_p, nDof_p=nDof_p, η=[η_val])
         
         # Prepare basis cache
         println("[SETUP] Preparing basis function cache...")
-        cache = BasisFunctionCache(mesh, mdl, max_batch_size=2000)
+        cache = BasisFunctionCache(mdl)
         
         # ─────────────────────────────────────────────────────────────────────
         # PHASE 2: CONFIGURATION AND CONTEXT SETUP
@@ -158,12 +158,12 @@ function run_realistic_benchmark()
             cpu_fallback_config()
         end
         
-        println("[CONFIG] Solver target: $(config.gpu_solve ? "GPU" : "CPU")")
+        println("[CONFIG] Solver target: $((config.keep_on_gpu && has_gpu()) ? "GPU" : "CPU")")
         println("[CONFIG] Assembly target: $(config.gpu_assembly ? "GPU" : "CPU")")
         
         # Setup GPU context once (critical for real-time performance)
         println("[CONTEXT] Initializing solver context...")
-        setup_solver_context(mdl, config)
+        setup_solver_context(Model(mdl), config)
         
         # ─────────────────────────────────────────────────────────────────────
         # PHASE 3: STORAGE ALLOCATION
@@ -173,14 +173,13 @@ function run_realistic_benchmark()
         timing_results = TimingData[]
         
         # Pre-allocate matrix and vector storage
-        n_dof = size(mesh.coords, 2)
+        n_dof = size(mesh_x.NodeList, 2) * (nDof_u + nDof_p)
         A_storage = spzeros(n_dof, n_dof)
         b_storage = zeros(n_dof)
         
         println("[MEMORY] System size:")
         println("  Matrix size:   $(size(A_storage))")
         println("  Vector size:   $(length(b_storage))")
-        
         # ─────────────────────────────────────────────────────────────────────
         # PHASE 4: WARMUP ITERATIONS
         # ─────────────────────────────────────────────────────────────────────

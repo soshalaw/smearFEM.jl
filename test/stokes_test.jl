@@ -3,6 +3,7 @@ using smearFEM
 using Test
 using Plots
 using LinearAlgebra
+
 @testset "testing the stokes model" begin
 
     # test case 
@@ -37,4 +38,5 @@ using LinearAlgebra
         @test sqrt(q[1,i]^2 + q[2,i]^2) + 0.5*μu_tp*r_/h ≈ 0 atol=acc
         @test q[3,i] - μu_tp*h_/h ≈ 0 atol=acc
     end
-end
+
+end  # end testset

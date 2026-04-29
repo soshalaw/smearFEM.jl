@@ -40,15 +40,15 @@ function assemble_system(mdl::LinearElasticity; GRAD::Bool=false)
     # element loop
     if mdl.ndim == 1
         # gaussian quadrature points for the element [-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1)
+        ξ, w_ξ = gaussian_quadrature(-1,1,2)
         
         wpoints =  [w_ξ[1], w_ξ[2]]
         
         x = [ξ[1], ξ[2]]
     elseif mdl.ndim == 2
         # gaussian quadrature points for the element [-1,1]x[-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
-        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ξ, w_ξ = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        η, w_η = gaussian_quadrature(-1,1,n_gauss_pts=3)
 
         x = Float64[]
         y = Float64[]
@@ -66,9 +66,9 @@ function assemble_system(mdl::LinearElasticity; GRAD::Bool=false)
 
     elseif mdl.ndim == 3
         # gaussian quadrature points for the element [-1,1]x[-1,1]x[-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
-        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
-        ζ, w_ζ = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ξ, w_ξ = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        η, w_η = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        ζ, w_ζ = gaussian_quadrature(-1,1,n_gauss_pts=3)
 
         x = Float64[]
         y = Float64[]
@@ -228,15 +228,15 @@ function assemble_system_dense(mdl::LinearElasticity; ∇C = zeros(1,1))
     # element loop
     if mdl.ndim == 1
         # gaussian quadrature points for the element [-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1)
+        ξ, w_ξ = gaussian_quadrature(-1,1,2)
         
         wpoints =  [w_ξ[1], w_ξ[2]]
         
         x = [ξ[1], ξ[2]]
     elseif mdl.ndim == 2
         # gaussian quadrature points for the element [-1,1]x[-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
-        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ξ, w_ξ = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        η, w_η = gaussian_quadrature(-1,1,n_gauss_pts=3)
 
         x = Float64[]
         y = Float64[]
@@ -254,9 +254,9 @@ function assemble_system_dense(mdl::LinearElasticity; ∇C = zeros(1,1))
 
     elseif mdl.ndim == 3
         # gaussian quadrature points for the element [-1,1]x[-1,1]x[-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
-        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
-        ζ, w_ζ = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ξ, w_ξ = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        η, w_η = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        ζ, w_ζ = gaussian_quadrature(-1,1,n_gauss_pts=3)
 
         x = Float64[]
         y = Float64[]
@@ -385,15 +385,15 @@ function set_slip_conditions(mdl::LinearElasticity)::SparseMatrixCSC{Float64,Int
 
     if mdl.ndim == 2
         # gaussian quadrature points for the element [-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1)
+        ξ, w_ξ = gaussian_quadrature(-1,1,2)
 
         wpoints =  [w_ξ[1], w_ξ[2]]
         
         x = [ξ[1], ξ[2]]
     elseif mdl.ndim == 3            
         # gaussian quadrature points for the element [-1,1]x[-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
-        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ξ, w_ξ = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        η, w_η = gaussian_quadrature(-1,1,n_gauss_pts=3)
 
         x = Float64[]
         y = Float64[]
@@ -494,15 +494,15 @@ function set_slip_conditions_dense(mdl::LinearElasticity)::Matrix{Float64}
 
     if mdl.ndim == 2
         # gaussian quadrature points for the element [-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1)
+        ξ, w_ξ = gaussian_quadrature(-1,1,2)
 
         wpoints =  [w_ξ[1], w_ξ[2]]
         
         x = [ξ[1], ξ[2]]
     elseif mdl.ndim == 3            
         # gaussian quadrature points for the element [-1,1]x[-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
-        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ξ, w_ξ = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        η, w_η = gaussian_quadrature(-1,1,n_gauss_pts=3)
 
         x = Float64[]
         y = Float64[]
@@ -773,15 +773,15 @@ function get_volume(mdl::LinearElasticity)::Float64
 
     if mdl.ndim == 1
         # gaussian quadrature points for the element [-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1)
+        ξ, w_ξ = gaussian_quadrature(-1,1,2)
         
         wpoints =  [w_ξ[1], w_ξ[2]]
     
         x = [ξ[1], ξ[2]]
     elseif mdl.ndim == 2
         # gaussian quadrature points for the element [-1,1]x[-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
-        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ξ, w_ξ = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        η, w_η = gaussian_quadrature(-1,1,n_gauss_pts=3)
 
         x = Float64[]
         y = Float64[]
@@ -799,9 +799,9 @@ function get_volume(mdl::LinearElasticity)::Float64
 
     elseif mdl.ndim == 3
         # gaussian quadrature points for the element [-1,1]x[-1,1]x[-1,1] 
-        ξ, w_ξ = gaussian_quadrature(-1,1,nGaussPoints=3)
-        η, w_η = gaussian_quadrature(-1,1,nGaussPoints=3)
-        ζ, w_ζ = gaussian_quadrature(-1,1,nGaussPoints=3)
+        ξ, w_ξ = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        η, w_η = gaussian_quadrature(-1,1,n_gauss_pts=3)
+        ζ, w_ζ = gaussian_quadrature(-1,1,n_gauss_pts=3)
 
         x = Float64[]
         y = Float64[]

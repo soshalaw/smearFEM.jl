@@ -62,7 +62,7 @@ Compute the nodes and weights for the Gaussian quadrature of order 2
 - `ξ::Vector{Float64}{,n_gauss_pts}`: nodes.
 - `w::Vector{Float64}{,n_gauss_pts}`: weights 
 """
-function gaussian_quadrature(a::Int64,b::Int64,n_gauss_pts::Int64=2)
+function gaussian_quadrature(a::Int64,b::Int64,n_gauss_pts::Int64)
   
     if n_gauss_pts == 2
         ξ = [-(b-a)/(2*sqrt(3))+(b+a)/2, (b-a)/(2*sqrt(3))+(b+a)/2]
@@ -72,6 +72,10 @@ function gaussian_quadrature(a::Int64,b::Int64,n_gauss_pts::Int64=2)
         w = [(b-a)/2*5/9, (b-a)/2*8/9, (b-a)/2*5/9]
     end
     return ξ, w
+end
+
+function gaussian_quadrature(a::Int64, b::Int64; n_gauss_pts::Int64=2, nGaussPoints::Union{Nothing,Int64}=nothing)
+    return gaussian_quadrature(a, b, isnothing(nGaussPoints) ? n_gauss_pts : nGaussPoints)
 end
 
 """
