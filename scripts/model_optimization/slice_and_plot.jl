@@ -364,7 +364,7 @@ end
 function run_test(plotflag::Bool=false)
 
     row , col = 10, 10
-    contour_plot_params = read_json("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes/force/constant/Q2_16/1/Q2_6/simtime_10.0/Results/data/contour_plot_params.json")
+        contour_plot_params = read_json(resolve_data_path("experiments/syn_data/optimization/Stokes/force/constant/Q2_16/1/Q2_6/simtime_10.0/Results/data/contour_plot_params.json"))
     mat = contour_plot_params["cost_mat"]
     A = hcat(mat)
     A = reshape(A, 10, 10)'

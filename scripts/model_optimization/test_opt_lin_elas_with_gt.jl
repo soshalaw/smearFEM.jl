@@ -39,7 +39,7 @@ function fit()
     νtst = 0.4
 
     # Derived Lame constants from Young's modulus and Poisson ratio
-    λ = round(Youngtst*νtst/((νtst+1)*(-2*νtst+1)))
+        filepathi = joinpath(resolve_data_path("sim_experiments/cost_function_test/optimization/linear_elasticity"), Control, "test")
     μ = round(Youngtst/(2*(νtst+1))) 
 
     println("Ground truth: η :", λ, " β :", μ)

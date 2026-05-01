@@ -2,7 +2,7 @@ using smearFEM
 using Test
 using LinearAlgebra
 
-file = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/test3"
+file = resolve_data_path("sim_experiments/cost_function_test/optimization/test3")
 
 # test case 
 r::Float64 = 25  # radius of the cylinder in mm
@@ -44,7 +44,7 @@ ne = 6
 error_tol = 2.5e-4
 rel_error_tol = 1e-4
 
-filePath = "/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/cylindergen"
+filePath = joinpath(@__DIR__, "..", "cylindergen")
 
 mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry
 mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid

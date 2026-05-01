@@ -311,14 +311,14 @@ function compare()
     avoid_dirs = ["3_less_noise"]
 
     for viscosity_type in viscosity_type_list
-        _filepath_gt = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
+        _filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/Q2_16")
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             if dir in avoid_dirs
                 continue
                 println("Skipping dir $dir")
             end
-            filepath_gt = string(_filepath_gt,"/",dir)
+            filepath_gt = joinpath(_filepath_gt, dir)
             for data_type in data_type_list
                 if data_type == "simulated"
                     location = "sim_data"
@@ -348,8 +348,8 @@ function compare()
                             for FunctionClass_x in FunctionClass_x_List
 
                                 start_time = Dates.now()
-                                filepath_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/$location/mesh_comparisons/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)")
-                                filepath_opt_res = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/$location/optimization/Stokes/$control/$viscosity_type/Q2_16/$dir/$(FunctionClass_x)_$(ne)/simtime_$(sim_time_exp)/noise_$(noise_level)")
+                                    filepath_res = joinpath(resolve_data_path("experiments"), string($location), "mesh_comparisons", "Stokes", $control, $viscosity_type, "Q2_16", $dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)")
+                                    filepath_opt_res = joinpath(resolve_data_path("experiments"), string($location), "optimization", "Stokes", $control, $viscosity_type, "Q2_16", $dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)")
 
                                 exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
                                 "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>data_type, "camera_matrix" => camera_matrix, "WRITE_GT"=> false,

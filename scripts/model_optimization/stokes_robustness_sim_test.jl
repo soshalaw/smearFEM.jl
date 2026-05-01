@@ -11,7 +11,7 @@ using DelimitedFiles
 
 function run(noiseLevelLst, file_path)
 
-    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthetic_data/")
+    filepath = resolve_data_path("sim_experiments/Synthetic_data")
     dev::Float64 = 0.3
 
     # simulation parameters for the experiments

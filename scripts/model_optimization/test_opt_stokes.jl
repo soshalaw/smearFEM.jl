@@ -4454,4 +4454,4 @@ end
 # optimize_real()
 plot_()
 # Plot ground truth contours at the last time point (time_point=0)
-# plot_contours(String("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/force/constant/borders/Q2_16"), 50)
+# plot_contours(String(resolve_data_path("ground_truth/sim_data/Stokes/force/constant/borders/Q2_16")), 50)

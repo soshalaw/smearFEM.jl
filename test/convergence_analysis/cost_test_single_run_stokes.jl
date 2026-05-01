@@ -156,7 +156,7 @@ function main()
 
     # for FunctionClass_x_gt in FunctionClass_x_gt_list
     #     run_id = 1
-    #     file_path = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/caovergence_analysis/stokes_convergence"
+    #     file_path = resolve_data_path("sim_experiments/convergence_analysis/stokes_convergence")
     #     @info "Running optimization with FunctionClass_x_gt = $FunctionClass_x_gt with $ne_gt elements for the ground truth ..."
     #     for β_gt in β_gt_list
     #         for η_gt in η_gt_list

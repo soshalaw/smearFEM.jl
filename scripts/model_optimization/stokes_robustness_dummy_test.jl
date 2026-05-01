@@ -28,7 +28,7 @@ function run(noiseLevelLst, file_path)
 
     control::String = "force" # "force" or "velocity"
     viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
-    # filepathi::String = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/Synthtic_data/exp_1")
+    # filepathi::String = resolve_data_path("sim_experiments/Synthtic_data/exp_1")
 
     # simulation parameters for the ground truth
     sim_time_gt::Float64 = 20.0# simulation time in seconds
