@@ -109,7 +109,7 @@ Function to animate the fields as a gif
 function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing)
     set_file(filepath) # create the directory to store the VTK files
     if isnothing(Nodes) && isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(IEN) && isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
-        AssertionError("No fields provided")
+        throw(AssertionError("No fields provided"))
         return
     elseif isnothing(Nodes) && isnothing(SurfaceNodes3D)
         animate2D(BorderNodes2D=BorderNodes2D, fields2D=fields2D, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
@@ -141,7 +141,7 @@ Function to animate the 2D fields as a gif
 function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, filepath="images/2D_grid.gif")
     
     if isnothing(BorderNodes2D) && isnothing(fields2D) && isnothing(p) && isnothing(pObs)
-        AssertionError("No fields provided")
+        throw(AssertionError("No fields provided"))
         return
     else
         if !isnothing(BorderNodes2D)
@@ -189,7 +189,8 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
             next!(pr)
             try
                 yield()
-            catch
+            catch e
+                @debug "Animation yield interrupted (safe to continue): $(e.msg)"
             end
         end
         gif(animation2, string(filepath,"/2D_grid.gif"), fps=5)
@@ -199,7 +200,7 @@ end
 function animate_2D_comp(;borders=nothing, filepath="images/2D_grid.gif")
     
     if isnothing(BorderNodes2D) && isnothing(fields2D) && isnothing(p) && isnothing(pObs)
-        AssertionError("No fields provided")
+        throw(AssertionError("No fields provided"))
         return
     else
         if isnothing(fields2D) && isnothing(p)
@@ -246,7 +247,8 @@ function animate_2D_comp(;borders=nothing, filepath="images/2D_grid.gif")
             next!(pr)
             try
                 yield()
-            catch
+            catch e
+                @debug "Animation yield interrupted (safe to continue): $(e.msg)"
             end
         end
         gif(animation2, string(filepath,"2D_grid.gif"), fps=10)
@@ -340,7 +342,8 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
         next!(pr)
         try
             yield()
-        catch
+        catch e
+            @debug "Animation yield interrupted (safe to continue): $(e.msg)"
         end
     end
 
@@ -372,7 +375,8 @@ function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath::St
         next!(pr)
         try
             yield()
-        catch
+        catch e
+            @debug "Animation yield interrupted (safe to continue): $(e.msg)"
         end
     end
     gif(animation, string(filepath,"/matches.gif"), fps=10)
@@ -382,7 +386,7 @@ function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String
     set_file(filepath)
     @argcheck length(Exptx) == length(Obsptx)
     sz = length(p)
-    sz == length(Obsptx) || AssertionError("The number of simulated and observed data should be the same")
+    sz == length(Obsptx) || throw(AssertionError("The number of simulated and observed data should be the same"))
     pr = Progress(sz; desc="Plotting matches...",showspeed=true)
     iter = 1:sz
     animation = @animate for i in iter
@@ -401,7 +405,8 @@ function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String
         next!(pr)
         try
             yield()
-        catch
+        catch e
+            @debug "Animation yield interrupted (safe to continue): $(e.msg)"
         end
     end
     gif(animation, string(filepath,"/matches_h.gif"), fps=10)
@@ -485,7 +490,7 @@ Function normalize the solution vector for plotting
 # Returns:
 - `qList`: normalized list of solutions 
 """
-function noramlize(q, IEN)
+function normalize(q, IEN)
 
     qList = zeros(size(IEN))
     max = maximum(q)

@@ -271,7 +271,7 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     C_Tu = transpose(C_uc_cached) # transpose the constraint matrix
 
     if conditions.filepath != ""
-        isnothing(conditions.filepath) || AssertionError("Please provide a filepath to write the data")
+        isnothing(conditions.filepath) || throw(AssertionError("Please provide a filepath to write the data"))
         set_file(conditions.filepath)
     end
 
@@ -549,7 +549,7 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         push!(splineq, BorderPts2D[2,:]) 
         push!(writeborderList, vcat(pi', qi'))
     else
-            throw(ArgumentError("Control type not unknown"))
+            throw(ArgumentError("Control type is unknown"))
     end
     end_time = Dates.now()
     elapsed_time = end_time - start_time
@@ -720,7 +720,7 @@ Initializes the mesh and writes the data to a file.
 function initialize_mesh(r::Number, h::Number, ne::Int64, FunctionClass::String, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractMatrix{Float64},filepath::String="nothing", 
                             SIDES::Bool=false)
 
-    isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
+    isnothing(filepath) || throw(AssertionError("Please provide a filepath to write the data"))
     set_file(filepath)
     
     ndim::Int = 3

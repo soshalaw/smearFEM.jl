@@ -28,20 +28,20 @@ global def_green = RGB(2/255,147/255,86/255)
 global end_obs_win = 20.1
 
 # for 1/2 linewidth
-fs::Int = 12
-plt_height::Int = 350
-plt_width ::Int = 477
-plt_lft_margin = 1pt
-plt_right_margin = 5pt
-plt_top_margin = 1pt
+# fs::Int = 12
+# plt_height::Int = 350
+# plt_width ::Int = 477
+# plt_lft_margin = 1pt
+# plt_right_margin = 5pt
+# plt_top_margin = 1pt
 
 # for 1/3 linewidth
-# global fs::Int = 10
-# global plt_height::Int = 360
-# global plt_width::Int = 330
-# global plt_lft_margin = -6pt
-# global plt_right_margin = 10pt
-# global plt_top_margin = 0pt
+global fs::Int = 12
+global plt_height::Int = 360
+global plt_width::Int = 330
+global plt_lft_margin = -6pt
+global plt_right_margin = 10pt
+global plt_top_margin = 0pt
 
 # for 1/4 linewidth
 # global fs::Int = 10
@@ -52,16 +52,16 @@ plt_top_margin = 1pt
 # global plt_top_margin = -1pt
 
 # for physical data
-# global y_lims_h_norm = (0.8, 1.05)
-# global y_lims_rel_error = (-0.05, 20)
+global y_lims_h_norm = (0.8, 1.05)
+global y_lims_rel_error = (-0.05, 20)
 
 # for synthetic data
 # global y_lims_h_norm = (0.97, 1.02)
 # global y_lims_rel_error = (-0.1, 3.0)
 
 # for sim data
-global y_lims_h_norm = (0.995, 1.005)
-global y_lims_rel_error = (-0.05, 0.1)
+# global y_lims_h_norm = (0.995, 1.005)
+# global y_lims_rel_error = (-0.05, 0.1)
 
 # Extended colorblind-friendly palette (20 colors, optimized for maximum distinction)
 # Colors are spaced across hue spectrum with varying brightness/saturation
@@ -1775,6 +1775,7 @@ function replot(filepath, filepath_gt)
                             Plots.xlims!(plot_param_sum, 0, end_obs_win)
                             Plots.savefig(plot_param_sum, joinpath(win_exp_path,"Results","plots","η_plus_β.pdf"))
                             
+                           
                             h_plt = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
                             Plots.plot!(h_plt, t_full_h, est_h_list, label=L"h_{\mathrm{est}}", color=def_red)
                             for ti::Int in 1:(size(data_ranges_, 1)-1)
@@ -1800,15 +1801,22 @@ function replot(filepath, filepath_gt)
                             Plots.savefig(joinpath(win_exp_path,"Results","plots","h.pdf"))
 
                             h_normalized_plt = set_plot(fs, sz=(plt_width, plt_height), legend_column=2, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
-                            Plots.plot!(h_normalized_plt, t_full_h, est_h_list./gt_h, label=L"h_{\mathrm{est}}/h_{\mathrm{m}}", color=def_red)
+                            # Plots.plot!(h_normalized_plt, t_full_h, est_h_list./gt_h, label=L"h_{\mathrm{est}}/h_{\mathrm{gt}}", color=def_red)
                             for ti::Int in 1:(size(data_ranges_, 1)-1)
                                 pred_h_list_vec = pred_h_list[ti]
                                 range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
                                 t = t_windows[ti]
                                 if ti == 1
-                                    Plots.plot!(h_normalized_plt, [], label=L"h_{\mathrm{pred}}/h_{\mathrm{gt}}", linestyle=:dash, color=def_blue)
+                                    if data_type != "physical"
+                                        Plots.plot!(h_normalized_plt, t_full_h[range_], est_h_list[range_]./gt_h[range_], label=L"h_{\mathrm{est}}/h_{\mathrm{gt}}", color=def_red)
+                                        Plots.plot!(h_normalized_plt, [], label=L"h_{\mathrm{pred}}/h_{\mathrm{gt}}", linestyle=:dash, color=def_blue)
+                                    else
+                                        Plots.plot!(h_normalized_plt, t_full_h[range_], est_h_list[range_]./gt_h[range_], label=L"h_{\mathrm{est}}/h_{\mathrm{m}}", color=def_red)
+                                        Plots.plot!(h_normalized_plt, [], label=L"h_{\mathrm{pred}}/h_{\mathrm{m}}", linestyle=:dash, color=def_blue)
+                                    end
                                 else
                                     Plots.plot!(h_normalized_plt, t_full_h[range_], pred_h_list_vec./gt_h[range_], linestyle=:dash, color=def_blue, label=false)
+                                    Plots.plot!(h_normalized_plt, t_full_h[range_], est_h_list[range_]./gt_h[range_], color=def_red, label=false)
                                 end
                                 Plots.vline!(h_normalized_plt, [t], color=:gray, linestyle=:dash, label=false)
                             end
@@ -4230,12 +4238,12 @@ function optimize_syn(use_parallel::Bool=true)
     # refine_list = [1, 2, 3] # refinement levels, ne = ne_exp^refine
     refine_list = [6] # [2, 3, 4, 5] # refinement levels, ne = ne_exp^refine
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"] # ["constant", "bulk_viscosity"]
+    viscosity_type_list = ["bulk_viscosity"] # ["constant", "bulk_viscosity"]
     window = "multi_window" 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    avoid_dirs = ["post_analysis_global","2","3","4","5","6","7","8"] # avoid_dirs = ["3_less_noise", "7"]
+    avoid_dirs = ["post_analysis_global","2","3"] # avoid_dirs = ["3_less_noise", "7"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes", control, viscosity_type, "Q2_16")
         dir_list = readdir(_filepath_gt)
@@ -4383,10 +4391,10 @@ end
 
 function plot_()
     control::String = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
     model_type::String = "Stokes" # "carreau" or "Stokes"
-    avoid_dirs = ["post_analysis_global","2","3"] #, "6", "7", "8", "9"]
-    data_type_list = ["simulated"] # "synthetic", "simulated", "physical"
+    avoid_dirs = ["post_analysis_global"] #, "6", "7", "8", "9"]
+    data_type_list = ["physical"] # "synthetic", "simulated", "physical"
     base_path = ""
 
     for data_type in data_type_list

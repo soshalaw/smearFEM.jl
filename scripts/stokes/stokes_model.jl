@@ -29,7 +29,7 @@ function main()
   writeData = true
 
   if writeData
-    isnothing(filepath) || AssertionError("Please provide a filepath to write the data")
+    isnothing(filepath) || throw(AssertionError("Please provide a filepath to write the data"))
     set_file(filepath)
   end
 

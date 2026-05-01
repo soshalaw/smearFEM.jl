@@ -61,7 +61,7 @@ include("utils.jl")
 try
 	setup_stderr_logger()
 catch e
-	# swallow any error to avoid breaking module load; it's safe to ignore
+	@warn "Failed to configure logger: $(e.msg)"
 end
 
 # Provide a safe alias to Base.isatty so external code that references

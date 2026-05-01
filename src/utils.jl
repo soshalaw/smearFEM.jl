@@ -64,7 +64,8 @@ end
 function finish!(p::NonTtyProgress; kwargs...)
     try
         @info "\e[32m$(isempty(p.desc) ? "Progress completed" : string(p.desc, " completed")) | progress: $(round(p.count/p.total*100, digits=1))%\e[39m"
-    catch
+    catch e
+        @debug "Failed to log progress completion: $(e.msg)"
     end
     return nothing
 end

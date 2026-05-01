@@ -466,7 +466,7 @@ function set_slip_conditions(mdl::LinearElasticity)::SparseMatrixCSC{Float64,Int
                     end
                 end
             end
-            # TODO include in tha assembly function
+            # TODO include in the assembly function
         end
     end
     K = sparse(E,J,V)
@@ -567,7 +567,7 @@ function set_slip_conditions_dense(mdl::LinearElasticity)::Matrix{Float64}
                     end
                 end
             end
-            # TODO include in tha assembly function
+            # TODO include in the assembly function
         end
     end
     return  K
@@ -979,7 +979,8 @@ function simulate(r::Number, h::Number, ne::Int64, θ1::Number, θ2::Number, ndi
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
             try
                 yield()
-            catch
+            catch e
+                @debug "Animation yield interrupted (safe to continue): $(e.msg)"
             end
         end
     elseif Control == "displacement"
@@ -1036,7 +1037,8 @@ function simulate(r::Number, h::Number, ne::Int64, θ1::Number, θ2::Number, ndi
             next!(pr, showvalues = [(:iterations,iter),(:time,t)])
             try
                 yield()
-            catch
+            catch e
+                @debug "Animation yield interrupted (safe to continue): $(e.msg)"
             end
         end
     end

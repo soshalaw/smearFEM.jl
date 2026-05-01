@@ -600,7 +600,7 @@ function fit_curve(;border=nothing, borderx=nothing, bordery=nothing, samples=no
 
         return pi, qi
     else
-        AssertionError("No border provided")
+        throw(AssertionError("No border provided"))
         return nothing
     end
 end

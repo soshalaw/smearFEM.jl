@@ -73,7 +73,8 @@ function test_stokes()
         next!(pr, showvalues = [(:iterations,j)])
         try
             yield()
-        catch
+        catch e
+            @debug "Progress yield interrupted (safe to continue): $(e.msg)"
         end
         j += 1
     end
@@ -93,7 +94,8 @@ function test_stokes()
         next!(pr, showvalues = [(:iterations,i)])
         try
             yield()
-        catch
+        catch e
+            @debug "Progress yield interrupted (safe to continue): $(e.msg)"
         end
     end
 

@@ -75,7 +75,7 @@ function fit_convergence_rate(x_vals::Vector, y_vals::Vector)
     return coeffs[1], coeffs[2]
 end
 
-function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::String; 
+function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::String, x_label_latex::String="",; 
                                   reference_shift::Float64=0.4)
     """Generic function to plot convergence with fitted line.
     
@@ -102,11 +102,11 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Strin
     x_min = minimum(x_vals_clean)
     x_max = maximum(x_vals_clean)
     x_line = range(x_min, x_max, length=100)
-    y_ref_line = exp.(intercept .+ convergence_rate .* log.(x_line))
+    y_ref_line = exp.(intercept .+ round(Int,convergence_rate) .* log.(x_line))
     x_line_offset = x_line .* reference_shift
     
     # Create plot
-    conv_rate_str = @sprintf("%.2f", convergence_rate)
+    conv_rate_str = @sprintf("%d", round(Int, convergence_rate))
     plt = setup_plot_config()
     
     Plots.plot!(plt, x_vals_clean, y_vals_clean, 
@@ -114,11 +114,17 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Strin
                 xlabel=x_label, ylabel="Absolute Relative Error",
                 marker=:circle, markersize=4, markerstrokewidth=1.5, color="#FF7F0E",
                 yscale=:log10, xscale=:log10)
-    Plots.plot!(plt, x_line_offset, y_ref_line, 
-                label=latexstring("O(\$h^{$conv_rate_str}\$)"),
-                line=2, linewidth=2.5, color=:teal, 
-                yscale=:log10, xscale=:log10, linestyle=:dot)
-    
+    if conv_rate_str == 1
+        Plots.plot!(plt, x_line_offset, y_ref_line, 
+                    label=latexstring("O(\$$(x_label_latex)\$)"),
+                    line=2, linewidth=2.5, color=:teal, 
+                    yscale=:log10, xscale=:log10, linestyle=:dot)
+    else
+        Plots.plot!(plt, x_line_offset, y_ref_line, 
+                    label=latexstring("O(\$$(x_label_latex)^{$conv_rate_str}\$)"),
+                    line=2, linewidth=2.5, color=:teal, 
+                    yscale=:log10, xscale=:log10, linestyle=:dot)
+    end
     @info "Convergence rate: O(h^$(conv_rate_str))"
     
     # Save plot
@@ -367,6 +373,8 @@ end
 function plot_convergence_mesh(file_path::String)
     """Plot mesh convergence analysis results."""
     try
+        radius = 25.0
+        height = 40.0
         height_error_list = readdlm(joinpath(file_path, "height_error_list.csv"), ',', Float64)
         height_list_ = readdlm(joinpath(file_path, "height_list.csv"), ',', Float64)
         elem_sizes = readdlm(joinpath(file_path, "effective_element_size.csv"), ',', Float64)
@@ -376,12 +384,30 @@ function plot_convergence_mesh(file_path::String)
         relative_error = vec(height_error_list[1:(list_end), end])
         height_list = vec(height_list_[1:(list_end), end])
         time_list = vec(time_list_[1:(list_end), end])
-        println(time_list)
+        # println(time_list)
         elem_sizes_flat = vec(elem_sizes[1:(list_end), 1])
         
+        selected_mesh_size =  (π*radius^2*height / 192)^(1/3) # effective element size for the experiment mesh.
+        @info "Selected mesh size for experiment: $selected_mesh_size"
         plot_path = joinpath(file_path, "plots")
-        plt1 = plot_convergence_generic(elem_sizes_flat, relative_error, "Effective element size (h)")
-        plt2 = plot_convergence_generic(elem_sizes_flat, height_list, "Effective element size (h)")
+
+        plt1 = plot_convergence_generic(elem_sizes_flat, relative_error, "Effective element size (h)", "h")
+        Plots.ylims!(plt1, 1e-5, 10^(-2.7))
+        Plots.xlims!(plt1, 1, 50)
+        Plots.vline!(plt1, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
+
+        # plt2 = plot_convergence_generic(elem_sizes_flat, time_list, "Effective element size (h)", reference_shift=1.5)
+        plt2 = set_plot(PLOT_CONFIG[:font_size], 
+                          sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
+                          left_margin=PLOT_CONFIG[:left_margin],
+                          right_margin=PLOT_CONFIG[:right_margin],
+                          top_margin=PLOT_CONFIG[:top_margin],
+                          legend_column=2)
+        Plots.plot!(plt2, elem_sizes_flat, time_list, label=L"t_{\mathrm{step}}", xlabel="Effective element size (h)", ylabel="Time per step (ms)", marker=:circle, yscale=:log10, xscale=:log10)
+        Plots.vline!(plt2, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
+        Plots.ylabel!(plt2, "Time per step (ms)")
+        Plots.xlims!(plt2, 10^(0.5), 10^(1.5))
+        Plots.ylims!(plt2, 1e2, 10^4.05)
 
         plt3 = set_plot(PLOT_CONFIG[:font_size], 
                           sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
@@ -397,10 +423,10 @@ function plot_convergence_mesh(file_path::String)
                           right_margin=PLOT_CONFIG[:right_margin],
                           top_margin=PLOT_CONFIG[:top_margin],
                           legend_column=2)
-        Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (s)", marker=:circle)
-        
+        Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (s)", marker=:circle, yscale=:log10, xscale=:log10)
+
         Plots.savefig(plt1, joinpath(plot_path, "height_convergence.pdf"))
-        Plots.savefig(plt2, joinpath(plot_path, "final_height_vs_h.pdf"))
+        Plots.savefig(plt2, joinpath(plot_path, "computational_cost_vs_elem_size.pdf"))
         Plots.savefig(plt3, joinpath(plot_path, "height_error_vs_elem_size.pdf"))
         Plots.savefig(plt4, joinpath(plot_path, "time_per_step_vs_elem_size.pdf"))
     catch e
@@ -418,23 +444,30 @@ function plot_convergence_time(file_path::String)
         relative_error = vec(height_error_list[:])
         dt_sizes = vec(dt_list)
         
+        selected_dt = 0.1 # time step size used in the experiment
+
         plot_path = joinpath(file_path, "plots")
-        plot_convergence_generic(dt_sizes, relative_error, "Time step size (Δt)", plot_path, "time_integration_convergence.pdf")
-        
-        plt = set_plot(PLOT_CONFIG[:font_size], 
+        plt1 = plot_convergence_generic(dt_sizes, relative_error, "Time step size (Δt)", "\\Delta t")
+        Plots.vline!(plt1, [selected_dt], label=L"\Delta t_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
+        Plots.xlims!(plt1, 10^(-3), 5)
+        Plots.ylims!(plt1, 1e-6, 10^(-2.2))
+
+        plt2 = set_plot(PLOT_CONFIG[:font_size], 
                           sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
                           left_margin=PLOT_CONFIG[:left_margin],
                           right_margin=PLOT_CONFIG[:right_margin],
                           top_margin=PLOT_CONFIG[:top_margin],
                           legend_column=2)
-        Plots.plot(dt_list, h_end_list, label="Final height", xlabel="Time step size (Δt)", ylabel="Final height", yscale=:log10, xscale=:log10, marker=:circle)
-        Plots.savefig(Plots.current(), joinpath(file_path, "plots", "final_height_vs_dt.pdf"))
+        Plots.plot(plt2, dt_list, h_end_list, label="Final height", xlabel="Time step size (Δt)", ylabel="Final height", yscale=:log10, xscale=:log10, marker=:circle)
+
+        Plots.savefig(plt1, joinpath(plot_path, "time_convergence.pdf"))
+        Plots.savefig(plt2, joinpath(plot_path, "final_height_vs_dt.pdf"))
         # catch e
     #     @warn "Failed to plot time integration convergence: $e"
     # end
 end
 
 # time_intergration_convergence_analysis()
-# plot_convergence_time("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis")
-mesh_convergence_analysis()
+plot_convergence_time("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis")
+# mesh_convergence_analysis()
 plot_convergence_mesh("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 

@@ -37,7 +37,8 @@ function get_available_memory_mb()::Float64
                 return parse(Float64, kb_str) / 1024.0
             end
         end
-    catch
+    catch e
+        @debug "Failed to parse memory info: $(e.msg), using default 2048 MB"
     end
     return 2048.0
 end

@@ -741,7 +741,7 @@ function apply_boundary_conditions(mdl::Stokes, cache::BasisFunctionCache)::Spar
                     end
                 end
             end
-            # TODO include in tha assembly function
+            # TODO include in the assembly function
         end
     end
     # println("Maximum row :",maximum(E))
@@ -870,7 +870,7 @@ function apply_boundary_conditions_dense(mdl::Stokes, cache::BasisFunctionCache)
                     end
                 end
             end
-            # TODO include in tha assembly function
+            # TODO include in the assembly function
         end
     end
     return  K
@@ -1192,7 +1192,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     C_Tu = transpose(C_uc_cached) # transpose the constraint matrix
 
     if conditions.filepath != ""
-        isnothing(conditions.filepath) || AssertionError("Please provide a filepath to write the data")
+        isnothing(conditions.filepath) || throw(AssertionError("Please provide a filepath to write the data"))
         set_file(conditions.filepath)
     end
 
@@ -1530,7 +1530,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             next!(pr, showvalues = [(:iterations,iter),(:time,string(t," seconds"))])
         end
     else
-            throw(ArgumentError("Control type not unknown"))
+            throw(ArgumentError("Control type is unknown"))
     end
 
     if conditions.WRITEVTK
