@@ -1,0 +1,25 @@
+# smearFEM.jl Configuration File
+# Copy this file to config.toml and update paths for your system
+# 
+# Alternatively, set environment variables:
+#   export SMEAR_DATA_DIR=/path/to/data
+#   export SMEAR_MESH_DIR=/path/to/meshes
+#   export SMEAR_SCRATCH_DIR=/path/to/scratch
+#
+# Environment variables take priority over this file.
+
+# Path to the data directory containing ground truth and experiment data
+data_dir = "/path/to/SMEAR-Data"
+
+# Path to the mesh directory (optional, defaults to {data_dir}/meshes)
+mesh_dir = "/path/to/SMEAR-Data/meshes"
+
+# Path to scratch/temporary directory for simulations
+# On Linux/macOS: defaults to /tmp/smear
+# On Windows: defaults to ~/SMEAR-Scratch
+scratch_dir = "/tmp/smear"
+
+# Example configuration for a typical setup:
+# data_dir = "${HOME}/SMEAR-Data"
+# mesh_dir = "${HOME}/SMEAR-Data/meshes"
+# scratch_dir = "/tmp/smear"

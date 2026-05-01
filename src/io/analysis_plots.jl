@@ -29,13 +29,13 @@ function plot_noise_covariance(ηLst, βLst, noiseLevel, file_path)
             Plots.savefig(string(file_path,"covariance.pdf"))
         end
     end
-    filePath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3")
+    filePath = resolve_data_path("sim_experiments/cost_function_test/optimization/Stokes/force/test3")
 
     for η in ηLst
         set_plot(22)
         for β in βLst
             for i::Float64 in noiseLevel
-                file_path = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/cost_function_test/optimization/Stokes/force/test3/experiment_$(η)_$(β)")
+                file_path = resolve_data_path("sim_experiments/cost_function_test/optimization/Stokes/force/test3/experiment_$(η)_$(β)")
                 filepath = string(file_path,"/trials/noise_1.5/Results/data/")
 
                 η_list = readdlm(string(filepath,"η_est.csv"), ',', Float64, '\n', header=false)

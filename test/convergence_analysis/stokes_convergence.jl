@@ -194,7 +194,7 @@ function run_gmsh(geo_path::String, msh_path::String, mesh_order::Int=2)
 end
 
 function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, elem_sizes::Vector=[10, 8, 6, 4], 
-                                  template_mesh_geo_path::String="/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/test/convergence_analysis/mesh.geo")
+                                  template_mesh_geo_path::String=joinpath(@__DIR__, "mesh.geo"))
 
     height_list = AbstractArray[]
     height_error_list = Float64[]
@@ -219,7 +219,7 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
 
     obj_pose = get_object_pose(height)
     camera_matrix = get_camera_matrix()
-    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis/mesh_convergence_analysis")
+    filepath = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis/mesh_convergence_analysis")
 
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
 
@@ -274,15 +274,15 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
         #     @warn "Failed to read results for element size $elem_size: $e"
         # end
     end
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/effective_element_size", effective_element_size_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_list", height_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_error_list", height_error_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/elem_sizes", elem_sizes)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/time_list", time_list)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/effective_element_size"), effective_element_size_list)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_list"), height_list)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_error_list"), height_error_list)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/elem_sizes"), elem_sizes)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/time_list"), time_list)
 end
 
 function time_intergration_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, dt_list::Vector=[2, 1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001], 
-                                  template_mesh_geo_path::String="/home/soshala/SMEAR-PhD/smear-modules/smearFEM.jl/test/convergence_analysis/mesh.geo")    
+                                  template_mesh_geo_path::String=joinpath(@__DIR__, "mesh.geo"))    
     height_list = AbstractArray[]
     final_height_list = Float64[]
     height_error_list = Float64[]
@@ -303,7 +303,7 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
 
     obj_pose = get_object_pose(height)
     camera_matrix = get_camera_matrix()
-    filepath = string("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis")
+    filepath = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis")
  
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
     
@@ -363,11 +363,11 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
         end
     end
     println("Final height list: ", final_height_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/effective_element_size", effective_element_size_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/height_list", height_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/height_error_list", height_error_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/t_steps", _dt_list)
-    write_csv("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/final_height_list", final_height_list)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/effective_element_size"), effective_element_size_list)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/height_list"), height_list)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/height_error_list"), height_error_list)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/t_steps"), _dt_list)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/final_height_list"), final_height_list)
 end
 
 function plot_convergence_mesh(file_path::String)
@@ -468,6 +468,6 @@ function plot_convergence_time(file_path::String)
 end
 
 # time_intergration_convergence_analysis()
-plot_convergence_time("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis")
+plot_convergence_time(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis"))
 # mesh_convergence_analysis()
-plot_convergence_mesh("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis") 
+plot_convergence_mesh(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis")) 

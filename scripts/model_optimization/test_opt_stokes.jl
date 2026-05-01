@@ -4169,7 +4169,7 @@ function optimize_sim(use_parallel::Bool=true)
 
     avoid_dirs = ["post_analysis_global","2","3","4","5","6","7","8","9"] # avoid_dirs = ["3_less_noise", "7"]
     for viscosity_type in viscosity_type_list
-        _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes", control, viscosity_type, "Q2_16")
+        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Q2_16")
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             if dir in avoid_dirs
@@ -4202,7 +4202,7 @@ function optimize_sim(use_parallel::Bool=true)
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-                            filepath_res = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/optimization/Stokes", control, viscosity_type, "Q2_16", dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
+                            filepath_res = joinpath(resolve_data_path("experiments/sim_data/optimization/Stokes"), control, viscosity_type, "Q2_16", dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
@@ -4245,7 +4245,7 @@ function optimize_syn(use_parallel::Bool=true)
     param_list = Vector{Dict}(undef, 0)
     avoid_dirs = ["post_analysis_global","2","3"] # avoid_dirs = ["3_less_noise", "7"]
     for viscosity_type in viscosity_type_list
-        _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Stokes", control, viscosity_type, "Q2_16")
+        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Q2_16")
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             if dir in avoid_dirs
@@ -4278,7 +4278,7 @@ function optimize_syn(use_parallel::Bool=true)
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-                            filepath_res = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/syn_data/optimization/Stokes", control, viscosity_type, "Q2_16", "lm", dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
+                            filepath_res = joinpath(resolve_data_path("experiments/syn_data/optimization/Stokes"), control, viscosity_type, "Q2_16", "lm", dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
@@ -4329,11 +4329,11 @@ function optimize_real()
     avoid_dirs = ["3_less_noise","s"] #, "6", "7", "8", "9"]
 
     if model_type == "carreau" && viscosity_type == "bulk_viscosity"
-        _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/sim_data/Carreau")
+        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Carreau"))
         sim_time_exp_list = [5.0]
         F_ext = 1e4 # force applied to the cylinder in N
     else
-        _filepath_gt = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/ground_truth/physical_data")
+        _filepath_gt = joinpath(resolve_data_path("ground_truth/physical_data"))
         sim_time_exp_list = [0.5] # simulation time in seconds
         F_ext = 9.812*1e3 # force applied to the cylinder in N
         η_start = 10.0

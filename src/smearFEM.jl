@@ -33,6 +33,8 @@ export get_mesh_data # gmsh_utils.jl
 
 export mat_nan_inf_check, write_time_log, dataframe_2_vec
 
+export get_data_dir, get_mesh_dir, get_scratch_dir, resolve_data_path, resolve_mesh_path, create_output_dir, show_config # config.jl
+
 include("fem/models.jl")
 include("fem/fem.jl")
 include("fem/Meshes.jl")
@@ -52,6 +54,7 @@ include("examples/fluid_flow_stokes.jl")
 include("examples/squeeze_linear_elasticity.jl")
 include("examples/run_example.jl")
 
+include("config.jl")
 include("utils.jl")
 
 # Automatically route package logging to stderr so progress output on stdout
