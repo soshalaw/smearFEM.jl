@@ -1,12 +1,18 @@
+config.toml
 .github_old
+.vscode
 Vids
 Notebooks
 vtkFiles
 images
-*.jl.*.cov
-*.jl.cov
-*.jl.mem
+PUBLICATION_READINESS.md
+
 /Manifest.toml
 /docs/Manifest.toml
 /docs/build/
+/cylindergen/vtkFiles/
+/cylindergen/__pycache__/
 
+*.jl.*.cov
+*.jl.cov
+*.jl.mem

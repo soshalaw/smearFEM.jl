@@ -7,6 +7,7 @@ makedocs(;
     modules=[smearFEM],
     authors="soshalaw <soshalaweerathunge@gmail.com> and contributors",
     sitename="smearFEM.jl",
+    warnonly=[:missing_docs],
     format=Documenter.HTML(;
         canonical="https://soshalaw.github.io/smearFEM.jl",
         edit_link="develop",

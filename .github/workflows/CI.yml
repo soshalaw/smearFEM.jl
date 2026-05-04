@@ -4,9 +4,13 @@ on:
     branches:
       - main
       - dev
+      - publish_ready
     tags: ['*']
   pull_request:
   workflow_dispatch:
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 concurrency:
   # Skip intermediate builds: always.
   # Cancel intermediate builds: only if it is a pull request build.
@@ -24,7 +28,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.8'
+          - '1.11'
           # - 'pre'
         os:
           - ubuntu-22.04
