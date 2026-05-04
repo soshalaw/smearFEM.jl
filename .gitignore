@@ -1,6 +1,7 @@
 config.toml
 .github_old
 .vscode
+.claude
 Vids
 Notebooks
 vtkFiles
