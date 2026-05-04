@@ -1035,7 +1035,7 @@ Define the conditions and parameters of the squeeze flow problem.
 function def_problem(r::T, h::U, ne::Z, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
                     nDof_p::Int64, FunctionClass_x::String, β::Y, cParam::Vector{Float64}, control::String, viscosity_type::String, 
                     sim_time::W, t_steps::X; viscosity_model::String="power_law", GMESH_MESH::Bool=true,
-                    mesh_path::String = joinpath("/home","soshala","SMEAR-PhD","smear-modules","smear-meshes","mesh_files")) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
+                    mesh_path::String = joinpath(dirname(dirname(@__DIR__)), "mesh_files")) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
 
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
     len_t::Int = length(time)
@@ -1071,7 +1071,7 @@ Sets up the Stokes model for the finite element method.
 # Arguments:
 - `r::Number`: Radius of the cylinder
 - `h::Number`: Height of the cylinder
-- `ne::Int64`: Number of elements in each direction
+- `ne::Float64`: Number of elements in each direction (for structured mesh) / primary element size (for Gmsh)
 - `η::Vector{Float64}`: Dynamic viscosity values
 - `ndim::Int64`: Number of dimensions
 - `FunctionClass_u::String`: Type of basis functions for velocity field (Q1, Q2)
@@ -1088,13 +1088,12 @@ function set_model(r::R, h::H, ne::Float64, η::Vector{Float64}, ndim::Int64, Fu
                 nDof_p::Int64, FunctionClass_x::String; GMESH_MESH::Bool=true,
                 filepath_mesh::String = "")::Stokes where {R<:Number,H<:Number}
 
-    filePath = joinpath("home", "soshala", "SMEAR-PhD", "smear-modules", "smearFEM.jl", "cylindergen")
-
+    
     if GMESH_MESH == true
         @info "Using Gmsh to generate the mesh"
-        mesh_u = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_x_$(ne).msh"), nDof_u, r, h, FunctionClass_u)  # generate the mesh grid for velocity field
-        mesh_p = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_p_$(ne).msh"), nDof_p, r, h, FunctionClass_p)  # generate the mesh grid for pressure field
-        mesh_x = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_x_$(ne).msh"), 1, r, h, FunctionClass_x)      # generate the mesh grid for geometry
+        mesh_u = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_x_$(ne).msh"), nDof_u, r, h, FunctionClass_u, ne)
+        mesh_p = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_p_$(ne).msh"), nDof_p, r, h, FunctionClass_p, ne)
+        mesh_x = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_x_$(ne).msh"), 1, r, h, FunctionClass_x, ne)
     else
         @info "Using Julia to generate the mesh"
         mesh_x = meshgrid_cylinder(r, h, round(Int, ne), FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry

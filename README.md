@@ -88,21 +88,6 @@ Or individual test files:
 julia --project -e "include(\"test/stokes_test.jl\")"
 ```
 
-The test suite runs ~90 000 numerical checks covering FEM assembly, gradient correctness (finite-difference verified), Stokes solver, and code quality (Aqua.jl).
-
-## Requirements
-
-| Dependency | Purpose |
-|------------|---------|
-| Julia ≥ 1.6.7 | Language runtime |
-| Gmsh | Mesh generation (thread-safe wrapper included) |
-| LinearSolve | Sparse linear solvers |
-| IterativeSolvers | Conjugate gradient for large systems |
-| WriteVTK | VTK result export |
-| NearestNeighbors | Closest-point queries for optimization |
-
-Full list in `Project.toml`.
-
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.

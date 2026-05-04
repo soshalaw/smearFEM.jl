@@ -12,9 +12,8 @@ using LaTeXStrings
 using Dates
 using Statistics
 using Printf
-# ============================================================================
+
 # Plot configuration constants
-# ============================================================================
 const PLOT_CONFIG = Dict(
     :font_size => 10,
     :plot_height => 360,
@@ -25,10 +24,8 @@ const PLOT_CONFIG = Dict(
 )
 
 
-# ============================================================================
-# Simulation configuration helpers
-# ============================================================================
 
+# Simulation configuration helpers
 function get_object_pose(height::Float64)
     """Returns object pose matrix."""
     obj_pose = zeros(Float64, 4, 4)
@@ -44,10 +41,8 @@ function get_camera_matrix()
     return [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
 end
 
-# ============================================================================
-# Plotting utilities
-# ============================================================================
 
+# Plotting utilities
 function setup_plot_config(; left_margin=nothing, right_margin=nothing, top_margin=nothing)
     """Configure plot with standard settings."""
     figsize = (PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height])
@@ -131,67 +126,6 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Strin
     return plt
 end
 
-# ============================================================================
-# Main analysis functions
-# ============================================================================
-
-function generate_mesh_geo(radius::Float64, height::Float64, elem_size::Float64, output_path::String, template_path::String)
-    """Generate mesh.geo file from template with specified parameters.
-    
-    Returns true if a new mesh.geo was generated, false if existing file has correct parameters.
-    """
-    # Check if file already exists with correct parameters
-    if isfile(output_path)
-        try
-            content = read(output_path, String)
-            has_radius = contains(content, "radius = $radius;")
-            has_height = contains(content, "height = $height;")
-            has_elem_size = contains(content, "elem_size_2d = $elem_size;")
-            
-            if has_radius && has_height && has_elem_size
-                @info "mesh.geo already exists with correct parameters (radius=$radius, height=$height, elem_size=$elem_size), skipping generation"
-                return false
-            end
-        catch e
-            @debug "Error reading existing mesh.geo, will regenerate: $e"
-        end
-    end
-    
-    # Read the template mesh.geo file
-    template_content = read(template_path, String)
-    
-    # Replace parameters in the template
-    geo_content = replace(template_content, 
-        "radius = 25.0;" => "radius = $radius;",
-        "height = 40.0;" => "height = $height;",
-        "elem_size_2d = 10;" => "elem_size_2d = $elem_size;")
-    
-    # Write the modified content to the output path
-    write(output_path, geo_content)
-    @info "Generated mesh.geo at $output_path from template $template_path"
-    return true
-end
-
-function run_gmsh(geo_path::String, msh_path::String, mesh_order::Int=2)
-    """Run gmsh to generate mesh from .geo file"""
-    # Check if gmsh is available
-    gmsh_path = Sys.which("gmsh")
-    if gmsh_path === nothing
-        @warn "gmsh executable not found in PATH. Please install gmsh or add it to PATH."
-        return false
-    end
-    
-    cmd = `$gmsh_path $geo_path -3 -format msh -order $mesh_order -o $msh_path`
-    @info "Running gmsh: $cmd"
-    try
-        run(cmd)
-        @info "Mesh generated: $msh_path"
-        return true
-    catch e
-        @error "Failed to run gmsh: $e"
-        return false
-    end
-end
 
 function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, elem_sizes::Vector=[10, 8, 6, 4], 
                                   template_mesh_geo_path::String=joinpath(@__DIR__, "mesh.geo"))
@@ -246,15 +180,15 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
         "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
         "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => false, "mesh_path" => mesh_filepath)
         
-        # try
+        try
             write_gt_data(exp_params)
-        # catch e
-        #     @error "Simulation failed for element size $elem_size" exception=e
-        #     continue
-        # end
+        catch e
+            @error "Simulation failed for element size $elem_size" exception=e
+            continue
+        end
         
         # Read results
-        # try
+        try
             exp_params = read_json(joinpath(mesh_filepath, "simulation", "data", "sim_params.jld2"))
             h_mesh = readdlm(joinpath(mesh_filepath, "simulation", "data","h.csv"), ',', Float64)
             elapsed_time = readdlm(joinpath(mesh_filepath, "simulation", "data","avg_time.csv"), ',', Float64)
@@ -270,9 +204,9 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
             push!(height_error_list, δh)
             push!(time_list, elapsed_time)
             iter_index += 1
-        # catch e
-        #     @warn "Failed to read results for element size $elem_size: $e"
-        # end
+        catch e
+            @warn "Failed to read results for element size $elem_size: $e"
+        end
     end
     write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/effective_element_size"), effective_element_size_list)
     write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_list"), height_list)
@@ -328,12 +262,12 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
                          "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
                          "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => true, "mesh_path" => mesh_filepath)
 
-        # try
-            # write_gt_data(exp_params)
-        # catch e
-        #     @error "Simulation failed for time step size $step_size" exception=e
-        #     continue
-        # end
+        try
+            write_gt_data(exp_params)
+        catch e
+            @error "Simulation failed for time step size $step_size" exception=e
+            continue
+        end
         
         # Read results
         try

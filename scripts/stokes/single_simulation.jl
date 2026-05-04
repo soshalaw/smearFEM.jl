@@ -64,7 +64,7 @@ function main()
   FunctionClass_p::String = "Q1"
   nDof_p::Int = 1                 # number of degree of freedom per node
 
-  ne::Int = 6 # number of elements in the mesh for the ground truth
+  ne::Int = 11 # number of elements in the mesh for the ground truth
 
   camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
   obj_pose = Float64.([-1.0 0.0 0.0 0.0; 0.0 0.0 -1.0 20.0; 0.0 -1.0 0.0 150; 0.0 0.0 0.0 1.0])

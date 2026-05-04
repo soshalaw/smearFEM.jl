@@ -51,28 +51,6 @@ mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate 
 mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
 
 mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
-# q_tp, q_side, q_btm, C_uc = set_boundary_cond(mdl)
-
-# A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
-# B = assemble_system_B(mdl)                    # assemble the stiffness matrix
-# b = apply_boundary_conditions_stokes(mdl)           # apply the neumann boundary conditions
-
-# get ∂K/∂θ with finite (central) difference
-# ΔKp = assemble_system(mdl)
-
-# ΔcMatm = get_cMat(mode, (η-Δη), μ)
-# model.cMat = ΔcMatm
-
-# ΔKm = assemble_system(mdl)
-
-# dKdη_approx = (ΔKp-ΔKm)/(2*Δη)
-
-# iIter,jIter = size(ΔKp)
-# for i in 1:iIter  
-#     for j in 1:jIter
-#         @test dKdη_approx[i,j] ≈ dKdη[i,j] atol=error_marge
-#     end
-# end
 
 T = Matrix{Float64}(I, size(mesh_u.NodeList,2), size(mesh_u.NodeList,2))
 if mesh_x.FunctionClass == "S2" && mesh_u.FunctionClass != "S2"
@@ -174,17 +152,6 @@ for i in 1:iIter
     end
 end
 
-# println("dudη: ")
-# display(dudη[:,:,1])
-
-# println("dudη approx: ")
-# display(dudη_approx)
-
-# println("dudβ: ")
-# display(dudη[:,:,2])
-
-# println("dudβ approx: ")
-# display(dudβ_approx)
 
 p_gt_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
 μu_side, FunctionClass_x=FunctionClass_x)

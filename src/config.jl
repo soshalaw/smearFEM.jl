@@ -12,10 +12,7 @@ Supports three-tier fallback:
 using TOML
 import Logging
 
-# ============================================================================
 # Configuration Loading
-# ============================================================================
-
 """
     load_config(config_path::String = "config.toml") -> Dict
 
@@ -44,10 +41,7 @@ function load_config(config_path::String = "config.toml")
     return Dict()
 end
 
-# ============================================================================
 # Path Resolution Functions
-# ============================================================================
-
 """
     get_data_dir() -> String
 
