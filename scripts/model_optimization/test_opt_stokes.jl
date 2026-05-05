@@ -253,7 +253,7 @@ function optimize(exp_params::Dict)
         write_csv(joinpath(filepath_gt,"data","h"), h_gt)
 
         valid_frames, _outlier_frames = detect_outlier_observations(ObsDataList)
-        vcat(outlier_frames, _outlier_frames)
+        outlier_frames = vcat(outlier_frames, _outlier_frames)
     else
         error("data_type should be either simulated or physical")
     end
@@ -343,9 +343,9 @@ function optimize(exp_params::Dict)
             est_scene.β = [β]
             
             # simulate the model with the estimated parameters
-            est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(est_model, est_scene, conditions)
+            est_μ_list, gradList, borderPts2DList, fields, _, pos2D, pos3D, splinep, splineq, _, _, _ = simulate(est_model, est_scene, conditions)
             est_h = get_height(est_μ_list, h)
-            
+
             write_csv(joinpath(exp_path,"Results","data","est_h"), est_h)
             write_data(joinpath(exp_path,"Results","data","sim_data","2D_surface_points"), pos2D)
             write_data(joinpath(exp_path,"Results","data","sim_data","3D_points"), pos3D)
@@ -498,8 +498,8 @@ function optimize(exp_params::Dict)
                 est_scene.β = [β]
                 
                 # simulate the model with the estimated parameters
-                est_μ_list, gradList, borderPts2DList, fields, pos3D, pos2D, splinep, splineq = simulate(est_model, est_scene, conditions)
-                
+                est_μ_list, gradList, borderPts2DList, fields, _, pos2D, pos3D, splinep, splineq, _, _, _ = simulate(est_model, est_scene, conditions)
+
                 est_h = get_height(est_μ_list, h)
                 
                 η_accuracy = (1-abs((η_gt-η)/η_gt))*100
@@ -650,7 +650,7 @@ function optimize(exp_params::Dict)
                                 sim_time_exp, t_steps_exp)
             est_model.η = est_ηpList[data_range_] 
             est_scene.β = est_βpList[data_range_]
-            est_μ_list, gradList, borderPts2DList, fields_est, pos3D_est, pos2D_est, _, splinex_est, spliney_est, _, _ = simulate(est_model, est_scene, conditions)
+            est_μ_list, gradList, borderPts2DList, fields_est, _, pos2D_est, pos3D_est, splinex_est, spliney_est, _, _, _ = simulate(est_model, est_scene, conditions)
             est_h_list = get_height(est_μ_list, h)
 
             animate_fields(filepath=joinpath(exp_path,"Results","plots"), p=splinex_est, q=spliney_est, pObs=splinexObs_t, qObs=splineyObs_t)
@@ -717,11 +717,11 @@ function optimize(exp_params::Dict)
             write_csv(joinpath(exp_path,"Results","data","window_data","data_ranges"), data_ranges_)
             write_csv(joinpath(exp_path,"Results","data","window_data","windows_sizes"), windows)
             
-            est_μ_list, gradList, simBorderPts, fields_est, pos3D_est, pos2D_est, splinex_est, spliney_est = simulate(est_model, est_scene, conditions)
+            est_μ_list, gradList, simBorderPts, fields_est, _, pos2D_est, pos3D_est, splinex_est, spliney_est, _, _, _ = simulate(est_model, est_scene, conditions)
             est_h_list = get_height(est_μ_list, h)
             
             if data_type != "physical" && viscosity_model != "carreau"
-                gt_μ_list, gradList, borderPts2DList_gt, fields_gt, pos3D_gt, pos2D_gt, splinex_gt, spliney_gt = simulate(model_gt, scene_gt, conditions)
+                gt_μ_list, gradList, borderPts2DList_gt, fields_gt, _, pos2D_gt, pos3D_gt, _, _, _, _, _ = simulate(model_gt, scene_gt, conditions)
                 gt_h_list = get_height(gt_μ_list, h)
                 write_csv(joinpath(exp_path,"Results","data","η_gt"), model_gt.η)
                 write_csv(joinpath(exp_path,"Results","data","β_gt"), β_gt)
@@ -857,7 +857,7 @@ function predict(filepath, filepath_gt)
 
                                 model.η = [η_pred]
                                 scene.β = [β_pred]
-                                pred_μ_list, _, PredborderPts2DList, _ = simulate(model, scene, conditions)
+                                pred_μ_list, _, PredborderPts2DList, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
                                 pred_h = get_height(pred_μ_list, h)
                                 push!(pred_borderPts_list, PredborderPts2DList)
                                 push!(pred_h_list, pred_h)
@@ -866,7 +866,7 @@ function predict(filepath, filepath_gt)
                             reset_model!(model)
                             model.η = [η]
                             scene.β = [β]
-                            est_μ_list, _, borderPts2DList, _ = simulate(model, scene, conditions)
+                            est_μ_list, _, borderPts2DList, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
                             h_est = get_height(est_μ_list, h)
                             if ti == 1
                                 push!(pred_borderPts_list, borderPts2DList)
@@ -4165,6 +4165,10 @@ function optimize_sim(use_parallel::Bool=true)
     avoid_dirs = ["post_analysis_global"] # avoid_dirs = ["3_less_noise", "7"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Q2_16")
+        if !isdir(_filepath_gt)
+            @warn "Ground truth directory not found, skipping: $_filepath_gt"
+            continue
+        end
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             if dir in avoid_dirs
@@ -4222,15 +4226,19 @@ function optimize_syn(use_parallel::Bool=true)
     FunctionClass_x_List = ["Q2"]
     ne_list = [6] 
     control = "force" # "force" or "velocity"
-    viscosity_type_list = ["constant", "bulk_viscosity"]
+    viscosity_type_list = ["bulk_viscosity"]
     window = "multi_window" 
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    avoid_dirs = ["post_analysis_global"]
+    avoid_dirs = ["post_analysis_global","2","3"]
 
     for viscosity_type in viscosity_type_list
         _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Q2_16")
+        if !isdir(_filepath_gt)
+            @warn "Ground truth directory not found, skipping: $_filepath_gt"
+            continue
+        end
         dir_list = readdir(_filepath_gt)
         for dir in dir_list
             if dir in avoid_dirs
@@ -4287,7 +4295,7 @@ function optimize_real(use_parallel::Bool=true)
     F_ext::Float64 = 9.812*1e3 # force applied to the cylinder in N
     sim_time_exp_list::Vector{Float64} = [0.5] # simulation time in seconds
     FunctionClass_x_List = ["Q2"]
-    ne_list = [6] # refinement levels, ne = ne_exp^refine
+    ne_list = [6]
     control = "force" # "force" or "velocity"
     η_start = 50.0
     β_start = 50.0
@@ -4321,6 +4329,10 @@ function optimize_real(use_parallel::Bool=true)
     base_experiments_path = joinpath(data_root, "experiments")
     base_gt_path = joinpath(data_root, "ground_truth")
     
+    if !isdir(_filepath_gt)
+        @warn "Ground truth directory not found, skipping optimize_real: $_filepath_gt"
+        return
+    end
     dir_list = readdir(_filepath_gt)
     for dir in dir_list
         if dir in avoid_dirs
@@ -4376,16 +4388,37 @@ function plot_cost_contours(cost_array::AbstractArray, x_range::AbstractVector, 
 
 end
 
+function set_plot_config(data_type::String)
+    global fs, plt_height, plt_width, plt_lft_margin, plt_right_margin, plt_top_margin
+    global y_lims_h_norm, y_lims_rel_error
+    if data_type == "physical"
+        fs = 12; plt_height = 350; plt_width = 477
+        plt_lft_margin = 1pt; plt_right_margin = 5pt; plt_top_margin = 1pt
+        y_lims_h_norm = (0.8, 1.05); y_lims_rel_error = (-0.05, 20)
+    elseif data_type == "synthetic"
+        fs = 12; plt_height = 360; plt_width = 330
+        plt_lft_margin = -6pt; plt_right_margin = 10pt; plt_top_margin = 0pt
+        y_lims_h_norm = (0.97, 1.02); y_lims_rel_error = (-0.1, 3.0)
+    elseif data_type == "simulated"
+        fs = 10; plt_height = 300; plt_width = 239
+        plt_lft_margin = -6pt; plt_right_margin = 0pt; plt_top_margin = -1pt
+        y_lims_h_norm = (0.995, 1.005); y_lims_rel_error = (-0.05, 0.1)
+    else
+        @warn "Unknown data type '$data_type', using current plot config"
+    end
+end
+
 function plot_results()
     control::String = "force"
     viscosity_type_list = [] # "constant" or "bulk_viscosity"
     model_type = [] # "carreau" or "Stokes"
     avoid_dirs = ["post_analysis_global"]
-    data_type_list = [] # "synthetic", "simulated", "physical"
+    data_type_list = ["synthetic", "simulated", "physical"]
     base_path = ""
 
     for data_type in data_type_list
-        if data_type == "physical" 
+        set_plot_config(data_type)
+        if data_type == "physical"
             model_type = ["Stokes"] # for physical data, we only have Stokes model results for now
         elseif data_type == "synthetic"
             model_type = ["carreau", "Stokes"]
@@ -4425,6 +4458,10 @@ function plot_results()
                     filepath_res = base_path
                 end
                 
+                if !isdir(filepath_gt)
+                    @warn "Ground truth directory not found, skipping: $filepath_gt"
+                    continue
+                end
                 dirs = readdir(filepath_gt)
                 for dir in dirs
                     if dir in avoid_dirs
@@ -4433,7 +4470,7 @@ function plot_results()
                     end
                     filepath_gt_dir = joinpath(filepath_gt, dir)
                     filepath_res_dir = joinpath(filepath_res, dir)
-                    # predict(filepath_res_dir, filepath_gt_dir)
+                    predict(filepath_res_dir, filepath_gt_dir)
                     replot(filepath_res_dir, filepath_gt_dir)
                 end
                 if viscosity_type == "constant"
@@ -4449,7 +4486,7 @@ function plot_results()
 end
 
 
-optimize_sim(false)
+# optimize_sim(false)
 optimize_syn(false)
-optimize_real(false)
+# optimize_real(false)
 plot_results()
