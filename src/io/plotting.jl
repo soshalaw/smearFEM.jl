@@ -5,54 +5,6 @@ using ProgressMeter
 using ArgCheck
 using Base.Filesystem
 
-"""
-    PlotGrid(IEN, NodeList)
-
-Function to plot the grid
-
-# Arguments:
-- `IEN::Matrix{Float64}{nElem, nNodes}`: IEN array.
-- `NodeList::Matrix{Float64}{nNodes, ndim}`: array of nodes.
-"""
-function PlotGrid(IEN, NodeList)
-
-    fig1 = plt.figure()
-    if size(IEN,2) == 4 # 2D element with 4 nodes 
-        ax = fig1.add_subplot(111)
-        iter = 1:size(IEN,1)
-        for i in iter
-            x = NodeList[1,IEN[i,:]]
-            y = NodeList[2,IEN[i,:]]
-            ax.plot(x, y, "-k", linewidth=0.5)
-        end
-    
-        ax.scatter(NodeList[1,:],NodeList[2,:],s=10,c=red)
-        ax.axis("equal")
-        ax.grid("on")
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_title("2D Grid")
-        
-    elseif size(IEN,2) == 8 # 3D element with 8 nodes
-        ax = fig1.add_subplot(111, projection="3d")
-        iter = 1:size(IEN,1)
-        for i in iter
-            x = NodeList[1,IEN[i,:]]
-            y = NodeList[2,IEN[i,:]]
-            z = NodeList[3,IEN[i,:]]
-            ax.plot(x, y, z,"-k", linewidth=0.5)
-        end
-
-        ax.scatter(NodeList[1,:],NodeList[2,:],NodeList[3,:],s=10,c=red)
-        ax.axis("equal")
-        ax.grid("on")
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_zlabel("z")
-        ax.set_title("3D Grid")
-    end
-    gcf()
-end
 
 """
     plot_meshgrid(NodeList, IEN)
@@ -109,7 +61,6 @@ function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3
     set_file(filepath) # create the directory to store the VTK files
     if isnothing(Nodes) && isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(IEN) && isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
         throw(AssertionError("No fields provided"))
-        return
     elseif isnothing(Nodes) && isnothing(SurfaceNodes3D)
         animate2D(BorderNodes2D=BorderNodes2D, fields2D=fields2D, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
         return
@@ -141,7 +92,6 @@ function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothin
     
     if isnothing(BorderNodes2D) && isnothing(fields2D) && isnothing(p) && isnothing(pObs)
         throw(AssertionError("No fields provided"))
-        return
     else
         if !isnothing(BorderNodes2D)
             sz = length(BorderNodes2D)
@@ -435,12 +385,12 @@ Function normalize the solution vector for plotting
 function normalize(q, IEN)
 
     qList = zeros(size(IEN))
-    max = maximum(q)
-    min = minimum(q)
+    max_val = maximum(q)
+    min_val = minimum(q)
     iter = 1:size(IEN,1)
     for e in iter
         for n in 1:4
-            qList[e,n] = (q[IEN[e,n]] - min) / (max - min)
+            qList[e,n] = (q[IEN[e,n]] - min_val) / (max_val - min_val)
         end
     end
     return qList

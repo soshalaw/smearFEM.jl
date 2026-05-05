@@ -25,11 +25,11 @@ mutable struct Meshgrid1D <: AbstractMeshgrid
         boundary_nodes::Vector{Int}=Vector{Int}()
     )
         # Constructor for Meshgrid1D
-        new(NodeList, IEN, ID, FunctionClass, nNodes, ne)
-        
+        new(NodeList, IEN, ID, FunctionClass, nNodes, ne, boundary_nodes)
+
     end
 end
-Int
+
 mutable struct Meshgrid2D <: AbstractMeshgrid
     # Define the properties of the Meshgrid2D struct
     NodeList::Matrix{Float64}
@@ -1087,14 +1087,4 @@ function update_initial_state!(mesh::T, new_state::Matrix{Float64}) where {T<:Ab
     reset_mesh!(mesh)  # Reset the mesh to the initial state
 end
 
-function init_cylinder(camera_matrix, obj_pose,side_node_list, nNodes_u)
-
-    NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, h, ne, FunctionClass=FunctionClass)
-    r_0 = 1
-    h_0 = 1
-    NodeList = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r_0, GRAD=true)
-
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList, camera_matrix, obj_pose, side_node_list, nNodes_u)
-
-end
 

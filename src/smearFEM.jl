@@ -19,12 +19,12 @@ export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_
 export closest_point, match_points, fit_model # smearOptimize.jl
 export reset_model!, update_model! # models.jl
 
-export simulate, write_sim_data, simulate_single_tstep, readData, initialize_mesh, write_gt_data, plot_rad_norm_vel_vs_slip, plot_rad_norm_vel_vs_visc
+export simulate, write_sim_data, readData, initialize_mesh, write_gt_data, plot_rad_norm_vel_vs_slip, plot_rad_norm_vel_vs_visc
 export simulate_single_tstep_stokes, stokes_single_step_force
 export assemble_system_A, assemble_system_B, def_problem, set_model
 
 export read_csv, write_vtk, write_scene, write_csv, write_json, write_data, read_h5, read_json, read_perception_data, get_time_windows, write_stokes_scene # io.jl
-export PlotGrid, plot_mesh, animate_fields, plot_matches, plot_matches_h, set_plot, set_subplot # plotting.jl
+export plot_mesh, animate_fields, plot_matches, plot_matches_h, set_plot, set_subplot # plotting.jl
 export plot_noise_covariance, plot_height_vs_slip, plot_field_at_height, arrow0!, get_norm, plot_data, plot_covariance! # analysis_plots.jl
 export get_mesh_data, generate_mesh_geo, run_gmsh # gmsh_utils.jl
 
