@@ -1,0 +1,5 @@
+# smearFEM.jl configuration
+# Resolved in priority order: environment variables > this file > defaults
+
+data_dir    = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data"
+scratch_dir = "/home/soshala/tmp"

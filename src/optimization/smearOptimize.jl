@@ -258,7 +258,7 @@ end
 Armijo line search with sufficient descent condition for optimization.
 
 Implements Armijo backtracking to ensure acceptable step sizes that satisfy:
-cost(θ - α·p) ≤ cost_prev - c·α·||∇cost||²
+cost(θ - α·p) ≤ cost_prev - c·α·∇cost·p
 
 # Arguments:
 - `model::Stokes` : Finite element model
@@ -285,10 +285,11 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
                             θ_prev::Vector{Float64}, p_damped::Vector{Float64}, ∂d_prev::Vector, cost_prev::Float64;
                             c::Float64=1e-4, max_backtracks::Int=10, outliers::Vector{Int}=Int[])
     # Armijo line search with sufficient descent condition.
-    # Accepts step if: cost(θ - α·p) ≤ cost_prev - c·α·||∇cost||²
+    # Accepts step if: cost(θ - α·p) ≤ cost_prev - c·α·∇f·p
     len_d = length(∂d_prev)
     α = 1.0
-    grad_prod = sum(j -> dot(∂d_prev[j], ∂d_prev[j]), 1:len_d)  # ||∇cost||²
+    t_grad = sum(∂d_prev)                     # total gradient: ∇f = Σ ∂d[j]
+    grad_prod = dot(t_grad, p_damped)          # directional derivative: ∇fᵀ·p
     
     # Initialize variables for scope after loop
     θ_trial = θ_prev - α * p_damped
@@ -305,13 +306,13 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
         
         model.η = [θ_trial[1]]
         scene.β = [θ_trial[2]]
-        μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+        μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
         
         # Use cost-only version during line search (fast)
         d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
         cost_trial = sum(d_trial_costs) / len_d
         
-        # Armijo condition: cost_trial ≤ cost_prev - c·α·||∇||²
+        # Armijo condition: cost_trial ≤ cost_prev - c·α·∇f·p
         Δcost = cost_prev - cost_trial
         sufficient_decrease = c * α * grad_prod
         
@@ -334,7 +335,7 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
     # Fallback: compute gradients/Hessians for final trial (even if rejected)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, _ , _ , _ = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     
     println("      " * "-"^73)
@@ -382,7 +383,7 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     val_check(θ_trial)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     
     # Use cost-only version first (fast)
     d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
@@ -404,7 +405,7 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     val_check(θ_trial)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     
     # Use cost-only version first (fast)
     d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
@@ -437,7 +438,7 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     iterList::Vector{Float64} = Float64[]
     
     printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     totdinit::Float64 = sum(d)/length(d)
 
@@ -570,7 +571,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     iterList::Vector{Float64} = Float64[]
     
     printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     cost_prev::Float64 = sum(d)/length(d)
 
@@ -611,7 +612,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         reset_model!(model)
         model.η = [θ[1]]
         scene.β = [θ[2]]
-        _, gradList, simBorderPts, _, _, _ = simulate(model, scene, conditions)
+        _, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
         d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
         totd::Float64 = sum(d) / len_d
         
