@@ -80,38 +80,4 @@ function main()
   write_vtk(string(filepath,"/Results"), "p", NodeListCylinderp, IEN_p, ne, ndim, p)
 end
 
-
-
-# if DENSE == true
-#     A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
-#     B = assemble_system_B(mdl)                   # assemble the stiffness matrix
-#     b = apply_boundary_conditions_stokes(mdl)           # apply the neumann boundary conditions
-# else
-#     A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
-#     B = assemble_system_B(mdl)                   # assemble the stiffness matrix
-#     b = apply_boundary_conditions_stokes(mdl)           # apply the neumann boundary conditions
-# end
-
-# q_d = (μu_btm*q_btm + μu_tp*q_tp + μu_side*q_side)      # apply the Dirichlet boundary conditions
-
-# A = A_bar + β*b
-
-# C_Tu = transpose(C_uc)           # transpose the constraint matrix
-
-# A_free = C_Tu*A*C_uc        # extract the free part of the stiffness matrix
-# B_free = C_Tu*B             # extract the free part of the stiffness matrix
-
-# K_free = [A_free B_free; B_free' zeros(size(B_free,2),size(B_free,2))]     # assemble the system of equations
-
-# r = -[C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
-# sol = K_free\r                 # solve the system of equations
-
-# q_f = sol[1:size(A_free,1)]     # extract the free part of the solution
-# p_f = sol[size(A_free,1)+1:end] # extract the free part of the solution 
-
-# q = q_d + C_uc*q_f;                 # assemble the solution 
-# p = p_f;
-
-# q_out = [q[ID_u[1,:]] q[ID_u[2,:]] q[ID_u[3,:]]]'
-
 main()

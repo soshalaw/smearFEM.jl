@@ -109,7 +109,7 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Strin
                 xlabel=x_label, ylabel="Absolute Relative Error",
                 marker=:circle, markersize=4, markerstrokewidth=1.5, color="#FF7F0E",
                 yscale=:log10, xscale=:log10)
-    if conv_rate_str == 1
+    if conv_rate_str == "1"
         Plots.plot!(plt, x_line_offset, y_ref_line, 
                     label=latexstring("O(\$$(x_label_latex)\$)"),
                     line=2, linewidth=2.5, color=:teal, 
