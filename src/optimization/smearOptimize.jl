@@ -16,25 +16,13 @@ Match simulation points to observation points using KDTree spatial indexing.
 - `pairs::Matrix{Int64}` : Point pairs array of size [n_sim × 2] where pairs[i,:] = [i, j] matches sim point i to obs point j
 """
 function match_points(p_sim::AbstractMatrix{Float64}, p_obs::AbstractMatrix{Float64})::Matrix{Int64}
-    simSize::Int = size(p_sim, 2)
-    obsSize::Int = size(p_obs, 2)
-    pairs::Matrix{Int64} = zeros(Int64, simSize, 2)
-    
-    p_sim_x::Vector{Float64}, p_sim_y::Vector{Float64} = p_sim[1, :], p_sim[2, :]
-    p_obs_x::Vector{Float64}, p_obs_y::Vector{Float64} = p_obs[1, :], p_obs[2, :]
-    
-    # Build KDTree from observation points
-    # KDTree expects data points as columns: (2 × obsSize) matrix
-    obs_points = hcat(p_obs_x, p_obs_y)'  # Transpose to get (2 × obsSize)
-    tree = KDTree(obs_points; leafsize=10)
-    
-    # Find nearest neighbor for each simulation point using spatial search
+    simSize = size(p_sim, 2)
+    pairs = zeros(Int64, simSize, 2)
+    tree = KDTree(p_obs; leafsize=10)
     for sim_counter in 1:simSize
-        sim_point = [p_sim_x[sim_counter]; p_sim_y[sim_counter]]
-        idx, _ = knn(tree, sim_point, 1)
+        idx, _ = knn(tree, p_sim[:, sim_counter], 1)
         pairs[sim_counter, :] = [sim_counter, idx[1]]
     end
-    
     return pairs
 end
 
@@ -67,7 +55,6 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; out
             @info "Skipping frame $frame_idx as it is marked as an outlier."
             continue
         end
-        tcost = 0
         pairs = match_points(sim_t, obs_t) # match the points using the first border
         
         pSim, qSim = sim_t[1, :], sim_t[2, :]
@@ -178,18 +165,13 @@ function init_cylinder()::Nothing
     camera_matrix::Matrix{Float64} = [[8 * 2048 / 7.07, 0.0, 2048 / 2] [0.0, 8 * 1536 / 5.3, 1536 / 2] [0.0, 0.0, 1.0]]'
     camera_pose::Vector{Float64} = scale * [0 -0.25 2]'
 
-    rList::Vector{Float64} = Float64[]
-    hList::Vector{Float64} = Float64[]
-    cost_list::Vector{Float64} = Float64[]
-    iterList::Vector{Float64} = Float64[]
-
-    NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
+    NodeList, _, _, _, _, _, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
 
     r_gt = 0.25 * scale
     h_gt = 0.5 * scale
     NodeListCyl_gt = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r_gt, h_gt)
     side_nodes = BorderNodes[1]
-    obsBorderPts, g_SurfacePts2D = extract_borders(NodeListCyl_gt, camera_matrix, camera_pose, BorderNodesList=side_nodes, nNodes)
+    obsBorderPts, _ = extract_borders(NodeListCyl_gt, camera_matrix, camera_pose, BorderNodesList=side_nodes, nNodes)
 
     # Optimizer
     r = 1 * scale * ones(ne)
@@ -197,7 +179,7 @@ function init_cylinder()::Nothing
     NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
     simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
 
-    d, ∂d, ∂2d, pairs = closest_point([simBorderPts], [obsBorderPts], [∇BorderPts2D])
+    d, ∂d, ∂2d, _ = closest_point([simBorderPts], [obsBorderPts], [∇BorderPts2D])
     totdinit = sum(d) / length(d)
     θ = vcat(r, h)
     iter = 1
@@ -209,6 +191,10 @@ function init_cylinder()::Nothing
 
         t∂2d = zeros(size(∂2d[1]))
         t∂d = zeros(size(∂d[1]))
+        for i in 1:length(d)
+            t∂2d += ∂2d[i]
+            t∂d  += ∂d[i]
+        end
 
         p = t∂2d\t∂d
         @debug "Newton step: [$(round(p[1], sigdigits=4)), $(round(p[2], sigdigits=4))]"
@@ -223,7 +209,7 @@ function init_cylinder()::Nothing
         NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
         simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
 
-        d, ∂d, ∂2d, pairs = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
+        d, ∂d, ∂2d, _ = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
 
         totd = sum(d)/length(d)
         c_grad = abs(totdinit - totd)
@@ -232,10 +218,6 @@ function init_cylinder()::Nothing
 
         iter = iter + 1
         
-        push!(rList,θ[1]) 
-        push!(hList,θ[2])
-        push!(cost_list,totd)
-        push!(iterList,iter)
         @debug "Result: r = $(round(θ[1], sigdigits=4)), h = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))"
         @debug "Delta: Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))"
 
@@ -256,7 +238,7 @@ end
 Armijo line search with sufficient descent condition for optimization.
 
 Implements Armijo backtracking to ensure acceptable step sizes that satisfy:
-cost(θ - α·p) ≤ cost_prev - c·α·||∇cost||²
+cost(θ - α·p) ≤ cost_prev - c·α·∇cost·p
 
 # Arguments:
 - `model::Stokes` : Finite element model
@@ -283,10 +265,11 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
                             θ_prev::Vector{Float64}, p_damped::Vector{Float64}, ∂d_prev::Vector, cost_prev::Float64;
                             c::Float64=1e-4, max_backtracks::Int=10, outliers::Vector{Int}=Int[])
     # Armijo line search with sufficient descent condition.
-    # Accepts step if: cost(θ - α·p) ≤ cost_prev - c·α·||∇cost||²
+    # Accepts step if: cost(θ - α·p) ≤ cost_prev - c·α·∇f·p
     len_d = length(∂d_prev)
     α = 1.0
-    grad_prod = sum(j -> dot(∂d_prev[j], ∂d_prev[j]), 1:len_d)  # ||∇cost||²
+    t_grad = sum(∂d_prev)                 # total gradient ∇f = Σ ∂d[j]
+    grad_prod = dot(t_grad, p_damped)     # directional derivative ∇fᵀ·p
     
     # Initialize variables for scope after loop
     θ_trial = θ_prev - α * p_damped
@@ -303,13 +286,13 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
         
         model.η = [θ_trial[1]]
         scene.β = [θ_trial[2]]
-        μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+        μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
         
         # Use cost-only version during line search (fast)
         d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
         cost_trial = sum(d_trial_costs) / len_d
         
-        # Armijo condition: cost_trial ≤ cost_prev - c·α·||∇||²
+        # Armijo condition: cost_trial ≤ cost_prev - c·α·∇f·p
         Δcost = cost_prev - cost_trial
         sufficient_decrease = c * α * grad_prod
         
@@ -332,7 +315,7 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
     # Fallback: compute gradients/Hessians for final trial (even if rejected)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, _ , _ , _ = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     
     @debug "      $("-"^73)"
@@ -380,7 +363,7 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     val_check(θ_trial)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     
     # Use cost-only version first (fast)
     d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
@@ -402,7 +385,7 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     val_check(θ_trial)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     
     # Use cost-only version first (fast)
     d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
@@ -461,8 +444,8 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     iterList::Vector{Float64} = Float64[]
     
     printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-    d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     totdinit::Float64 = sum(d)/length(d)
 
     push!(ηpList,θ[1])
@@ -533,8 +516,9 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         @debug "Result: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))"
         @debug "Deltas: Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))"
 
-        if c_grad_rel < 1e-3 && c_grad < 1e-3 && iter >= 20
-            printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n", color=:green)
+        if c_grad_rel < 1e-3 && c_grad < 1e-3
+            printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n 
+                        η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4))", color=:green)
             break
         end
         
@@ -594,8 +578,8 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     iterList::Vector{Float64} = Float64[]
     
     printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
-    μ_list, gradList, simBorderPts, splinex, spliney, pos2D = simulate(model, scene, conditions)
-    d, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     cost_prev::Float64 = sum(d)/length(d)
 
     push!(ηpList, θ[1])
@@ -605,7 +589,6 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
 
     len_d::Int = length(d)
     iter::Int = 1
-    λ::Float64 = 1e-3
     t∂2d::Matrix{Float64} = zeros(size(∂2d[1]))
     t∂d::Vector{Float64} = zeros(size(∂d[1]))
     printstyled("Initial error = $cost_prev\n", color=:yellow)
@@ -625,7 +608,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
             λ = 1e-3 * maximum(diag(t∂2d))
         end
 
-        p::Vector{Float64} = (t∂2d + λ * diag(t∂2d)) \ t∂d
+        p::Vector{Float64} = (t∂2d + λ * Diagonal(diag(t∂2d))) \ t∂d
         θ_prev::Vector{Float64} = copy(θ)
         
         # Execute and evaluate step
@@ -635,7 +618,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         reset_model!(model)
         model.η = [θ[1]]
         scene.β = [θ[2]]
-        _, gradList, simBorderPts, _, _, _ = simulate(model, scene, conditions)
+        _, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
         d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
         totd::Float64 = sum(d) / len_d
         
@@ -643,7 +626,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         c_grad_rel::Float64 = c_grad / (abs(cost_prev) + 1e-12)
         
         # Gain ratio: actual vs predicted cost reduction
-        ρ::Float64 = (cost_prev - totd) / (0.5 * p' * (λ * diag(t∂2d) * p - t∂d) + 1e-12)
+        ρ::Float64 = (cost_prev - totd) / (0.5 * p' * (λ * (diag(t∂2d) .* p) + t∂d) + 1e-12)
         
         if ρ > 0
             λ *= max(1 / 3, 1 - (2 * ρ - 1)^3)

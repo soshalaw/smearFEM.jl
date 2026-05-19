@@ -4,95 +4,6 @@ using IterativeSolvers
 using Dates
 
 """
-    simulate_single_tstep(r, h, ne, c1, c2, ndim, FunctionClass, nDof, β, μ_tp, μ_btm; mode="lame", GRAD=false, DENSE=false, CG=false)
-
-Simulates the deformation of the mesh for a single time step using the linear elasticity model.
-
-# Arguments
-- `r::Number`: Radius of the cylinder.
-- `h::Number`: Height of the cylinder.
-- `ne::Int64`: Number of elements.
-- `c1::Number`: First material parameter (e.g., Young's modulus or Lame's first parameter).
-- `c2::Number`: Second material parameter (e.g., Poisson's ratio or Lame's second parameter).
-- `ndim::Int64`: Number of dimensions.
-- `FunctionClass::String`: Type of basis function.
-- `nDof::Int64`: Number of degrees of freedom per node.
-- `β::Number`: Friction parameter.
-- `μ_tp::Number`: Top boundary condition.
-- `μ_btm::Number`: Bottom boundary condition.
-
-# Keyword Arguments
-- `mode::String`: Type of constitutive matrix ("lame" by default).
-- `GRAD::Bool`: Whether to compute gradients (default: `false`).
-- `DENSE::Bool`: Whether to use dense matrices (default: `false`).
-- `CG::Bool`: Whether to use the conjugate gradient method (default: `false`).
-
-# Returns
-- `q_out::Matrix{Float64}`: Displacement fields.
-- `dqdθ_out::Matrix{Float64}` (if `GRAD=true`): Gradients wrt to model parameters at the nodal points.
-- `mdl::model`: Model object containing mesh and material properties.
-"""
-function simulate_single_tstep(r::Number, h::Number, ne::Int64, c1::Number, c2::Number, ndim::Int64, FunctionClass::String, nDof::Int64, β::Number, μ_tp::Number, 
-                            μ_btm::Number; mode::String="lame", GRAD::Bool=false, DENSE::Bool=false, CG::Bool=false)
-
-    cMat = get_cMat(Float64(c1), Float64(c2), type=mode)
-    dcdλ = get_cMat(1.0, 0.0, type=mode)
-
-    mesh = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass)
-    NodeList = mesh.NodeList; IEN = mesh.IEN; ID = mesh.ID
-    IEN_top = mesh.IEN_top; IEN_btm = mesh.IEN_bottom
-
-    mdl = LinearElasticity(ne=ne, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_btm=IEN_btm, ndim=ndim, nDof=nDof, ID=ID,
-                           FunctionClass=FunctionClass, θ1=Float64(c1), θ2=Float64(c2), cMat=cMat, dcMatdθ1=dcdλ)
-
-    if DENSE == true
-        q_tp, q_btm, C_uc = set_boundary_conditions_dense(mdl)
-        K = assemble_system_dense(mdl)                   # assemble the stiffness matrix
-        b = set_slip_conditions_dense(mdl)         # apply the neumann boundary conditions
-    else
-        q_tp, q_btm, C_uc = set_boundary_conditions(mdl)
-        b = set_slip_conditions(mdl)         # apply the neumann boundary conditions
-        if GRAD
-            K, dKdλ = assemble_system(mdl, GRAD=true) 
-            dKdβ = b             
-        else
-            K = assemble_system(mdl)                   # assemble the stiffness matrix
-        end
-    end
-    
-    q_d = (μ_btm*q_btm + μ_tp*q_tp)            # apply the Dirichlet boundary conditions
-    K_bar = K + β*b
-    C_T = transpose(C_uc)                      # transpose the constraint matrix
-    K_free = C_T*K_bar*C_uc                    # extract the free part of the stiffness matrix
-
-    if CG
-        q_f = cg(K_free, C_T*(-K_bar*q_d))
-    else
-        q_f = K_free\(C_T*(-K_bar*q_d))         # solve the system of equations
-    end
-
-    q = q_d + C_uc*q_f                 # assemble the solution 
-    q_out = hcat([q[ID[1,:]] q[ID[2,:]] q[ID[3,:]]])'    # update the nodal positions
-
-    if GRAD && CG==false
-
-        dqfdλ = -K_free\(C_T*dKdλ*C_uc*q_f + C_T*dKdλ*q_d)
-        dqfdβ = -K_free\(C_T*dKdβ*C_uc*q_f + C_T*dKdβ*q_d)
-
-        dqdλ = zeros(size(q_d)) + C_uc*dqfdλ
-        dqdβ = zeros(size(q_d)) + C_uc*dqfdβ
-
-        dqdλ_out = hcat(dqdλ[ID[1,:]], dqdλ[ID[2,:]], dqdλ[ID[3,:]])'
-        dqdβ_out = hcat(dqdβ[ID[1,:]], dqdβ[ID[2,:]], dqdβ[ID[3,:]])'
-
-        dqdθ_out = cat(dqdλ_out,dqdβ_out,dims=(3,3)) # concatenate the gradients in to a tensor
-        return q_out, dqdθ_out, mdl
-    else
-        return q_out, mdl
-    end
-end
-
-"""
     simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, μu_side; GRAD=false, DENSE=false)
 
 Simulates the deformation of the mesh for a single time step using the Stokes model.
@@ -124,8 +35,6 @@ Simulates the deformation of the mesh for a single time step using the Stokes mo
 function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Number, ndim::Int64, FunctionClass_u::String, FunctionClass_p::String, nDof_u::Int64,
                                     nDof_p::Int64, β::Number, μu_tp::Number, μu_btm::Number, μu_side::Number; FunctionClass_x::String=FunctionClass_u, GRAD::Bool=false, DENSE::Bool=false)
     
-    filePath = joinpath(@__DIR__, "..", "..", "cylindergen")
-
     mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry
     mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
     mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
@@ -767,7 +676,7 @@ function readData(filepath::String)
     animate_fields(filepath = string(filepath,"/Results/cost"),pObs=splinexObs, qObs=splineyObs) # animate the fields
     plot(x->pdf(pd, x))
     savefig(string(filepath,"/Results"))
-    return obsBorderPts, xObs, yObs
+    return obsBorderPts, splinexObs, splineyObs
 end
 
 """

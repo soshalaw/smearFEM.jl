@@ -40,8 +40,6 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
         surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose) 
     end
 
-    left_border_pts = zeros(Float64,2,(n_nodes))        # vector to store indexes of the border nodes
-    right_border_pts = zeros(Float64,2,(n_nodes))       # vector to store indexes of the border nodes
 
     left_border_nodes = Vector{Int64}(undef, 0)        # vector to store indexes of the border nodes
     right_border_nodes = Vector{Int64}(undef, 0)       # vector to store indexes of the border nodes
@@ -69,8 +67,6 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
         max_node = (layers-1)*sz_side + argmax(nodes[1,:])
         push!(left_border_nodes, min_node)
         push!(right_border_nodes, max_node)
-        left_border_pts[:,layers] = surface_pts_2d[:,min_node]         # left border nodes
-        right_border_pts[:,layers] = surface_pts_2d[:,max_node]        # right border nodes
     end  
 
     border_pt_ids = vcat(left_border_nodes, top_bottom_nodes, right_border_nodes)
@@ -92,8 +88,8 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
         end
     else
         if SIDES
-            side_pts, index = get_sides(border_pts_sorted)
-    
+            _, index = get_sides(border_pts_sorted)
+
             side_pts = border_pts_sorted[index]
             side_pts_ids = border_pts_sorted_ids[index]
     
@@ -173,8 +169,8 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
         end
     else
         if SIDES
-            side_pts, index = get_sides(border_pts_sorted)
-    
+            _, index = get_sides(border_pts_sorted)
+
             side_pts = border_pts_sorted[index]
             side_pts_ids = border_pts_sorted_ids[index]
     
