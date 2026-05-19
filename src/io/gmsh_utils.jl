@@ -200,12 +200,17 @@ function get_mesh_data(filePath::String;
         # --------------------------------------------------
         # 4. Remap IEN arrays
         # --------------------------------------------------
-        if size(IEN_volume, 2) == 27
+        npe = size(IEN_volume, 2)
+        if npe == 27        # Q2 hex
             map = [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 14, 10, 17, 19, 20, 18, 11, 13, 15, 16, 22, 24, 25, 23, 21, 26, 27]
-        elseif size(IEN_volume, 2) == 8
-             map = [1, 2, 3, 4, 5, 6, 7, 8]
+        elseif npe == 8     # Q1 hex
+            map = collect(1:8)
+        elseif npe == 10    # T2 tet (quadratic)
+            map = collect(1:10)
+        elseif npe == 4     # T1 tet (linear)
+            map = collect(1:4)
         else
-            error("Unexpected number of nodes per element: ", size(IEN_volume, 2))
+            error("Unexpected number of nodes per element: ", npe)
         end
         IEN = IEN_volume[:,map]
 

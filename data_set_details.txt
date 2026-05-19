@@ -1,0 +1,38 @@
+Title: 
+
+Vision-Informed Modeling of the Squeeze Flow of Soft Materials — Dataset
+
+Contributors / Authors:
+
+S.T. Weerathunge (Eindhoven University of Technology) — creator
+N.O. Jaensson (Eindhoven University of Technology) — contributor
+A. Saccon (Eindhoven University of Technology) — contributor
+C.V. Verhoosel (Eindhoven University of Technology) — contributor
+
+Description: 
+
+	This dataset supports the paper "Vision-Informed Modeling of the Squeeze Flow of Soft Materials." It contains the experimental data and results used to evaluate a vision-informed 		parameter estimation framework for the squeeze flow of soft cylindrical specimens. 
+
+
+
+	The dataset includes: 
+
+
+
+	(1) Ground truth data used 
+
+
+
+	(2) Estimated viscosity and slip parameter trajectories for all experimental and synthetic scenarios; (5) Short-horizon height prediction results for all scenarios.
+
+
+
+	(3) Short-horizon height prediction results for all scenarios.
+
+License: 
+
+CC BY 4.0 (Creative Commons Attribution 4.0 International)
+
+Related Publications / Links
+
+	Title:  Vision-Informed Modeling of the Squeeze Flow of Soft Materials

@@ -1040,9 +1040,15 @@ function inflate_cylinder(NodeListCube::Matrix{Float64}, x0::T, x1::U, y0::V, y1
 end
 
 function get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, FunctionClass::String="Q1", elem_size::Union{Float64,Nothing}=nothing;
-                           template_path::String=joinpath(dirname(dirname(@__DIR__)), "mesh_files", "mesh.geo")) where {T<:Number,U<:Number}
+                           template_path::Union{String,Nothing}=nothing) where {T<:Number,U<:Number}
     @info "Reading cylinder mesh from $file_path"
-    mesh_order = FunctionClass == "Q2" ? 2 : 1
+    mesh_dir = joinpath(dirname(dirname(@__DIR__)), "mesh_files")
+    if isnothing(template_path)
+        template_path = startswith(FunctionClass, "T") ?
+            joinpath(mesh_dir, "mesh_tet.geo") :
+            joinpath(mesh_dir, "mesh.geo")
+    end
+    mesh_order = (FunctionClass == "Q2" || FunctionClass == "T2") ? 2 : 1
     NodeList, IEN, IEN_top, IEN_bottom, IEN_side, nNodes, BorderNodes, ne = get_mesh_data(file_path;
         radius=Float64(r), height=Float64(h), elem_size=elem_size, template_path=template_path, mesh_order=mesh_order)
 
