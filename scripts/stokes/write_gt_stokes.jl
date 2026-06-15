@@ -212,7 +212,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
         for β_gt in β_gt_list
             for η_gt in η_gt_list
                 F_ext = _get_F_ext(β_gt)
-                filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$(mesh_label)_$(ne_gt)/$run_id")
+                filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$(mesh_label)_$(ne_gt)/$geometry/$run_id")
 
                 exp_params = Dict(
                     "element_shape_u" => element_shape_u,
