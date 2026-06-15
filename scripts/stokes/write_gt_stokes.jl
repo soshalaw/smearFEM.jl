@@ -196,7 +196,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     edge_radius::Float64 = 3.0   # fillet radius on vertical edges (mm)
 
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
-    steps_gt::Int =  50 # number of time steps
+    steps_gt::Int =  300 # number of time steps
 
     obj_pose = zeros(Float64, 4, 4)
     obj_pose[1, 1] = -1.0

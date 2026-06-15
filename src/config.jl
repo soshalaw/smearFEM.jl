@@ -30,12 +30,10 @@ function load_config(config_path::String = "config.toml")
     # Try to find config in project root
     project_root = dirname(@__DIR__)
     full_path = joinpath(project_root, config_path)
-    println(isfile(full_path),full_path)
 
     if isfile(full_path)
         try
             config = TOML.parsefile(full_path)
-            println("Parsed config: $config")
             return config
         catch e
             @warn "Failed to parse config file at $full_path: $(e.msg)"
@@ -64,7 +62,6 @@ function get_data_dir()::String
     # Try environment variable
     if haskey(ENV, "SMEAR_DATA_DIR")
         path = ENV["SMEAR_DATA_DIR"]
-        println("SMEAR_DATA_DIR=$path")
         isdir(path) && return abspath(path)
         @warn "SMEAR_DATA_DIR=$path does not exist; using fallback"
     end
@@ -73,7 +70,6 @@ function get_data_dir()::String
     config = load_config()
     if haskey(config, "data_dir")
         path = expand_env_vars(config["data_dir"])
-        println("data_dir from config=$path")
         isdir(path) && return abspath(path)
         @warn "data_dir=$path from config does not exist; using fallback"
     end
