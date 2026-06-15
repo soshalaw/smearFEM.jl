@@ -192,7 +192,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     basis_order_x::Int      = 2
     mesh_label = "$(element_shape_u)$(basis_order_u)"
 
-    geometry::Symbol = :cylinder # :cylinder or :cube
+    geometry::Symbol = :cube # :cylinder or :cube
     edge_radius::Float64 = 3.0   # fillet radius on vertical edges (mm)
 
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
