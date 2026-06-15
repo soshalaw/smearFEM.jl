@@ -176,7 +176,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Float64 = 3.15 # number of elements in the mesh for the ground truth
-
+    ne_gt = 10.0
     β_gt_list = [0.01, 10, 50, 100 ,500, 1e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
 
@@ -212,7 +212,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
         for β_gt in β_gt_list
             for η_gt in η_gt_list
                 F_ext = _get_F_ext(β_gt)
-                filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/borders/$(mesh_label)_$(ne_gt)/$run_id")
+                filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$(mesh_label)_$(ne_gt)/$run_id")
 
                 exp_params = Dict(
                     "element_shape_u" => element_shape_u,
@@ -302,4 +302,4 @@ end
 
 # Usage: main(use_parallel=true, calibrate=false) or main(use_parallel=true, calibrate=true)
 # Default: Run with current F_ext values (to calibrate: pass calibrate=true)
-main(use_parallel=false, calibrate=false, memory_per_experiment_mb=1024.0)
+main(use_parallel=true, calibrate=false, memory_per_experiment_mb=1024.0)
