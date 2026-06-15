@@ -41,4 +41,4 @@ out[] = Extrude {0, 0, height} {
 Physical Surface("Bottom") = {1};
 Physical Surface("Top") = {out[0]};
 Physical Surface("Lateral") = {out[2], out[3], out[4], out[5]};
-Physical Volume("Cylinder") = {out[1]};
+Physical Volume("Volume") = {out[1]};

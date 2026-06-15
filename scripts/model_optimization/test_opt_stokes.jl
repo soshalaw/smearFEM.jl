@@ -103,8 +103,14 @@ function optimize(exp_params::Dict)
     nDof_u::Int = ndim  # number of degree of freedom per node
 
     FunctionClass_u::String = exp_params["FunctionClass_u"]
-    FunctionClass_p::String = exp_params["FunctionClass_p"]    
+    FunctionClass_p::String = exp_params["FunctionClass_p"]
     FunctionClass_x::String = exp_params["FunctionClass_x"]
+    element_shape_u = FunctionClass_u ∈ ("Q1", "Q2") ? :Hex : :Tet
+    basis_order_u = FunctionClass_u ∈ ("Q1", "S1") ? 1 : 2
+    element_shape_p = FunctionClass_p ∈ ("Q1", "Q2") ? :Hex : :Tet
+    basis_order_p = FunctionClass_p ∈ ("Q1", "S1") ? 1 : 2
+    element_shape_x = FunctionClass_x ∈ ("Q1", "Q2") ? :Hex : :Tet
+    basis_order_x = FunctionClass_x ∈ ("Q1", "S1") ? 1 : 2
 
     iterList::Vector{Float64} = Vector{Float64}()
     costList::Vector{Float64}  = Vector{Float64}()
@@ -174,7 +180,7 @@ function optimize(exp_params::Dict)
         
         control = sim_params["control_type"]
         
-        model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, gt_viscosity_type, 
+        model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, gt_viscosity_type,
         sim_time_gt, t_steps_gt, viscosity_model=viscosity_model)
         
         if data_type == "synthetic"
@@ -299,10 +305,10 @@ function optimize(exp_params::Dict)
         ObsDataList = ObsDataList[_range] # align the observation points with the simulation time
 
         # Read the gt data
-        model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, gt_viscosity_type, 
+        model, scene = def_problem(r, h, ne_exp, η_gt, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, gt_viscosity_type,
         sim_time_exp, t_steps_exp)
 
-        est_model, est_scene = def_problem(r, h, ne_exp, η_start, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_start, F, control, gt_viscosity_type,
+        est_model, est_scene = def_problem(r, h, ne_exp, η_start, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_start, F, control, gt_viscosity_type,
         sim_time_gt, t_steps_exp)
         conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=SIDES, filepath=exp_path, ANIMATE=false)
         
@@ -569,7 +575,7 @@ function optimize(exp_params::Dict)
         viscosity_type = "constant"
         
         conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
-        model, scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F, control, viscosity_type, 
+        model, scene = def_problem(r, h, ne_exp, η_gt, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, viscosity_type,
         sim_time_exp, t_steps_exp)
         
         set_file(joinpath(exp_path,"Results","plots"))
@@ -646,7 +652,7 @@ function optimize(exp_params::Dict)
             βpList = stats["βList"]
 
             viscosity_type = "bulk_viscosity"
-            est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_gt, F[data_range_], control, viscosity_type, 
+            est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F[data_range_], control, viscosity_type,
                                 sim_time_exp, t_steps_exp)
             est_model.η = est_ηpList[data_range_] 
             est_scene.β = est_βpList[data_range_]
@@ -704,7 +710,7 @@ function optimize(exp_params::Dict)
             @info "Completed all time windows."
             
             viscosity_type = "bulk_viscosity"
-            est_model, est_scene = def_problem(r, h, ne_exp, η_start, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β_start, F, control, viscosity_type, 
+            est_model, est_scene = def_problem(r, h, ne_exp, η_start, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_start, F, control, viscosity_type,
             sim_time_gt, t_steps_gt, viscosity_model=viscosity_model)
             est_model.η = est_ηpList
             est_scene.β = est_βpList
@@ -816,8 +822,14 @@ function predict(filepath, filepath_gt)
                         data_type::String = exp_params["data_type"]
                         ne_exp::Int = exp_params["ne_exp"]
                         FunctionClass_u::String = exp_params["FunctionClass_u"]
-                        FunctionClass_p::String = exp_params["FunctionClass_p"]    
+                        FunctionClass_p::String = exp_params["FunctionClass_p"]
                         FunctionClass_x::String = exp_params["FunctionClass_x"]
+                        element_shape_u = FunctionClass_u ∈ ("Q1", "Q2") ? :Hex : :Tet
+                        basis_order_u = FunctionClass_u ∈ ("Q1", "S1") ? 1 : 2
+                        element_shape_p = FunctionClass_p ∈ ("Q1", "Q2") ? :Hex : :Tet
+                        basis_order_p = FunctionClass_p ∈ ("Q1", "S1") ? 1 : 2
+                        element_shape_x = FunctionClass_x ∈ ("Q1", "Q2") ? :Hex : :Tet
+                        basis_order_x = FunctionClass_x ∈ ("Q1", "S1") ? 1 : 2
 
                         est_ηpList = readdlm(joinpath(win_exp_path,"Results","data","est_η.csv"), ',', Float64)
                         est_βpList = readdlm(joinpath(win_exp_path,"Results","data","est_β.csv"), ',', Float64)
@@ -831,7 +843,7 @@ function predict(filepath, filepath_gt)
                         time_windows = readdlm(joinpath(win_exp_path,"Results","data","window_data","time_windows.csv"),',',Float64)
                         
                         conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
-                        model, scene = def_problem(r, h, ne_exp, 1.0, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, 1.0, F, control, viscosity_type, 
+                        model, scene = def_problem(r, h, ne_exp, 1.0, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, 1.0, F, control, viscosity_type,
                         sim_time_exp, t_steps)
                         for ti::Int in 1:(size(data_ranges_, 1)-1)
 

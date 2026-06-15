@@ -161,22 +161,24 @@ None. Prints optimization progress and final results to console.
 function init_cylinder()::Nothing
     scale::Int = 100
     ne::Int = 4
-    FunctionClass::String = "Q2"
     camera_matrix::Matrix{Float64} = [[8 * 2048 / 7.07, 0.0, 2048 / 2] [0.0, 8 * 1536 / 5.3, 1536 / 2] [0.0, 0.0, 1.0]]'
     camera_pose::Vector{Float64} = scale * [0 -0.25 2]'
 
-    NodeList, _, _, _, _, _, nNodes, BorderNodes = meshgrid_cube(1, 1, 1, ne, FunctionClass=FunctionClass)
+    _box = meshgrid_cube(1.0, 1.0, 1.0; mesh_type=:structured, ne=ne, element_shape=:Hex, basis_order=2)
+    NodeList = _box.NodeList
+    nNodes = 2*ne + 1
+    BorderNodes = [_box.side_nodes, _box.bottom_nodes, _box.top_nodes]
 
     r_gt = 0.25 * scale
     h_gt = 0.5 * scale
-    NodeListCyl_gt = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r_gt, h_gt)
+    NodeListCyl_gt = _inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r_gt, h_gt)
     side_nodes = BorderNodes[1]
     obsBorderPts, _ = extract_borders(NodeListCyl_gt, camera_matrix, camera_pose, BorderNodesList=side_nodes, nNodes)
 
     # Optimizer
     r = 1 * scale * ones(ne)
     h = 1 * scale
-    NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
+    NodeListCyl, ∇NodeListCyl = _inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
     simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
 
     d, ∂d, ∂2d, _ = closest_point([simBorderPts], [obsBorderPts], [∇BorderPts2D])
@@ -206,7 +208,7 @@ function init_cylinder()::Nothing
         r = θ[1]
         h = θ[2]
 
-        NodeListCyl, ∇NodeListCyl = inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
+        NodeListCyl, ∇NodeListCyl = _inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
         simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
 
         d, ∂d, ∂2d, _ = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])

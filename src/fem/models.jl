@@ -23,7 +23,9 @@ mutable struct LinearElasticity <: AbstractModel
     side_nodes::Vector{Int}
     ID::Matrix{Int}
     nDof::Int
-    FunctionClass::String
+    volume_element_shape::Symbol
+    surface_element_shape::Symbol
+    basis_order::Int
 
     C::Array{Float64, 3}
     C_top::Array{Float64, 3}
@@ -47,7 +49,9 @@ mutable struct LinearElasticity <: AbstractModel
         side_nodes::Vector{Int}=Vector{Int}(),
         ID::Matrix{Int}=Matrix{Int}(undef, 1, 1),
         nDof::Int=0,
-        FunctionClass::String="None",
+        volume_element_shape::Symbol=:Hex,
+        surface_element_shape::Symbol=:Quad,
+        basis_order::Int=1,
         θ1::Float64=0.0,
         θ2::Float64=0.0,
         cMat::Matrix{Float64}=Matrix{Float64}(undef, 1, 1),
@@ -57,7 +61,7 @@ mutable struct LinearElasticity <: AbstractModel
         # C, C_top, C_btm, W are computed later by assembly routines, so left uninitialized here
         new(ne, ndim, NodeList, copy(NodeList),
             IEN, IEN_top, IEN_btm, IEN_border, side_nodes,
-            ID, nDof, FunctionClass,
+            ID, nDof, volume_element_shape, surface_element_shape, basis_order,
             Array{Float64,3}(undef, 0, 0, 0), Array{Float64,3}(undef, 0, 0, 0),
             Array{Float64,3}(undef, 0, 0, 0), Float64[],
             θ1, θ2, cMat, dcMatdθ1, dcMatdθ2)
@@ -90,16 +94,16 @@ mutable struct Stokes <: AbstractModel
     tick::Int
 
     """
-        Stokes(; ndim::Int=1, mesh_u::Mesh=Meshgrid1D(), mesh_p::Mesh=Meshgrid1D(),
+        Stokes(; ndim::Int=1, mesh_u::Mesh=MeshgridLine(), mesh_p::Mesh=MeshgridLine(),
                nDof_u::Int=0, nDof_p::Int=0, η::Number=0.0)
 
         Initialize the Stokes model with the provided parameters.
     """
     function Stokes(;
         ndim::Int=1,
-        mesh_x::AbstractMeshgrid=Meshgrid1D(), 
-        mesh_u::AbstractMeshgrid=Meshgrid1D(),
-        mesh_p::AbstractMeshgrid=Meshgrid1D(),
+        mesh_x::AbstractMeshgrid=MeshgridLine(), 
+        mesh_u::AbstractMeshgrid=MeshgridLine(),
+        mesh_p::AbstractMeshgrid=MeshgridLine(),
         nDof_u::Int=0,
         nDof_p::Int=0,
         η::Vector{Float64}=Vector{Float64}(undef, 1),

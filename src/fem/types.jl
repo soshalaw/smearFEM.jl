@@ -20,7 +20,7 @@ mutable struct Conditions <: EnvConditions
         SIDES::Bool = false,
         filepath::String = "",
         camera_matrix::AbstractMatrix{Float64} = Matrix{Float64}(undef, 4, 4),
-        obj_pose::AbstractMatrix{Float64} = Matrix{Float64}(undef, 3, 1)
+        obj_pose::AbstractMatrix{Float64} = Matrix{Float64}(undef, 4, 4)
     )
         return new(ANIMATE, WRITEVTK, SIDES, WRITECONTOUR, RENDER, filepath, camera_matrix, obj_pose)
     end

@@ -75,4 +75,4 @@ Volume(1) = {1};
 Physical Surface("Bottom") = {1};
 Physical Surface("Top") = {2};
 Physical Surface("Lateral") = {3, 4, 5, 6};
-Physical Volume("Cylinder") = {1};
+Physical Volume("Volume") = {1};

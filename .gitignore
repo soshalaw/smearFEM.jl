@@ -7,6 +7,12 @@ vtkFiles
 images
 PUBLICATION_READINESS.md
 
+/mesh_files/box/
+/mesh_files/cylinder/
+/mesh_files/disk/
+/mesh_files/line/
+/mesh_files/square/
+
 /Manifest.toml
 /docs/Manifest.toml
 /docs/build/

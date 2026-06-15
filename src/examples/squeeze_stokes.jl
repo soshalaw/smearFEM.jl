@@ -19,22 +19,20 @@ function assemble_system_A(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrix
     # unpack the model parameters to local variables
     # this is done to avoid the need to pass the model object around
     @unpack ne, ndim, nDof_u = mdl
-    @unpack NodeList, IEN, ID, FunctionClass, C_vol, C_top, C_btm, W = mdl.mesh_u    
+    @unpack NodeList, IEN, ID, volume_element_shape, basis_order = mdl.mesh_u
 
     IEN_u_cached::Matrix{Int} = IEN
     ID_cached::Matrix{Int} = ID
     ne_cached::Int = ne
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
-    FunctionClass_u_cached::String = FunctionClass
+    element_shape_u_cached, basis_order_u_cached = volume_element_shape, basis_order
 
-    @unpack NodeList, IEN, FunctionClass, C_vol, W = mdl.mesh_x
+    @unpack NodeList, IEN, volume_element_shape, basis_order = mdl.mesh_x
 
     NodeList_x_cached::Matrix{Float64} = NodeList
     IEN_x_cached::Matrix{Int} = IEN
-    FunctionClass_x_cached::String = FunctionClass
-    C_vol_x_cached = C_vol
-    W_x_cached = W
+    element_shape_x_cached, basis_order_x_cached = volume_element_shape, basis_order
 
     C::Matrix{Float64} = get_cMat(1.0,0.0,type="standard")
     IEN_u_rows::Int = size(IEN_u_cached,1)
@@ -160,8 +158,8 @@ Assembles the finite element system matrix (dense format) for the velocity field
 """
 function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
     @unpack ne, ndim, nDof_u = mdl
-    @unpack NodeList, IEN, ID, FunctionClass, C_vol, C_top, C_btm, W = mdl.mesh_u
-    
+    @unpack NodeList, IEN, ID, volume_element_shape, basis_order = mdl.mesh_u
+
     C::Matrix{Float64} = get_cMat(1.0,0.0,type="standard")
     IEN_u_rows::Int = size(IEN,1)
     ID_u_rows::Int = size(ID,1)
@@ -236,11 +234,11 @@ function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
     # integration loop
     for gp::Int in gpiter
         if ndim == 1
-            N, ΔN = basis_function(x[gp], nothing, nothing, FunctionClass)
+            N, ΔN = basis_function(x[gp], nothing, nothing, volume_element_shape, basis_order)
         elseif ndim == 2
-            N, ΔN = basis_function(x[gp], y[gp], nothing, FunctionClass) 
+            N, ΔN = basis_function(x[gp], y[gp], nothing, volume_element_shape, basis_order)
         elseif ndim == 3
-            N, ΔN = basis_function(x[gp], y[gp], z[gp], FunctionClass) 
+            N, ΔN = basis_function(x[gp], y[gp], z[gp], volume_element_shape, basis_order)
         end
 
         dNdX = zeros(Float64, size(ΔN, 1), ndim_cached) # Gradient of basis functions
@@ -331,12 +329,12 @@ function assemble_system_B(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrix
     # unpack the model parameters to local variables
     # this is done to avoid the need to pass the model object around
     @unpack ne, ndim, nDof_u = mdl
-    @unpack IEN, FunctionClass = mdl.mesh_p
+    @unpack IEN, volume_element_shape, basis_order = mdl.mesh_p
 
     IEN_p_cached::Matrix{Int} = IEN
-    FunctionClass_p_cached::String = FunctionClass
+    element_shape_p_cached, basis_order_p_cached = volume_element_shape, basis_order
 
-    @unpack NodeList, IEN, ID, FunctionClass, C_vol, W = mdl.mesh_u
+    @unpack NodeList, IEN, ID, volume_element_shape, basis_order = mdl.mesh_u
 
     IEN_u_cached::Matrix{Int} = IEN
     NodeList_cached::Matrix{Float64} = NodeList
@@ -344,15 +342,13 @@ function assemble_system_B(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrix
     ne_cached::Int = ne
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
-    FunctionClass_u_cached::String = FunctionClass
-    C_vol_u_cached = C_vol
-    W_u_cached = W
+    element_shape_u_cached, basis_order_u_cached = volume_element_shape, basis_order
 
-    @unpack NodeList, IEN, FunctionClass, C_vol, C_top, C_btm, W = mdl.mesh_x
+    @unpack NodeList, IEN, volume_element_shape, basis_order = mdl.mesh_x
 
     NodeList_x_cached::Matrix{Float64} = NodeList
     IEN_x_cached::Matrix{Int} = IEN
-    FunctionClass_x_cached::String = FunctionClass
+    element_shape_x_cached, basis_order_x_cached = volume_element_shape, basis_order
 
     # (I,J,V) vectors for COO sparse matrix
     IEN_u_rows::Int = size(IEN_u_cached,1)
@@ -462,12 +458,12 @@ Assembles the pressure-velocity coupling matrix (B matrix) in dense format for t
 function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
 
     @unpack ne, ndim, nDof_u = mdl
-    @unpack IEN, FunctionClass = mdl.mesh_p
+    @unpack IEN, volume_element_shape, basis_order = mdl.mesh_p
 
     IEN_p_cached::Matrix{Int} = IEN
-    FunctionClass_p_cached::String = FunctionClass
+    element_shape_p_cached, basis_order_p_cached = volume_element_shape, basis_order
 
-    @unpack NodeList, IEN, ID, FunctionClass = mdl.mesh_p
+    @unpack NodeList, IEN, ID, volume_element_shape, basis_order = mdl.mesh_p
 
     IEN_u_cached::Matrix{Int} = IEN
     NodeList_cached::Matrix{Float64} = NodeList
@@ -475,7 +471,7 @@ function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
     ne_cached::Int = ne
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
-    FunctionClass_u_cached::String = FunctionClass
+    element_shape_u_cached, basis_order_u_cached = volume_element_shape, basis_order
 
     IEN_u_rows = size(IEN_u_cached,1)
     ID_u_rows = size(ID_cached,1)
@@ -551,14 +547,14 @@ function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
     # integration loop
     for gp::Int in gpiter
         if ndim_cached == 1
-            N_u, ΔN_u = basis_function(x[gp], nothing, nothing, FunctionClass_u_cached)
-            N_p, ΔN_p = basis_function(x[gp], nothing, nothing, FunctionClass_p_cached)
+            N_u, ΔN_u = basis_function(x[gp], nothing, nothing, element_shape_u_cached, basis_order_u_cached)
+            N_p, ΔN_p = basis_function(x[gp], nothing, nothing, element_shape_p_cached, basis_order_p_cached)
         elseif ndim_cached == 2
-            N_u, ΔN_u = basis_function(x[gp], y[gp], nothing, FunctionClass_u_cached)
-            N_p, ΔN_p = basis_function(x[gp], y[gp], nothing, FunctionClass_p_cached)
+            N_u, ΔN_u = basis_function(x[gp], y[gp], nothing, element_shape_u_cached, basis_order_u_cached)
+            N_p, ΔN_p = basis_function(x[gp], y[gp], nothing, element_shape_p_cached, basis_order_p_cached)
         elseif ndim_cached == 3
-            N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], FunctionClass_u_cached)
-            N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], FunctionClass_p_cached)
+            N_u, ΔN_u = basis_function(x[gp], y[gp], z[gp], element_shape_u_cached, basis_order_u_cached)
+            N_p, ΔN_p = basis_function(x[gp], y[gp], z[gp], element_shape_p_cached, basis_order_p_cached)
         end
 
         dNdX = zeros(Float64, size(ΔN_u, 1), ndim_cached) # Gradient of basis functions
@@ -629,7 +625,7 @@ Apply the Neumann slip boundary conditions to the global stiffness matrix.
 """
 function apply_boundary_conditions(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrixCSC{Float64,Int64}
     @unpack ne, ndim, nDof_u = mdl
-    @unpack NodeList, IEN_top, IEN_bottom, ID, FunctionClass, C_top, C_btm, W = mdl.mesh_u
+    @unpack NodeList, IEN_top, IEN_bottom, ID, volume_element_shape, basis_order = mdl.mesh_u
 
     NodeList_u_cached::Matrix{Float64} = NodeList
     IEN_u_top_cached::Matrix{Int} = IEN_top
@@ -638,17 +634,14 @@ function apply_boundary_conditions(mdl::Stokes, cache::BasisFunctionCache)::Spar
     ne_cached::Int = ne
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
-    FunctionClass_u_cached::String = FunctionClass
+    element_shape_u_cached, basis_order_u_cached = volume_element_shape, basis_order
 
-    @unpack NodeList, IEN_top, IEN_bottom, ID, FunctionClass, C_top, C_btm, W = mdl.mesh_x
+    @unpack NodeList, IEN_top, IEN_bottom, ID, volume_element_shape, basis_order = mdl.mesh_x
 
     NodeList_x_cached::Matrix{Float64} = NodeList
     IEN_x_top_cached::Matrix{Int} = IEN_top
     IEN_x_btm_cached::Matrix{Int} = IEN_bottom
-    FunctionClass_x_cached::String = FunctionClass
-    C_top_x_cached = C_top
-    C_btm_x_cached = C_btm
-    W_x_cached = W
+    element_shape_x_cached, basis_order_x_cached = volume_element_shape, basis_order
 
     ID_u_rows::Int = size(ID_cached,1)
     IEN_btm_rows::Int = size(IEN_u_btm_cached,1)
@@ -660,7 +653,7 @@ function apply_boundary_conditions(mdl::Stokes, cache::BasisFunctionCache)::Spar
     sz = size(NodeList_x_cached,2)*ID_u_rows # size of the global stiffness matrix = number of nodes x number of dofs
 
     # Unpack pre-computed surface basis functions
-    N_u_surf_gp, ΔN_u_surf_gp, wpoints = cache.bf_surface
+    N_u_surf_gp, ΔN_u_surf_gp, N_p_surf_gp, ΔN_p_surf_gp, N_x_surf_gp, ΔN_x_surf_gp, wpoints = cache.bf_surface
     
     e_iter = 1:size(IEN_u_top_cached, 2)   # iterator for elements loop
     gpiter = 1:length(wpoints) # iterator for integration loop
@@ -765,7 +758,7 @@ Applies the Neumann slip boundary conditions to the global stiffness matrix (den
 """
 function apply_boundary_conditions_dense(mdl::Stokes, cache::BasisFunctionCache)::Matrix{Float64}
     @unpack ne, ndim, nDof_u = mdl
-    @unpack NodeList, IEN_top, IEN_bottom, ID, FunctionClass, C_top, C_btm, W = mdl.mesh_u
+    @unpack NodeList, IEN_top, IEN_bottom, ID, volume_element_shape, basis_order = mdl.mesh_u
 
     NodeList_u_cached::Matrix{Float64} = NodeList
     IEN_u_top_cached::Matrix{Int} = IEN_top
@@ -774,20 +767,14 @@ function apply_boundary_conditions_dense(mdl::Stokes, cache::BasisFunctionCache)
     ne_cached::Int = ne
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
-    FunctionClass_u_cached::String = FunctionClass
-    C_top_u_cached = C_top
-    C_btm_u_cached = C_btm
-    W_u_cached = W
+    element_shape_u_cached, basis_order_u_cached = volume_element_shape, basis_order
 
-    @unpack NodeList, IEN_top, IEN_bottom, ID, FunctionClass, C_top, C_btm, W = mdl.mesh_x
+    @unpack NodeList, IEN_top, IEN_bottom, ID, volume_element_shape, basis_order = mdl.mesh_x
 
     NodeList_x_cached::Matrix{Float64} = NodeList
     IEN_x_top_cached::Matrix{Int} = IEN_top
     IEN_x_btm_cached::Matrix{Int} = IEN_bottom
-    FunctionClass_x_cached::String = FunctionClass
-    C_top_x_cached = C_top
-    C_btm_x_cached = C_btm
-    W_x_cached = W
+    element_shape_x_cached, basis_order_x_cached = volume_element_shape, basis_order
 
     ID_u_rows::Int = size(ID_cached,1)
     IEN_btm_rows::Int = size(IEN_u_btm_cached,1)
@@ -798,7 +785,7 @@ function apply_boundary_conditions_dense(mdl::Stokes, cache::BasisFunctionCache)
     K = zeros(Float64, sz,sz)
 
     # Unpack pre-computed surface basis functions
-    N_u_surf_gp, ΔN_u_surf_gp, wpoints = cache.bf_surface
+    N_u_surf_gp, ΔN_u_surf_gp, N_p_surf_gp, ΔN_p_surf_gp, N_x_surf_gp, ΔN_x_surf_gp, wpoints = cache.bf_surface
     
     e_iter = 1:size(IEN_u_top_cached, 2)   # iterator for elements loop
     gpiter = 1:length(wpoints) # iterator for integration loop
@@ -950,7 +937,7 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
 
     else
         z0Bound = 0
-        z1Bound = mdl.mesh_u.h # height of the cylinder
+        z1Bound = maximum(mdl.mesh_u.NodeList[3, :])
 
         iter = 1:size(NodeList_cached,2)
         for nNode::Int in iter
@@ -1005,44 +992,52 @@ function get_η_power_law(t::T, F::U, R_0::V, H_0::W, η_0::X) where {T<:Number,
 end
 
 """
-    def_problem(r, h, ne, η_0, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, cParam, control, viscosity_type, sim_time, t_steps; viscosity_model="power_law")
+    def_problem(r, h, ne, η_0, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β, cParam, control, viscosity_type, sim_time, t_steps; geometry=:cylinder, edge_radius=nothing, viscosity_model="power_law")
 
 Define the conditions and parameters of the squeeze flow problem.
 
 # Arguments:
-- `r::Number` : Cylinder radius
-- `h::Number` : Cylinder height
+- `r::Number` : Characteristic size (radius for `:cylinder`; side length for `:cube`)
+- `h::Number` : Height of the object
 - `ne::Int64` : Number of elements in each direction
 - `η_0::Number` : Initial viscosity
 - `ndim::Int64` : Number of dimensions
-- `FunctionClass_u::String` : Basis function type for velocity field
+- `element_shape_u::Symbol` : Element topology for velocity field (`:Hex`, `:Tet`, etc.)
+- `basis_order_u::Int` : Polynomial order for velocity field
 - `nDof_u::Int64` : Degrees of freedom per node for velocity
-- `FunctionClass_p::String` : Basis function type for pressure field
+- `element_shape_p::Symbol` : Element topology for pressure field
+- `basis_order_p::Int` : Polynomial order for pressure field
 - `nDof_p::Int64` : Degrees of freedom per node for pressure
-- `FunctionClass_x::String` : Basis function type for geometry
+- `element_shape_x::Symbol` : Element topology for geometry
+- `basis_order_x::Int` : Polynomial order for geometry
 - `β::Number` : Slip boundary condition parameter
 - `cParam::Vector{Float64}` : Control parameters (force or velocity)
 - `control::String` : Control type ("force" or "velocity")
 - `viscosity_type::String` : Viscosity type ("bulk_viscosity" or other)
 - `sim_time::Number` : Total simulation time
 - `t_steps::Number` : Time step size
+
+# Keyword Arguments:
+- `geometry::Symbol` : Mesh geometry — `:cylinder` or `:cube` (default: `:cylinder`)
+- `edge_radius::Float64` : Fillet radius for the 4 vertical edges of a `:cube` mesh (default: `nothing`)
 - `viscosity_model::String` : Viscosity model ("power_law" or "carreau")
 
 # Returns:
 - `stokes::Stokes` : The finite element model
 - `squeeze::SqueezeFlow` : The squeeze flow problem setup
 """
-function def_problem(r::T, h::U, ne::Z, η_0::V, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                    nDof_p::Int64, FunctionClass_x::String, β::Y, cParam::Vector{Float64}, control::String, viscosity_type::String, 
-                    sim_time::W, t_steps::X; viscosity_model::String="power_law", GMESH_MESH::Bool=true,
+function def_problem(r::T, h::U, ne::Z, η_0::V, ndim::Int64, element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64, element_shape_p::Symbol, basis_order_p::Int,
+                    nDof_p::Int64, element_shape_x::Symbol, basis_order_x::Int, β::Y, cParam::Vector{Float64}, control::String, viscosity_type::String,
+                    sim_time::W, t_steps::X; geometry::Symbol=:cylinder, edge_radius::Union{Float64,Nothing}=nothing,
+                    viscosity_model::String="power_law", GMESH_MESH::Bool=true,
                     mesh_path::String = joinpath(dirname(dirname(@__DIR__)), "mesh_files")) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
 
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
     len_t::Int = length(time)
     @info "Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(round(Int, sim_time/t_steps))"
     @info "Length of time array: $(len_t)"
-    
-    if length(cParam) < len_t   
+
+    if length(cParam) < len_t
         @error "Length of the Force vector ($(length(cParam))) is less than length of time array ($(length(time)))"
     end
 
@@ -1050,60 +1045,69 @@ function def_problem(r::T, h::U, ne::Z, η_0::V, ndim::Int64, FunctionClass_u::S
     if viscosity_type == "bulk_viscosity" && viscosity_model == "power_law"
         @info "Using power law viscosity model"
         η = get_η_power_law.(time, -cParam[1:len_t], r, h, η_0)
-    end 
+    end
 
-    # define the model
-    stokes = set_model(r, h, float(ne), η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, filepath_mesh=mesh_path, GMESH_MESH=GMESH_MESH) # define the model    
-    # set the boundary conditions
-    q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes) 
-    # define with problem scenario
-    c = [q_tp, q_side, q_btm]
+    stokes = set_model(r, h, float(ne), η, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x;
+                       filepath_mesh=mesh_path, GMESH_MESH=GMESH_MESH, geometry=geometry, edge_radius=edge_radius)
+    q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes)
 
     squeeze = SqueezeFlow(stokes, [β], [q_tp, q_side, q_btm], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
-return stokes, squeeze
+    return stokes, squeeze
 end
 
 """
-    set_model(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x; GMESH_MESH=true)
+    set_model(r, h, ne, η, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x; geometry=:cylinder, edge_radius=nothing, GMESH_MESH=true)
 
 Sets up the Stokes model for the finite element method.
 
 # Arguments:
-- `r::Number`: Radius of the cylinder
-- `h::Number`: Height of the cylinder
-- `ne::Float64`: Number of elements in each direction (for structured mesh) / primary element size (for Gmsh)
+- `r::Number`: Characteristic size (radius for `:cylinder`; side length for `:cube`)
+- `h::Number`: Height of the object
+- `ne::Float64`: Number of elements per direction (structured) / target element size (Gmsh)
 - `η::Vector{Float64}`: Dynamic viscosity values
 - `ndim::Int64`: Number of dimensions
-- `FunctionClass_u::String`: Type of basis functions for velocity field (Q1, Q2)
+- `element_shape_u::Symbol`: Element topology for velocity field (`:Hex`, `:Tet`, etc.)
+- `basis_order_u::Int`: Polynomial order for velocity field
 - `nDof_u::Int64`: Degrees of freedom per node for velocity field
-- `FunctionClass_p::String`: Type of basis functions for pressure field (Q1, Q2)
+- `element_shape_p::Symbol`: Element topology for pressure field
+- `basis_order_p::Int`: Polynomial order for pressure field
 - `nDof_p::Int64`: Degrees of freedom per node for pressure field
-- `FunctionClass_x::String`: Type of basis functions for geometry (Q1, Q2)
+- `element_shape_x::Symbol`: Element topology for geometry
+- `basis_order_x::Int`: Polynomial order for geometry
+- `geometry::Symbol`: Mesh geometry — `:cylinder` or `:cube` (default: `:cylinder`)
+- `edge_radius::Float64`: Fillet radius for vertical edges of a `:cube` mesh (default: `nothing`)
 - `GMESH_MESH::Bool`: Whether to use Gmsh for mesh generation
 
 # Returns:
 - `mdl::Stokes`: The Stokes model for finite element analysis
-""" 
-function set_model(r::R, h::H, ne::Float64, η::Vector{Float64}, ndim::Int64, FunctionClass_u::String, nDof_u::Int64, FunctionClass_p::String, 
-                nDof_p::Int64, FunctionClass_x::String; GMESH_MESH::Bool=true,
-                filepath_mesh::String = "")::Stokes where {R<:Number,H<:Number}
+"""
+function set_model(r::R, h::H, ne::Float64, η::Vector{Float64}, ndim::Int64, element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64, element_shape_p::Symbol, basis_order_p::Int,
+                nDof_p::Int64, element_shape_x::Symbol, basis_order_x::Int; GMESH_MESH::Bool=true,
+                filepath_mesh::String="", geometry::Symbol=:cylinder,
+                edge_radius::Union{Float64,Nothing}=nothing)::Stokes where {R<:Number,H<:Number}
 
-    
-    if GMESH_MESH == true
-        @info "Using Gmsh to generate the mesh"
-        mesh_u = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_x_$(ne).msh"), nDof_u, r, h, FunctionClass_u, ne)
-        mesh_p = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_p_$(ne).msh"), nDof_p, r, h, FunctionClass_p, ne)
-        mesh_x = get_gmsh_cylinder(joinpath(filepath_mesh,"cylinder_x_$(ne).msh"), 1, r, h, FunctionClass_x, ne)
-    else
-        @info "Using Julia to generate the mesh"
-        mesh_x = meshgrid_cylinder(r, h, round(Int, ne), FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry
-        mesh_u = meshgrid_cylinder(r, h, round(Int, ne), FunctionClass=FunctionClass_u)  # generate the mesh grid
-        mesh_p = meshgrid_cylinder(r, h, round(Int, ne), FunctionClass=FunctionClass_p)  # generate the mesh grid
+    geometry in (:cylinder, :cube) ||
+        throw(ArgumentError("geometry must be :cylinder or :cube, got :$geometry"))
+
+    mesh_type = GMESH_MESH ? :unstructured : :structured
+
+    function _make_mesh(element_shape, basis_order, ndof)
+        if geometry === :cylinder
+            meshgrid_cylinder(r, h; mesh_type=mesh_type, element_shape=element_shape,
+                basis_order=basis_order, ne=round(Int, ne), ndof=ndof,
+                elem_size=ne, mesh_path=filepath_mesh)
+        else
+            meshgrid_cube(r*2, r*2, h; mesh_type=mesh_type, element_shape=element_shape,
+                basis_order=basis_order, ne=round(Int, ne), ndof=ndof,
+                elem_size=ne, mesh_path=filepath_mesh, edge_radius=edge_radius)
+        end
     end
-    
-    mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 
-    return mdl
+    mesh_u = _make_mesh(element_shape_u, basis_order_u, nDof_u)
+    mesh_p = _make_mesh(element_shape_p, basis_order_p, nDof_p)
+    mesh_x = _make_mesh(element_shape_x, basis_order_x, 1)
+
+    return Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 end
 
 """
@@ -1134,17 +1138,14 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     reset_model!(mdl)
     
-    @unpack FunctionClass, IEN, IEN_cp, ID, NodeList, C_vol, W = mdl.mesh_x
-    FunctionClass_x_cached::String = FunctionClass
+    @unpack volume_element_shape, basis_order, IEN, ID, NodeList = mdl.mesh_x
+    element_shape_x_cached, basis_order_x_cached = volume_element_shape, basis_order
     NodeList_x_cached::Matrix{Float64} = NodeList
     IEN_x_cached::Matrix{Int} = IEN
-    IEN_x_cp_cached::Matrix{Int} = IEN_cp
     ID_x_cached::Matrix{Int} = ID
-    C_vol_x_cached = C_vol
-    W_x_cached = W
 
-    @unpack IEN, ID, FunctionClass, top_nodes, bottom_nodes, side_nodes, nNodes = mdl.mesh_u
-    FunctionClass_u_cached::String = FunctionClass
+    @unpack IEN, ID, volume_element_shape, basis_order, top_nodes, bottom_nodes, side_nodes, nNodes = mdl.mesh_u
+    element_shape_u_cached, basis_order_u_cached = volume_element_shape, basis_order
     IEN_u_cached::Matrix{Int} = IEN
     ID_u_cached::Matrix{Int} = ID
     nNodes_u_cached::Int = nNodes
@@ -1196,7 +1197,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     μu_btm = 0  
     μu_side = 0
             
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, 13, BorderNodesList=side_node_list_cached)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached)
     pi, qi = fit_curve(border=BorderPts2D)
     
     dqdη = zeros(Float64, size(q_d_cached_top))
@@ -1532,7 +1533,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     if conditions.WRITEVTK
         # write_scene(string(conditions.filepath,"/data"), NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, pressure, ID=ID_cached, FunctionClass=mdl.mesh_p.FunctionClass)
-        write_stokes_scene(string(conditions.filepath,"/data"), mdl.mesh_u.NodeList, mdl.mesh_u.IEN, NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, velocity, pressure, pos3D=pos3D)
+        write_stokes_scene(string(conditions.filepath,"/data"), mdl.mesh_u.NodeList, mdl.mesh_u.IEN, NodeList_p_cached, mdl.mesh_p.IEN, mdl.ne, mdl.ndim, velocity, pressure, pos3D=pos3D,
+            element_shape_u=mdl.mesh_u.volume_element_shape, basis_order_u=mdl.mesh_u.basis_order,
+            element_shape_p=mdl.mesh_p.volume_element_shape, basis_order_p=mdl.mesh_p.basis_order)
     end
 
     if conditions.WRITECONTOUR
@@ -1543,9 +1546,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     if conditions.ANIMATE
         animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=IEN_u_cached, BorderNodes2D=borderPts2DList, fields2D=pos2D)
         animate_fields(filepath = string(conditions.filepath,"/Results/images/surface"), Nodes=surface_pts_3D)
-        if FunctionClass_x_cached == "S2"
-            animate_fields(filepath = string(conditions.filepath,"/Results/images/cp"), Nodes=pos3D_cp, IEN=IEN_x_cp_cached)
-        end
     end
     
     # plt = set_plot(12,legend_column=4)

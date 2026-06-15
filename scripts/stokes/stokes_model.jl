@@ -17,8 +17,10 @@ function main()
   z1 = 1
   ne = 4
   ndim = 3
-  FunctionClass_u = "Q2"
-  FunctionClass_p = "Q1"
+  element_shape_u = :Hex
+  basis_order_u = 2
+  element_shape_p = :Hex
+  basis_order_p = 1
   nDof_u = ndim  # number of degree of freedom per node
   nDof_p = 1
   β = 100
@@ -37,16 +39,18 @@ function main()
   μu_tp = -0.02
   μu_side = 0
 
-  NodeList_u, IEN_u, ID_u, IEN_u_top, IEN_u_btm, BorderNodesList_u = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass_u)  # generate the mesh grid
-  NodeListCylinder = inflate_cylinder(NodeList_u, x0, x1, y0, y1)
-  q_tp, q_side, q_btm, C_uc = set_boundary_cond_stokes(NodeList_u, ne, ndim, FunctionClass_u, nDof_u)
-  
-  NodeList_p, IEN_p, ID_p, IEN_p_top, IEN_p_btm, BorderNodesList_p = meshgrid_cube(x0,x1,y0,y1,z0,z1,ne,ndim,FunctionClass=FunctionClass_p)  # generate the mesh grid
-  NodeListCylinderp = inflate_cylinder(NodeList_p, x0, x1, y0, y1)
-  
-  mdl = def_model("stokes", ne=ne, NodeList=NodeListCylinder, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u, 
-                      FunctionClass=FunctionClass_u, ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm, 
-                          ndim_2=ndim, nDof_2=nDof_p, FunctionClass_2=FunctionClass_p, ν=η) # define the model
+  mesh_u = meshgrid_cube(x1-x0, y1-y0, z1-z0; ne=ne, element_shape=element_shape_u, basis_order=basis_order_u, ndof=nDof_u)
+  IEN_u, ID_u, IEN_u_top, IEN_u_btm = mesh_u.IEN, mesh_u.ID, mesh_u.IEN_top, mesh_u.IEN_bottom
+  NodeListCylinder = _inflate_cylinder(mesh_u.NodeList, x0, x1, y0, y1)
+  q_tp, q_side, q_btm, C_uc = set_boundary_cond_stokes(mesh_u.NodeList, ne, ndim, element_shape_u, basis_order_u, nDof_u)
+
+  mesh_p = meshgrid_cube(x1-x0, y1-y0, z1-z0; ne=ne, element_shape=element_shape_p, basis_order=basis_order_p, ndof=nDof_p)
+  IEN_p, ID_p, IEN_p_top, IEN_p_btm = mesh_p.IEN, mesh_p.ID, mesh_p.IEN_top, mesh_p.IEN_bottom
+  NodeListCylinderp = _inflate_cylinder(mesh_p.NodeList, x0, x1, y0, y1)
+
+  mdl = def_model("stokes", ne=ne, NodeList=NodeListCylinder, IEN=IEN_u, IEN_top=IEN_u_top, IEN_btm=IEN_u_btm, ndim=ndim, nDof=nDof_u,
+                      element_shape=element_shape_u, basis_order=basis_order_u, ID=ID_u, IEN_2=IEN_p, IEN_2_top=IEN_p_top, IEN_2_btm=IEN_p_btm,
+                          ndim_2=ndim, nDof_2=nDof_p, element_shape_2=element_shape_p, basis_order_2=basis_order_p, ν=η) # define the model
 
   A_bar = assemble_system_A(mdl)                   # assemble the stiffness matrix
   B = assemble_system_B(mdl)                   # assemble the stiffness matrix
@@ -76,7 +80,7 @@ function main()
 
   motion = [q[ID_u[:,1]] q[ID_u[:,2]] q[ID_u[:,3]]]'
 
-  write_vtk(string(filepath,"/Results"), "u", NodeListCylinder, IEN_u, ne, ndim, motion, ID = ID_u, FunctionClass=FunctionClass_u)
+  write_vtk(string(filepath,"/Results"), "u", NodeListCylinder, IEN_u, ne, ndim, motion, ID = ID_u, element_shape=element_shape_u, basis_order=basis_order_u)
   write_vtk(string(filepath,"/Results"), "p", NodeListCylinderp, IEN_p, ne, ndim, p)
 end
 

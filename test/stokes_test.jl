@@ -10,9 +10,12 @@ using LinearAlgebra
     h::Float64 = 40.0  # height of the cylinder in mm
     ne = 6
     ndim = 3
-    FunctionClass_x = "Q2"
-    FunctionClass_u = "Q2"
-    FunctionClass_p = "Q1"
+    element_shape_x::Symbol = :Hex
+    basis_order_x::Int = 2  
+    element_shape_u::Symbol = :Hex
+    basis_order_u::Int = 2
+    element_shape_p::Symbol = :Hex
+    basis_order_p::Int = 1
     nDof_u = ndim  # number of degree of freedom per node
     nDof_p = 1
     β = 1e-5
@@ -22,8 +25,8 @@ using LinearAlgebra
     μu_side = 0
     acc = 1e-3
 
-    q, model = simulate_single_tstep_stokes(r, h, ne, ν, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-                                            μu_side, FunctionClass_x=FunctionClass_x)
+    q, model = simulate_single_tstep_stokes(r, h, ne, ν, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
+                                            μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
     
     # Get mesh data directly (no NURBS projection needed for Q2 basis)
     NodeList = model.mesh_x.NodeList

@@ -23,10 +23,16 @@ Function to write the solution to a VTK file
 - `ndim::Integer`: Number of dimensions.
 - `q::Vector{Float64}`: Solution field.
 """
-function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64, ndim::Int64, q; ID=nothing, FunctionClass::String="Q1")
+function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64, ndim::Int64, q; ID=nothing, element_shape::Symbol=:Hex, basis_order::Int=1)
 
     set_file(string(filePath,"/vtkFiles")) # create the directory to store the VTK files
-    if FunctionClass == "Q1"
+    if element_shape == :Tet
+        if basis_order == 1
+            cellType = ndim == 2 ? VTKCellTypes.VTK_TRIANGLE : VTKCellTypes.VTK_TETRA
+        else
+            cellType = ndim == 2 ? VTKCellTypes.VTK_LAGRANGE_TRIANGLE : VTKCellTypes.VTK_LAGRANGE_TETRAHEDRON
+        end
+    elseif basis_order == 1
         if ndim == 1
             cellType = VTKCellTypes.VTK_LINE
         elseif ndim == 2
@@ -34,7 +40,7 @@ function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64
         elseif ndim == 3
             cellType = VTKCellTypes.VTK_HEXAHEDRON
         end
-    elseif FunctionClass == "Q2"
+    elseif basis_order == 2
         if ndim == 1
             cellType = VTKCellTypes.VTK_LAGRANGE_CURVE
         elseif ndim == 2
@@ -42,7 +48,6 @@ function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64
         elseif ndim == 3
             cellType = VTKCellTypes.VTK_LAGRANGE_HEXAHEDRON
         end
-
         IEN = rearrange(ndim, IEN)  # rearrange the solution
     end
 
@@ -67,10 +72,28 @@ Function to write the solution to a VTK file
 - `ndim::Integer`: Number of dimensions
 - `fields::Vector{Vector{Float64}}`: Solution fields.
 """
-function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields; function_class::String="Q1")
+function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields; element_shape::Symbol=:Hex, basis_order::Int=1)
 
     set_file(string(filepath,"/vtkFiles")) # create the directory to store the VTK files
-    if function_class == "Q1"
+    if element_shape == :Tet
+        if basis_order == 1
+            if ndim == 1
+                cellType = VTKCellTypes.VTK_LINE
+            elseif ndim == 2
+                cellType = VTKCellTypes.VTK_TRIANGLE
+            elseif ndim == 3
+                cellType = VTKCellTypes.VTK_TETRA
+            end
+        else
+            if ndim == 1
+                cellType = VTKCellTypes.VTK_LAGRANGE_CURVE
+            elseif ndim == 2
+                cellType = VTKCellTypes.VTK_LAGRANGE_TRIANGLE
+            elseif ndim == 3
+                cellType = VTKCellTypes.VTK_LAGRANGE_TETRAHEDRON
+            end
+        end
+    elseif basis_order == 1
         if ndim == 1
             cellType = VTKCellTypes.VTK_LINE
         elseif ndim == 2
@@ -78,7 +101,7 @@ function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields;
         elseif ndim == 3
             cellType = VTKCellTypes.VTK_HEXAHEDRON
         end
-    elseif function_class == "Q2"
+    elseif basis_order == 2
         if ndim == 1
             cellType = VTKCellTypes.VTK_LAGRANGE_CURVE
         elseif ndim == 2
@@ -86,8 +109,6 @@ function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields;
         elseif ndim == 3
             cellType = VTKCellTypes.VTK_LAGRANGE_HEXAHEDRON
         end
-
-        println(size(IEN))
         IEN = rearrange(ndim, IEN)  # rearrange the solution
     end
 
@@ -137,7 +158,11 @@ function write_stokes_scene(
     pressure_name::String="p",
     collection_name_velocity::String="velocity",
     collection_name_pressure::String="pressure",
-    pos3D::Vector{AbstractArray}=zeros(Float64, 0, 0)
+    pos3D::Vector{AbstractArray}=zeros(Float64, 0, 0),
+    element_shape_u::Symbol=:Hex,
+    basis_order_u::Int=2,
+    element_shape_p::Symbol=:Hex,
+    basis_order_p::Int=1
 )
 
     set_file(string(filepath, "/vtkFiles")) # create the directory to store the VTK files
@@ -146,16 +171,26 @@ function write_stokes_scene(
         cellType_p = VTKCellTypes.VTK_LINE
         cellType_u = VTKCellTypes.VTK_LAGRANGE_CURVE
     elseif ndim == 2
-        cellType_p = VTKCellTypes.VTK_QUAD
-        cellType_u = VTKCellTypes.VTK_LAGRANGE_QUADRILATERAL
+        if element_shape_u == :Tet
+            cellType_u = basis_order_u == 1 ? VTKCellTypes.VTK_TRIANGLE : VTKCellTypes.VTK_LAGRANGE_TRIANGLE
+        else
+            cellType_u = basis_order_u == 1 ? VTKCellTypes.VTK_QUAD : VTKCellTypes.VTK_LAGRANGE_QUADRILATERAL
+        end
+        cellType_p = element_shape_p == :Tet ? VTKCellTypes.VTK_TRIANGLE : VTKCellTypes.VTK_QUAD
     elseif ndim == 3
-        cellType_p = VTKCellTypes.VTK_HEXAHEDRON
-        cellType_u = VTKCellTypes.VTK_LAGRANGE_HEXAHEDRON
+        if element_shape_u == :Tet
+            cellType_u = basis_order_u == 1 ? VTKCellTypes.VTK_TETRA : VTKCellTypes.VTK_LAGRANGE_TETRAHEDRON
+        else
+            cellType_u = basis_order_u == 1 ? VTKCellTypes.VTK_HEXAHEDRON : VTKCellTypes.VTK_LAGRANGE_HEXAHEDRON
+        end
+        cellType_p = element_shape_p == :Tet ? VTKCellTypes.VTK_TETRA : VTKCellTypes.VTK_HEXAHEDRON
     else
         throw(ArgumentError("ndim must be 1, 2, or 3."))
     end
 
-    IEN_u = rearrange(ndim, IEN_u)  # rearrange the Q2 solution
+    if element_shape_u == :Hex && basis_order_u == 2
+        IEN_u = rearrange(ndim, IEN_u)
+    end
 
     if length(velocities) != length(pressures)
         throw(ArgumentError("velocities and pressures must have the same length."))
@@ -197,6 +232,8 @@ function write_stokes_scene(
             end
         end
     end
+
+    @info "Finished writing VTK files to $(filepath)/vtkFiles"
 end
 
 """

@@ -8,10 +8,13 @@ file = resolve_data_path("sim_experiments/cost_function_test/optimization/test3"
 r::Float64 = 25  # radius of the cylinder in mm
 h::Float64 = 40.0  # height of the cylinder in mm
 ndim::Int = 3
-FunctionClass_x::String = "Q2"
-FunctionClass_u::String = "Q2"
+element_shape_x::Symbol = :Hex
+basis_order_x::Int = 2
+element_shape_u::Symbol = :Hex
+basis_order_u::Int = 2
 nDof_u::Int = ndim  # number of degree of freedom per node
-FunctionClass_p::String = "Q1"
+element_shape_p::Symbol = :Hex
+basis_order_p::Int = 1
 nDof_p::Int = 1  # number of degree of freedom per node
 
 obj_pose = zeros(Float64, 4,4)
@@ -46,20 +49,17 @@ rel_error_tol = 1e-4
 
 filePath = joinpath(@__DIR__, "..", "cylindergen")
 
-mesh_x = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_x)  # generate the mesh grid for geometry
-mesh_u = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_u)  # generate the mesh grid
-mesh_p = meshgrid_cylinder(r, h, ne, FunctionClass=FunctionClass_p)  # generate the mesh grid
+mesh_x = meshgrid_cylinder(r, h; mesh_type=:structured, ne=ne, element_shape=element_shape_x, basis_order=basis_order_x)
+mesh_u = meshgrid_cylinder(r, h; mesh_type=:structured, ne=ne, element_shape=element_shape_u, basis_order=basis_order_u, ndof=nDof_u)
+mesh_p = meshgrid_cylinder(r, h; mesh_type=:structured, ne=ne, element_shape=element_shape_p, basis_order=basis_order_p, ndof=nDof_p)
 
 mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
 
 T = Matrix{Float64}(I, size(mesh_u.NodeList,2), size(mesh_u.NodeList,2))
-if mesh_x.FunctionClass == "S2" && mesh_u.FunctionClass != "S2"
-    T = get_nurbs_2_lagrange_proj(mesh_x.IEN, mesh_u.IEN, mesh_x.C_vol, mesh_x.NodeList, mesh_x.W)
-end
 T_ = T'*inv(T*T')
 
-p_, dp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-μu_side, FunctionClass_x=FunctionClass_x, GRAD=true)
+p_, dp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
+μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x, GRAD=true)
 p = p_*T_
 dp = similar(dp_)
 dp[:,:,1] = dp_[:,:,1]*T_
@@ -68,27 +68,27 @@ Nodes_ = model.mesh_x.NodeList + p
 Nodes = Nodes_*T
 
 # estimate dp with finite (central) difference
-Δp_ηp_, model = simulate_single_tstep_stokes(r, h, ne, (η+Δη), ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-μu_side, FunctionClass_x=FunctionClass_x)
+Δp_ηp_, model = simulate_single_tstep_stokes(r, h, ne, (η+Δη), ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
+μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
 Δp_ηp = Δp_ηp_*T_
 ΔNodesηp_ = model.mesh_x.NodeList + Δp_ηp
 ΔNodesηp = ΔNodesηp_*T
 
-Δp_ηm_, model = simulate_single_tstep_stokes(r, h, ne, (η-Δη), ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-μu_side, FunctionClass_x=FunctionClass_x)
+Δp_ηm_, model = simulate_single_tstep_stokes(r, h, ne, (η-Δη), ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
+μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
 Δp_ηm = Δp_ηm_*T_
 ΔNodesηm_ = model.mesh_x.NodeList + Δp_ηm
 ΔNodesηm = ΔNodesηm_*T
 
 # estimate dp with finite (central) difference
-Δp_βp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, (β+Δβ), μu_tp, μu_btm, 
-μu_side, FunctionClass_x=FunctionClass_x)
+Δp_βp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, (β+Δβ), μu_tp, μu_btm,
+μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
 Δp_βp = Δp_βp_*T_
 ΔNodesβp_ = model.mesh_x.NodeList + Δp_βp
 ΔNodesβp = ΔNodesβp_*T
 
-Δp_βm_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, (β-Δβ), μu_tp, μu_btm, 
-μu_side, FunctionClass_x=FunctionClass_x)
+Δp_βm_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, (β-Δβ), μu_tp, μu_btm,
+μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
 Δp_βm = Δp_βm_*T_
 ΔNodesβm_ = model.mesh_x.NodeList + Δp_βm
 ΔNodesβm = ΔNodesβm_*T
@@ -153,8 +153,8 @@ for i in 1:iIter
 end
 
 
-p_gt_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, FunctionClass_u, FunctionClass_p, nDof_u, nDof_p, β, μu_tp, μu_btm, 
-μu_side, FunctionClass_x=FunctionClass_x)
+p_gt_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
+μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
 p_gt = p_gt_*T_
 Nodes_gt_ = model.mesh_x.NodeList + p_gt
 Nodes_gt = Nodes_gt_*T
@@ -178,7 +178,7 @@ iIter = size(∇d[1])
 @test ∇d[1][2] ≈ ∇dβ_approx[1] atol=error_tol rtol=rel_error_tol
 
 conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
-model, scene = def_problem(r, h, ne, η, ndim, FunctionClass_u, nDof_u, FunctionClass_p, nDof_p, FunctionClass_x, β, F, control, viscosity_type, 
+model, scene = def_problem(r, h, ne, η, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β, F, control, viscosity_type,
                         sim_time, t_steps, GMESH_MESH=false)
 ## testing Σ∇p(θ)
 μ_list, gradList, simBorderPts, _, _, _, Δpos3D_, _, _, _, _, gradList_3d = simulate(model, scene, conditions)

@@ -7,46 +7,51 @@ using smearFEM
     lz = 2
     ne = 1
 
-    FunctionsClasses = ["Q1", "Q2"]
+    # Structured mesh builders produce Line/Quad/Hex topology only.
+    # :Tet is for unstructured (Gmsh) meshes and is not tested here.
+    valid_shapes = Dict(1 => :Line, 2 => :Quad, 3 => :Hex)
+    basis_orders = [1, 2]
+
     ndims = [1, 2, 3]
 
-    for FunctionClass in FunctionsClasses
-        for ndim in ndims
+    for ndim in ndims
+        element_shape = valid_shapes[ndim]
+        for basis_order in basis_orders
             if ndim == 1
-                NodeList, IEN, BorderNodesList = meshgrid_line(lx,ne;FunctionClass=FunctionClass)
-                iter = 1:size(IEN,1)
+                mesh = meshgrid_line(lx; ne=ne, element_shape=element_shape, basis_order=basis_order)
+                iter = 1:size(mesh.IEN, 1)
                 for i in iter
-                    coord = NodeList[:,IEN[i]]
-                    N, dN = basis_function(coord[1],nothing,nothing, FunctionClass)
-                    @test findall(x->x==1,N)==[i]
-                end 
+                    coord = mesh.NodeList[:, mesh.IEN[i]]
+                    N, dN = basis_function(coord[1], nothing, nothing, element_shape, basis_order)
+                    @test findall(x->x==1, N) == [i]
+                end
             elseif ndim == 2
-                NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_square(lx,ly,ne,FunctionClass=FunctionClass)
-                iter = 1:size(IEN,2)
+                mesh = meshgrid_square(lx, ly; ne=ne, element_shape=element_shape, basis_order=basis_order)
+                iter = 1:size(mesh.IEN, 2)
                 for i in iter
-                    coord = NodeList[:,IEN[i]]
-                    N, dN = basis_function(coord[1],coord[2],nothing, FunctionClass)
-                    @test findall(x->x==1,N)==[i]
-                end 
+                    coord = mesh.NodeList[:, mesh.IEN[i]]
+                    N, dN = basis_function(coord[1], coord[2], nothing, element_shape, basis_order)
+                    @test findall(x->x==1, N) == [i]
+                end
             elseif ndim == 3
-                NodeList, IEN, ID, IEN_top, IEN_btm, BorderNodesList = meshgrid_cube(lx,ly,lz,ne,FunctionClass=FunctionClass)
-                iter = 1:size(IEN,2)
+                mesh = meshgrid_cube(lx, ly, lz; ne=ne, element_shape=element_shape, basis_order=basis_order)
+                iter = 1:size(mesh.IEN, 2)
                 for i in iter
-                    coord = NodeList[:,IEN[i]]
+                    coord = mesh.NodeList[:, mesh.IEN[i]]
                     ζ = (2 * coord[3] / lz) - 1
-                    N, dN = basis_function(coord[1],coord[2],ζ, FunctionClass)
-                    @test findall(x->x==1,N)==[i]
-                end 
+                    N, dN = basis_function(coord[1], coord[2], ζ, element_shape, basis_order)
+                    @test findall(x->x==1, N) == [i]
+                end
             end
         end
     end
 end
 
 @testset "testing basis function second derivatives" begin
-    N, dN, d2N = basis_function(0.0, nothing, nothing, "Q2"; second_derivatives=true)
+    N, dN, d2N = basis_function(0.0, nothing, nothing, :Line, 2; second_derivatives=true)
     @test d2N == [1.0, 1.0, -2.0]
 
-    N, dN, d2N = basis_function(0.0, 0.0, nothing, "Q1"; second_derivatives=true)
+    N, dN, d2N = basis_function(0.0, 0.0, nothing, :Quad, 1; second_derivatives=true)
     @test size(d2N) == (4, 3)
     @test d2N[:, 1] == [0.0, 0.0, 0.0, 0.0]
     @test d2N[:, 2] == [0.25, -0.25, 0.25, -0.25]

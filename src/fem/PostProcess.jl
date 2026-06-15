@@ -761,9 +761,9 @@ function fit_curve_2D(x,y, n)
 end
 
 """
-    rearrange(q, ne, ndim, IEN, FunctionClass)
+    rearrange(q, ne, ndim, IEN, basis_order)
 
-Rearrange the connectivity vector to be visualised in paraview when langrangian basis functions are used.
+Rearrange the connectivity vector to be visualised in paraview when lagrangian basis functions are used.
 
 # Arguments:
 - `ndim::Integer`: number of dimensions
@@ -772,7 +772,10 @@ Rearrange the connectivity vector to be visualised in paraview when langrangian 
 # Returns:
 - `IEN_new::Matrix{Int64}`: rearranged connectivity matrix
 """
-function rearrange(ndim, IEN) 
+function rearrange(ndim, IEN)
+    if size(IEN, 1) != 27
+        return copy(IEN)
+    end
     IEN_new = zeros(Int64,size(IEN))
     if ndim == 2
         error("rearrange: 2D case is not yet implemented (only 3D is supported)")
@@ -894,20 +897,16 @@ each element `2^nsub` times per axis using the NURBS/IGA basis functions.
 """
 function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
 
-    @unpack NodeList, IEN, C_vol, W, FunctionClass = mdl.mesh_x
+    @unpack NodeList, IEN, volume_element_shape, basis_order = mdl.mesh_x
 
     NodeList_x_cached = NodeList
-    C_vol_x_cached = C_vol
     IEN_x_cached = IEN
-    W_x_cached = W
-    FunctionClass_x_cached = FunctionClass
+    element_shape_x_cached, basis_order_x_cached = volume_element_shape, basis_order
 
-    @unpack NodeList, IEN, C_vol, W, FunctionClass = mdl.mesh_u
+    @unpack IEN, volume_element_shape, basis_order = mdl.mesh_u
 
-    C_vol_u_cached = C_vol
     IEN_u_cached = IEN
-    W_u_cached = W
-    FunctionClass_u_cached = FunctionClass
+    element_shape_u_cached, basis_order_u_cached = volume_element_shape, basis_order
 
     NodeList_ = zeros(Float64, 3, (2^(nsub*3))*size(IEN_x_cached,2)*size(IEN_x_cached,1))
     IEN_list = zeros(Int64, size(IEN_x_cached,1), (2^(nsub*3))*size(IEN_x_cached,2))
@@ -963,12 +962,11 @@ function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
                         scaledPoint = offset .+ scale*(0.5.+0.5*lPoints[j,:])
                         scaledPoint = -1 .+ 2*scaledPoint
                         
-                        # get the NURBs and the gradients
-                        Re, ΔRe = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], C_vol_x_cached[:,:,e], W_x_cached[IEN_x_cached[:,e]], FunctionClass_x_cached)
+                        Re, ΔRe = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], element_shape_x_cached, basis_order_x_cached)
                         NodeList_[:,(cnte-1)*size(IEN_x_cached,1)+j] = Re'*NodeList_x_cached[:,IEN_x_cached[:,e]]'
                         IEN_list[j,cnte] = (cnte-1)*size(IEN_x_cached,1)+j
 
-                        Re_u, _ = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], FunctionClass_u_cached)
+                        Re_u, _ = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], element_shape_u_cached, basis_order_u_cached)
                         plot_u[:,(cnte-1)*size(IEN_x_cached,1)+j] = Re_u'*sol_u[:,IEN_u_cached[:,e]]'
                         
                         # println(size(plot_u))
