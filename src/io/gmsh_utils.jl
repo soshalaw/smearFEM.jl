@@ -3,6 +3,10 @@ using Gmsh
 # Gmsh is not thread-safe: all API calls must be serialized via this lock.
 const GMSH_LOCK = ReentrantLock()
 
+# Serializes mesh file generation so concurrent threads don't race to run the
+# same gmsh process on the same output file.
+const GMSH_GENERATE_LOCK = ReentrantLock()
+
 # Track whether Gmsh has been initialized. Repeated initialize/finalize cycles
 # corrupt Gmsh's internal C++ heap, so we initialize once and use gmsh.clear()
 # between reads instead.
@@ -173,15 +177,19 @@ function _get_mesh_data(filePath::String;
                        face_groups::Vector{String}=["Top", "Bottom", "Lateral"],
                        node_set_groups::Vector{String}=["Top", "Bottom", "Lateral"])
     if !isfile(filePath)
-        if isnothing(params) || isnothing(template_path)
-            error("Mesh '$filePath' not found. Provide `params` and `template_path` for auto-generation.")
+        lock(GMSH_GENERATE_LOCK) do
+            if !isfile(filePath)
+                if isnothing(params) || isnothing(template_path)
+                    error("Mesh '$filePath' not found. Provide `params` and `template_path` for auto-generation.")
+                end
+                geo_path = splitext(filePath)[1] * ".geo"
+                println(geo_path)
+                mkpath(dirname(filePath))
+                _generate_mesh_geo(geo_path, template_path, params)
+                _run_gmsh(geo_path, filePath, mesh_order; dim=mesh_dim) ||
+                    error("gmsh failed to generate mesh at '$filePath'.")
+            end
         end
-        geo_path = splitext(filePath)[1] * ".geo"
-        println(geo_path)
-        mkpath(dirname(filePath))
-        _generate_mesh_geo(geo_path, template_path, params)
-        _run_gmsh(geo_path, filePath, mesh_order; dim=mesh_dim) ||
-            error("gmsh failed to generate mesh at '$filePath'.")
     end
 
     lock(GMSH_LOCK) do
