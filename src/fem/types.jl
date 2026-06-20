@@ -9,10 +9,11 @@ mutable struct Conditions <: EnvConditions
     RENDER::Bool
     filepath::String
     camera_matrix::AbstractMatrix{Float64}
-    obj_pose::AbstractMatrix{Float64}
+    obj_pose::Vector{Float64}
+    viewing_angles::Vector{Float64}
 
     # Constructor with keyword arguments and default values
-    function Conditions(; 
+    function Conditions(;
         ANIMATE::Bool = false,
         WRITEVTK::Bool = false,
         WRITECONTOUR::Bool = false,
@@ -20,8 +21,9 @@ mutable struct Conditions <: EnvConditions
         SIDES::Bool = false,
         filepath::String = "",
         camera_matrix::AbstractMatrix{Float64} = Matrix{Float64}(undef, 4, 4),
-        obj_pose::AbstractMatrix{Float64} = Matrix{Float64}(undef, 4, 4)
+        obj_pose::Vector{Float64} = zeros(Float64, 3),
+        viewing_angles::Vector{Float64} = zeros(Float64, 1)
     )
-        return new(ANIMATE, WRITEVTK, SIDES, WRITECONTOUR, RENDER, filepath, camera_matrix, obj_pose)
+        return new(ANIMATE, WRITEVTK, SIDES, WRITECONTOUR, RENDER, filepath, camera_matrix, obj_pose, viewing_angles)
     end
 end

@@ -8,12 +8,13 @@ BLAS.set_num_threads(Threads.nthreads())
 abstract type AbstractMeshgrid end
 
 # abstract type model end
-export AbstractMeshgrid, MeshgridLine, MeshgridDisk, MeshgridSquare, MeshgridCube, MeshgridCylinder # Meshes.jl
+export AbstractMeshgrid, MeshgridLine, MeshgridDisk, MeshgridSquare, MeshgridCuboid, MeshgridCylinder # Meshes.jl
+export AbstractGeometry, Cylinder, Cuboid, Disk, Square, Segment, ndim # geometries.jl
 export Model, LinearElasticity, Stokes # models.jl
 export SqueezeFlow # scenarios.jl
 export EnvConditions, Conditions # types.jl
 
-export meshgrid_cylinder, meshgrid_cube, meshgrid_square, meshgrid_disk, meshgrid_line # Meshes.jl
+export meshgrid_cylinder, meshgrid_cuboid, meshgrid_square, meshgrid_disk, meshgrid_line # Meshes.jl
 export reset_mesh!, update_initial_state! # Meshes.jl
 export gaussian_quadrature, basis_function, get_quadrature, BasisFunctionCache, get_basis_volume_functions, get_surface_basis_functions # fem.jl
 export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, plot_covariance, eval_on_cylinder, get_lagrange_proj, get_lagrange_pts, get_nurbs_2_lagrange_proj, detect_outlier_observations, get_pose # PostProcess.jl
@@ -46,7 +47,9 @@ include("io/gmsh_utils.jl")
 
 include("optimization/smearOptimize.jl")
 
-include("examples/squeeze_stokes.jl")
+include("fem/geometries.jl")
+include("examples/stokes_solver.jl")
+include("examples/stokes_setup.jl")
 include("examples/run_example.jl")
 
 include("config.jl")

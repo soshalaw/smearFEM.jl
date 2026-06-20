@@ -129,6 +129,7 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     NodeList_x_cached::Matrix{Float64} = NodeList
     IEN_x_cached::Matrix{Int} = IEN
     ID_x_cached::Matrix{Int} = ID
+    h_cached::Float64 = hasproperty(mdl.mesh_x, :h) ? mdl.mesh_x.h : mdl.mesh_x.lz
 
     @unpack IEN, ID, volume_element_shape, basis_order, top_nodes, bottom_nodes, side_nodes, nNodes = mdl.mesh_u
     element_shape_u_cached, basis_order_u_cached = volume_element_shape, basis_order
@@ -164,8 +165,7 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
 
     @unpack camera_matrix, obj_pose, SIDES = conditions    
     camera_matrix_cached::Matrix{Float64} = camera_matrix
-    obj_pose_cached::Matrix{Float64} = obj_pose
-    SIDES_cached::Bool = SIDES
+    obj_pose_cached::Vector{Float64} = obj_pose
     
     NodeList_cached::Matrix{Float64} = NodeList_u_cached
     ID_cached::Matrix{Int} = ID_u_cached
@@ -180,8 +180,8 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     μu_btm = 0  
     μu_side = 0
             
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached)
-    pi, qi = fit_curve(border=BorderPts2D)
+    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached)
+    pi, qi = fit_curve(border=BorderPts2D[1])
     
     dqdη = zeros(Float64, size(q_d_cached_top))
     dqdβ = zeros(Float64, size(q_d_cached_top))
@@ -191,13 +191,13 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', 
                                         NodeList_cached[:,bottom_node_list_cached]', 
                                         NodeList_cached[:,side_node_list_cached]')']      # store the solution fields of the mesh in 3D
-    gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)] # store the solution fields of the border nodes in 2D 
+    gradList = AbstractArray[zeros(Float64, size(BorderPts2D[1],1),size(BorderPts2D[1],2),2)] # store the solution fields of the border nodes in 2D
     pos3D = AbstractArray[NodeList_cached]         # store the solution fields of the mesh in 3D
-    pos3D_cp = AbstractArray[NodeList_cached]  
-    pos2D = AbstractArray[SurfacePts2D]          # store the solution fields of the mesh in 2D
-    borderPts2DList = AbstractArray[BorderPts2D] # store the solution fields of the surfaces in 2D
-    splinep = AbstractArray[BorderPts2D[1,:]]    # store the x coordinates samples of the spline parameters of the border nodes
-    splineq = AbstractArray[BorderPts2D[2,:]]    # store the y coordinates samples of the spline parameters of the border nodes
+    pos3D_cp = AbstractArray[NodeList_cached]
+    pos2D = AbstractArray[SurfacePts2D[1]]          # store the solution fields of the mesh in 2D
+    borderPts2DList = AbstractArray[BorderPts2D[1]] # store the solution fields of the surfaces in 2D
+    splinep = AbstractArray[BorderPts2D[1][1,:]]    # store the x coordinates samples of the spline parameters of the border nodes
+    splineq = AbstractArray[BorderPts2D[1][2,:]]    # store the y coordinates samples of the spline parameters of the border nodes
     output = Float64[] 
     writeborderList = [vcat(pi', qi')]
     iter = 1
@@ -340,20 +340,20 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         
         dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
 
-        BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
-        pi, qi = fit_curve(border=BorderPts2D)
+        BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out)
+        pi, qi = fit_curve(border=BorderPts2D[1])
 
         push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
         push!(displacement, motion_proj)
         push!(surface_fields, motion_proj[:,side_node_list_cached])
         push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
-        push!(gradList,dudθ)
-        push!(pos2D, SurfacePts2D)
+        push!(gradList,dudθ[1])
+        push!(pos2D, SurfacePts2D[1])
         push!(pos3D, NodeList_cached)
         push!(pos3D_cp, NodeList_cached)
-        push!(borderPts2DList, BorderPts2D)
-        push!(splinep, BorderPts2D[1,:])
-        push!(splineq, BorderPts2D[2,:])
+        push!(borderPts2DList, BorderPts2D[1])
+        push!(splinep, BorderPts2D[1][1,:])
+        push!(splineq, BorderPts2D[1][2,:])
         push!(writeborderList, vcat(pi', qi'))
 
     elseif control_cached == "velocity"
@@ -430,23 +430,23 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         
         dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
     
-        BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
-        pi, qi = fit_curve(border=BorderPts2D)
+        BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out)
+        pi, qi = fit_curve(border=BorderPts2D[1])
 
-        mat_nan_inf_check(dudθ[:,:,1])
-        mat_nan_inf_check(dudθ[:,:,2])
+        mat_nan_inf_check(dudθ[1][:,:,1])
+        mat_nan_inf_check(dudθ[1][:,:,2])
 
         push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
         push!(displacement, motion)
         push!(surface_fields, motion[:,side_node_list_cached])
         push!(surface_pts_3D, NodeList_cached[:,side_node_list_cached]')
-        push!(gradList,dudθ)
-        push!(pos2D, SurfacePts2D)
+        push!(gradList,dudθ[1])
+        push!(pos2D, SurfacePts2D[1])
         push!(pos3D, NodeList_cached)
         push!(pos3D_cp, NodeList_cached)
-        push!(borderPts2DList, BorderPts2D)
-        push!(splinep, BorderPts2D[1,:])
-        push!(splineq, BorderPts2D[2,:]) 
+        push!(borderPts2DList, BorderPts2D[1])
+        push!(splinep, BorderPts2D[1][1,:])
+        push!(splineq, BorderPts2D[1][2,:]) 
         push!(writeborderList, vcat(pi', qi'))
     else
             throw(ArgumentError("Control type is unknown"))
@@ -469,25 +469,24 @@ None.
 
 function write_gt_data(exp_params::Dict)
 
-    ndim::Int = 3
     element_shape_u::Symbol = exp_params["element_shape_u"]
     basis_order_u::Int = exp_params["basis_order_u"]
     element_shape_p::Symbol = exp_params["element_shape_p"]
     basis_order_p::Int = exp_params["basis_order_p"]
     element_shape_x::Symbol = exp_params["element_shape_x"]
     basis_order_x::Int = exp_params["basis_order_x"]
-    nDof_u::Int = ndim  # number of degree of freedom per node
-    nDof_p::Int = 1  # number of degree of freedom per node
+    nDof_u::Int = 3
+    nDof_p::Int = 1
 
-    # simulation parameters for the ground truth
-    r::Float64 = exp_params["r"]  # radius of the cylinder in mm
-    h::Float64 = exp_params["h"]  # height of the cylinder in mm
+    r::Float64 = exp_params["r"]
+    h::Float64 = exp_params["h"]
 
     control::String = exp_params["control"]
-    viscosity_type::String = exp_params["viscosity_type"] # "constant" or "bulk_viscosity"
+    viscosity_type::String = exp_params["viscosity_type"]
     filepath_gt::String = exp_params["filepath_gt"]
     obj_pose::AbstractArray = exp_params["obj_pose_gt"]
     camera_matrix::AbstractArray = exp_params["camera_matrix"]
+    z_angle_list::AbstractArray = exp_params["z_angle_list"]
 
     sim_time_gt::Float64 = exp_params["sim_time_gt"]
     steps_gt::Float64 = exp_params["steps_gt"]
@@ -495,28 +494,31 @@ function write_gt_data(exp_params::Dict)
 
     β_gt::Float64 = exp_params["β_gt"]
     η_gt::Float64 = exp_params["η_gt"]
-    ne_gt::Float64 = exp_params["ne_gt"] # number of elements in the mesh for the ground truth
+    ne_gt::Float64 = exp_params["ne_gt"]
 
     F_ext::Float64 = exp_params["F_ext"]
 
-    F = -F_ext*ones(Float64, round(Int, (sim_time_gt/t_steps_gt))) # force applied to the cylinder in N
+    F = -F_ext*ones(Float64, round(Int, (sim_time_gt/t_steps_gt)))
 
     ANIMATE = exp_params["animate"]
     geometry::Symbol = get(exp_params, "geometry", :cylinder)
     edge_radius::Union{Float64,Nothing} = get(exp_params, "edge_radius", nothing)
 
-    # Write the ground truth
+    _mesh_path_kw(d) = haskey(d, "mesh_path") ? (mesh_path=d["mesh_path"],) : (;)
+
     printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
-    if haskey(exp_params, "mesh_path")
-        model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, viscosity_type,
-                    sim_time_gt, t_steps_gt, mesh_path=exp_params["mesh_path"], geometry=geometry, edge_radius=edge_radius)
+    _shared = (η_gt, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
+    model_gt, scene_gt = if geometry === :cylinder
+        def_problem(Cylinder(r, h), ne_gt, _shared...; _mesh_path_kw(exp_params)...)
     else
-        model_gt, scene_gt = def_problem(r, h, ne_gt, η_gt, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, viscosity_type,
-                    sim_time_gt, t_steps_gt, geometry=geometry, edge_radius=edge_radius)
+        lx = Float64(get(exp_params, "lx", r))
+        ly = Float64(get(exp_params, "ly", r))
+        lz = Float64(get(exp_params, "lz", h))
+        def_problem(Cuboid(lx, ly, lz), ne_gt, _shared...; edge_radius=edge_radius, _mesh_path_kw(exp_params)...)
     end
 
     @info "Writing ground truth gt data to with $ne_gt elements to $filepath_gt"
-    write_sim_data(model_gt, scene_gt, camera_matrix, obj_pose, filepath_gt, ANIMATE=ANIMATE)
+    write_sim_data(model_gt, scene_gt, camera_matrix, obj_pose, z_angle_list, filepath_gt, ANIMATE=ANIMATE)
 
   end
 
@@ -548,15 +550,14 @@ Initializes the simulation and writes the data to a file.
 # Returns
 None.
 """
-function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractMatrix{Float64}, 
-                        filepath::String="nothing"; ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true)
+function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, z_angle_list::Vector{Float64}=[0.0], filepath::String="nothing"; ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true)
 
     # copy the model and scene to avoid modifying the original objects
     model::AbstractModel = deepcopy(_model)
     scene::AbstractScenario = deepcopy(_scene)
     
     # set the model parameters
-    conditions = Conditions(ANIMATE=ANIMATE, WRITECONTOUR=WRITECONTOUR, RENDER=RENDER, WRITEVTK=WRITEVTK, camera_matrix=camera_matrix, obj_pose=obj_pose, filepath=filepath)
+    conditions = Conditions(ANIMATE=ANIMATE, WRITECONTOUR=WRITECONTOUR, RENDER=RENDER, WRITEVTK=WRITEVTK, camera_matrix=camera_matrix, obj_pose=obj_pose, viewing_angles=z_angle_list, filepath=filepath)
     
     # remove the previous results folder if it exists
     if isdir(string(filepath))
@@ -573,20 +574,25 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     mesh_h0 = hasproperty(model.mesh_u, :h)  ? model.mesh_u.h  : model.mesh_u.lz
     mesh_r0 = hasproperty(model.mesh_u, :r)  ? model.mesh_u.r  : model.mesh_u.lx
     h = get_height(h_, mesh_h0)
+    geometry   = hasproperty(model.mesh_u, :r) ? :cylinder : :cube
+    edge_radius = geometry === :cube ? model.mesh_x.edge_radius : nothing
     params = Dict("r"=>mesh_r0, "h"=>mesh_h0, "ne" => model.mesh_x.ne, "η" => model.η, "β" => scene.β, "camera_matrix" => conditions.camera_matrix, "obj_pose" => conditions.obj_pose,
                     "control_type"=>scene.control, "cParam"=>scene.cParam, "simulation_time" => scene.sim_time, "time_steps" => scene.t_steps,
-                    "viscosity_type"=>scene.viscosity_type)
+                    "viscosity_type"=>scene.viscosity_type, "z_angle_list"=>conditions.viewing_angles, "geometry"=>geometry, "edge_radius"=>edge_radius)
 
     # write results to files
     write_csv(string(filepath,"/data/avg_time"), t_per_step)
     write_csv(string(filepath,"/data/h"), h)
-    write_data(string(conditions.filepath,"/data/sim_data/2D_surface_points"), pos2D)
+
     write_data(string(filepath,"/data/sim_data/node_points"), pos3D)
     write_data(string(filepath,"/data/sim_data/displacement_fields"), displacement)
-    write_data(string(filepath,"/data/sim_data/2D_border_points"), borderPts2DList)
     write_data(string(filepath,"/data/sim_data/velocity_fields"), velocity)
     write_data(string(filepath,"/data/sim_data/pressure_fields"), pressure)
+
     write_json(string(filepath,"/data/sim_params"), params)
+
+    write_2d_data(string(conditions.filepath,"/data/sim_data/2D_surface_points"), pos2D)
+    write_2d_data(string(filepath,"/data/sim_data/2D_border_points"), borderPts2DList)
 
     if _scene.viscosity_type == "bulk_viscosity" && ANIMATE
         time = collect(Float64, range(scene.t_steps, stop=scene.sim_time, step=scene.t_steps))
@@ -616,7 +622,8 @@ Initializes the mesh and writes the data to a file.
 - `element_shape::Symbol`: Element topology (`:Hex`, `:Tet`, etc.).
 - `basis_order::Int`: Polynomial order of the basis functions.
 - `camera_matrix::AbstractMatrix{Float64}`: Camera matrix.
-- `obj_pose::AbstractMatrix{Float64}`: Object pose matrix.
+- `obj_pose::Vector{Float64}`: Object pose vector.
+- `z_angle_list::Vector{Float64}`: List of z-angles for the camera (default: `[0.0]`).
 
 # Keyword Arguments
 - `geometry::Symbol`: Mesh geometry — `:cylinder` or `:cube` (default: `:cylinder`).
@@ -630,7 +637,7 @@ Initializes the mesh and writes the data to a file.
 - `splineq::Vector{Vector{Float64}}`: y coordinates of the border observation at each timestep interpolated.
 """
 function initialize_mesh(r::Number, h::Number, ne::Int64, element_shape::Symbol, basis_order::Int,
-                            camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractMatrix{Float64};
+                            camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, z_angle_list::Vector{Float64}=[0.0];
                             geometry::Symbol=:cylinder, filepath::String="nothing",
                             edge_radius::Union{Float64,Nothing}=nothing)
 
@@ -646,25 +653,23 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, element_shape::Symbol,
     mesh = if geometry === :cylinder
         meshgrid_cylinder(r, h; mesh_kwargs...)
     else
-        meshgrid_cube(r, r, h; mesh_kwargs..., edge_radius=edge_radius)
+        meshgrid_cuboid(r, r, h; mesh_kwargs..., edge_radius=edge_radius)
     end
-    BorderPts2D, SurfacePts2D = extract_borders(mesh.NodeList, camera_matrix, obj_pose, BorderNodesList= mesh.side_nodes)
-    pi, qi = fit_curve(border=BorderPts2D)
-        
+    
+    BorderPts2D, SurfacePts2D, obs_border_pts = _get_2D_data(mesh.NodeList, camera_matrix, obj_pose, h; BorderNodesList=mesh.side_nodes, angles=z_angle_list)
+    
     # store the solution fields of the border nodes in 2D 
     pos3D = AbstractArray[mesh.NodeList]                                                             # store the solution fields of the mesh in 3D
     surface_pts_3D = [vcat(mesh.NodeList[:,mesh.top_nodes]', mesh.NodeList[:,mesh.bottom_nodes]', mesh.NodeList[:,mesh.side_nodes]')'] # store the solution fields of the mesh in 3D
     pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
-    borderPts2DList = AbstractArray[BorderPts2D]                                                          # store the solution fields of the surfaces in 2D
-    splinep = AbstractArray[pi]                                                                           # store the x coordinates samples of the spline parameters of the border nodes
-    splineq = AbstractArray[qi]                                                                           # store the y coordinates samples of the spline parameters of the border nodes 
-    writeborderList = [vcat(pi', qi')]
+    borderPts2DList = AbstractArray[BorderPts2D]                                                          # store the solution fields of the surfaces in 2D                                                                          # store the y coordinates samples of the spline parameters of the border nodes 
+    writeborderList = [obs_border_pts]
 
     write_scene(joinpath(filepath,"data"), pos3D, mesh.IEN, ndim, pos3D, element_shape=mesh.volume_element_shape, basis_order=mesh.basis_order)
-    animate_fields(filepath = joinpath(filepath,"Results","images"), Nodes=pos3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+    animate_fields(filepath = joinpath(filepath,"Results","images"), Nodes=pos3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D, cam_pose=obj_pose, h=h)
     write_data(joinpath(filepath,"Results"), writeborderList)
 
-    return borderPts2DList, pos2D, splinep, splineq
+    return borderPts2DList, pos2D #, splinep, splineq
 end 
 
 """

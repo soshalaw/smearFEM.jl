@@ -35,7 +35,8 @@ function _get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, element_sh
 
     mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID,
             volume_element_shape=element_shape, basis_order=basis_order,
-            nNodes=nNodes, ne=ne, side_nodes=nodes_lateral, top_nodes=nodes_top, bottom_nodes=nodes_bottom)
+            nNodes=nNodes, ne=ne, side_nodes=nodes_lateral, top_nodes=nodes_top, bottom_nodes=nodes_bottom,
+            effect_elem_sze=elem_size)
     return mesh
 end
 
@@ -43,7 +44,7 @@ end
 """
     _get_gmsh_box(file_path, ndof, lx, ly, lz, element_shape, basis_order, elem_size; template_path)
 
-Load (or auto-generate) a box mesh and return a `MeshgridCube`.
+Load (or auto-generate) a box mesh and return a `MeshgridCuboid`.
 Physical groups expected: "Box" (volume), "Bottom", "Top", "Front", "Back", "Left", "Right" (surfaces).
 """
 function _get_gmsh_box(file_path::String, ndof::Int, lx::T, ly::U, lz::V,
@@ -98,7 +99,7 @@ function _get_gmsh_box(file_path::String, ndof::Int, lx::T, ly::U, lz::V,
     end
 
     empty_mat = Matrix{Int}(undef,0,0)
-    return MeshgridCube(lx=lx, ly=ly, lz=lz, NodeList=NodeList, IEN=IEN,
+    return MeshgridCuboid(lx=lx, ly=ly, lz=lz, NodeList=NodeList, IEN=IEN,
         IEN_top=something(IEN_top, empty_mat),
         IEN_bottom=something(IEN_bottom, empty_mat),
         IEN_front=something(IEN_sides_[1], empty_mat),
@@ -107,7 +108,8 @@ function _get_gmsh_box(file_path::String, ndof::Int, lx::T, ly::U, lz::V,
         IEN_right=something(IEN_sides_[4], empty_mat),
         ID=ID, volume_element_shape=element_shape, basis_order=basis_order,
         nNodes=nNodes, ne=ne,
-        side_nodes=nodes_lateral, top_nodes=nodes_top, bottom_nodes=nodes_bottom)
+        side_nodes=nodes_lateral, top_nodes=nodes_top, bottom_nodes=nodes_bottom,
+        edge_radius=edge_radius, effect_elem_sze=elem_size)
 end
 
 """
@@ -160,7 +162,8 @@ function _get_gmsh_square(file_path::String, ndof::Int, lx::T, ly::U,
         IEN_sides=IEN_side, ID=ID,
         volume_element_shape=element_shape, basis_order=basis_order,
         nNodes=nNodes, ne=ne,
-        side_nodes=nodes_lateral, top_nodes=nodes_top, bottom_nodes=nodes_bottom)
+        side_nodes=nodes_lateral, top_nodes=nodes_top, bottom_nodes=nodes_bottom,
+        effect_elem_sze=elem_size)
 end
 
 """
@@ -202,7 +205,8 @@ function _get_gmsh_disk(file_path::String, ndof::Int, r::T,
     return MeshgridDisk(r=r, NodeList=NodeList, IEN=IEN,
         IEN_boundary=IEN_boundary, ID=ID,
         volume_element_shape=element_shape, basis_order=basis_order,
-        nNodes=nNodes, ne=ne, boundary_nodes=boundary_nodes)
+        nNodes=nNodes, ne=ne, boundary_nodes=boundary_nodes,
+        effect_elem_sze=elem_size)
 end
 
 """
@@ -238,5 +242,6 @@ function _get_gmsh_line(file_path::String, ndof::Int, len::T,
 
     return MeshgridLine(lx=len, NodeList=NodeList, IEN=IEN, ID=ID,
         volume_element_shape=element_shape, basis_order=basis_order,
-        nNodes=nNodes, ne=ne, boundary_nodes=boundary_nodes)
+        nNodes=nNodes, ne=ne, boundary_nodes=boundary_nodes,
+        effect_elem_sze=elem_size)
 end

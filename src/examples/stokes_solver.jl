@@ -252,7 +252,7 @@ function assemble_system_A_dense(mdl::Stokes)::Matrix{Float64}
         Ke_row::Int, Ke_col::Int = szB, szB
         # element loop
         for e::Int in e_iter
-            coords::Matrix{Float64} = NodeList_cached[:, IEN_cached[:, e]]  # Get the coordinates of the nodes of the element
+            coords::Matrix{Float64} = nodeList_cached[:, IEN_cached[:, e]]  # Get the coordinates of the nodes of the element
 
             mul!(Jac, coords, ΔN)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
             w::Float64 = wpoints[gp] * abs(det(Jac))
@@ -337,7 +337,7 @@ function assemble_system_B(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrix
     @unpack NodeList, IEN, ID, volume_element_shape, basis_order = mdl.mesh_u
 
     IEN_u_cached::Matrix{Int} = IEN
-    NodeList_cached::Matrix{Float64} = NodeList
+    nodeList_cached::Matrix{Float64} = NodeList
     ID_cached::Matrix{Int} = ID
     ne_cached::Int = ne
     ndim_cached::Int = ndim
@@ -466,7 +466,7 @@ function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
     @unpack NodeList, IEN, ID, volume_element_shape, basis_order = mdl.mesh_p
 
     IEN_u_cached::Matrix{Int} = IEN
-    NodeList_cached::Matrix{Float64} = NodeList
+    nodeList_cached::Matrix{Float64} = NodeList
     ID_cached::Matrix{Int} = ID
     ne_cached::Int = ne
     ndim_cached::Int = ndim
@@ -566,7 +566,7 @@ function assemble_system_B_dense(mdl::Stokes)::Matrix{Float64}
 
         # element loop
         for e::Int in e_iter
-            coords_u::Matrix{Float64} = NodeList_cached[:, IEN_u_cached[:, e]]  # Get the coordinates of the nodes of the element
+            coords_u::Matrix{Float64} = nodeList_cached[:, IEN_u_cached[:, e]]  # Get the coordinates of the nodes of the element
 
             mul!(Jac, coords_u, ΔN_u)  # Jacobian matrix [dx/dxi dx/deta; dy/dxi dy/deta]
             w::Float64 = wpoints[gp] * abs(det(Jac))
@@ -881,7 +881,7 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
     @unpack ndim, nDof_u = mdl
     @unpack NodeList, nNodes, ID = mdl.mesh_u
 
-    NodeList_cached::Matrix{Float64} = NodeList
+    nodeList_cached::Matrix{Float64} = NodeList
     ID_cached::Matrix{Int} = ID
     ndim_cached::Int = ndim
     nDof_u_cached::Int = nDof_u
@@ -906,9 +906,9 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
         if ndim_cached == 3
             Dbound1 = 0
             Dbound2 = 1
-            iter = 1:size(NodeList_cached,2)
+            iter = 1:size(nodeList_cached,2)
             for n::Int in iter
-                coord = NodeList_cached[:,n] # get the coordinates of the node
+                coord = nodeList_cached[:,n] # get the coordinates of the node
                 if coord[3] == Dbound1 # bottom boundary
                     q_upper[n] = 0
                     push!(rCol, n)
@@ -920,13 +920,27 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
         elseif ndim_cached == 2
             Dbound1 = 0
             Dbound2 = 1
-            iter = 1:size(NodeList_cached,2)
+            iter = 1:size(nodeList_cached,2)
             for n::Int in iter
-                coord = NodeList_cached[:,n] # get the coordinates of the node
-                if coord[2] == Dbound1 # bottom boundary
+                coord = nodeList_cached[:,n]
+                if coord[2] == Dbound1
                     q_upper[n] = 0
                     push!(rCol, n)
-                elseif coord[2] == Dbound2 # top boundary
+                elseif coord[2] == Dbound2
+                    q_upper[n] = -1
+                    push!(rCol, n)
+                end
+            end
+        elseif ndim_cached == 1
+            Dbound1 = 0
+            Dbound2 = 1
+            iter = 1:size(nodeList_cached,2)
+            for n::Int in iter
+                coord = nodeList_cached[:,n]
+                if coord[1] == Dbound1
+                    q_upper[n] = 0
+                    push!(rCol, n)
+                elseif coord[1] == Dbound2
                     q_upper[n] = -1
                     push!(rCol, n)
                 end
@@ -937,17 +951,17 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
 
     else
         z0Bound = 0
-        z1Bound = maximum(mdl.mesh_u.NodeList[3, :])
+        z1Bound = maximum(mdl.mesh_u.NodeList[ndim_cached, :])
 
-        iter = 1:size(NodeList_cached,2)
+        iter = 1:size(nodeList_cached,2)
         for nNode::Int in iter
-            coord = NodeList_cached[:,nNode]    # get the coordinates of the node
-            if coord[3] == z1Bound   # top boundary
-                q_upper[ID_cached[3,nNode]] = 1     # constraint the z displacement to be -d
-                push!(rCol,ID_cached[3,nNode])
-            elseif coord[3] == z0Bound   # bottom boundary
-                q_lower[ID_cached[3,nNode]] = 1     # constraint the z displacement to be -d
-                push!(rCol,ID_cached[3,nNode])
+            coord = nodeList_cached[:,nNode]
+            if coord[ndim_cached] == z1Bound
+                q_upper[ID_cached[ndim_cached,nNode]] = 1
+                push!(rCol,ID_cached[ndim_cached,nNode])
+            elseif coord[ndim_cached] == z0Bound
+                q_lower[ID_cached[ndim_cached,nNode]] = 1
+                push!(rCol,ID_cached[ndim_cached,nNode])
             end
         end
 
@@ -957,188 +971,12 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
     return q_upper, q_side, q_lower, C_uc
 end
 
-"""
-    get_η_power_law(t, F, R_0, H_0, η_0, n, K)
-
-Calculate the shear viscosity using the power law viscosity model.
-
-# Arguments:
-- `t::Number` : time
-- `F::Number` : applied force
-- `R_0::Number` : initial radius
-- `H_0::Number` : initial height
-- `η_0::Number` : initial viscosity
-- `n::Number` : power law index
-- `K::Number` : consistency index
-
-# Returns:
-- `η::Number` : shear viscosity
-"""
-function get_η_power_law(t::T, F::U, R_0::V, H_0::W, η_0::X) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number}
-    n::Float64 = 0.9
-    K::Float64 = 100.0
-
-    H(t) = H_0*(1+8*H_0^2*F*t/(3*π*η_0*R_0^4))^(-1/4) # height with time
-    
-    R(t) = R_0*(1+8*H_0^2*F*t/(3*π*η_0*R_0^4))^(1/8) # radius with time
-
-    H_dot(t) = 8/3*(-2*F*H(t)^3/(8*π*η_0*R(t)^4)) # rate of change of height
-
-    γ_dot(t) = H_dot(t)/H(t) # shear rate
-
-    η(t) = K*(abs(γ_dot(t)))^(n-1) # shear viscosity
-
-    return η(t)
-end
-
-"""
-    def_problem(r, h, ne, η_0, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β, cParam, control, viscosity_type, sim_time, t_steps; geometry=:cylinder, edge_radius=nothing, viscosity_model="power_law")
-
-Define the conditions and parameters of the squeeze flow problem.
-
-# Arguments:
-- `r::Number` : Characteristic size (radius for `:cylinder`; side length for `:cube`)
-- `h::Number` : Height of the object
-- `ne::Int64` : Number of elements in each direction
-- `η_0::Number` : Initial viscosity
-- `ndim::Int64` : Number of dimensions
-- `element_shape_u::Symbol` : Element topology for velocity field (`:Hex`, `:Tet`, etc.)
-- `basis_order_u::Int` : Polynomial order for velocity field
-- `nDof_u::Int64` : Degrees of freedom per node for velocity
-- `element_shape_p::Symbol` : Element topology for pressure field
-- `basis_order_p::Int` : Polynomial order for pressure field
-- `nDof_p::Int64` : Degrees of freedom per node for pressure
-- `element_shape_x::Symbol` : Element topology for geometry
-- `basis_order_x::Int` : Polynomial order for geometry
-- `β::Number` : Slip boundary condition parameter
-- `cParam::Vector{Float64}` : Control parameters (force or velocity)
-- `control::String` : Control type ("force" or "velocity")
-- `viscosity_type::String` : Viscosity type ("bulk_viscosity" or other)
-- `sim_time::Number` : Total simulation time
-- `t_steps::Number` : Time step size
-
-# Keyword Arguments:
-- `geometry::Symbol` : Mesh geometry — `:cylinder` or `:cube` (default: `:cylinder`)
-- `edge_radius::Float64` : Fillet radius for the 4 vertical edges of a `:cube` mesh (default: `nothing`)
-- `viscosity_model::String` : Viscosity model ("power_law" or "carreau")
-
-# Returns:
-- `stokes::Stokes` : The finite element model
-- `squeeze::SqueezeFlow` : The squeeze flow problem setup
-"""
-function def_problem(r::T, h::U, ne::Z, η_0::V, ndim::Int64, element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64, element_shape_p::Symbol, basis_order_p::Int,
-                    nDof_p::Int64, element_shape_x::Symbol, basis_order_x::Int, β::Y, cParam::Vector{Float64}, control::String, viscosity_type::String,
-                    sim_time::W, t_steps::X; geometry::Symbol=:cylinder, edge_radius::Union{Float64,Nothing}=nothing,
-                    viscosity_model::String="power_law", GMESH_MESH::Bool=true,
-                    mesh_path::String = joinpath(dirname(dirname(@__DIR__)), "mesh_files")) where {T<:Number,U<:Number,V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
-
-    time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
-    len_t::Int = length(time)
-    @info "Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(round(Int, sim_time/t_steps))"
-    @info "Length of time array: $(len_t)"
-
-    if length(cParam) < len_t
-        @error "Length of the Force vector ($(length(cParam))) is less than length of time array ($(length(time)))"
-    end
-
-    η = [η_0]
-    if viscosity_type == "bulk_viscosity" && viscosity_model == "power_law"
-        @info "Using power law viscosity model"
-        η = get_η_power_law.(time, -cParam[1:len_t], r, h, η_0)
-    end
-
-    stokes = set_model(r, h, float(ne), η, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x;
-                       filepath_mesh=mesh_path, GMESH_MESH=GMESH_MESH, geometry=geometry, edge_radius=edge_radius)
-    q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes)
-
-    squeeze = SqueezeFlow(stokes, [β], [q_tp, q_side, q_btm], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
-    return stokes, squeeze
-end
-
-"""
-    set_model(r, h, ne, η, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x; geometry=:cylinder, edge_radius=nothing, GMESH_MESH=true)
-
-Sets up the Stokes model for the finite element method.
-
-# Arguments:
-- `r::Number`: Characteristic size (radius for `:cylinder`; side length for `:cube`)
-- `h::Number`: Height of the object
-- `ne::Float64`: Number of elements per direction (structured) / target element size (Gmsh)
-- `η::Vector{Float64}`: Dynamic viscosity values
-- `ndim::Int64`: Number of dimensions
-- `element_shape_u::Symbol`: Element topology for velocity field (`:Hex`, `:Tet`, etc.)
-- `basis_order_u::Int`: Polynomial order for velocity field
-- `nDof_u::Int64`: Degrees of freedom per node for velocity field
-- `element_shape_p::Symbol`: Element topology for pressure field
-- `basis_order_p::Int`: Polynomial order for pressure field
-- `nDof_p::Int64`: Degrees of freedom per node for pressure field
-- `element_shape_x::Symbol`: Element topology for geometry
-- `basis_order_x::Int`: Polynomial order for geometry
-- `geometry::Symbol`: Mesh geometry — `:cylinder` or `:cube` (default: `:cylinder`)
-- `edge_radius::Float64`: Fillet radius for vertical edges of a `:cube` mesh (default: `nothing`)
-- `GMESH_MESH::Bool`: Whether to use Gmsh for mesh generation
-
-# Returns:
-- `mdl::Stokes`: The Stokes model for finite element analysis
-"""
-function set_model(r::R, h::H, ne::Float64, η::Vector{Float64}, ndim::Int64, element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64, element_shape_p::Symbol, basis_order_p::Int,
-                nDof_p::Int64, element_shape_x::Symbol, basis_order_x::Int; GMESH_MESH::Bool=true,
-                filepath_mesh::String="", geometry::Symbol=:cylinder,
-                edge_radius::Union{Float64,Nothing}=nothing)::Stokes where {R<:Number,H<:Number}
-
-    geometry in (:cylinder, :cube) ||
-        throw(ArgumentError("geometry must be :cylinder or :cube, got :$geometry"))
-
-    mesh_type = GMESH_MESH ? :unstructured : :structured
-
-    function _make_mesh(element_shape, basis_order, ndof)
-        if geometry === :cylinder
-            meshgrid_cylinder(r, h; mesh_type=mesh_type, element_shape=element_shape,
-                basis_order=basis_order, ne=round(Int, ne), ndof=ndof,
-                elem_size=ne, mesh_path=filepath_mesh)
-        else
-            meshgrid_cube(r*2, r*2, h; mesh_type=mesh_type, element_shape=element_shape,
-                basis_order=basis_order, ne=round(Int, ne), ndof=ndof,
-                elem_size=ne, mesh_path=filepath_mesh, edge_radius=edge_radius)
-        end
-    end
-
-    mesh_u = _make_mesh(element_shape_u, basis_order_u, nDof_u)
-    mesh_p = _make_mesh(element_shape_p, basis_order_p, nDof_p)
-    mesh_x = _make_mesh(element_shape_x, basis_order_x, 1)
-
-    return Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
-end
-
-"""
-    simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
-
-Simulate the Stokes problem for a given mesh over a given time period.
-
-# Arguments:
-- `mdl::Stokes` : Finite element model
-- `scene::SqueezeFlow` : Parameters for the squeeze flow problem
-- `conditions::Conditions` : External environmental conditions and output settings
-
-# Returns:
-- `output::Vector{Float64}` : Output displacement values
-- `gradList::Vector{Matrix{Float64}}` : Gradient of the solution at each time step
-- `borderPts2DList::Vector{Matrix{Float64}}` : Border points in 2D at each time step
-- `displacement::Vector{Matrix{Float64}}` : Displacement of nodal points at each timestep
-- `surface_pts_3D::Vector{Matrix{Float64}}` : 3D coordinates of surface nodes at each timestep
-- `pos2D::Vector{Matrix{Float64}}` : 2D projection of surface nodes at each timestep
-- `pos3D::Vector{Matrix{Float64}}` : 3D mesh coordinates at each timestep
-- `splinep::Vector{Vector{Float64}}` : Spline x-coordinate samples
-- `splineq::Vector{Vector{Float64}}` : Spline y-coordinate samples
-- `velocity::Vector{Matrix{Float64}}` : Velocity field at each timestep
-- `pressure::Vector{Vector{Float64}}` : Pressure field at each timestep
-- `gradList_3d::Vector{Array{Float64,3}}` : 3D gradient tensor at each timestep
-"""
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     reset_model!(mdl)
     
     @unpack volume_element_shape, basis_order, IEN, ID, NodeList = mdl.mesh_x
+    h_cached::Float64 = hasproperty(mdl.mesh_x, :h) ? mdl.mesh_x.h : mdl.mesh_x.lz
     element_shape_x_cached, basis_order_x_cached = volume_element_shape, basis_order
     NodeList_x_cached::Matrix{Float64} = NodeList
     IEN_x_cached::Matrix{Int} = IEN
@@ -1177,12 +1015,12 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     control_cached::String = control
     cParam_cached::Vector{Float64} = scene.cParam
 
-    @unpack camera_matrix, obj_pose, SIDES = conditions    
+    @unpack camera_matrix, obj_pose, viewing_angles = conditions    
+    rot_angle_cached::Vector{Float64} = viewing_angles
     camera_matrix_cached::Matrix{Float64} = camera_matrix
-    obj_pose_cached::Matrix{Float64} = obj_pose
-    SIDES_cached::Bool = SIDES
+    obj_pose_cached::Vector{Float64} = obj_pose
     
-    NodeList_cached::Matrix{Float64} = NodeList_u_cached
+    nodeList_cached::Matrix{Float64} = NodeList_u_cached
     ID_cached::Matrix{Int} = ID_u_cached
     time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
     len_t = length(time)
@@ -1196,30 +1034,28 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     μu_btm = 0  
     μu_side = 0
-            
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached)
-    pi, qi = fit_curve(border=BorderPts2D)
     
+    BorderPts2D, surface_pts_2d, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, angles=rot_angle_cached)
     dqdη = zeros(Float64, size(q_d_cached_top))
     dqdβ = zeros(Float64, size(q_d_cached_top))
 
-    velocity = AbstractArray[zeros(Float64,size(NodeList_cached,1),size(NodeList_cached,2))] # store the velocity of the mesh in 3D
-    pressure = AbstractArray[zeros(Float64,size(NodeList_cached,1),1)] # store the pressure of the mesh in 3D
-    displacement = AbstractArray[zeros(Float64,size(NodeList_cached,1),size(NodeList_cached,2))] # store the displacement of the mesh in 3D
+    velocity = AbstractArray[zeros(Float64,size(nodeList_cached,1),size(nodeList_cached,2))] # store the velocity of the mesh in 3D
+    pressure = AbstractArray[zeros(Float64,size(nodeList_cached,1),1)] # store the pressure of the mesh in 3D
+    displacement = AbstractArray[zeros(Float64,size(nodeList_cached,1),size(nodeList_cached,2))] # store the displacement of the mesh in 3D
     surface_fields = AbstractArray[]
-    surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', 
-                                        NodeList_cached[:,bottom_node_list_cached]', 
-                                        NodeList_cached[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
-    gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)] # store the solution fields of the border nodes in 2D 
-    gradList_3d = AbstractArray[zeros(Float64, size(NodeList_cached,1),size(NodeList_cached,2),2)] # store the solution fields of the border nodes in 3D
-    pos3D = AbstractArray[NodeList_cached]       # store the solution fields of the mesh in 3D
-    pos3D_cp = AbstractArray[NodeList_cached]  
-    pos2D = AbstractArray[SurfacePts2D]          # store the solution fields of the mesh in 2D
-    borderPts2DList = AbstractArray[BorderPts2D] # store the solution fields of the surfaces in 2D
+    surface_pts_3D = AbstractArray[vcat(nodeList_cached[:,top_node_list_cached]', 
+                                        nodeList_cached[:,bottom_node_list_cached]', 
+                                        nodeList_cached[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
+    gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)] # store the solution fields of the border nodes in 2D
+    gradList_3d = AbstractArray[zeros(Float64, size(nodeList_cached,1),size(nodeList_cached,2),2)] # store the solution fields of the border nodes in 3D
+    pos3D = AbstractArray[nodeList_cached]       # store the solution fields of the mesh in 3D
+    pos3D_cp = AbstractArray[nodeList_cached]
+    pos2D = AbstractArray[surface_pts_2d]          # store the solution fields of the mesh in 2D
+    borderPts2DList = AbstractArray[BorderPts2D] # store the border points in 2D for each angle at each time step
     splinep = AbstractArray[BorderPts2D[1,:]]  # store the x coordinates samples of the spline parameters of the border nodes
     splineq = AbstractArray[BorderPts2D[2,:]]  # store the y coordinates samples of the spline parameters of the border nodes
     output = Float64[] 
-    writeborderList = [vcat(pi', qi')]
+    writeborderList = [obs_border_pts]
 
     dac_list = Float64[]
     bd_list = Float64[]
@@ -1246,8 +1082,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     q = similar(q_d)
 
-    dNodeList_dη = zeros(Float64, size(NodeList_cached))
-    dNodeList_dβ = zeros(Float64, size(NodeList_cached))
+    dNodeList_dη = zeros(Float64, size(nodeList_cached))
+    dNodeList_dβ = zeros(Float64, size(nodeList_cached))
 
     iter::Int = 1
     pr = progress_guard(len_t; desc= "Simulating with prescribed $(control_cached) ...", showspeed=true)
@@ -1297,46 +1133,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dA_freedη .= C_Tu*dAdη*C_uc_cached # extract the free part of the stiffness matrix
             dA_freedβ .= C_Tu*dAdβ*C_uc_cached # extract the free part of the stiffness matrix
 
-            # M[1:size(A_free,1),1:size(A_free,2)] = A_free
-            # M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = B_free'
-            # M[end,1:size(A_free,2)] = q_d_cached_top'*A*C_uc_cached
-
-            # M[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = B_free
-            # M[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = q_d_cached_top'*B
-
-            # M[1:size(A_free,1),end] = C_Tu*A*q_d_cached_top
-            # M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = B'*q_d_cached_top
-            # M[end,end] = (q_d_cached_top'*A*q_d_cached_top)[end]
-
             M = [A_free B_free C_Tu*A*q_d_cached_top; 
                 B_free' zero_matrix_np B'*q_d_cached_top;
                 q_d_cached_top'*A*C_uc_cached q_d_cached_top'*B (q_d_cached_top'*A*q_d_cached_top)[end]]
-
-            # dMdη[1:size(A_free,1),1:size(A_free,2)] = dA_freedη
-            # dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = dB_free'
-            # dMdη[end,1:size(A_free,2)] = q_d_cached_top'*dAdη*C_uc_cached
-
-            # dMdη[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = dB_free
-            # dMdη[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = q_d_cached_top'*dB
-
-            # dMdη[1:size(A_free,1),end] = C_Tu*dAdη*q_d_cached_top
-            # dMdη[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
-            # dMdη[end,end] = (q_d_cached_top'dAdη*q_d_cached_top)[end]
             
             dMdη = [dA_freedη dB_free C_Tu*dAdη*q_d_cached_top; 
                 dB_free' zero_matrix_np dB'*q_d_cached_top;
                 q_d_cached_top'*dAdη*C_uc_cached q_d_cached_top'*dB (q_d_cached_top'*dAdη*q_d_cached_top)[end]]
-
-            # dMdβ[1:size(A_free,1),1:size(A_free,2)] = dA_freedβ
-            # dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = dB_free'
-            # dMdβ[end,1:size(A_free,2)] = q_d_cached_top'*dAdβ*C_uc_cached
-
-            # dMdβ[1:size(A_free,1),(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = dB_free
-            # dMdβ[end,(size(A_free,2)+1):(size(A_free,2)+size(B_free,2))] = q_d_cached_top'*dB
-
-            # dMdβ[1:size(A_free,1),end] = C_Tu*dAdβ*q_d_cached_top
-            # dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
-            # dMdβ[end,end] = (q_d_cached_top'dAdβ*q_d_cached_top)[end]
 
             dMdβ = [dA_freedβ dB_free C_Tu*dAdβ*q_d_cached_top; 
                 dB_free' zero_matrix_np dB'*q_d_cached_top;
@@ -1397,8 +1200,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dmotiondη = dvdη*t_steps_cached
             dmotiondβ = dvdβ*t_steps_cached
 
-            NodeList_cached = NodeList_cached + motion # update the mesh grid
-            mdl.mesh_x.NodeList = NodeList_cached      # update the mesh grid
+            nodeList_cached = nodeList_cached + motion # update the mesh grid
+            mdl.mesh_x.NodeList = nodeList_cached      # update the mesh grid
             dNodeList_dη += dmotiondη
             dNodeList_dβ += dmotiondβ
             
@@ -1407,25 +1210,24 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             
             dmdθ_out = @views cat(dNodeList_dη,dNodeList_dβ,dims=3) # concatenate the gradients in to a tensor
 
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
-            pi, qi = fit_curve(border=BorderPts2D)
+            BorderPts2D, dudθ, surface_pts_2d, _, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, angles=rot_angle_cached)
             
             push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(velocity, velocity_field) # store the velocity of the mesh in 3D
             push!(pressure, p) # store the pressure of the mesh in 3D
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
+            push!(surface_pts_3D, vcat(nodeList_cached[:,top_node_list_cached]', nodeList_cached[:,bottom_node_list_cached]', nodeList_cached[:,side_node_list_cached]')')
             push!(gradList,dudθ)
             push!(gradList_3d, dmdθ_out)
-            push!(pos2D, SurfacePts2D)
-            push!(pos3D, NodeList_cached)
-            push!(pos3D_cp, NodeList_cached)
+            push!(pos2D, surface_pts_2d)
+            push!(pos3D, nodeList_cached)
+            push!(pos3D_cp, nodeList_cached)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, BorderPts2D[1,:])
             push!(splineq, BorderPts2D[2,:])
-            push!(writeborderList, vcat(pi', qi'))
-        
+            push!(writeborderList, obs_border_pts)
+
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,string(t," seconds"))])
         end
@@ -1496,33 +1298,32 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             motion_y = velocity_field*t_steps_cached # extract the motion of the mesh grid
             motion =  motion_y # extract the motion of the mesh grid
 
-            NodeList_cached = NodeList_cached + motion # update the mesh grid
-            mdl.mesh_x.NodeList = NodeList_cached      # update the mesh grid
+            nodeList_cached = nodeList_cached + motion # update the mesh grid
+            mdl.mesh_x.NodeList = nodeList_cached      # update the mesh grid
             dNodeList_dη += dmdη
             dNodeList_dβ += dmdβ
   
-            mat_nan_inf_check(dvdη)
-            mat_nan_inf_check(dvdβ)
-            
+            mat_nan_inf_check(dmdη)
+            mat_nan_inf_check(dmdβ)
+
             dmdθ_out = @views cat(dNodeList_dη,dNodeList_dβ,dims=3) # concatenate the gradients in to a tensor
 
-            BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, SIDES=SIDES_cached)
-            pi, qi = fit_curve(border=BorderPts2D)
-            
+            BorderPts2D, dudθ, surface_pts_2d, _, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, angles=rot_angle_cached)
+
             # push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
             push!(velocity, velocity_field) # store the velocity of the mesh in 3D
             push!(pressure, p) # store the pressure of the mesh in 3D
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
+            push!(surface_pts_3D, vcat(nodeList_cached[:,top_node_list_cached]', nodeList_cached[:,bottom_node_list_cached]', nodeList_cached[:,side_node_list_cached]')')
             push!(gradList,dudθ)
-            push!(pos2D, SurfacePts2D)
-            push!(pos3D, NodeList_cached)
-            push!(pos3D_cp, NodeList_cached)
+            push!(pos2D, surface_pts_2d)
+            push!(pos3D, nodeList_cached)
+            push!(pos3D_cp, nodeList_cached)
             push!(borderPts2DList, BorderPts2D)
             push!(splinep, BorderPts2D[1,:])
             push!(splineq, BorderPts2D[2,:])
-            push!(writeborderList, vcat(pi', qi'))
+            push!(writeborderList, obs_border_pts)
         
             iter += 1
             next!(pr, showvalues = [(:iterations,iter),(:time,string(t," seconds"))])
@@ -1539,21 +1340,14 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     end
 
     if conditions.WRITECONTOUR
-        write_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)
+        write_2d_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)
     end
     
     # write the data to a file
     if conditions.ANIMATE
-        animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=IEN_u_cached, BorderNodes2D=borderPts2DList, fields2D=pos2D)
+        animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=IEN_u_cached, border_nodes_2d=borderPts2DList, sim_pts_2d=pos2D)
         animate_fields(filepath = string(conditions.filepath,"/Results/images/surface"), Nodes=surface_pts_3D)
     end
     
-    # plt = set_plot(12,legend_column=4)
-    # Plots.plot!(plt, time, dac_list, label=L"\delta^{T}_{U}\,A\,C")
-    # Plots.plot!(plt, time, bd_list, label=L"\delta^{T}_{U}\,B^{T}")
-    # Plots.plot!(plt, time, dad_list, label=L"\delta^{T}_{U}\,A\,\delta_{U}")
-    # Plots.plot!(plt, time, A_list, label=L"A")
-    # # Plots.ylims!(1e2, 1e8)
-    # Plots.savefig(plt, string(conditions.filepath,"/dA_dc.pdf"))
     return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, pos3D, splinep, splineq, velocity, pressure, gradList_3d
 end

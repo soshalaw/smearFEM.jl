@@ -20,6 +20,7 @@ mutable struct MeshgridLine <: AbstractMeshgrid
     ne::Int
     boundary_nodes::Vector{Int}
     initial_state::Matrix{Float64}
+    effect_elem_sze::Union{Float64,Nothing}
 
     function MeshgridLine(;
         lx::Number=0.0,
@@ -30,9 +31,10 @@ mutable struct MeshgridLine <: AbstractMeshgrid
         basis_order::Int=1,
         nNodes::Int=0,
         ne::Int=0,
-        boundary_nodes::Vector{Int}=Vector{Int}()
+        boundary_nodes::Vector{Int}=Vector{Int}(),
+        effect_elem_sze::Union{Float64,Nothing}=nothing
     )
-        new(lx, NodeList, IEN, ID, volume_element_shape, basis_order, nNodes, ne, boundary_nodes, copy(NodeList))
+        new(lx, NodeList, IEN, ID, volume_element_shape, basis_order, nNodes, ne, boundary_nodes, copy(NodeList), effect_elem_sze)
     end
 end
 
@@ -49,6 +51,7 @@ mutable struct MeshgridDisk <: AbstractMeshgrid
     ne::Int
     boundary_nodes::Vector{Int}
     initial_state::Matrix{Float64}
+    effect_elem_sze::Union{Float64,Nothing}
 
     function MeshgridDisk(;
         r::Number=0.0,
@@ -61,10 +64,11 @@ mutable struct MeshgridDisk <: AbstractMeshgrid
         basis_order::Int=1,
         nNodes::Int=0,
         ne::Int=0,
-        boundary_nodes::Vector{Int}=Vector{Int}()
+        boundary_nodes::Vector{Int}=Vector{Int}(),
+        effect_elem_sze::Union{Float64,Nothing}=nothing
     )
         new(r, NodeList, IEN, IEN_boundary, ID, volume_element_shape, surface_element_shape,
-            basis_order, nNodes, ne, boundary_nodes, copy(NodeList))
+            basis_order, nNodes, ne, boundary_nodes, copy(NodeList), effect_elem_sze)
     end
 end
 
@@ -86,6 +90,7 @@ mutable struct MeshgridSquare <: AbstractMeshgrid
     bottom_nodes::Vector{Int}
     side_nodes::Vector{Int}
     initial_state::Matrix{Float64}
+    effect_elem_sze::Union{Float64,Nothing}
 
     function MeshgridSquare(;
         lx::Number=0.0,
@@ -103,15 +108,16 @@ mutable struct MeshgridSquare <: AbstractMeshgrid
         ne::Int=0,
         top_nodes::Vector{Int}=Vector{Int}(),
         bottom_nodes::Vector{Int}=Vector{Int}(),
-        side_nodes::Vector{Int}=Vector{Int}()
+        side_nodes::Vector{Int}=Vector{Int}(),
+        effect_elem_sze::Union{Float64,Nothing}=nothing
     )
         new(lx, ly, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides, ID,
             volume_element_shape, surface_element_shape, basis_order, nNodes, ne,
-            top_nodes, bottom_nodes, side_nodes, copy(NodeList))
+            top_nodes, bottom_nodes, side_nodes, copy(NodeList), effect_elem_sze)
     end
 end
 
-mutable struct MeshgridCube <: AbstractMeshgrid
+mutable struct MeshgridCuboid <: AbstractMeshgrid
     lx::Number
     ly::Number
     lz::Number
@@ -133,8 +139,10 @@ mutable struct MeshgridCube <: AbstractMeshgrid
     bottom_nodes::Vector{Int}
     side_nodes::Vector{Int}
     initial_state::Matrix{Float64}
+    edge_radius::Union{Float64,Nothing}
+    effect_elem_sze::Union{Float64,Nothing}
 
-    function MeshgridCube(;
+    function MeshgridCuboid(;
         lx::Number=0.0,
         ly::Number=0.0,
         lz::Number=0.0,
@@ -154,10 +162,12 @@ mutable struct MeshgridCube <: AbstractMeshgrid
         ne::Int=0,
         top_nodes::Vector{Int}=Vector{Int}(),
         bottom_nodes::Vector{Int}=Vector{Int}(),
-        side_nodes::Vector{Int}=Vector{Int}()
+        side_nodes::Vector{Int}=Vector{Int}(),
+        edge_radius::Union{Float64,Nothing}=nothing,
+        effect_elem_sze::Union{Float64,Nothing}=nothing
     )
         new(lx, ly, lz, NodeList, IEN, IEN_top, IEN_bottom, IEN_front, IEN_back, IEN_left, IEN_right,
-            ID, volume_element_shape, surface_element_shape, basis_order, nNodes, ne, top_nodes, bottom_nodes, side_nodes, copy(NodeList))
+            ID, volume_element_shape, surface_element_shape, basis_order, nNodes, ne, top_nodes, bottom_nodes, side_nodes, copy(NodeList), edge_radius, effect_elem_sze)
     end
 end
 
@@ -179,6 +189,7 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
     bottom_nodes::Vector{Int}
     side_nodes::Vector{Int}
     initial_state::Matrix{Float64}
+    effect_elem_sze::Union{Float64,Nothing}
 
     function MeshgridCylinder(;
         r::Number=0.0,
@@ -196,9 +207,10 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
         ne::Int=0,
         top_nodes::Vector{Int}=Vector{Int}(),
         bottom_nodes::Vector{Int}=Vector{Int}(),
-        side_nodes::Vector{Int}=Vector{Int}()
+        side_nodes::Vector{Int}=Vector{Int}(),
+        effect_elem_sze::Union{Float64,Nothing}=nothing
     )
         new(r, h, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides,
-            ID, volume_element_shape, surface_element_shape, basis_order, nNodes, ne, top_nodes, bottom_nodes, side_nodes, copy(NodeList))
+            ID, volume_element_shape, surface_element_shape, basis_order, nNodes, ne, top_nodes, bottom_nodes, side_nodes, copy(NodeList), effect_elem_sze)
     end
 end

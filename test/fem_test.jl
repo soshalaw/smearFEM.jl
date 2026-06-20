@@ -34,7 +34,7 @@ using smearFEM
                     @test findall(x->x==1, N) == [i]
                 end
             elseif ndim == 3
-                mesh = meshgrid_cube(lx, ly, lz; ne=ne, element_shape=element_shape, basis_order=basis_order)
+                mesh = meshgrid_cuboid(lx, ly, lz; ne=ne, element_shape=element_shape, basis_order=basis_order)
                 iter = 1:size(mesh.IEN, 2)
                 for i in iter
                     coord = mesh.NodeList[:, mesh.IEN[i]]

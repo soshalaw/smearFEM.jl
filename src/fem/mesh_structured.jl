@@ -182,7 +182,7 @@ function _meshgrid_square(lx::X, ly::Y, ne::Int64; element_shape::Symbol=:Quad, 
 end
 
 """
-    _meshgrid_cube(lx,ly,lz,ne;element_shape=:Hex,basis_order=1)
+    _meshgrid_cuboid(lx,ly,lz,ne;element_shape=:Hex,basis_order=1)
 
 Set up the mesh grid for a 3D cube
 
@@ -208,7 +208,7 @@ Set up the mesh grid for a 3D cube
 - `BottomBorderNodes::Vector{Int64}` : array of nodes on the bottom boundary
 - `TopBorderNodes::Vector{Int64}` : array of nodes on the top boundary
 """
-function _meshgrid_cube(lx::X, ly::Y, lz::Z, ne::Int64; element_shape::Symbol=:Hex, basis_order::Int=1) where {X<:Number,Z<:Number,Y<:Number}
+function _meshgrid_cuboid(lx::X, ly::Y, lz::Z, ne::Int64; element_shape::Symbol=:Hex, basis_order::Int=1) where {X<:Number,Z<:Number,Y<:Number}
     BorderNodes = Int64[]
     BottomBorderNodes = Int64[]
     TopBorderNodes = Int64[]
@@ -614,7 +614,7 @@ Set up the mesh grid for a 3D cylinder
 """
 function _meshgrid_cylinder(r::T, h::U, ne::Int64; element_shape::Symbol=:Hex, basis_order::Int=1) where {T<:Number,U<:Number}
     @info "Representing fields / geometry using $element_shape order-$basis_order basis functions"
-    NodeList, IEN, ID, IEN_top, IEN_bottom, _, nNodes, BorderNodes = _meshgrid_cube(1, 1, 1, ne; element_shape=element_shape, basis_order=basis_order)
+    NodeList, IEN, ID, IEN_top, IEN_bottom, _, nNodes, BorderNodes = _meshgrid_cuboid(1, 1, 1, ne; element_shape=element_shape, basis_order=basis_order)
     NodeList = _inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h)
 
     mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID,

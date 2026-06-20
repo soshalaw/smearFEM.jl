@@ -36,6 +36,7 @@ function meshgrid_cylinder(r::T, h::U;
     if mesh_type == :structured
         isnothing(ne) && throw(ArgumentError("`ne` is required for mesh_type=:structured"))
         mesh = _meshgrid_cylinder(r, h, ne; element_shape=element_shape, basis_order=basis_order)
+        mesh.effect_elem_sze = (Float64(r)^2 * Float64(h) * π)^(1/3) / ne
         if ndof != 3
             new_ID = zeros(Int64, ndof, mesh.nNodes)
             for m in 1:mesh.nNodes, l in 1:ndof
@@ -54,7 +55,7 @@ function meshgrid_cylinder(r::T, h::U;
 end
 
 """
-    meshgrid_cube(lx, ly, lz; mesh_type=:structured, element_shape=:Hex, basis_order=1,
+    meshgrid_cuboid(lx, ly, lz; mesh_type=:structured, element_shape=:Hex, basis_order=1,
                  ne=nothing, ndof=3, elem_size=nothing, mesh_path=nothing, template_path=nothing,
                  edge_radius=nothing)
 
@@ -76,9 +77,9 @@ Note: `IEN_front/back/left/right` are not populated for structured meshes.
 - `edge_radius::Float64` : fillet radius for the 4 vertical edges (`:unstructured` only; must satisfy `0 < edge_radius < min(lx,ly)/2`)
 
 # Returns:
-- `MeshgridCube` : box mesh
+- `MeshgridCuboid` : box mesh
 """
-function meshgrid_cube(lx::T, ly::U, lz::V;
+function meshgrid_cuboid(lx::T, ly::U, lz::V;
     mesh_type::Symbol=:structured,
     element_shape::Symbol=:Hex,
     basis_order::Int=1,
@@ -92,19 +93,20 @@ function meshgrid_cube(lx::T, ly::U, lz::V;
     if mesh_type == :structured
         !isnothing(edge_radius) && throw(ArgumentError("`edge_radius` is only supported for mesh_type=:unstructured"))
         isnothing(ne) && throw(ArgumentError("`ne` is required for mesh_type=:structured"))
-        NodeList, IEN, _, IEN_top, IEN_bottom, _, _, BorderNodes = _meshgrid_cube(lx, ly, lz, ne; element_shape=element_shape, basis_order=basis_order)
+        NodeList, IEN, _, IEN_top, IEN_bottom, _, _, BorderNodes = _meshgrid_cuboid(lx, ly, lz, ne; element_shape=element_shape, basis_order=basis_order)
         total_nodes = size(NodeList, 2)
         ID = zeros(Int64, ndof, total_nodes)
-        for m in 1:total_nodes, l in 1:ndofShapes
+        for m in 1:total_nodes, l in 1:ndof
             ID[l, m] = ndof*(m-1) + l
         end
         empty_mat = Matrix{Int}(undef, 0, 0)
-        return MeshgridCube(lx=lx, ly=ly, lz=lz, NodeList=NodeList, IEN=IEN,
+        return MeshgridCuboid(lx=lx, ly=ly, lz=lz, NodeList=NodeList, IEN=IEN,
             IEN_top=IEN_top, IEN_bottom=IEN_bottom,
             IEN_front=empty_mat, IEN_back=empty_mat, IEN_left=empty_mat, IEN_right=empty_mat,
             ID=ID, volume_element_shape=element_shape, basis_order=basis_order,
             nNodes=total_nodes, ne=ne^3,
-            side_nodes=BorderNodes[1], bottom_nodes=BorderNodes[2], top_nodes=BorderNodes[3])
+            side_nodes=BorderNodes[1], bottom_nodes=BorderNodes[2], top_nodes=BorderNodes[3],
+            effect_elem_sze=(Float64(lx) * Float64(ly) * Float64(lz))^(1/3) / ne)
     elseif mesh_type == :unstructured
         isnothing(mesh_path) && throw(ArgumentError("`mesh_path` is required for mesh_type=:unstructured"))
         isnothing(elem_size) && throw(ArgumentError("`elem_size` is required for mesh_type=:unstructured"))
@@ -163,7 +165,8 @@ function meshgrid_square(lx::X, ly::Y;
             IEN_sides=empty_mat, ID=ID,
             volume_element_shape=element_shape, basis_order=basis_order,
             nNodes=total_nodes, ne=ne^2,
-            side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2])
+            side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2],
+            effect_elem_sze=(Float64(lx) * Float64(ly))^(1/2) / ne)
     elseif mesh_type == :unstructured
         isnothing(mesh_path) && throw(ArgumentError("`mesh_path` is required for mesh_type=:unstructured"))
         isnothing(elem_size) && throw(ArgumentError("`elem_size` is required for mesh_type=:unstructured"))
@@ -245,7 +248,8 @@ function meshgrid_line(l::T;
         end
         return MeshgridLine(lx=l, NodeList=NodeList, IEN=IEN, ID=ID,
             volume_element_shape=element_shape, basis_order=basis_order,
-            nNodes=total_nodes, ne=ne, boundary_nodes=boundary_nodes)
+            nNodes=total_nodes, ne=ne, boundary_nodes=boundary_nodes,
+            effect_elem_sze=Float64(l) / ne)
     elseif mesh_type == :unstructured
         isnothing(mesh_path) && throw(ArgumentError("`mesh_path` is required for mesh_type=:unstructured"))
         isnothing(elem_size) && throw(ArgumentError("`elem_size` is required for mesh_type=:unstructured"))

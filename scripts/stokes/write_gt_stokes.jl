@@ -179,6 +179,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     # ne_gt = 10.0
     β_gt_list = [0.01, 10, 50, 100 ,500, 1e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
+    z_angle_list = [0.0, 30.0, 60.0] # rotation angles around the z-axis in degrees 
 
     control = "force" # "force" or "velocity"
 
@@ -198,11 +199,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
     steps_gt::Int =  300 # number of time steps
 
-    obj_pose = zeros(Float64, 4, 4)
-    obj_pose[1, 1] = -1.0
-    obj_pose[2, 3] = -1.0
-    obj_pose[3, 2] = -1.0
-    obj_pose[1:3, 4] = [0.0, h/2, 150.0]
+    obj_pose::Vector{Float64} = [0.0, h/2, 150.0]
     camera_matrix::Matrix{Float64} = [2.39642674e+03  0.0  1.00429248e+03; 0.0  2.40565353e+03  7.57028161e+02; 0.0  0.0 1.0;]
 
     # Build list of all experiment parameters
@@ -236,7 +233,8 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
                     "camera_matrix" => camera_matrix,
                     "animate" => !use_parallel,
                     "geometry" => geometry,
-                    "edge_radius" => edge_radius
+                    "edge_radius" => edge_radius,
+                    "z_angle_list" => z_angle_list
                 )
                 push!(param_list, exp_params)
                 run_id = run_id + 1

@@ -7,101 +7,8 @@ using Distributions
 using Parameters
 using Statistics
 
-""" 
-    Extract_borders(NodeList::Matrix{Float64}, camera_matrix::AbstractMatrix{Float64}, BorderNodesList::Vector{Vector{Int64}}, nNodes::Int64, GRAD::Bool=false, dqdθ::AbstractMatrix{Float64}=zeros(2,2), SIDES::Bool=false)
-
-Project the 3D mesh to 2D image plane and extract the border nodes (left and right)
-    
-# Arguments:
-- `NodeList::Matrix{Float64}{ndim,nNodes}` : coordinates of the nodes
-- `camera_matrix::AbstractMatrix{Float64}{3,3}` : Camera matrix
-- `BorderNodesList::Vector{Vector{Any}{4,N}`: List of border nodes
-- `nNodes::Int64`: number of nodes
-- `GRAD::Bool=false`: gradient flag
-- `dqdθ::AbstractMatrix{Float64}{2,2}`: gradient of the solution
-- `SIDES::Bool=false`: sides flag
-
-# Returns:
-- `NodeList::Matrix{Float64}{ndim,nbNodes}`: 2D coordinates of the border nodes
-- `BorderNodes::Vector{Int}`: Indexes of the border nodes
 """
-function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractMatrix{Float64}, n_nodes::Int64; BorderNodesList::Vector{Int64}=zeros(Int64,0),GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
-
-    if length(BorderNodesList) != 0
-        surface_nodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
-    else        
-        surface_nodes = NodeList
-    end
-    
-    if GRAD
-        ∇surface_nodes = dqdθ[:,BorderNodesList,:] 
-        surface_pts_2d, ∇surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose, ∇surface_nodes) 
-    else
-        surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose) 
-    end
-
-
-    left_border_nodes = Vector{Int64}(undef, 0)        # vector to store indexes of the border nodes
-    right_border_nodes = Vector{Int64}(undef, 0)       # vector to store indexes of the border nodes
-    # TopBorderNodes = Vector{Int64}(undef, 0)         # vector to store indexes of the border nodes
-    # BottomBorderNodes = Vector{Int64}(undef, 0)      # vector to store indexes of the border nodes
-
-    sz_side = size(surface_pts_2d,2)÷(n_nodes)           # size of each layer
-
-    p = Array{Vector{Float64}}(undef,0)
-
-    iter = 1:size(surface_pts_2d,2)
-    for i in iter
-        push!(p, surface_pts_2d[:,i])
-    end
-
-    hull = ch.ConvexHull(p)
-
-    top_bottom_nodes = ch.indices(hull)
-    # border_pts = surface_pts_2d[:,border_pt_ids]
-    # border_pts_sorted, border_pts_sorted_ids = sort_points(border_pts)
-
-    for layers in 1:n_nodes                                        # loop through each layer
-        nodes = surface_pts_2d[:,(layers-1)*sz_side+1:layers*sz_side]
-        min_node = (layers-1)*sz_side + argmin(nodes[1,:])
-        max_node = (layers-1)*sz_side + argmax(nodes[1,:])
-        push!(left_border_nodes, min_node)
-        push!(right_border_nodes, max_node)
-    end  
-
-    border_pt_ids = vcat(left_border_nodes, top_bottom_nodes, right_border_nodes)
-    border_pts = surface_pts_2d[:,border_pt_ids]
-    border_pts_sorted, border_pts_sorted_ids = sort_points(border_pts)
-
-    if GRAD
-        ∇border_pts = ∇surface_pts_2d[:,border_pt_ids,:]
-        ∇border_pts_sorted = ∇border_pts[:,border_pts_sorted_ids,:]
-        if SIDES
-            side_pts, index = get_sides(border_pts_sorted)
-
-            side_pts_ids = border_pts_sorted_ids[index]
-            ∇side_pts = ∇border_pts_sorted[:,side_pts_ids,:]
-
-            return side_pts, ∇side_pts, surface_pts_2d
-        else
-            return border_pts_sorted, ∇border_pts_sorted, surface_pts_2d, ∇surface_pts_2d
-        end
-    else
-        if SIDES
-            _, index = get_sides(border_pts_sorted)
-
-            side_pts = border_pts_sorted[index]
-            side_pts_ids = border_pts_sorted_ids[index]
-    
-            return side_pts, surface_pts_2d
-        else
-            return border_pts_sorted, surface_pts_2d
-        end
-    end 
-end
-
-"""
-    extract_borders(NodeList, camera_matrix, obj_pose; BorderNodesList, GRAD, dqdθ, SIDES)
+    extract_borders(NodeList, camera_matrix, obj_pose; BorderNodesList, GRAD, dqdθ)
 
 Project 3D mesh nodes to 2D, compute the convex-hull border, and optionally propagate
 parameter gradients through the projection.
@@ -115,75 +22,85 @@ parameter gradients through the projection.
 - `BorderNodesList`: Subset of node indices to project (default: all nodes).
 - `GRAD`: Propagate gradients when `true` (default: `false`).
 - `dqdθ`: `(3, nNodes, nParams)` gradient tensor (required when `GRAD=true`).
-- `SIDES`: Return only the lateral side points instead of the full border (default: `false`).
-
 # Returns (GRAD=false)
 `border_pts_sorted, surface_pts_2d`
 
 # Returns (GRAD=true)
 `border_pts_sorted, ∇border_pts_sorted, surface_pts_2d, ∇surface_pts_2d`
 """
-function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractMatrix{Float64}; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), SIDES::Bool=false)
-    
+function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, height::Float64, rot_angle::Float64=[0.0]; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2))
+
     if length(BorderNodesList) != 0
-        surface_nodes = NodeList[:,BorderNodesList]  # extract the border nodes from the NodeList
-    else        
+        surface_nodes = NodeList[:,BorderNodesList]
+    else
         surface_nodes = NodeList
     end
 
     if GRAD
-        ∇surface_nodes = dqdθ[:,BorderNodesList,:] 
-        surface_pts_2d, ∇surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose, ∇surface_nodes) 
+        ∇surface_nodes = length(BorderNodesList) != 0 ? dqdθ[:,BorderNodesList,:] : dqdθ
+        surface_pts_2d, ∇surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose, ∇surface_nodes, height, rot_angle)
     else
-        surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose) 
+        surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose, height, rot_angle)
     end
 
-    p = Array{Vector{Float64}}(undef,0)
-
-    iter = 1:size(surface_pts_2d,2)
-    for i in iter
-        push!(p, surface_pts_2d[:,i])
-    end
+    p = [surface_pts_2d[:,i] for i in axes(surface_pts_2d, 2)]
 
     hull = ch.ConvexHull(p)
     hull_vertex_ids = ch.indices(hull)
-    
-    # Get all points on the convex hull boundary (including points on edges)
+
     border_pt_ids = get_convex_hull_boundary_points(surface_pts_2d, hull_vertex_ids)
-    
     border_pts = surface_pts_2d[:,border_pt_ids]
     border_pts_sorted, border_pts_sorted_ids = sort_points(border_pts)
+
 
     if GRAD
         ∇border_pts = ∇surface_pts_2d[:,border_pt_ids,:]
         ∇border_pts_sorted = ∇border_pts[:,border_pts_sorted_ids,:]
-        if SIDES
-            side_pts, index = get_sides(border_pts_sorted)
+    end
 
-            side_pts_ids = border_pts_sorted_ids[index]
-            ∇side_pts = ∇border_pts_sorted[:,side_pts_ids,:]
-
-            return side_pts, ∇side_pts, surface_pts_2d
-        else
-            return border_pts_sorted, ∇border_pts_sorted, surface_pts_2d, ∇surface_pts_2d
-        end
+    if GRAD
+        return border_pts_sorted, ∇border_pts_sorted, surface_pts_2d, ∇surface_pts_2d
     else
-        if SIDES
-            _, index = get_sides(border_pts_sorted)
-
-            side_pts = border_pts_sorted[index]
-            side_pts_ids = border_pts_sorted_ids[index]
-    
-            return side_pts, surface_pts_2d
-        else
-            return border_pts_sorted, surface_pts_2d
-        end
+        return border_pts_sorted, surface_pts_2d
     end
 end
 
+function _get_2D_data(NodeList_cached::Matrix{Float64}, camera_matrix_cached::AbstractMatrix{Float64}, obj_pose_cached::Vector{Float64}, h_cached::Float64; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), angles::Vector{Float64}=[0.0])
+    BorderPts2D   = Vector{Matrix{Float64}}()
+    SurfacePts2D  = Vector{Matrix{Float64}}()
+    dudθ       = Vector{Array{Float64,3}}()
+    ∇SurfacePts2D = Vector{Array{Float64,3}}()
+    obs_border_pts = Vector{Matrix{Float64}}()
+
+    for rot_angle in angles
+        if GRAD
+            BorderPts2D_θ, dudθ_θ, SurfacePts2D_θ, ∇SurfacePts2D_θ = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, rot_angle; BorderNodesList=BorderNodesList, GRAD=true, dqdθ=dqdθ)
+            pi_θ, qi_θ = fit_curve(border=BorderPts2D_θ)
+            push!(BorderPts2D,   BorderPts2D_θ)
+            push!(dudθ,          dudθ_θ)
+            push!(SurfacePts2D,  SurfacePts2D_θ)
+            push!(∇SurfacePts2D, ∇SurfacePts2D_θ)
+            push!(obs_border_pts, vcat(pi_θ', qi_θ'))
+        else
+            BorderPts2D_i, SurfacePts2D_i = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, rot_angle; BorderNodesList=BorderNodesList)
+            pi_i, qi_i = fit_curve(border=BorderPts2D_i)
+            push!(BorderPts2D,  BorderPts2D_i)
+            push!(SurfacePts2D, SurfacePts2D_i)
+            push!(obs_border_pts, vcat(pi_i', qi_i'))
+        end
+    end
+
+    if GRAD
+        return BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D, obs_border_pts
+    else
+        return BorderPts2D, SurfacePts2D, obs_border_pts
+    end
+end
+
+
 """
     get_convex_hull_boundary_points(surface_pts_2d, hull_vertex_ids; tol) -> Vector{Int}
-
+-
 Return sorted indices of all 2D points that lie on the convex hull boundary, including
 points on straight hull edges (not just the vertex extremes).
 
@@ -194,7 +111,7 @@ points on straight hull edges (not just the vertex extremes).
 # Keyword Arguments
 - `tol`: Perpendicular-distance tolerance for edge membership (default: `1e-6`).
 """
-function get_convex_hull_boundary_points(surface_pts_2d::AbstractMatrix{Float64}, hull_vertex_ids::Vector{Int64}; tol::Float64=1e-6)
+function get_convex_hull_boundary_points(surface_pts_2d::AbstractMatrix{Float64}, hull_vertex_ids::Vector{Int64}; tol::Float64=5.0)
     n_vertices = length(hull_vertex_ids)
     all_boundary_ids = Set(hull_vertex_ids)
     
@@ -246,43 +163,6 @@ function get_convex_hull_boundary_points(surface_pts_2d::AbstractMatrix{Float64}
 end
 
 """
-    get_sides(Data) -> (sides, indexes)
-
-Extract the side (near-vertical) segments from a 2D point cloud.
-
-Points are included when the angle of the segment to the next point relative to the
-horizontal axis satisfies `|sin θ| ≥ sin(π/4)` — i.e. the segment is at least 45 °
-from horizontal.
-
-# Arguments
-- `Data::Matrix{Float64}`: 2×N matrix of 2D point coordinates.
-
-# Returns
-- `sides::Matrix{Float64}`: 2×M sub-matrix of side points.
-- `indexes::Vector`: column indices into `Data` that qualify as side points.
-"""
-function get_sides(Data::Matrix{Float64})
-
-    indexes = []
-    dataIter = 1:(size(Data,2)-1)
-    for i in dataIter
-        r = Data[:,i+1] - Data[:,i]
-        sθ = dot(r,[0,1])/norm(r)
-        if abs(sθ) >= sin(π/4)
-            push!(indexes,i)
-        elseif i != 1
-            r_ = Data[:,i] - Data[:,i-1]
-            sθ_ = dot(r_,[0,1])/norm(r_)
-            if abs(sθ_) >= sin(π/4)
-                push!(indexes,i)
-            end
-        end
-    end
-    sides = Data[:,indexes]
-    return sides, indexes
-end
-
-"""
     sort_points(Data) -> (sorted_pts, sorted_ids)
 
 Sort a 2D point cloud for contour traversal: left-half ascending in y, right-half
@@ -324,18 +204,22 @@ Project the 3D mesh to 2D image plane
 - `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
 - `dπdx::Array{Float64, nNodes}`{nNodes×2×nParams}: ∇π(x)
 """
-function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_trans::AbstractMatrix{Float64}, dxdθ::AbstractArray{Float64})
+function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, dxdθ::AbstractArray{Float64}, height::Float64, rot_angle::Float64=0.0)
     
     nx = size(x,2)
     nθ = size(dxdθ,3)
     xNorm = zeros(3,nx)
     xProj = zeros(3,nx)
     dudθ = zeros(3,nx,nθ)
+
+    x_rot = _rotate_round_z(x, rot_angle)  # Rotate the points around the z-axis by the object's yaw angle
+    obj_trans = _set_cam_frame(obj_pose, height)
+
     R = obj_trans[1:3,1:3]    # rotation matrix from object frame to camera frame
 
     # transform point cloud wrt to camera frame 
     pad = ones(1,size(x,2))
-    x_trans_padded = vcat(x, pad)
+    x_trans_padded = vcat(x_rot, pad)
     x_trans_mat = obj_trans*x_trans_padded
 
     x_trans = x_trans_mat[1:3,:]
@@ -378,26 +262,21 @@ Project 3D points into the 2D image plane without gradient computation.
 # Returns
 - `x2D::Matrix{Float64}`: 2×N matrix of pixel coordinates.
 """
-function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_trans::AbstractMatrix{Float64})
+function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, height::Float64, rot_angle::Float64=0.0)
+
+    x_rot = _rotate_round_z(x, rot_angle)
+    obj_trans = _set_cam_frame(obj_pose, height)
 
     pad = ones(1,size(x,2))
-    x_trans_padded = vcat(x, pad)
+    x_trans_padded = vcat(x_rot, pad)
     x_trans_mat = obj_trans*x_trans_padded
-
     x_trans = x_trans_mat[1:3,:]
 
-    # p = Plots.scatter3d(x_trans[1,:], x_trans[2,:], x_trans[3,:]; markersize=1, label="Transformed Points")
-    # xlabel!(p, "X (mm)")
-    # ylabel!(p, "Y (mm)")
-    # zlabel!(p, "Z (mm)")
-    # display(p)
-    
     xProj = project_to(x_trans, camera_matrix)
-
-    x2D = xProj[1:2,:]            # extract x and y coordinates
+    x2D = xProj[1:2,:]
 
     return x2D
-end 
+end
 
 """
     project_to(x, camera_matrix) -> xProj
@@ -556,12 +435,9 @@ function detect_outlier_observations(contour_list::AbstractArray;
     centroid_x = [c[1] for c in centroids]
     centroid_y = [c[2] for c in centroids]
     
-    outlier_details = Dict{Int, Dict{String, Any}}()
-    
     # Analyze each frame for outliers
     for i in 1:frame_len
         is_outlier = false
-        outlier_reasons = String[]
         
         # Define analysis window around current frame
         window_start = max(1, i - rolling_window÷2)
@@ -691,8 +567,6 @@ function filter_points(border, centerx)
     newBorderxSrt = new_borderx[ids]
     newBorderySrt = new_bordery[ids]
 
-    out = vcat(newBorderxSrt', newBorderySrt')
-    
     return newBorderxSrt, newBorderySrt
 end
 
@@ -865,14 +739,9 @@ Compute cumulative heights of mesh layers from per-step displacements.
 """
 function get_height(μ_tp::Vector{Float64}, H_0::Float64)
     # Get the height of the mesh
-    h = H_0*ones(Float64, (size(μ_tp,1)+1))
-    iter = 1:length(h)
-    for i::Int in iter
-        if i == 1
-            h[i] = h[i]
-        else
-            h[i] = h[i-1] + μ_tp[i-1]
-        end
+    h = H_0*ones(Float64, (length(μ_tp)+1))
+    for i in eachindex(μ_tp)
+        h[i+1] = h[i] + μ_tp[i]
     end
     return h
 end
@@ -1070,4 +939,33 @@ function get_lagrange_pts(IEN_cp, IEN_l, C_vol, X_cp, W_cp)
         X_l[:,i] = (X_cp*diagm(W_cp)/W_l[i])*P[:,i]
     end
     return X_l
+end
+
+function _set_cam_frame(cam_pose, height)
+
+    cam_pose_ = cam_pose - [0.0, 0.0, height/2]  # translate to camera frame
+    z = [0.0, 0.0, 1.0]
+    z_ = -cam_pose_ / norm(cam_pose_)
+    x_ = -cross(z, z_) / norm(cross(z, z_))
+    y_ = cross(z_, x_) / norm(cross(z_, x_))
+
+    T_o_c = [x_' -dot(x_, cam_pose); y_' -dot(y_, cam_pose); z_' -dot(z_, cam_pose); 0 0 0 1]
+
+    return T_o_c
+end
+
+function _rotate_round_z(node_list, d_angle::Float64=0.0)
+
+    angle = d_angle/180*pi # convert to radians
+
+    # Create rotation matrix
+    R = [cos(angle) -sin(angle) 0;
+         sin(angle)  cos(angle) 0;
+         0           0          1]
+    
+    # Apply rotation to each node in the mesh
+    rotated_nodes = R * node_list
+    
+    # Return a new mesh with rotated nodes
+    return rotated_nodes
 end

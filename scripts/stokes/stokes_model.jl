@@ -39,12 +39,12 @@ function main()
   μu_tp = -0.02
   μu_side = 0
 
-  mesh_u = meshgrid_cube(x1-x0, y1-y0, z1-z0; ne=ne, element_shape=element_shape_u, basis_order=basis_order_u, ndof=nDof_u)
+  mesh_u = meshgrid_cuboid(x1-x0, y1-y0, z1-z0; ne=ne, element_shape=element_shape_u, basis_order=basis_order_u, ndof=nDof_u)
   IEN_u, ID_u, IEN_u_top, IEN_u_btm = mesh_u.IEN, mesh_u.ID, mesh_u.IEN_top, mesh_u.IEN_bottom
   NodeListCylinder = _inflate_cylinder(mesh_u.NodeList, x0, x1, y0, y1)
   q_tp, q_side, q_btm, C_uc = set_boundary_cond_stokes(mesh_u.NodeList, ne, ndim, element_shape_u, basis_order_u, nDof_u)
 
-  mesh_p = meshgrid_cube(x1-x0, y1-y0, z1-z0; ne=ne, element_shape=element_shape_p, basis_order=basis_order_p, ndof=nDof_p)
+  mesh_p = meshgrid_cuboid(x1-x0, y1-y0, z1-z0; ne=ne, element_shape=element_shape_p, basis_order=basis_order_p, ndof=nDof_p)
   IEN_p, ID_p, IEN_p_top, IEN_p_btm = mesh_p.IEN, mesh_p.ID, mesh_p.IEN_top, mesh_p.IEN_bottom
   NodeListCylinderp = _inflate_cylinder(mesh_p.NodeList, x0, x1, y0, y1)
 

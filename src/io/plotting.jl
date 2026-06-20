@@ -45,104 +45,117 @@ function plot_mesh(NodeList, IEN)
 end
 
 """
-    animate_fields(;filepath=nothing, fields=nothing , IEN=nothing, BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing)
+    animate_fields(;filepath=nothing, fields=nothing , IEN=nothing, border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=nothing)
 
 Function to animate the fields as a gif
 
 # Arguments:
 - `fields::Vector{Vector{Float64}}`: solution vector
-- `fields2D::Vector{Vector{Float64}}`: 2D projection of the solution vector
-- `BorderNodes2D::Vector{Vector{Float64}}`: 2D coordinates of the border nodes of the mesh
+- `sim_pts_2d::Vector{Vector{Float64}}`: 2D projection of the solution vector
+- `border_nodes_2d::Vector{Vector{Float64}}`: 2D coordinates of the border nodes of the mesh
 - `IEN::Matrix{Float64}{nElem, nNodes}`: IEN array
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing)
+function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, cam_pose::Union{Nothing,Vector{Float64}}=nothing, h::Union{Nothing,Float64}=nothing)
     set_file(filepath) # create the directory to store the VTK files
-    if isnothing(Nodes) && isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(IEN) && isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
+    if isnothing(Nodes) && isnothing(sim_pts_2d) && isnothing(border_nodes_2d) && isnothing(IEN) && isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
         throw(AssertionError("No fields provided"))
     elseif isnothing(Nodes) && isnothing(SurfaceNodes3D)
-        animate2D(BorderNodes2D=BorderNodes2D, fields2D=fields2D, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
+        animate2D(border_nodes_2d=border_nodes_2d, sim_pts_2d=sim_pts_2d, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
         return
-    elseif isnothing(fields2D) && isnothing(BorderNodes2D) && isnothing(p) && isnothing(q)
-        animate3D(fields=Nodes, IEN=IEN, filepath=filepath)
+    elseif isnothing(sim_pts_2d) && isnothing(border_nodes_2d) && isnothing(p) && isnothing(q)
+        animate3D(fields=Nodes, IEN=IEN, filepath=filepath, cam_pose=cam_pose, height=h)
         return
     else 
         if !isnothing(SurfaceNodes3D)
-            animate3D(surface_pts=SurfaceNodes3D, filepath=filepath)
+            animate3D(surface_pts=SurfaceNodes3D, filepath=filepath, cam_pose=cam_pose, height=h)
         else
-            animate3D(fields=Nodes, IEN=IEN, filepath=filepath)
+            animate3D(fields=Nodes, IEN=IEN, filepath=filepath, cam_pose=cam_pose, height=h)
         end
-        animate2D(BorderNodes2D=BorderNodes2D, fields2D=fields2D, p=p, q=q, pObs=pObs, qObs=qObs, filepath=filepath)
+        animate2D(border_nodes_2d=border_nodes_2d, sim_pts_2d=sim_pts_2d, p=p, q=q, pObs=pObs, qObs=qObs, filepath=filepath)
     end
 end 
 
 """
-    animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing)
+    animate2D(;border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=nothing)
 
 Function to animate the 2D fields as a gif
 
 # Arguments:
-- `BorderNodes2D::Vector{Vector{Float64}}`: 2D coordinates of the border nodes of the mesh
-- `fields2D::Vector{Vector{Float64}}`: 2D projection of the solution vector
+- `border_nodes_2d::Vector{Vector{Float64}}`: 2D coordinates of the border nodes of the mesh
+- `sim_pts_2d::Vector{Vector{Float64}}`: 2D projection of the solution vector
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function animate2D(;BorderNodes2D=nothing, fields2D=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, filepath="images/2D_grid.gif")
-    
-    if isnothing(BorderNodes2D) && isnothing(fields2D) && isnothing(p) && isnothing(pObs)
+function animate2D(;border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, filepath="images/2D_grid.gif")
+
+    if isnothing(border_nodes_2d) && isnothing(sim_pts_2d) && isnothing(p) && isnothing(pObs)
         throw(AssertionError("No fields provided"))
     else
-        if !isnothing(BorderNodes2D)
-            sz = length(BorderNodes2D)
+        if !isnothing(border_nodes_2d)
+            sz = length(border_nodes_2d)
         elseif !isnothing(p)
             sz = length(p)
-        elseif !isnothing(fields2D)
-            sz = length(fields2D)
+        elseif !isnothing(sim_pts_2d)
+            sz = length(sim_pts_2d)
         elseif !isnothing(pObs)
             sz = length(pObs)
         elseif !isnothing(pgt)
             sz = length(pgt)
         end
-    pr = Progress(sz; desc="Animating 2D fields...",showspeed=true)
-        iter = 1:sz
-        animation2 = @animate for i in iter
-            
-            plt = set_plot(12, frame=true, bottom_margin=0mm)
-            if !isnothing(pObs) && !isnothing(p) && !isnothing(pgt)    
-                Plots.plot!(plt, p[i],q[i], labels=L"\mathrm{Lagrange basis}", aspect_ratio = :equal, dpi=:400, lw=2, color=:darkorange)
-                Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathrm{NURBS basis}", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
-                Plots.plot!(plt, pgt[i],qgt[i], labels=L"\mathrm{Observation}", aspect_ratio = :equal, dpi=:400, lw=2, color=:green4)
-            else
-                if !isnothing(p)   
-                    Plots.plot!(plt, p[i],q[i], legend=true, labels=L"\mathrm{Simulation}", aspect_ratio = :equal, dpi=:400, lw=1, color=:darkorange) #, marker = :circle, markersize=2)
-                end
-                if !isnothing(pObs)
-                    Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathcal{B}_{k,j}", aspect_ratio = :equal, dpi=:400, lw=2, color=:cyan4)
-                end
-                if !isnothing(fields2D)
-                    Plots.scatter!(plt, fields2D[i][1,:], fields2D[i][2,:], ms=:2, mc=:royalblue, ma=:0.7, legend=true, labels=L"\mathcal{U}_{k,j}", aspect_ratio = :equal, 
-                                    dpi=:400)
-                end
-                if !isnothing(BorderNodes2D)
-                    Plots.scatter!(plt, BorderNodes2D[i][1,:], BorderNodes2D[i][2,:], ms=:3, mc=:indianred2, legend=true, labels=L"\widehat{\mathcal{B}}_{k,j}", aspect_ratio = :equal, 
-                                    dpi=:400)
-                end
-            end
 
-            Plots.xlabel!(plt, L"x\;[\mathrm{px}]")
-            Plots.ylabel!(plt, L"y\;[\mathrm{px}]")
-            Plots.xlims!(plt, 0,2048)
-            Plots.ylims!(plt, 0,1536)
-            Plots.yflip!(plt, true)  # if needed to match image coords
-            next!(pr)
-            try
-                yield()
-            catch e
-                @debug "Animation yield interrupted (safe to continue): $(e.msg)"
+        # Preprocess [t][a] → [a][t] for both border_nodes_2d and sim_pts_2d
+        _multi_angle(x) = !isnothing(x) && !isempty(x) && x[1] isa AbstractVector
+        n_angles = _multi_angle(border_nodes_2d) ? length(border_nodes_2d[1]) :
+                   _multi_angle(sim_pts_2d)      ? length(sim_pts_2d[1])      : 1
+
+                   
+        borders_θ = _multi_angle(border_nodes_2d) ?
+            [[border_nodes_2d[t][a] for t in 1:sz] for a in 1:n_angles] : nothing
+        sim_pts_θ = _multi_angle(sim_pts_2d) ?
+            [[sim_pts_2d[t][a] for t in 1:sz] for a in 1:n_angles] :
+            [sim_pts_2d for _ in 1:n_angles]
+
+        for a in 1:n_angles
+            pr = Progress(sz; desc="Animating 2D fields (angle $a of $n_angles)...", showspeed=true)
+            borders_a  = !isnothing(borders_θ) ? borders_θ[a] : nothing
+            sim_pts_2d_a = sim_pts_θ[a]
+            animation = @animate for i in 1:sz
+                plt = set_plot(12, frame=true, bottom_margin=0mm)
+                if !isnothing(pObs) && !isnothing(p) && !isnothing(pgt)
+                    Plots.plot!(plt, p[i],q[i], labels=L"\mathrm{Lagrange basis}", aspect_ratio=:equal, dpi=:400, lw=2, color=:darkorange)
+                    Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathrm{NURBS basis}", aspect_ratio=:equal, dpi=:400, lw=2, color=:cyan4)
+                    Plots.plot!(plt, pgt[i],qgt[i], labels=L"\mathrm{Observation}", aspect_ratio=:equal, dpi=:400, lw=2, color=:green4)
+                else
+                    if !isnothing(p)
+                        Plots.plot!(plt, p[i],q[i], legend=true, labels=L"\mathrm{Simulation}", aspect_ratio=:equal, dpi=:400, lw=1, color=:darkorange)
+                    end
+                    if !isnothing(pObs)
+                        Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathcal{B}_{k,j}", aspect_ratio=:equal, dpi=:400, lw=2, color=:cyan4)
+                    end
+                    if !isnothing(sim_pts_2d_a)
+                        Plots.scatter!(plt, sim_pts_2d_a[i][1,:], sim_pts_2d_a[i][2,:], ms=:2, mc=:royalblue, ma=:0.7, legend=true, labels=L"\mathcal{U}_{k,j}", aspect_ratio=:equal, dpi=:400)
+                    end
+                    if !isnothing(borders_a)
+                        Plots.scatter!(plt, borders_a[i][1,:], borders_a[i][2,:], ms=:3, mc=:indianred2, legend=true, labels=L"\widehat{\mathcal{B}}_{k,j}", aspect_ratio=:equal, dpi=:400)
+                    end
+                end
+
+                Plots.xlabel!(plt, L"x\;[\mathrm{px}]")
+                Plots.ylabel!(plt, L"y\;[\mathrm{px}]")
+                Plots.xlims!(plt, 0,2048)
+                Plots.ylims!(plt, 0,1536)
+                Plots.yflip!(plt, true)
+                next!(pr)
+                try
+                    yield()
+                catch e
+                    @debug "Animation yield interrupted (safe to continue): $(e.msg)"
+                end
             end
+            gif(animation, string(filepath, "/2D_grid_angle_$(a).gif"), fps=5)
         end
-        gif(animation2, string(filepath,"/2D_grid.gif"), fps=5)
     end
 end
 
@@ -155,7 +168,7 @@ Function to animate the 3D fields as a gif
 # Arguments:
 - `fields::Vector{Vector{Float64}}`: solution vector
 """
-function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="images/3D_grid.gif")
+function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="images/3D_grid.gif", cam_pose::Union{Nothing,Vector{Float64}}=nothing, height::Union{Nothing,Float64}=nothing)
     
     if !isnothing(fields)
         sz = length(fields)
@@ -174,16 +187,24 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
         zmax = maximum(surface_pts[1][3,:])
         zmin = minimum(surface_pts[1][3,:])
     end
+
+    if cam_pose !== nothing
+        # Adjust limits to include camera position
+        cam_x, cam_y, cam_z = cam_pose
+        xmax = max(xmax, cam_x*1.1) # extend limits by 50% to ensure camera is visible
+        xmin = min(xmin, cam_x*1.1)
+        ymax = max(ymax, cam_y*1.1)
+        ymin = min(ymin, cam_y*1.1)
+        zmax = max(zmax, cam_z*1.1)
+        zmin = min(zmin, cam_z*1.1)
+    end
+
     fz = 12
     iter = 1:sz
     fac = 0.2 # factor to extend the limits of the plot
     pr = Progress(sz; desc="Animating 3D fields...",showspeed=true)
     animation = @animate for i in iter
-        if !isnothing(fields)
-            zmin = minimum(fields[i][3,:])
-        elseif !isnothing(surface_pts)
-            zmin = minimum(surface_pts[i][3,:])
-        end
+
         plt = Plots.plot(1, 
                             xlims=(xmin-fac*(xmax-xmin), xmax+fac*(xmax-xmin)),
                             ylims=(ymin-fac*(ymax-ymin), ymax+fac*(ymax-ymin)),
@@ -209,10 +230,10 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
                             label="")
         if !isnothing(fields)
             if isnothing(IEN)
-                Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:indianred2, markersize=3, label=:"", dpi=:400)
+                Plots.scatter3d!(plt,fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:indianred2, markersize=3, label=:"", dpi=:400)
             else
                 ien_iter = 1:size(IEN,2)
-                Plots.scatter3d!(fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:royalblue, markersize=3, label=:"", dpi=:400)
+                Plots.scatter3d!(plt,fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:royalblue, markersize=3, label=:"", dpi=:400)
                 seq = []
                 if size(IEN,1) == 27
                     seq = [1,9,2,10,3,11,4,12,1,17,5,13,6,14,7,15,8,16,5,13,6,18,2,10,3,19,7,15,8,20,4]
@@ -228,8 +249,24 @@ function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="
                 end
             end
         end
+
+        if !isnothing(cam_pose)
+            cam_frame = _set_cam_frame(cam_pose, height/2)
+
+            frame_x = cam_frame[1:3,1] + cam_pose
+            frame_y = cam_frame[1:3,2] + cam_pose
+            frame_z = cam_frame[1:3,3] + cam_pose
+
+            cam_x, cam_y, cam_z = cam_pose
+            len = 1.0 # length of the camera frame axes
+            Plots.plot!(plt, [cam_pose[1], frame_x[1]*len], [cam_pose[2], frame_x[2]*len], [cam_pose[3], frame_x[3]*len], color=:red, label="", lw=2)
+            Plots.plot!(plt, [cam_pose[1], frame_y[1]*len], [cam_pose[2], frame_y[2]*len], [cam_pose[3], frame_y[3]*len], color=:green, label="", lw=2)
+            Plots.plot!(plt, [cam_pose[1], frame_z[1]*len], [cam_pose[2], frame_z[2]*len], [cam_pose[3], frame_z[3]*len], color=:blue, label="", lw=2)
+
+        end
+        
         if !isnothing(surface_pts)
-            Plots.scatter3d!(surface_pts[i][1,:], surface_pts[i][2,:], surface_pts[i][3,:], mc=:indianred2, markersize=3, label=:"", dpi=:400)
+            Plots.scatter3d!(plt, surface_pts[i][1,:], surface_pts[i][2,:], surface_pts[i][3,:], mc=:indianred2, markersize=3, label=:"", dpi=:400)
         end
         next!(pr)
         try
@@ -272,36 +309,6 @@ function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath::St
         end
     end
     gif(animation, string(filepath,"/matches.gif"), fps=10)
-end
-
-function plot_matches_h(Exptx, Expty, Obsptx, p, q, pObs, qObs, filepath::String="None")
-    set_file(filepath)
-    @argcheck length(Exptx) == length(Obsptx)
-    sz = length(p)
-    sz == length(Obsptx) || throw(AssertionError("The number of simulated and observed data should be the same"))
-    pr = Progress(sz; desc="Plotting matches...",showspeed=true)
-    iter = 1:sz
-    animation = @animate for i in iter
-        plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y",title="Prospective Projection of the 3D Grid", dpi=400,label="")
-        Plots.plot!(p[i],q[i], legend=true, labels="Simulation",  dpi=:400)
-        Plots.plot!(pObs[i],qObs[i], labels="Observation",  dpi=:400)
-        iterj = 1:length(Exptx[i])
-        for j in iterj
-            Plots.plot!([Exptx[i][j], Obsptx[i][j]], [Expty[i][j], Expty[i][j]], marker=1.5, lw=0.5, dpi=:400, label="")
-        end
-        Plots.xlims!(0,2048)
-        Plots.ylims!(0,1536) 
-        Plots.xlabel!(L"x")
-        Plots.ylabel!(L"y")
-        Plots.title!("Point Correspondence")
-        next!(pr)
-        try
-            yield()
-        catch e
-            @debug "Animation yield interrupted (safe to continue): $(e.msg)"
-        end
-    end
-    gif(animation, string(filepath,"/matches_h.gif"), fps=10)
 end
 
 function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1, right_margin=0pt, left_margin=0pt, top_margin=0pt, bottom_margin=-20mm, frame=false, legend=:outerbottom)

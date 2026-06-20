@@ -164,7 +164,7 @@ function init_cylinder()::Nothing
     camera_matrix::Matrix{Float64} = [[8 * 2048 / 7.07, 0.0, 2048 / 2] [0.0, 8 * 1536 / 5.3, 1536 / 2] [0.0, 0.0, 1.0]]'
     camera_pose::Vector{Float64} = scale * [0 -0.25 2]'
 
-    _box = meshgrid_cube(1.0, 1.0, 1.0; mesh_type=:structured, ne=ne, element_shape=:Hex, basis_order=2)
+    _box = meshgrid_cuboid(1.0, 1.0, 1.0; mesh_type=:structured, ne=ne, element_shape=:Hex, basis_order=2)
     NodeList = _box.NodeList
     nNodes = 2*ne + 1
     BorderNodes = [_box.side_nodes, _box.bottom_nodes, _box.top_nodes]

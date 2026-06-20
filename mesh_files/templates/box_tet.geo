@@ -110,11 +110,10 @@ Volume(1) = {1};
 //-------------------------------------------------------------
 // Physical groups
 //-------------------------------------------------------------
-Physical Surface("Bottom")  = {1};
-Physical Surface("Top")     = {2};
-Physical Surface("Front")   = {3};
-Physical Surface("Right")   = {4};
-Physical Surface("Back")    = {5};
-Physical Surface("Left")    = {6};
-Physical Surface("Corners") = {7, 8, 9, 10};
-Physical Volume("Box")      = {1};
+Physical Surface("Bottom") = {1};
+Physical Surface("Top")    = {2};
+Physical Surface("Front")  = {3, 7};   // flat front + front-right arc
+Physical Surface("Right")  = {4, 8};   // flat right + back-right arc
+Physical Surface("Back")   = {5, 9};   // flat back + back-left arc
+Physical Surface("Left")   = {6, 10};  // flat left + front-left arc
+Physical Volume("Box")     = {1};

@@ -298,17 +298,22 @@ Function to write the contour data to a CSV file
 """
 function write_data(filepath::String, data_array::AbstractArray)
     @info "Writing contour files..."
-    counter = 0
-    set_file(string(filepath))
-    for data in data_array
-        cStr = string(counter,pad=3)
-        if size(data, 1) == 2
-            data = hcat(data[1,:], data[2,:])
-        elseif size(data, 1) == 3
-            data = hcat(data[1,:], data[2,:], data[3,:])
+    set_file(filepath)
+    for (t, t_data) in enumerate(data_array)
+        cStr = string(t - 1, pad=3)
+        write_csv(joinpath(filepath, cStr), t_data)
+    end
+end
+
+function write_2d_data(filepath::String, data_array::AbstractArray)
+    @info "Writing contour files..."
+    for (t, t_data) in enumerate(data_array)
+        cStr = string(t - 1, pad=3)
+        for (a, angle_data) in enumerate(t_data)
+            angle_dir = joinpath(filepath, string(a))
+            set_file(angle_dir)
+            write_csv(joinpath(angle_dir, cStr), angle_data)
         end
-        write_csv(string(filepath,"/",cStr),data)
-        counter += 1
     end
 end
 
