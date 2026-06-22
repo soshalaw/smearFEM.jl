@@ -111,6 +111,8 @@ function optimize(exp_params::Dict)
     basis_order_p = FunctionClass_p ∈ ("Q1", "S1") ? 1 : 2
     element_shape_x = FunctionClass_x ∈ ("Q1", "Q2") ? :Hex : :Tet
     basis_order_x = FunctionClass_x ∈ ("Q1", "S1") ? 1 : 2
+    _mesh_path_kw(d) = haskey(d, "mesh_path") ? (mesh_path=d["mesh_path"],) : (;)
+    _fem = (element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x)
 
     iterList::Vector{Float64} = Vector{Float64}()
     costList::Vector{Float64}  = Vector{Float64}()
@@ -122,7 +124,7 @@ function optimize(exp_params::Dict)
     filepath_gt::String = exp_params["filepath_gt"]
     filepath_res::String = exp_params["filepath_res"]
     
-    obj_pose::AbstractArray = zeros(Float64, 4,4) # initial pose of the object
+    obj_pose::Vector{Float64} = zeros(Float64, 3) # initial pose of the object
     camera_matrix::AbstractArray = exp_params["camera_matrix"]
     
     sim_time_exp::Float64 = exp_params["sim_time_exp"]
@@ -135,29 +137,39 @@ function optimize(exp_params::Dict)
     
     ne_exp::Int = exp_params["ne_exp"] # number of elements in the mesh for the experiment
     
+    r::Float64 = 0.0
+    h::Float64 = 0.0
     data_type ::String = exp_params["data_type"] # "simulated" or "physical" or "real"
+    geometry::Union{Symbol, Nothing} = nothing
+    z_angles::Vector{Float64} = [0.0]
+    edge_radius::Union{Float64,Nothing} = nothing
     noiseLevel::Float64 = 0.0
-    SIDES::Bool = false
-    
     viscosity_model::String = "" # "constant" or "bulk_viscosity"
+
+    obs_data_angles = AbstractArray[]
+    splinex_angles = AbstractArray[]
+    spliney_angles = AbstractArray[]
+
     if data_type == "simulated" || data_type == "synthetic"
-        
-        WRITE_GT = exp_params["WRITE_GT"] 
-        noiseLevel = exp_params["noise_level"]
-        outlier_frames = Int[1]
-        
-        if WRITE_GT == true # write the ground truth data
-            @info "Writing ground truth gt data to with $ne_gt elements to $filepath_res"
-            write_gt_data(exp_params)
-        end
         
         sim_params = read_json(joinpath(filepath_gt,"data","sim_params"))
         
         r = sim_params["r"]
         h = sim_params["h"]
-        
+        geometry = get!(sim_params, "geometry", nothing)
+        z_angles = get!(sim_params, "z_angles", [0.0])
+        edge_radius = get!(sim_params, "edge_radius", nothing)
         gt_viscosity_type = sim_params["viscosity_type"]
-        F = Array(float.(sim_params["cParam"]))
+        F = sim_params["cParam"]
+
+        WRITE_GT = exp_params["WRITE_GT"] 
+        noiseLevel = exp_params["noise_level"]
+        outlier_frames = Int[1]
+        
+        if WRITE_GT == true # write the ground truth data
+            @info "Writing ground truth gt data to with $ne_exp elements to $filepath_res"
+            write_gt_data(exp_params)
+        end
         
         if gt_viscosity_type == "bulk_viscosity"
             if haskey(sim_params, "model_type") && sim_params["model_type"] == "carreau"
@@ -175,25 +187,39 @@ function optimize(exp_params::Dict)
         sim_time_gt = sim_params["simulation_time"]
         t_steps_gt = sim_params["time_steps"]
         
-        camera_matrix = reshape(Array(float.(sim_params["camera_matrix"])),3,3)
-        obj_pose = reshape(Array(float.(sim_params["obj_pose"])*1.0),4,4)
+        camera_matrix = sim_params["camera_matrix"]
+        obj_pose = sim_params["obj_pose"]
+        # obj_pose = _obj_pose[1:3,4]
         
         control = sim_params["control_type"]
-        
-        model_gt, scene_gt = def_problem(r, h, ne_exp, η_gt, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, gt_viscosity_type,
-        sim_time_gt, t_steps_gt, viscosity_model=viscosity_model)
-        
-        if data_type == "synthetic"
-            ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","img_data","contour_data"))  
-        elseif data_type == "simulated"
-            ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","sim_data","contour_data"))  
+
+        _shared = (η_gt, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, gt_viscosity_type, sim_time_gt, t_steps_gt)
+        model_gt, scene_exp = if geometry === :cylinder
+            def_problem(Cylinder(r, h), ne_exp, _shared...; _mesh_path_kw(exp_params)...)
+        else
+            lx = Float64(get(exp_params, "lx", r))
+            ly = Float64(get(exp_params, "ly", r))
+            lz = Float64(get(exp_params, "lz", h))
+            def_problem(Cuboid(lx, ly, lz), ne_exp, _shared...; edge_radius=edge_radius, _mesh_path_kw(exp_params)...)
         end
         
+        for i in 1:length(z_angles)
+            if data_type == "synthetic"
+                ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","img_data","contour_data", string(i)))
+            elseif data_type == "simulated"
+                ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","sim_data","contour_data", string(i)))  
+            end
+
+            push!(obs_data_angles, ObsDataList)
+            push!(splinex_angles, splinexObs)
+            push!(spliney_angles, splineyObs)
+        end
+
         printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
         
     elseif data_type == "physical"
-        r::Float64 = exp_params["r"]  # radius of the cylinder in mm
-        h::Float64 = exp_params["h"]  # height of the cylinder in mm
+        r = exp_params["r"]  # radius of the cylinder in mm
+        h = exp_params["h"]  # height of the cylinder in mm
         
         control::String = exp_params["control"]
         gt_viscosity_type::String = exp_params["viscosity_type"] # "constant" or "bulk_viscosity"
@@ -225,10 +251,10 @@ function optimize(exp_params::Dict)
         obj_pose_[3,2] = -1.0
         obj_pose_[1:3,4] = obj_pose[1:3,4]
         
-        ObsDataList = _ObsDataList[compression_frames]
-        splinexObs = _splinexObs[compression_frames]
-        splineyObs = _splineyObs[compression_frames]
-        
+        push!(ObsDataList, _ObsDataList[compression_frames])
+        push!(splinex_angles, _splinexObs[compression_frames])
+        push!(spliney_angles, _splineyObs[compression_frames])
+
         function get_gt_height(t_top_plt::AbstractArray, t_btm_plt::AbstractArray, h_gt_init::Float64)
             n_frames = size(t_top_plt,2)
             Δh_gt = zeros(Float64, n_frames)
@@ -258,19 +284,26 @@ function optimize(exp_params::Dict)
         write_json(joinpath(filepath_gt,"data","sim_params"), sim_data)
         write_csv(joinpath(filepath_gt,"data","h"), h_gt)
 
-        valid_frames, _outlier_frames = detect_outlier_observations(ObsDataList)
+        valid_frames, _outlier_frames = detect_outlier_observations(_ObsDataList[compression_frames])
         outlier_frames = vcat(outlier_frames, _outlier_frames)
+        geometry = :cylinder
     else
         error("data_type should be either simulated or physical")
+    end
+
+    geom_exp = if geometry === :cylinder
+        Cylinder(r, h)
+    else
+        lx = Float64(get(exp_params, "lx", r))
+        ly = Float64(get(exp_params, "ly", r))
+        lz = Float64(get(exp_params, "lz", h))
+        Cuboid(lx, ly, lz)
     end
 
     if sim_time_gt < sim_time_exp
         @warn "Ground truth simulation time $sim_time_gt is less than experimental simulation time $sim_time_exp , switching to ground truth simulation time"
         sim_time_exp = sim_time_gt
     end
-    exp_path = filepath_res
-    set_file(exp_path)
-    write_json(joinpath(exp_path,"Results","data","experiment_parameters"), exp_params)
 
     if t_steps_exp > t_steps_gt
         @warn "time resolution of the ground truth $t_steps_gt is larger than the experimental $t_steps_exp, switching to ground truth resolution"
@@ -298,199 +331,35 @@ function optimize(exp_params::Dict)
 
     θ::Vector{Float64} = [η_start, β_start]
 
-    if gt_viscosity_type == "constant"
+    for i in eachindex(z_angles)
+
+        ObsDataList = obs_data_angles[i]
+        splinexObs = splinex_angles[i]
+        splineyObs = spliney_angles[i]
         
-        _range = 1:(round(Int,sim_time_exp/t_steps_exp)+1)
-        @info "Considering from frame $(first(_range)) to frame $(last(_range)) in the observations"
-        ObsDataList = ObsDataList[_range] # align the observation points with the simulation time
+        exp_params["z_angle"] = z_angles[i]
+        write_json(joinpath(filepath_res,"Results","data","experiment_parameters"), exp_params)
 
-        # Read the gt data
-        model, scene = def_problem(r, h, ne_exp, η_gt, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, gt_viscosity_type,
-        sim_time_exp, t_steps_exp)
-
-        est_model, est_scene = def_problem(r, h, ne_exp, η_start, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_start, F, control, gt_viscosity_type,
-        sim_time_gt, t_steps_exp)
-        conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, SIDES=SIDES, filepath=exp_path, ANIMATE=false)
-        
-        gt_h_ = readdlm(joinpath(filepath_gt,"data","h.csv"), ',', Float64)
-        gt_h = gt_h_[1:(round(Int,sim_time_gt/t_steps_exp)+1)]
-
-        # time = collect(Float64, range(start=0, stop=sim_time_exp, step=t_steps_exp))
-        if noiseLevel == 0.0
-                
-            obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
-            stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ, outliers=outlier_frames, method=:gn)
-
-            iterList = stats["iterList"]
-            costList = stats["cost_list"]
-            ηpList = stats["ηList"]
-            βpList = stats["βList"]
-
-            η = stats["η"]
-            β = stats["β"]
-
-            printstyled("Estimated η : $(η), estimated β: $(β)\n"; color = :green)
-
-            η_accuracy = (1-abs((η_gt-η)/η_gt))*100
-            β_accuracy = (1-abs((β_gt-β)/β_gt))*100
-            printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
-            printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
-
-            set_file(joinpath(exp_path,"Results","plots"))
+        if gt_viscosity_type == "constant"
             
-            write_json(joinpath(exp_path,"Results","data","stats"), stats)
-            write_csv(joinpath(exp_path,"Results","data","η"), ηpList)
-            write_csv(joinpath(exp_path,"Results","data","β"), βpList)
-            write_csv(joinpath(exp_path,"Results","data","gt_h"), gt_h)
-            write_csv(joinpath(exp_path,"Results","data","cost_iter"), costList)
+            _range = 1:(round(Int,sim_time_exp/t_steps_exp)+1)
+            @info "Considering from frame $(first(_range)) to frame $(last(_range)) in the observations"
+            ObsDataList = ObsDataList[_range] # align the observation points with the simulation time
+
+            # Read the gt data
+            model, scene = def_problem(geom_exp, ne_exp, η_gt, _fem..., β_gt, F, control, gt_viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
+            est_model, est_scene = def_problem(geom_exp, ne_exp, η_start, _fem..., β_start, F, control, gt_viscosity_type, sim_time_gt, t_steps_exp; _mesh_path_kw(exp_params)...)
+            conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, filepath=filepath_res, ANIMATE=false, viewing_angles=[z_angles[i]])
             
-            reset_model!(est_model)
-            est_model.η = [η]
-            est_scene.β = [β]
-            
-            # simulate the model with the estimated parameters
-            est_μ_list, gradList, borderPts2DList, fields, _, pos2D, pos3D, splinep, splineq, _, _, _ = simulate(est_model, est_scene, conditions)
-            est_h = get_height(est_μ_list, h)
+            gt_h_ = readdlm(joinpath(filepath_gt,"data","h.csv"), ',', Float64)
+            gt_h = gt_h_[1:(round(Int,sim_time_gt/t_steps_exp)+1)]
 
-            write_csv(joinpath(exp_path,"Results","data","est_h"), est_h)
-            write_data(joinpath(exp_path,"Results","data","sim_data","2D_surface_points"), pos2D)
-            write_data(joinpath(exp_path,"Results","data","sim_data","3D_points"), pos3D)
-            write_data(joinpath(exp_path,"Results","data","sim_data","motion_fields "), fields)
-            write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points"), borderPts2DList)
-
-            if maximum(ηpList) > η+dev_η
-                ηStop = maximum(ηpList)*1.1
-            else
-                ηStop = η+dev_η
-            end
-
-            if minimum(ηpList) < η-dev_η
-                if minimum(ηpList) <= 0.0
-                    η_start = 0.1
-                else
-                    η_start = minimum(ηpList)*0.9
-                end
-            else
-                η_start = η-dev_η
-            end
-
-            # if maximum(βpList) > β+dev_β
-            #     βStop = maximum(βpList)*1.1
-            # else
-            #     βStop = β+dev_β
-            # end
-
-            # if minimum(βpList) < β-dev_β
-            #     β_start = minimum(βpList)*0.9
-            # else
-            #     β_start = β-dev_β
-            # end
-
-            # sampleNo = 7
-            # ηList = collect(range(η_start, stop=ηStop, length=sampleNo))
-            # βList = collect(range(β_start, stop=βStop, length=sampleNo))
-            # CostMat = zeros(size(ηList,1),size(βList,1))
-            # ∂CostMat = zeros(2,size(ηList,1),size(βList,1))
-            # ∂2CostMat = zeros(2,2,size(ηList,1),size(βList,1))
-
-            # costη = zeros(size(ηList,1))
-            # costβ = zeros(size(βList,1))
-
-            # η_iter = 1:size(ηList,1)
-            # β_iter = 1:size(βList,1)
-
-            # for i::Int in η_iter
-            #     η = ηList[i]
-            #     for j::Int in β_iter
-            #         β = βList[j]
-            #         reset_model!(model)
-            #         model.η = [η]
-            #         scene.β = [β]
-            #         μ_list, gradList, simBorderPts, fields_, pos3D_, pos2D_, splinex_, spliney_ = simulate(model, scene, conditions)
+            # time = collect(Float64, range(start=0, stop=sim_time_exp, step=t_steps_exp))
+            if noiseLevel == 0.0
                     
-            #         # test the closest point function
-            #         d, pairs = closest_point(simBorderPts, obs_border_pt_lst)
-                    
-            #         CostMat[i,j] = sum(d)/length(d)
-            #     end
-            # end
-            
-            # # Plot the cost function surface (interactive GLMakie)
-            # # set_plot(fs, sz=(plt_width, plt_height))
-            # # # CostMat is constructed as CostMat[i_eta, j_beta]; Makie expects Z with
-            # # # size (length(beta), length(eta)) => transpose CostMat for plotting.
-            # # # First attempt: save an interactive PlotlyJS HTML (avoids creating Makie figures)
-            # # try
-            # #     htmlpath = joinpath(exp_path, "Results", "plots", "cost_surface_iter_interactive.html")
-            # #     # compute overlay z-values for estimator path
-            # #     Z_for_interp = CostMat'
-            # #     zs_est = [interp_z_at(a, b, ηList, βList, Z_for_interp) for (a,b) in zip(ηpList, βpList)]
-            # #     # compute ground-truth z for legend/marker overlay
-            # #     z_gt = interp_z_at(η_gt, β_gt, ηList, βList, Z_for_interp)
-            # #     saved = save_plotly_surface_html(htmlpath, ηList, βList, CostMat'; xs=ηpList, ys=βpList, zs=zs_est, title="Cost surface (iter)", gt_x=η_gt, gt_y=β_gt, gt_z=z_gt, x_label = "\$\\eta\\;\\mathrm{(kPa\\, s)}\$", y_label = "\$\\beta\\;\\mathrm{(L/mm^{-1})}\$", font_size = fs, latex_labels=true)
-            # #     if saved
-            # #         @info "Saved interactive PlotlyJS HTML: $htmlpath"
-            # #     else
-            # #         @warn "PlotlyJS HTML not created; skipping interactive output. To enable interactive PNGs with GLMakie re-enable GLMakie manually."
-            # #     end
-            # # catch err
-            # #     @warn "PlotlyJS path failed; skipping interactive output. Error: $err"
-            # # end
+                obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
+                stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ, outliers=outlier_frames, method=:gn)
 
-            # # # Also produce static PDF outputs with Plots (preserve previous behavior)
-            # # try
-            # #     plt = set_plot(fs, sz=(plt_width, plt_height))
-            # #     Plots.contour!(plt, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
-            # #     Plots.plot!(plt, ηpList, βpList, label="Estimations", ms=:4, m=:x, color=:red)
-            # #     Plots.plot!(plt, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=def_red)
-            # #     Plots.xlabel!(plt, L"\eta\;\mathrm{[kPa\, s]}")
-            # #     Plots.ylabel!(plt, L"\beta\;\mathrm{(L/mm^{-1})}")
-            # #     Plots.savefig(plt, joinpath(exp_path,"Results","plots","cost_surface_iter.pdf"))
-
-            # #     plt2 = set_plot(fs, sz=(plt_width, plt_height))
-            # #     Plots.contourf!(plt2, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
-            # #     Plots.plot!(plt2, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=def_red)
-            # #     Plots.xlabel!(plt2, L"\eta\;\mathrm{[kPa\, s]}")
-            # #     Plots.ylabel!(plt2, L"\beta\;\mathrm{(L/mm^{-1})}")
-            # #     Plots.savefig(plt2, joinpath(exp_path,"Results","plots","cost_surface.pdf"))
-            # # catch err
-            # #     @warn "Failed to produce static PDF contour outputs: $err"
-            # # end
-
-            # # Write the results to files
-            # contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
-
-            # write_json(joinpath(exp_path,"Results","data","contour_plot_params"), contour_plot_params)
-
-            # @save joinpath(exp_path,"Results","data","sim_data","Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
-        else
-            n_samples = 10
-            η_pred = zeros(Float64, n_samples)
-            β_pred = zeros(Float64, n_samples)
-            costnList = Vector{Vector{Float64}}(undef, n_samples)
-            iternList = Vector{AbstractVector}(undef, n_samples)
-            est_h_list = Matrix{Float64}(undef, n_samples, round(Int,sim_time_gt/t_steps_exp)+1)
-            ANIMATED = false
-
-            # Pre-allocate containers for batch file I/O (collect phase)
-            sim_params_list = Vector{Dict}(undef, n_samples)
-            pos2D_list = Vector{Any}(undef, n_samples)
-            pos3D_list = Vector{Any}(undef, n_samples)
-            fields_list = Vector{Any}(undef, n_samples)
-            borderPts2D_list = Vector{Any}(undef, n_samples)
-            splinep_list = Vector{Any}(undef, n_samples)
-            splineq_list = Vector{Any}(undef, n_samples)
-            η_steps_list = Vector{Vector}(undef, n_samples)
-            β_steps_list = Vector{Vector}(undef, n_samples)
-            cost_steps_list = Vector{Vector}(undef, n_samples)
-            iter_steps_list = Vector{Vector}(undef, n_samples)
-
-            set_file(joinpath(exp_path,"Results","plots"))
-            for n::Int in 1:n_samples
-                obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
-
-                stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ, outliers=outlier_frames)
-                                    
                 iterList = stats["iterList"]
                 costList = stats["cost_list"]
                 ηpList = stats["ηList"]
@@ -498,172 +367,276 @@ function optimize(exp_params::Dict)
 
                 η = stats["η"]
                 β = stats["β"]
+
+                printstyled("Estimated η : $(η), estimated β: $(β)\n"; color = :green)
+
+                η_accuracy = (1-abs((η_gt-η)/η_gt))*100
+                β_accuracy = (1-abs((β_gt-β)/β_gt))*100
+                printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
+                printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
+
+                set_file(joinpath(filepath_res,"Results","plots"))
+                
+                write_json(joinpath(filepath_res,"Results","data","stats"), stats)
+                write_csv(joinpath(filepath_res,"Results","data","η"), ηpList)
+                write_csv(joinpath(filepath_res,"Results","data","β"), βpList)
+                write_csv(joinpath(filepath_res,"Results","data","gt_h"), gt_h)
+                write_csv(joinpath(filepath_res,"Results","data","cost_iter"), costList)
                 
                 reset_model!(est_model)
                 est_model.η = [η]
                 est_scene.β = [β]
                 
                 # simulate the model with the estimated parameters
-                est_μ_list, gradList, borderPts2DList, fields, _, pos2D, pos3D, splinep, splineq, _, _, _ = simulate(est_model, est_scene, conditions)
-
+                est_μ_list, gradList, borderPts2DList, fields, _, pos2D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
                 est_h = get_height(est_μ_list, h)
+
+                write_csv(joinpath(filepath_res,"Results","data","est_h"), est_h)
+                write_data(joinpath(filepath_res,"Results","data","sim_data","2D_surface_points"), pos2D)
+                write_data(joinpath(filepath_res,"Results","data","sim_data","3D_points"), pos3D)
+                write_data(joinpath(filepath_res,"Results","data","sim_data","motion_fields "), fields)
+                write_data(joinpath(filepath_res,"Results","data","sim_data","2D_border_points"), borderPts2DList)
+
+                if maximum(ηpList) > η+dev_η
+                    ηStop = maximum(ηpList)*1.1
+                else
+                    ηStop = η+dev_η
+                end
+
+                if minimum(ηpList) < η-dev_η
+                    if minimum(ηpList) <= 0.0
+                        η_start = 0.1
+                    else
+                        η_start = minimum(ηpList)*0.9
+                    end
+                else
+                    η_start = η-dev_η
+                end
+
+                # if maximum(βpList) > β+dev_β
+                #     βStop = maximum(βpList)*1.1
+                # else
+                #     βStop = β+dev_β
+                # end
+
+                # if minimum(βpList) < β-dev_β
+                #     β_start = minimum(βpList)*0.9
+                # else
+                #     β_start = β-dev_β
+                # end
+
+                # sampleNo = 7
+                # ηList = collect(range(η_start, stop=ηStop, length=sampleNo))
+                # βList = collect(range(β_start, stop=βStop, length=sampleNo))
+                # CostMat = zeros(size(ηList,1),size(βList,1))
+                # ∂CostMat = zeros(2,size(ηList,1),size(βList,1))
+                # ∂2CostMat = zeros(2,2,size(ηList,1),size(βList,1))
+
+                # costη = zeros(size(ηList,1))
+                # costβ = zeros(size(βList,1))
+
+                # η_iter = 1:size(ηList,1)
+                # β_iter = 1:size(βList,1)
+
+                # for i::Int in η_iter
+                #     η = ηList[i]
+                #     for j::Int in β_iter
+                #         β = βList[j]
+                #         reset_model!(model)
+                #         model.η = [η]
+                #         scene.β = [β]
+                #         μ_list, gradList, simBorderPts, fields_, pos3D_, pos2D_, splinex_, spliney_ = simulate(model, scene, conditions)
+                        
+                #         # test the closest point function
+                #         d, pairs = closest_point(simBorderPts, obs_border_pt_lst)
+                        
+                #         CostMat[i,j] = sum(d)/length(d)
+                #     end
+                # end
                 
-                η_accuracy = (1-abs((η_gt-η)/η_gt))*100
-                β_accuracy = (1-abs((β_gt-β)/β_gt))*100
-                printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
-                printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
-                
-                η_pred[n] = η
-                β_pred[n] = β
-                est_h_list[n,:] = est_h
-                costnList[n] = costList
-                iternList[n] = iterList
+                # # Plot the cost function surface (interactive GLMakie)
+                # # set_plot(fs, sz=(plt_width, plt_height))
+                # # # CostMat is constructed as CostMat[i_eta, j_beta]; Makie expects Z with
+                # # # size (length(beta), length(eta)) => transpose CostMat for plotting.
+                # # # First attempt: save an interactive PlotlyJS HTML (avoids creating Makie figures)
+                # # try
+                # #     htmlpath = joinpath(exp_path, "Results", "plots", "cost_surface_iter_interactive.html")
+                # #     # compute overlay z-values for estimator path
+                # #     Z_for_interp = CostMat'
+                # #     zs_est = [interp_z_at(a, b, ηList, βList, Z_for_interp) for (a,b) in zip(ηpList, βpList)]
+                # #     # compute ground-truth z for legend/marker overlay
+                # #     z_gt = interp_z_at(η_gt, β_gt, ηList, βList, Z_for_interp)
+                # #     saved = save_plotly_surface_html(htmlpath, ηList, βList, CostMat'; xs=ηpList, ys=βpList, zs=zs_est, title="Cost surface (iter)", gt_x=η_gt, gt_y=β_gt, gt_z=z_gt, x_label = "\$\\eta\\;\\mathrm{(kPa\\, s)}\$", y_label = "\$\\beta\\;\\mathrm{(L/mm^{-1})}\$", font_size = fs, latex_labels=true)
+                # #     if saved
+                # #         @info "Saved interactive PlotlyJS HTML: $htmlpath"
+                # #     else
+                # #         @warn "PlotlyJS HTML not created; skipping interactive output. To enable interactive PNGs with GLMakie re-enable GLMakie manually."
+                # #     end
+                # # catch err
+                # #     @warn "PlotlyJS path failed; skipping interactive output. Error: $err"
+                # # end
 
-                # Collect phase: Store all data in memory instead of writing immediately
-                sim_params = Dict("gt_η" => η_gt,
-                "gt_β" => β_gt,
-                "η" => η,
-                "β" => β,
-                "η_accuracy" => η_accuracy,
-                "β_accuracy" => β_accuracy)
-                
-                sim_params_list[n] = sim_params
-                cost_steps_list[n] = costList
-                η_steps_list[n] = ηpList
-                β_steps_list[n] = βpList
-                iter_steps_list[n] = iterList
-                pos2D_list[n] = pos2D
-                pos3D_list[n] = pos3D
-                fields_list[n] = fields
-                borderPts2D_list[n] = borderPts2DList
-                splinep_list[n] = splinep
-                splineq_list[n] = splineq
+                # # # Also produce static PDF outputs with Plots (preserve previous behavior)
+                # # try
+                # #     plt = set_plot(fs, sz=(plt_width, plt_height))
+                # #     Plots.contour!(plt, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
+                # #     Plots.plot!(plt, ηpList, βpList, label="Estimations", ms=:4, m=:x, color=:red)
+                # #     Plots.plot!(plt, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=def_red)
+                # #     Plots.xlabel!(plt, L"\eta\;\mathrm{[kPa\, s]}")
+                # #     Plots.ylabel!(plt, L"\beta\;\mathrm{(L/mm^{-1})}")
+                # #     Plots.savefig(plt, joinpath(exp_path,"Results","plots","cost_surface_iter.pdf"))
 
-            end
+                # #     plt2 = set_plot(fs, sz=(plt_width, plt_height))
+                # #     Plots.contourf!(plt2, ηList, βList, CostMat, color=:turbo, fill=false, levels=100, dpi=400)
+                # #     Plots.plot!(plt2, [η_gt], [β_gt], label="Ground truth", ms=:8, m=:star5, color=def_red)
+                # #     Plots.xlabel!(plt2, L"\eta\;\mathrm{[kPa\, s]}")
+                # #     Plots.ylabel!(plt2, L"\beta\;\mathrm{(L/mm^{-1})}")
+                # #     Plots.savefig(plt2, joinpath(exp_path,"Results","plots","cost_surface.pdf"))
+                # # catch err
+                # #     @warn "Failed to produce static PDF contour outputs: $err"
+                # # end
 
-            # Write phase: Batch write all collected data at once (after loop completes)
-            @info "Beginning batch file write phase ($n_samples runs)..."
-            for n::Int in 1:n_samples
-                write_json(joinpath(exp_path,"Results","data","stats","run_$n"), sim_params_list[n])
-                write_csv(joinpath(exp_path,"Results","data","opt_data","cost_steps","run_$n"), cost_steps_list[n])
-                write_csv(joinpath(exp_path,"Results","data","opt_data","eta_steps","run_$n"), η_steps_list[n])
-                write_csv(joinpath(exp_path,"Results","data","opt_data","beta_steps","run_$n"), β_steps_list[n])
-                write_csv(joinpath(exp_path,"Results","data","opt_data","iter","run_$n"), iter_steps_list[n])
-                write_csv(joinpath(exp_path,"Results","data","opt_data","est_height","run_$n"), est_h_list[n,:])
-                write_data(joinpath(exp_path,"Results","data","sim_data","2D_points","run_$n"), pos2D_list[n])
-                write_data(joinpath(exp_path,"Results","data","sim_data","3D_points","run_$n"), pos3D_list[n])
-                write_data(joinpath(exp_path,"Results","data","sim_data","motion_fields ","run_$n"), fields_list[n])
-                write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points","run_$n"), borderPts2D_list[n])
-                write_data(joinpath(exp_path,"Results","data","sim_data","spline_p","run_$n"), splinep_list[n])
-                write_data(joinpath(exp_path,"Results","data","sim_data","spline_q","run_$n"), splineq_list[n])
-            end
+                # # Write the results to files
+                # contour_plot_params = Dict("η_list" => ηList, "β_list" => βList, "cost_mat" => CostMat)
 
-            write_csv(joinpath(exp_path,"Results","data","eta_est"), η_pred)
-            write_csv(joinpath(exp_path,"Results","data","beta_est"), β_pred)
-            write_csv(joinpath(exp_path,"Results","data","h_est"), est_h_list)
+                # write_json(joinpath(exp_path,"Results","data","contour_plot_params"), contour_plot_params)
 
-            @info "Data writing completed. Results saved to $exp_path"
-        end
-
-    elseif gt_viscosity_type == "bulk_viscosity"
-        
-        av_η::Float64 = 0.0
-        obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
-        mode::String = exp_params["mode"] # "single_window" or "multiple_window" or "full_time"
-        sim_time_window::Float64 = 30.0 # time window size for optimization in seconds
-        
-        viscosity_type = "constant"
-        
-        conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
-        model, scene = def_problem(r, h, ne_exp, η_gt, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, viscosity_type,
-        sim_time_exp, t_steps_exp)
-        
-        set_file(joinpath(exp_path,"Results","plots"))
-        
-        time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obs_border_pt_lst, method="linear", window_size=sim_time_exp)
-        _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="linear", window_size=sim_time_exp)
-        _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="linear", window_size=sim_time_exp)
-        println("Time windows: $(time_windows)")
-        obs_time = sum(time_windows)
-
-        if obs_time < sim_time_gt
-            @warn "Observation time frame $obs_time is less than preset ground truth time frame $sim_time_gt, switching to observation time frame"
-            sim_time_gt = obs_time
-        end
-
-        if obs_time < sim_time_exp
-            @warn "Observation time frame $obs_time is less than experimental simulation time frame $sim_time_exp, switching to observation time frame"
-            sim_time_exp = obs_time
-        end
-        
-        data_pt_len = round(Int,obs_time/t_steps_exp)
-        est_ηpList = Vector{Float64}(undef,data_pt_len)
-        avg_ηList = Vector{Float64}(undef,data_pt_len)
-        est_βpList = Vector{Float64}(undef,data_pt_len)
-        pred_h_list = AbstractArray[]
-
-        if mode == "single_window"
-            @info "Optimizing over a single time window"
-            ti = 1
-            data_range_ = data_ranges_[ti]
-            scene.sim_time = time_windows[ti]
-            if data_type == "physical"
-                _F = -F_ext*ones(Float64, round(Int, scene.sim_time*frame_rate)) # force applied to the cylinder in N
-                scene.cParam = _F
+                # @save joinpath(exp_path,"Results","data","sim_data","Cost_Matrices.jld2") ηList, βList, CostMat, ∂CostMat, ∂2CostMat
             else
-                scene.cParam = F[data_range_]
+                n_samples = 10
+                η_pred = zeros(Float64, n_samples)
+                β_pred = zeros(Float64, n_samples)
+                costnList = Vector{Vector{Float64}}(undef, n_samples)
+                iternList = Vector{AbstractVector}(undef, n_samples)
+                est_h_list = Matrix{Float64}(undef, n_samples, round(Int,sim_time_gt/t_steps_exp)+1)
+                ANIMATED = false
+
+                # Pre-allocate containers for batch file I/O (collect phase)
+                sim_params_list = Vector{Dict}(undef, n_samples)
+                pos2D_list = Vector{Any}(undef, n_samples)
+                pos3D_list = Vector{Any}(undef, n_samples)
+                fields_list = Vector{Any}(undef, n_samples)
+                borderPts2D_list = Vector{Any}(undef, n_samples)
+                η_steps_list = Vector{Vector}(undef, n_samples)
+                β_steps_list = Vector{Vector}(undef, n_samples)
+                cost_steps_list = Vector{Vector}(undef, n_samples)
+                iter_steps_list = Vector{Vector}(undef, n_samples)
+
+                set_file(joinpath(filepath_res,"Results","plots"))
+                for n::Int in 1:n_samples
+                    obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
+
+                    stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ, outliers=outlier_frames)
+                                        
+                    iterList = stats["iterList"]
+                    costList = stats["cost_list"]
+                    ηpList = stats["ηList"]
+                    βpList = stats["βList"]
+
+                    η = stats["η"]
+                    β = stats["β"]
+                    
+                    reset_model!(est_model)
+                    est_model.η = [η]
+                    est_scene.β = [β]
+                    
+                    # simulate the model with the estimated parameters
+                    est_μ_list, gradList, borderPts2DList, fields, _, pos2D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
+
+                    est_h = get_height(est_μ_list, h)
+                    
+                    η_accuracy = (1-abs((η_gt-η)/η_gt))*100
+                    β_accuracy = (1-abs((β_gt-β)/β_gt))*100
+                    printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
+                    printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
+                    
+                    η_pred[n] = η
+                    β_pred[n] = β
+                    est_h_list[n,:] = est_h
+                    costnList[n] = costList
+                    iternList[n] = iterList
+
+                    # Collect phase: Store all data in memory instead of writing immediately
+                    sim_params = Dict("gt_η" => η_gt,
+                    "gt_β" => β_gt,
+                    "η" => η,
+                    "β" => β,
+                    "η_accuracy" => η_accuracy,
+                    "β_accuracy" => β_accuracy)
+                    
+                    sim_params_list[n] = sim_params
+                    cost_steps_list[n] = costList
+                    η_steps_list[n] = ηpList
+                    β_steps_list[n] = βpList
+                    iter_steps_list[n] = iterList
+                    pos2D_list[n] = pos2D
+                    pos3D_list[n] = pos3D
+                    fields_list[n] = fields
+                    borderPts2D_list[n] = borderPts2DList
+
+                end
+
+                # Write phase: Batch write all collected data at once (after loop completes)
+                @info "Beginning batch file write phase ($n_samples runs)..."
+                for n::Int in 1:n_samples
+                    write_json(joinpath(filepath_res,"Results","data","stats","run_$n"), sim_params_list[n])
+                    write_csv(joinpath(filepath_res,"Results","data","opt_data","cost_steps","run_$n"), cost_steps_list[n])
+                    write_csv(joinpath(filepath_res,"Results","data","opt_data","eta_steps","run_$n"), η_steps_list[n])
+                    write_csv(joinpath(filepath_res,"Results","data","opt_data","beta_steps","run_$n"), β_steps_list[n])
+                    write_csv(joinpath(filepath_res,"Results","data","opt_data","iter","run_$n"), iter_steps_list[n])
+                    write_csv(joinpath(filepath_res,"Results","data","opt_data","est_height","run_$n"), est_h_list[n,:])
+                    write_data(joinpath(filepath_res,"Results","data","sim_data","2D_points","run_$n"), pos2D_list[n])
+                    write_data(joinpath(filepath_res,"Results","data","sim_data","3D_points","run_$n"), pos3D_list[n])
+                    write_data(joinpath(filepath_res,"Results","data","sim_data","motion_fields ","run_$n"), fields_list[n])
+                    write_data(joinpath(filepath_res,"Results","data","sim_data","2D_border_points","run_$n"), borderPts2D_list[n])
+                end
+
+                write_csv(joinpath(filepath_res,"Results","data","eta_est"), η_pred)
+                write_csv(joinpath(filepath_res,"Results","data","beta_est"), β_pred)
+                write_csv(joinpath(filepath_res,"Results","data","h_est"), est_h_list)
+
+                @info "Data writing completed. Results saved to $filepath_res"
             end
-            @info "Time window $(time_windows[ti])"
 
-            println("Data frame : $(data_range_)")
-            println("Time frame : $(scene.sim_time)")
+        elseif gt_viscosity_type == "bulk_viscosity"
+            
+            av_η::Float64 = 0.0
+            obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
+            mode::String = exp_params["mode"] # "single_window" or "multiple_window" or "full_time"
+            sim_time_window::Float64 = 30.0 # time window size for optimization in seconds
+            
+            viscosity_type = "constant"
+            
+            conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
+            model, scene = def_problem(geom_exp, ne_exp, η_gt, _fem..., β_gt, F, control, viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
 
-            printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
+            set_file(joinpath(filepath_res,"Results","plots"))
+            
+            time_windows, windows, data_ranges_, t_windows = set_time_window(1/t_steps_exp, obs_border_pt_lst, method="linear", window_size=sim_time_exp)
+            _, splinexObs_win, _, _ = set_time_window(1/t_steps_exp, splinexObs, method="linear", window_size=sim_time_exp)
+            _, splineyObs_win, _, _ = set_time_window(1/t_steps_exp, splineyObs, method="linear", window_size=sim_time_exp)
+            println("Time windows: $(time_windows)")
+            obs_time = sum(time_windows)
 
-            obs_border_pt_lst_t = windows[ti] # align the observation points with the simulation time
-            splinexObs_t = splinexObs_win[ti]
-            splineyObs_t = splineyObs_win[ti]
-
-            println("observation Window size: $(size(obs_border_pt_lst_t,1)) seconds")
-
-            println("Time frame : $data_range_")
-            printstyled("Time window: $(ti)\n"; color = :green)
-
-            if data_type != "physical"
-                η_gt_ = model_gt.η[data_range_]
-                av_η = mean(η_gt_)
-                avg_ηList[data_range_] .= av_η
-                printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
+            if obs_time < sim_time_gt
+                @warn "Observation time frame $obs_time is less than preset ground truth time frame $sim_time_gt, switching to observation time frame"
+                sim_time_gt = obs_time
             end
 
-            stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ, outliers=outlier_frames)
+            if obs_time < sim_time_exp
+                @warn "Observation time frame $obs_time is less than experimental simulation time frame $sim_time_exp, switching to observation time frame"
+                sim_time_exp = obs_time
+            end
+            
+            data_pt_len = round(Int,obs_time/t_steps_exp)
+            est_ηpList = Vector{Float64}(undef,data_pt_len)
+            avg_ηList = Vector{Float64}(undef,data_pt_len)
+            est_βpList = Vector{Float64}(undef,data_pt_len)
+            pred_h_list = AbstractArray[]
 
-            est_ηpList[data_range_] .= stats["η"]
-            est_βpList[data_range_] .= stats["β"]
-
-            θ[1] = stats["η"]
-            θ[2] = stats["β"]
-
-            update_model!(model)
-      
-            iterList = stats["iterList"]
-            costList = stats["cost_list"]
-            ηpList = stats["ηList"]
-            βpList = stats["βList"]
-
-            viscosity_type = "bulk_viscosity"
-            est_model, est_scene = def_problem(r, h, ne_exp, η_gt, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F[data_range_], control, viscosity_type,
-                                sim_time_exp, t_steps_exp)
-            est_model.η = est_ηpList[data_range_] 
-            est_scene.β = est_βpList[data_range_]
-            est_μ_list, gradList, borderPts2DList, fields_est, _, pos2D_est, pos3D_est, splinex_est, spliney_est, _, _, _ = simulate(est_model, est_scene, conditions)
-            est_h_list = get_height(est_μ_list, h)
-
-            animate_fields(filepath=joinpath(exp_path,"Results","plots"), p=splinex_est, q=spliney_est, pObs=splinexObs_t, qObs=splineyObs_t)
-        else
-            println("Number of time windows: $(length(windows))")
-
-            for ti::Int in 1:length(windows)
+            if mode == "single_window"
+                @info "Optimizing over a single time window"
+                ti = 1
                 data_range_ = data_ranges_[ti]
                 scene.sim_time = time_windows[ti]
                 if data_type == "physical"
@@ -672,29 +645,29 @@ function optimize(exp_params::Dict)
                 else
                     scene.cParam = F[data_range_]
                 end
-                obs_border_pt_lst_t = windows[ti] # align the observation points with the simulation time
+                @info "Time window $(time_windows[ti])"
 
-                
-                printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
                 println("Data frame : $(data_range_)")
                 println("Time frame : $(scene.sim_time)")
-                @info "Time window $(t_windows[ti])"
+
+                printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
+
+                obs_border_pt_lst_t = windows[ti] # align the observation points with the simulation time
+                splinexObs_t = splinexObs_win[ti]
+                splineyObs_t = splineyObs_win[ti]
+
                 println("observation Window size: $(size(obs_border_pt_lst_t,1)) seconds")
 
-                if data_type != "physical" && viscosity_model != "carreau"
+                println("Time frame : $data_range_")
+                printstyled("Time window: $(ti)\n"; color = :green)
+
+                if data_type != "physical"
                     η_gt_ = model_gt.η[data_range_]
                     av_η = mean(η_gt_)
                     avg_ηList[data_range_] .= av_η
                     printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
                 end
-                
-                if data_type == "physical" && ti == 2
-                    println("Second time window, applying correction factor to the parameters for better convergence...")
-                    θ[1] = stats["η"]*4
-                    θ[2] = stats["β"]
-                end
 
-                @info "Fitting model in time window $(ti)..."
                 stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ, outliers=outlier_frames)
 
                 est_ηpList[data_range_] .= stats["η"]
@@ -703,53 +676,111 @@ function optimize(exp_params::Dict)
                 θ[1] = stats["η"]
                 θ[2] = stats["β"]
 
-
                 update_model!(model)
-            end
+        
+                iterList = stats["iterList"]
+                costList = stats["cost_list"]
+                ηpList = stats["ηList"]
+                βpList = stats["βList"]
 
-            @info "Completed all time windows."
-            
-            viscosity_type = "bulk_viscosity"
-            est_model, est_scene = def_problem(r, h, ne_exp, η_start, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_start, F, control, viscosity_type,
-            sim_time_gt, t_steps_gt, viscosity_model=viscosity_model)
-            est_model.η = est_ηpList
-            est_scene.β = est_βpList
-            
-            write_csv(joinpath(exp_path,"Results","data","est_η"), est_ηpList)
-            write_csv(joinpath(exp_path,"Results","data","est_β"), est_βpList)
-            write_csv(joinpath(exp_path,"Results","data","avg_η"), avg_ηList)
-            write_csv(joinpath(exp_path,"Results","data","window_data","time_windows"), time_windows)
-            write_csv(joinpath(exp_path,"Results","data","window_data","t_windows"), t_windows)
-            write_csv(joinpath(exp_path,"Results","data","window_data","data_ranges"), data_ranges_)
-            write_csv(joinpath(exp_path,"Results","data","window_data","windows_sizes"), windows)
-            
-            est_μ_list, gradList, simBorderPts, fields_est, _, pos2D_est, pos3D_est, splinex_est, spliney_est, _, _, _ = simulate(est_model, est_scene, conditions)
-            est_h_list = get_height(est_μ_list, h)
-            
-            if data_type != "physical" && viscosity_model != "carreau"
-                gt_μ_list, gradList, borderPts2DList_gt, fields_gt, _, pos2D_gt, pos3D_gt, _, _, _, _, _ = simulate(model_gt, scene_gt, conditions)
-                gt_h_list = get_height(gt_μ_list, h)
-                write_csv(joinpath(exp_path,"Results","data","η_gt"), model_gt.η)
-                write_csv(joinpath(exp_path,"Results","data","β_gt"), β_gt)
-                write_csv(joinpath(exp_path,"Results","data","gt_h"), gt_h_list)
+                viscosity_type = "bulk_viscosity"
+                est_model, est_scene = def_problem(geom_exp, ne_exp, η_gt, _fem..., β_gt, F[data_range_], control, viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
+                est_model.η = est_ηpList[data_range_] 
+                est_scene.β = est_βpList[data_range_]
+                est_μ_list, gradList, borderPts2DList, fields_est, _, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
+                est_h_list = get_height(est_μ_list, h)
+
+                # animate_fields(filepath=joinpath(filepath_res,"Results","plots"), p=splinex_est, q=spliney_est, pObs=splinexObs_t, qObs=splineyObs_t)
+            else
+                println("Number of time windows: $(length(windows))")
+
+                for ti::Int in 1:length(windows)
+                    data_range_ = data_ranges_[ti]
+                    scene.sim_time = time_windows[ti]
+                    if data_type == "physical"
+                        _F = -F_ext*ones(Float64, round(Int, scene.sim_time*frame_rate)) # force applied to the cylinder in N
+                        scene.cParam = _F
+                    else
+                        scene.cParam = F[data_range_]
+                    end
+                    obs_border_pt_lst_t = windows[ti] # align the observation points with the simulation time
+
+                    
+                    printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
+                    println("Data frame : $(data_range_)")
+                    println("Time frame : $(scene.sim_time)")
+                    @info "Time window $(t_windows[ti])"
+                    println("observation Window size: $(size(obs_border_pt_lst_t,1)) seconds")
+
+                    if data_type != "physical" && viscosity_model != "carreau"
+                        η_gt_ = model_gt.η[data_range_]
+                        av_η = mean(η_gt_)
+                        avg_ηList[data_range_] .= av_η
+                        printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
+                    end
+                    
+                    if data_type == "physical" && ti == 2
+                        println("Second time window, applying correction factor to the parameters for better convergence...")
+                        θ[1] = stats["η"]*4
+                        θ[2] = stats["β"]
+                    end
+
+                    @info "Fitting model in time window $(ti)..."
+                    stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ, outliers=outlier_frames)
+
+                    est_ηpList[data_range_] .= stats["η"]
+                    est_βpList[data_range_] .= stats["β"]
+
+                    θ[1] = stats["η"]
+                    θ[2] = stats["β"]
+
+
+                    update_model!(model)
+                end
+
+                @info "Completed all time windows."
                 
-                write_data(joinpath(exp_path,"Results","data","sim_data","2D_surface_points_gt"), pos2D_gt)
-                write_data(joinpath(exp_path,"Results","data","sim_data","3D_points_gt"), pos3D_gt)
-                write_data(joinpath(exp_path,"Results","data","sim_data","motion_fields_gt "), fields_gt)
-                write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points_gt"), borderPts2DList_gt)
+                viscosity_type = "bulk_viscosity"
+                est_model, est_scene = def_problem(geom_exp, ne_exp, η_start, _fem..., β_start, F, control, viscosity_type, sim_time_gt, t_steps_gt; viscosity_model=viscosity_model, _mesh_path_kw(exp_params)...)
+                est_model.η = est_ηpList
+                est_scene.β = est_βpList
+                
+                write_csv(joinpath(filepath_res,"Results","data","est_η"), est_ηpList)
+                write_csv(joinpath(filepath_res,"Results","data","est_β"), est_βpList)
+                write_csv(joinpath(filepath_res,"Results","data","avg_η"), avg_ηList)
+                write_csv(joinpath(filepath_res,"Results","data","window_data","time_windows"), time_windows)
+                write_csv(joinpath(filepath_res,"Results","data","window_data","t_windows"), t_windows)
+                write_csv(joinpath(filepath_res,"Results","data","window_data","data_ranges"), data_ranges_)
+                write_csv(joinpath(filepath_res,"Results","data","window_data","windows_sizes"), windows)
+                
+                est_μ_list, gradList, simBorderPts, fields_est, _, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
+                est_h_list = get_height(est_μ_list, h)
+                
+                if data_type != "physical" && viscosity_model != "carreau"
+                    gt_μ_list, gradList, borderPts2DList_gt, fields_gt, _, pos2D_gt, pos3D_gt, _, _, _ = simulate(model_gt, scene_exp, conditions)
+                    gt_h_list = get_height(gt_μ_list, h)
+                    write_csv(joinpath(filepath_res,"Results","data","η_gt"), model_gt.η)
+                    write_csv(joinpath(filepath_res,"Results","data","β_gt"), β_gt)
+                    write_csv(joinpath(filepath_res,"Results","data","gt_h"), gt_h_list)
+                    
+                    write_data(joinpath(filepath_res,"Results","data","sim_data","2D_surface_points_gt"), pos2D_gt)
+                    write_data(joinpath(filepath_res,"Results","data","sim_data","3D_points_gt"), pos3D_gt)
+                    write_data(joinpath(filepath_res,"Results","data","sim_data","motion_fields_gt "), fields_gt)
+                    write_data(joinpath(filepath_res,"Results","data","sim_data","2D_border_points_gt"), borderPts2DList_gt)
+                end
             end
+
+            write_csv(joinpath(filepath_res,"Results","data","est_h"), est_h_list)
+
+            write_data(joinpath(filepath_res,"Results","data","sim_data","2D_surface_points"), pos2D_est)
+            write_data(joinpath(filepath_res,"Results","data","sim_data","3D_points"), pos3D_est)
+            write_data(joinpath(filepath_res,"Results","data","sim_data","motion_fields "), fields_est)
+            write_data(joinpath(filepath_res,"Results","data","sim_data","2D_border_points"), simBorderPts)
         end
-
-        write_csv(joinpath(exp_path,"Results","data","est_h"), est_h_list)
-
-        write_data(joinpath(exp_path,"Results","data","sim_data","2D_surface_points"), pos2D_est)
-        write_data(joinpath(exp_path,"Results","data","sim_data","3D_points"), pos3D_est)
-        write_data(joinpath(exp_path,"Results","data","sim_data","motion_fields "), fields_est)
-        write_data(joinpath(exp_path,"Results","data","sim_data","2D_border_points"), simBorderPts)
     end
     end_time = Dates.now()
-    write_time_log(start_time, end_time, exp_params; dest_dir=joinpath(exp_path,"Results","logs"))
-    @info "Data writing completed. Results saved to $exp_path"
+    write_time_log(start_time, end_time, exp_params; dest_dir=joinpath(filepath_res,"Results","logs"))
+    @info "Data writing completed. Results saved to $filepath_res"
 end
 
 function predict(filepath, filepath_gt)
@@ -781,6 +812,17 @@ function predict(filepath, filepath_gt)
     ndim::Int = 3
     nDof_p::Int = 1  # number of degree of freedom per node
     nDof_u::Int = ndim  # number of degree of freedom per node
+
+    geometry = get(sim_params, "geometry", :cylinder)
+    _mesh_path_kw(d) = haskey(d, "mesh_path") ? (mesh_path=d["mesh_path"],) : (;)
+    geom = if geometry === :cylinder
+        Cylinder(r, h)
+    else
+        lx = Float64(get(sim_params, "lx", r))
+        ly = Float64(get(sim_params, "ly", r))
+        lz = Float64(get(sim_params, "lz", h))
+        Cuboid(lx, ly, lz)
+    end
 
     gt_h_::Matrix{Float64} = Matrix{Float64}(undef,0,0)
 
@@ -843,8 +885,8 @@ function predict(filepath, filepath_gt)
                         time_windows = readdlm(joinpath(win_exp_path,"Results","data","window_data","time_windows.csv"),',',Float64)
                         
                         conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
-                        model, scene = def_problem(r, h, ne_exp, 1.0, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, 1.0, F, control, viscosity_type,
-                        sim_time_exp, t_steps)
+                        _fem = (element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x)
+                        model, scene = def_problem(geom, ne_exp, 1.0, _fem..., 1.0, F, control, viscosity_type, sim_time_exp, t_steps; _mesh_path_kw(exp_params)...)
                         for ti::Int in 1:(size(data_ranges_, 1)-1)
 
                             data_range_ = data_ranges_[ti] # get the data range for the current time window
@@ -869,7 +911,7 @@ function predict(filepath, filepath_gt)
 
                                 model.η = [η_pred]
                                 scene.β = [β_pred]
-                                pred_μ_list, _, PredborderPts2DList, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+                                pred_μ_list, _, PredborderPts2DList, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
                                 pred_h = get_height(pred_μ_list, h)
                                 push!(pred_borderPts_list, PredborderPts2DList)
                                 push!(pred_h_list, pred_h)
@@ -878,7 +920,7 @@ function predict(filepath, filepath_gt)
                             reset_model!(model)
                             model.η = [η]
                             scene.β = [β]
-                            est_μ_list, _, borderPts2DList, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+                            est_μ_list, _, borderPts2DList, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
                             h_est = get_height(est_μ_list, h)
                             if ti == 1
                                 push!(pred_borderPts_list, borderPts2DList)
@@ -4038,20 +4080,26 @@ function display_batch_info(n_experiments::Int, n_cores::Int=Threads.nthreads())
     return n_batches
 end
 
+function _handle_worker_error(err, i::Int, params)
+    bt = catch_backtrace()
+    @error "Task $i failed" params exception=(err, bt)
+end
+
 function optimize_sim(use_parallel::Bool=true)
 
     FunctionClass_x_List = ["Q2"]
-    ne_list = [6] 
+    ne_list = [10] 
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
+    geometry::String = "cube"
 
     avoid_dirs = ["post_analysis_global","2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"]
     for viscosity_type in viscosity_type_list
-        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Q2_16")
+        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_3.25", geometry)
         if !isdir(_filepath_gt)
             @warn "Ground truth directory not found, skipping: $_filepath_gt"
             continue
@@ -4078,7 +4126,7 @@ function optimize_sim(use_parallel::Bool=true)
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-                            filepath_res = joinpath(resolve_data_path("experiments/sim_data/optimization/Stokes"), control, viscosity_type, "Q2_16", dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
+                            filepath_res = joinpath(resolve_data_path("experiments/sim_data/optimization/Stokes"), control, viscosity_type, "Hex2_3.25", geometry, dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
@@ -4395,7 +4443,7 @@ function plot_results()
     end
 end
 
-# optimize_sim(false)
+optimize_sim(false)
 # optimize_syn(false)
 # optimize_real(false)
-plot_results()
+# plot_results()

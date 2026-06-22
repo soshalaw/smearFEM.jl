@@ -111,7 +111,7 @@ for i in 1:iIter
 end
 
 ## Testing ∇u(θ)
-BorderPts2D, dudη, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, camera_matrix, obj_pose, BorderNodesList = mdl.mesh_u.side_nodes, GRAD=true, dqdθ=dp, SIDES=false)
+BorderPts2D, dudη, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, camera_matrix, obj_pose, BorderNodesList = mdl.mesh_u.side_nodes, GRAD=true, dqdθ=dp)
 
 # estimate dudη with finite (central) difference
 ΔBorderPts2Dηp, ΔSurfacePts2Dηp = extract_borders(ΔNodesηp, camera_matrix, obj_pose, BorderNodesList=mdl.mesh_u.side_nodes, GRAD=false)

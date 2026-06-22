@@ -50,11 +50,16 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; out
 
     # frame_counter = 1
     @argcheck length(sim_frames) == length(obs_frames) "Size of the simulation and observation scenes should be the same"
-    for (frame_idx, (obs_t, sim_t)) in enumerate(zip(obs_frames, sim_frames)) # iterate over the scenes
+    for (frame_idx, (obs_t, _sim_t)) in enumerate(zip(obs_frames, sim_frames)) # iterate over the scenes
+        printstyled("Processing frame $frame_idx...\n", color=:blue)
         if frame_idx in outliers
             @info "Skipping frame $frame_idx as it is marked as an outlier."
             continue
         end
+
+        sim_t = _sim_t[1]
+        obs_t = obs_t'
+
         pairs = match_points(sim_t, obs_t) # match the points using the first border
         
         pSim, qSim = sim_t[1, :], sim_t[2, :]
@@ -104,11 +109,17 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dud
     @argcheck length(sim_frames) == length(obs_frames) "Size of the simulation and observation scenes should be the same"
     @argcheck length(sim_frames) == length(dudθ) "Size of the simulation and observation scenes should be the same"
 
-    for (frame_idx, (obs_t, sim_t, du_tdθ)) in enumerate(zip(obs_frames, sim_frames, dudθ)) # iterate over the scenes
+    for (frame_idx, (obs_t, _sim_t, _du_tdθ)) in enumerate(zip(obs_frames, sim_frames, dudθ)) # iterate over the scenes
+        printstyled("Processing frame $frame_idx...\n", color=:blue)
         if frame_idx in outliers
             @info "Skipping frame $frame_idx as it is marked as an outlier."
             continue
         end
+
+        sim_t = _sim_t[1]
+        du_tdθ = _du_tdθ[1]
+        obs_t = obs_t'
+
         @argcheck size(sim_t,2) == size(du_tdθ,2) "Number of the border points and the gradient points should be the same"
 
         mat_nan_inf_check(du_tdθ[:,:,1])
@@ -179,7 +190,7 @@ function init_cylinder()::Nothing
     r = 1 * scale * ones(ne)
     h = 1 * scale
     NodeListCyl, ∇NodeListCyl = _inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
-    simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
+    simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, )
 
     d, ∂d, ∂2d, _ = closest_point([simBorderPts], [obsBorderPts], [∇BorderPts2D])
     totdinit = sum(d) / length(d)
@@ -209,7 +220,7 @@ function init_cylinder()::Nothing
         h = θ[2]
 
         NodeListCyl, ∇NodeListCyl = _inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
-        simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, SIDES=false)
+        simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, )
 
         d, ∂d, ∂2d, _ = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
 
@@ -288,7 +299,7 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
         
         model.η = [θ_trial[1]]
         scene.β = [θ_trial[2]]
-        μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+        μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
         
         # Use cost-only version during line search (fast)
         d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
@@ -317,7 +328,7 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
     # Fallback: compute gradients/Hessians for final trial (even if rejected)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     
     @debug "      $("-"^73)"
@@ -365,7 +376,7 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     val_check(θ_trial)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     
     # Use cost-only version first (fast)
     d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
@@ -387,7 +398,7 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     val_check(θ_trial)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     
     # Use cost-only version first (fast)
     d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
@@ -446,7 +457,7 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     iterList::Vector{Float64} = Float64[]
     
     printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     totdinit::Float64 = sum(d)/length(d)
 
@@ -580,7 +591,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     iterList::Vector{Float64} = Float64[]
     
     printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     cost_prev::Float64 = sum(d)/length(d)
 
@@ -620,7 +631,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         reset_model!(model)
         model.η = [θ[1]]
         scene.β = [θ[2]]
-        _, gradList, simBorderPts, _, _, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+        _, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
         d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
         totd::Float64 = sum(d) / len_d
         

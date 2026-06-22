@@ -4,7 +4,6 @@ mutable struct Conditions <: EnvConditions
     # Define the properties of the Conditions struct
     ANIMATE::Bool
     WRITEVTK::Bool
-    SIDES::Bool
     WRITECONTOUR::Bool
     RENDER::Bool
     filepath::String
@@ -18,12 +17,11 @@ mutable struct Conditions <: EnvConditions
         WRITEVTK::Bool = false,
         WRITECONTOUR::Bool = false,
         RENDER::Bool = false,
-        SIDES::Bool = false,
         filepath::String = "",
         camera_matrix::AbstractMatrix{Float64} = Matrix{Float64}(undef, 4, 4),
         obj_pose::Vector{Float64} = zeros(Float64, 3),
         viewing_angles::Vector{Float64} = zeros(Float64, 1)
     )
-        return new(ANIMATE, WRITEVTK, SIDES, WRITECONTOUR, RENDER, filepath, camera_matrix, obj_pose, viewing_angles)
+        return new(ANIMATE, WRITEVTK, WRITECONTOUR, RENDER, filepath, camera_matrix, obj_pose, viewing_angles)
     end
 end

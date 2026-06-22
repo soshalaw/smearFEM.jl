@@ -15,7 +15,6 @@ function main()
 
     filepath = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/visualization_test/"
     set_file(filepath)
-    SIDES = false
     geometry = :cube # :cylinder or :cube
     edge_radius = 3.0
     rot_angle_list = [0.0, 30.0, 60.0]

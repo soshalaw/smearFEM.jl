@@ -1052,9 +1052,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     pos3D_cp = AbstractArray[nodeList_cached]
     pos2D = AbstractArray[surface_pts_2d]          # store the solution fields of the mesh in 2D
     borderPts2DList = AbstractArray[BorderPts2D] # store the border points in 2D for each angle at each time step
-    splinep = AbstractArray[BorderPts2D[1,:]]  # store the x coordinates samples of the spline parameters of the border nodes
-    splineq = AbstractArray[BorderPts2D[2,:]]  # store the y coordinates samples of the spline parameters of the border nodes
-    output = Float64[] 
+    output = Float64[]
     writeborderList = [obs_border_pts]
 
     dac_list = Float64[]
@@ -1224,8 +1222,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             push!(pos3D, nodeList_cached)
             push!(pos3D_cp, nodeList_cached)
             push!(borderPts2DList, BorderPts2D)
-            push!(splinep, BorderPts2D[1,:])
-            push!(splineq, BorderPts2D[2,:])
             push!(writeborderList, obs_border_pts)
 
             iter += 1
@@ -1321,8 +1317,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             push!(pos3D, nodeList_cached)
             push!(pos3D_cp, nodeList_cached)
             push!(borderPts2DList, BorderPts2D)
-            push!(splinep, BorderPts2D[1,:])
-            push!(splineq, BorderPts2D[2,:])
             push!(writeborderList, obs_border_pts)
         
             iter += 1
@@ -1349,5 +1343,5 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         animate_fields(filepath = string(conditions.filepath,"/Results/images/surface"), Nodes=surface_pts_3D)
     end
     
-    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, pos3D, splinep, splineq, velocity, pressure, gradList_3d
+    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, pos3D, velocity, pressure, gradList_3d
 end
