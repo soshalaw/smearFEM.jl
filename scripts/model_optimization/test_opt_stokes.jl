@@ -4444,7 +4444,7 @@ function plot_results()
     end
 end
 
-optimize_sim(false)
+optimize_sim(true)
 # optimize_syn(false)
 # optimize_real(false)
 # plot_results()
