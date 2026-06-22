@@ -268,19 +268,32 @@ Returns `false` if gmsh is not on PATH or if the command fails.
 """
 function _run_gmsh(geo_path::String, msh_path::String, mesh_order::Int=2; dim::Int=3)
     gmsh_path = Sys.which("gmsh")
-    if gmsh_path === nothing
-        @warn "gmsh executable not found in PATH. Please install gmsh or add it to PATH."
-        return false
+    if gmsh_path !== nothing
+        cmd = `$gmsh_path $geo_path -$dim -format msh -order $mesh_order -o $msh_path`
+        @info "Running gmsh CLI: $cmd"
+        try
+            run(cmd)
+            @info "Mesh generated: $msh_path"
+            return true
+        catch e
+            @warn "gmsh CLI failed: $e. Falling back to Julia API."
+        end
+    else
+        @info "gmsh CLI not found in PATH; using Julia API for mesh generation."
     end
-
-    cmd = `$gmsh_path $geo_path -$dim -format msh -order $mesh_order -o $msh_path`
-    @info "Running gmsh: $cmd"
     try
-        run(cmd)
-        @info "Mesh generated: $msh_path"
+        lock(GMSH_LOCK) do
+            _gmsh_initialize()
+            gmsh.open(geo_path)
+            gmsh.model.mesh.generate(dim)
+            gmsh.model.mesh.setOrder(mesh_order)
+            gmsh.write(msh_path)
+            gmsh.clear()
+        end
+        @info "Mesh generated via Julia API: $msh_path"
         return true
     catch e
-        @error "Failed to run gmsh: $e"
+        @error "Failed to generate mesh via Julia API: $e"
         return false
     end
 end

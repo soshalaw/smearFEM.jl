@@ -4120,7 +4120,7 @@ function optimize_sim(use_parallel::Bool=true)
                 end
                 for noise_level in noise_level_list 
                     sim_time_exp_list = [5.0]  # simulation time in seconds
-                    println("Simulation time experiments to run: $sim_time_exp_list")
+                    println("Simulation time experiments to [run: $sim_time_exp_list")
                     for sim_time_exp::Float16 in sim_time_exp_list
                         if viscosity_type == "constant"
                             window = ""
