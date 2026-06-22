@@ -51,7 +51,7 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; out
     # frame_counter = 1
     @argcheck length(sim_frames) == length(obs_frames) "Size of the simulation and observation scenes should be the same"
     for (frame_idx, (obs_t, _sim_t)) in enumerate(zip(obs_frames, sim_frames)) # iterate over the scenes
-        printstyled("Processing frame $frame_idx...\n", color=:blue)
+
         if frame_idx in outliers
             @info "Skipping frame $frame_idx as it is marked as an outlier."
             continue
@@ -110,7 +110,7 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dud
     @argcheck length(sim_frames) == length(dudθ) "Size of the simulation and observation scenes should be the same"
 
     for (frame_idx, (obs_t, _sim_t, _du_tdθ)) in enumerate(zip(obs_frames, sim_frames, dudθ)) # iterate over the scenes
-        printstyled("Processing frame $frame_idx...\n", color=:blue)
+
         if frame_idx in outliers
             @info "Skipping frame $frame_idx as it is marked as an outlier."
             continue

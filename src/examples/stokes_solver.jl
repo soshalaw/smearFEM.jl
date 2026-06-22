@@ -1194,6 +1194,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dvdη = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
             dvdβ = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
             
+            mat_nan_inf_check(dvdη)
+            mat_nan_inf_check(dvdβ)
+            
             motion = velocity_field*t_steps_cached # extract the motion of the mesh grid
             dmotiondη = dvdη*t_steps_cached
             dmotiondβ = dvdβ*t_steps_cached
@@ -1203,8 +1206,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dNodeList_dη += dmotiondη
             dNodeList_dβ += dmotiondβ
             
-            mat_nan_inf_check(dvdη)
-            mat_nan_inf_check(dvdβ)
             
             dmdθ_out = @views cat(dNodeList_dη,dNodeList_dβ,dims=3) # concatenate the gradients in to a tensor
 

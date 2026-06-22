@@ -38,7 +38,7 @@ function const_vel(lx::Float64, ly::Float64, lz::Float64,
                     edge_radius::Union{Float64,Nothing}=nothing)
 
     control::String = "force"
-    viscosity_type::String = "constant"
+    viscosity_type::String = "bulk_viscosity"
     sim_time::Float64 = 20.0
     t_steps::Float64 = 1.0
     β_gt = 100.0
@@ -46,12 +46,11 @@ function const_vel(lx::Float64, ly::Float64, lz::Float64,
     F_ext = 9.813e3
     F::Vector{Float64} = -F_ext * ones(Float64, round(Int, sim_time / t_steps))
 
-    model, scene = def_problem(Cuboid(lx, ly, lz), ne, η_gt,
+    model, scene = def_problem(Cuboid(lx, ly, lz, edge_radius), ne, η_gt,
                                element_shape_u, basis_order_u, nDof_u,
                                element_shape_p, basis_order_p, nDof_p,
                                element_shape_x, basis_order_x,
-                               β_gt, F, control, viscosity_type, sim_time, t_steps;
-                               edge_radius=edge_radius)
+                               β_gt, F, control, viscosity_type, sim_time, t_steps)
 
     filepath = resolve_data_path("sim_experiments/single_simulation/FEM/Stokes/$control/$viscosity_type/test_sim")
     write_sim_data(model, scene, camera_matrix, obj_pose, z_angle_list, filepath)
@@ -66,7 +65,7 @@ function main()
     basis_order_p::Int = 1
     nDof_p::Int = 1
     nDof_u::Int = 3
-    ne::Int = 6
+    ne::Int = 10
 
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
     obj_pose = [150.0, 0.0, 20.0]
@@ -75,7 +74,7 @@ function main()
     lx::Float64 = 50.0
     ly::Float64 = 50.0
     lz::Float64 = 40.0
-    edge_radius::Float64 = 1.0
+    edge_radius::Float64 = 3.0
 
     const_vel(lx, ly, lz, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p,
               nDof_p, element_shape_x, basis_order_x, ne, camera_matrix, obj_pose, z_angle_list;

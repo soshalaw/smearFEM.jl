@@ -95,9 +95,6 @@ function set_model(geom::Segment, ne::Float64, η::Vector{Float64},
     return Stokes(ndim=_dim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 end
 
-# ─────────────────────────────────────────────────────────────────────────────
-# def_problem — one method per geometry type (squeeze-flow problems)
-# ─────────────────────────────────────────────────────────────────────────────
 
 function def_problem(geom::Cylinder, ne::Z, η_0::V,
                     element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64,
@@ -117,11 +114,16 @@ function def_problem(geom::Cylinder, ne::Z, η_0::V,
         @error "Length of the Force vector ($(length(cParam))) is less than length of time array ($(length(time)))"
     end
 
-    η = [η_0]
-    if viscosity_type == "bulk_viscosity" && viscosity_model == "power_law"
-        @info "Using power law viscosity model"
-        η = get_η_power_law.(time, -cParam[1:len_t], geom.r, geom.h, η_0)
-    end
+    η = if viscosity_type == "bulk_viscosity"
+            if viscosity_model == "power_law"
+                @info "Using power law viscosity model"
+                get_η_power_law.(time, -cParam[1:len_t], geom.r, geom.h, η_0)
+            else
+                fill(Float64(η_0), len_t)
+            end
+        else
+            [Float64(η_0)]
+        end
 
     stokes = set_model(geom, float(ne), η, element_shape_u, basis_order_u, nDof_u,
                        element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x;
@@ -137,9 +139,10 @@ function def_problem(geom::Cuboid, ne::Z, η_0::V,
                     element_shape_x::Symbol, basis_order_x::Int,
                     β::Y, cParam::Vector{Float64}, control::String, viscosity_type::String,
                     sim_time::W, t_steps::X;
-                    edge_radius::Union{Float64,Nothing}=nothing, GMESH_MESH::Bool=true,
+                    GMESH_MESH::Bool=true,
                     mesh_path::String = joinpath(dirname(dirname(@__DIR__)), "mesh_files")) where {V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
 
+    edge_radius = geom.edge_radius
     time = collect(Float64, range(start=t_steps, stop=sim_time, step=t_steps))
     len_t::Int = length(time)
     @info "Simulation time: $sim_time, Time step: $t_steps, Number of time steps: $(round(Int, sim_time/t_steps))"
@@ -149,7 +152,8 @@ function def_problem(geom::Cuboid, ne::Z, η_0::V,
         @error "Length of the Force vector ($(length(cParam))) is less than length of time array ($(length(time)))"
     end
 
-    stokes = set_model(geom, float(ne), [η_0], element_shape_u, basis_order_u, nDof_u,
+    η = viscosity_type == "bulk_viscosity" ? fill(Float64(η_0), len_t) : [Float64(η_0)]
+    stokes = set_model(geom, float(ne), η, element_shape_u, basis_order_u, nDof_u,
                        element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x;
                        filepath_mesh=mesh_path, GMESH_MESH=GMESH_MESH, edge_radius=edge_radius)
     q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes)

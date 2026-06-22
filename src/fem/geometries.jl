@@ -9,6 +9,8 @@ struct Cuboid{X<:Number,Y<:Number,Z<:Number} <: AbstractGeometry
     lx::X
     ly::Y
     lz::Z
+    edge_radius::Union{Float64,Nothing}
+    Cuboid(lx::X, ly::Y, lz::Z, edge_radius::Union{Float64,Nothing}=nothing) where {X<:Number,Y<:Number,Z<:Number} = new{X,Y,Z}(lx, ly, lz, edge_radius)
 end
 
 struct Disk{R<:Number} <: AbstractGeometry

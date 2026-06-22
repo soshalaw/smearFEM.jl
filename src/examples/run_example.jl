@@ -514,7 +514,7 @@ function write_gt_data(exp_params::Dict)
         lx = Float64(get(exp_params, "lx", r))
         ly = Float64(get(exp_params, "ly", r))
         lz = Float64(get(exp_params, "lz", h))
-        def_problem(Cuboid(lx, ly, lz), ne_gt, _shared...; edge_radius=edge_radius, _mesh_path_kw(exp_params)...)
+        def_problem(Cuboid(lx, ly, lz, edge_radius), ne_gt, _shared...; _mesh_path_kw(exp_params)...)
     end
 
     @info "Writing ground truth gt data to with $ne_gt elements to $filepath_gt"
@@ -565,7 +565,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
         rm(string(filepath), recursive=true, force=true) # remove the previous results folder if it exists
     end
     t_start = Dates.now()
-    h_, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, pos3D, splinep, splineq, velocity, pressure = simulate(model, scene, conditions) # run the simulation
+    h_, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, pos3D, velocity, pressure, _ = simulate(model, scene, conditions) # run the simulation
     t_end = Dates.now()
     elapsed_time = t_end - t_start
     t_per_step = elapsed_time.value/length(gradList)
