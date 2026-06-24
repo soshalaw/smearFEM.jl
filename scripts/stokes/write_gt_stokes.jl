@@ -173,7 +173,7 @@ end
 
 function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int=-1, memory_per_experiment_mb::Float64=512.0)
     # parameters for the optimization
-    r::Float64 = 25.0  # radius of the cylinder in mm
+    r::Float64 = 25.0*2  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Float64 = 3.25 # number of elements in the mesh for the ground truth
     # ne_gt = 10.0
