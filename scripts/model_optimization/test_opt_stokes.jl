@@ -170,8 +170,9 @@ function optimize(exp_params::Dict)
         t_steps_gt = sim_params["time_steps"]
         
         camera_matrix = sim_params["camera_matrix"]
-        obj_pose = sim_params["obj_pose"]
-        # obj_pose = _obj_pose[1:3,4]
+        # obj_pose = sim_params["obj_pose"]
+        _obj_pose = sim_params["obj_pose"]
+        obj_pose = _obj_pose[1:3,4]
         
         control = sim_params["control_type"]
 
@@ -4349,7 +4350,7 @@ end
 function optimize_sim(use_parallel::Bool=true)
 
     FunctionClass_x_List = ["Q2"]
-    ne_list = [18, 15, 10, 9, 6, 3] # number of elements in the mesh
+    ne_list = [18, 15] # number of elements in the mesh
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
@@ -4358,7 +4359,7 @@ function optimize_sim(use_parallel::Bool=true)
     param_list = Vector{Dict}(undef, 0)
     geometry::String = "cylinder" # "cylinder" or "cube"
 
-    avoid_dirs = ["post_analysis_global", "1", "2", "4", "5" , "7", "8"]
+    avoid_dirs = ["post_analysis_global", "1", "2", "3", "4", "5" , "7", "8"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_3.25", geometry)
         if !isdir(_filepath_gt)
