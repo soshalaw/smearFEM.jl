@@ -4349,16 +4349,16 @@ end
 function optimize_sim(use_parallel::Bool=true)
 
     FunctionClass_x_List = ["Q2"]
-    ne_list = [10] 
+    ne_list = [18, 15, 10, 9, 6, 3] # number of elements in the mesh
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    geometry::String = "cube"
+    geometry::String = "cylinder" # "cylinder" or "cube"
 
-    avoid_dirs = ["post_analysis_global"]
+    avoid_dirs = ["post_analysis_global", "1", "2", "4", "5" , "7", "8"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_3.25", geometry)
         if !isdir(_filepath_gt)
@@ -4387,7 +4387,8 @@ function optimize_sim(use_parallel::Bool=true)
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-                            filepath_res = joinpath(resolve_data_path("experiments/sim_data/optimization/Stokes"), control, viscosity_type, "Hex2_3.25", geometry, dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
+                            # filepath_res = joinpath(resolve_data_path(joinpath("experiments","sim_data","optimization","Stokes")), control, viscosity_type, "Hex2_3.25", geometry, dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
+                            filepath_res = joinpath(resolve_data_path(joinpath("experiments","sim_data","convergence_analysis","stokes_convergence")), "experiment_mesh_conv", geometry, dir, "$(FunctionClass_x)_$(ne)")
                             @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
 
                             exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
