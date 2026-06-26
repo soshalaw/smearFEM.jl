@@ -12,6 +12,8 @@ using LaTeXStrings
 using Dates
 using Statistics
 using Printf
+using CurveFit
+using Dierckx
 
 # Plot configuration constants
 const PLOT_CONFIG = Dict(
@@ -23,24 +25,62 @@ const PLOT_CONFIG = Dict(
     :top_margin => -3pt
 )
 
-
-
-# Simulation configuration helpers
-function get_object_pose(height::Float64)
-    """Returns object pose matrix."""
-    obj_pose = zeros(Float64, 4, 4)
-    obj_pose[1,1] = -1.0
-    obj_pose[2,3] = -1.0
-    obj_pose[3,2] = -1.0
-    obj_pose[1:3,4] = [0.0, height/2, 150.0]
-    return obj_pose
-end
-
 function get_camera_matrix()
     """Returns camera matrix for rendering."""
     return [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
 end
 
+
+function get_r(filepath::String)   
+    if !isdir(filepath)
+        throw(SystemError("Trying to read from $filepath, the directory does not exist."))
+    end
+
+    csv_files = readdir(filepath, join=true)        # get the list of the csv files in the directory
+    border_r_list = AbstractArray[]
+    for file in csv_files
+        if !endswith(file, ".csv")  # check if the file is a CSV file
+            continue
+        end
+        data = readdlm(file, ',', Float64, '\n', header=false)  # read the observation data
+        data_sorted = data[sortperm(data[:, 3]), :]  # sort the data based on the first column (time)
+        r = sqrt.(data_sorted[:, 1].^2 + data_sorted[:, 2].^2)  
+        
+        z_prev = data_sorted[1, 3]
+        idx_list = [1]
+        z_list = [z_prev]
+        i = 1
+        for zp in data_sorted[:, 3]
+            if round(Int, z_prev) < round(Int, zp)
+                push!(z_list, zp)
+                push!(idx_list, i)
+                z_prev = zp
+            end
+            i = i + 1
+        end
+        border_r = r[idx_list]
+        push!(border_r_list, border_r)
+    end
+    return border_r_list
+end
+
+function get_r_curves(filepath::String)
+    csv_list = readdir(filepath, join=true)
+    r_curves = []
+    for file in csv_list
+        name = basename(file)
+        if !startswith(name, "free_curve") || !endswith(name, ".csv")
+            continue
+        end
+        data = readdlm(file, ',', '\n')
+        z = data[2:end, 1]
+        r = data[2:end, 2]
+        idx = sortperm(z)
+        spl = Spline1D(z[idx], r[idx]; k=3, bc="extrapolate")
+        push!(r_curves, (z=z[idx], r=r[idx], spline=spl, file=name))
+    end
+    return r_curves
+end
 
 # Plotting utilities
 function setup_plot_config(; left_margin=nothing, right_margin=nothing, top_margin=nothing)
@@ -127,7 +167,7 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Strin
 end
 
 
-function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, elem_sizes::Vector=[10, 8, 6, 4], 
+function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, elem_sizes::Vector=[10, 8, 6, 4], 
                                   template_mesh_geo_path::String=joinpath(@__DIR__, "mesh.geo"))
 
     height_list = AbstractArray[]
@@ -141,71 +181,96 @@ function mesh_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0,
     η::Float64 = 100.0
 
     viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
-    FunctionClass_x::String = "Q2" # Function space for the ground truth
-    FunctionClass_p::String = "Q1"
-    FunctionClass_u::String = "Q2"
+    element_shape_x::Symbol = :Hex
+    basis_order_x::Int = 2
+    element_shape_u::Symbol = :Hex
+    basis_order_u::Int = 2
+    element_shape_p::Symbol = :Hex
+    basis_order_p::Int = 1
     control::String = "force" # "force" or "velocity"
+
+    geometry::Symbol = :cylinder # geometry type for the mesh generation
+
+    gt_path = resolve_data_path(joinpath("ground_truth", "sim_data", "Stokes", "force", "constant", "Hex_2", "convergence_analysis", "mesh_convergence_analysis", "mesh_convergence_tfem_data"))
 
     F_ext::Float64 = 9518.61 # force applied to the cylinder in N
     sim_time::Float64 = 5.0 # simulation time in seconds
     step_size = 0.1 # time step size in seconds
     steps = round(Int, sim_time/step_size)  
 
-    obj_pose = get_object_pose(height)
+    obj_pose = [0.0, height/2, 150.0]
     camera_matrix = get_camera_matrix()
-    filepath = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis/mesh_convergence_analysis")
-
+    ne = [15, 12, 9, 6, 3, 2] # number of elements for each mesh size
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
+    
+    h_ref = readdlm(joinpath(gt_path, "data", "h.csv"), ',', Float64, '\n', header=false)[end] # reference height from the finest mesh solution
+    r_ref = get_r_curves(joinpath(gt_path, "data"))[end]
 
-    set_file(filepath)  # create the directory if it doesn't exist
-    avoid_dirs = ["mesh_4", "mesh_5"] # directories to avoid when reading results (if any)
-    iter_index = 1
-    h_ref = 37.514580952625970
-    dirs = readdir(filepath)
-    for dir in dirs
-        if !startswith(dir, "mesh_") || dir in avoid_dirs            
-            continue
-        end
+    for (iter_index,ne) in enumerate(ne)
+        filepath = resolve_data_path(joinpath("ground_truth", "sim_data", "Stokes", control, viscosity_type, "$(element_shape_x)_$(basis_order_x)", "convergence_analysis", "mesh_convergence_analysis", "mesh_sz_$ne"))
+
+        set_file(filepath)  # create the directory if it doesn't exist
+
         # Extract element size from directory name
-        elem_size = parse(Float64, split(dir, "_")[end])
-        println("Running for element size = $elem_size")
+        println("Running for element size = $ne")
         
-        # Run simulation with the generated mesh
-        mesh_filepath = joinpath(filepath, dir)
-        println("Mesh filepath: ", mesh_filepath)
-        
-        exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => FunctionClass_u, "FunctionClass_p" => FunctionClass_p, 
-        "ne_gt" => elem_size, "β_gt" => β, "η_gt" => η, "filepath_gt" => joinpath(mesh_filepath, "simulation"), 
-        "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
-        "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
-        "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => false, "mesh_path" => mesh_filepath)
+        exp_params = Dict(
+                "element_shape_u" => element_shape_u,
+                "basis_order_u"   => basis_order_u,
+                "element_shape_p" => element_shape_p,
+                "basis_order_p"   => basis_order_p,
+                "element_shape_x" => element_shape_x,
+                "basis_order_x"   => basis_order_x,
+                "ne_gt" => ne,
+                "β_gt" => β,
+                "η_gt" => η,
+                "filepath_gt" => filepath,
+                "control" => control,
+                "viscosity_type" => viscosity_type,
+                "obj_pose_gt" => obj_pose,
+                "F_ext" => F_ext,
+                "sim_time_gt" => sim_time,
+                "steps_gt" => steps,
+                "r" => radius,
+                "h" => height,
+                "camera_matrix" => camera_matrix,
+                "animate" => false,
+                "geometry" => geometry
+            )
         
         try
             write_gt_data(exp_params)
         catch e
-            @error "Simulation failed for element size $elem_size" exception=e
+            @error "Simulation failed for element size $ne" exception=(e, catch_backtrace())
             continue
         end
         
         # Read results
         try
-            exp_params = read_json(joinpath(mesh_filepath, "simulation", "data", "sim_params.jld2"))
-            h_mesh = readdlm(joinpath(mesh_filepath, "simulation", "data","h.csv"), ',', Float64)
-            elapsed_time = readdlm(joinpath(mesh_filepath, "simulation", "data","avg_time.csv"), ',', Float64)
+            exp_params = read_json(joinpath(filepath, "data", "sim_params.jld2"))
+            h_mesh = readdlm(joinpath(filepath, "data","h.csv"), ',', Float64)
+            elapsed_time = readdlm(joinpath(filepath, "data","avg_time.csv"), ',', Float64)
+            r, z = get_r(joinpath(filepath, "data", "sim_data", "surface_nodes"))
+
+            r_ref = r_ref.spline(z)  # Evaluate reference curve at the z values of the current mesh
 
             ne = exp_params["ne"]
             effective_element_size = (volume / ne)^(1/3)
             
             δh = abs(h_mesh[end] - h_ref) / h_ref
+            δr = mean(abs.(r - r_ref) ./ r_ref)
             
             println("Height error: ", δh)
+            println("Radius error: ", δr)
+
             push!(effective_element_size_list, effective_element_size)
             push!(height_list, h_mesh)
             push!(height_error_list, δh)
             push!(time_list, elapsed_time)
             iter_index += 1
         catch e
-            @warn "Failed to read results for element size $elem_size: $e"
+            @error "Simulation failed for element size $ne" exception=(e, catch_backtrace())
+            continue
         end
     end
     write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/effective_element_size"), effective_element_size_list)
@@ -238,14 +303,14 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
     obj_pose = get_object_pose(height)
     camera_matrix = get_camera_matrix()
     filepath = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis")
- 
+    gt_path = resolve_data_path("ground_truth","sim_data","Stokes","force","constant","Hex_2","convergence_analysis","mesh_convergence_analysis","mesh_convergence_tfem_data")
+    
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
     
     mesh_dir = dirname(filepath)
     set_file(mesh_dir)  # create the directory if it doesn't exist
     
     iter_index = 1
-    h_ref = 37.514669827538519
     
     mesh_filepath = joinpath(mesh_dir, "convergence_analysis", "mesh_convergence_analysis", "mesh_4.0")
     
@@ -276,6 +341,7 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
             dt = exp_params["time_steps"]
             ne = exp_params["ne"]
             effective_element_size = (volume / ne)^(1/3)
+            border_r = get_r(joinpath(filepath, "data", "sim_data", "surface_nodes"))
 
             if idx == 1
                 h_ref = h_mesh[end] # use the finest time step solution as reference for error calculation
@@ -291,6 +357,7 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
             push!(height_error_list, δh)
             push!(_dt_list, dt)
             push!(final_height_list, h_mesh[end])
+            push!(border_r_list, border_r)
             iter_index += 1
         catch e
             @warn "Failed to read results for time step size $step_size: $e"
@@ -402,6 +469,6 @@ function plot_convergence_time(file_path::String)
 end
 
 # time_intergration_convergence_analysis()
-plot_convergence_time(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis"))
-# mesh_convergence_analysis()
-plot_convergence_mesh(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis")) 
+# plot_convergence_time(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis"))
+mesh_convergence_analysis()
+# plot_convergence_mesh(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis")) 

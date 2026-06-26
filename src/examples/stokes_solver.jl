@@ -1043,9 +1043,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     pressure = AbstractArray[zeros(Float64,size(nodeList_cached,1),1)] # store the pressure of the mesh in 3D
     displacement = AbstractArray[zeros(Float64,size(nodeList_cached,1),size(nodeList_cached,2))] # store the displacement of the mesh in 3D
     surface_fields = AbstractArray[]
-    surface_pts_3D = AbstractArray[vcat(nodeList_cached[:,top_node_list_cached]', 
-                                        nodeList_cached[:,bottom_node_list_cached]', 
-                                        nodeList_cached[:,side_node_list_cached]')'] # store the solution fields of the mesh in 3D
+    surface_pts_3D = AbstractArray[nodeList_cached[:,side_node_list_cached]'] # store the solution fields of the mesh in 3D
     gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)] # store the solution fields of the border nodes in 2D
     gradList_3d = AbstractArray[zeros(Float64, size(nodeList_cached,1),size(nodeList_cached,2),2)] # store the solution fields of the border nodes in 3D
     pos3D = AbstractArray[nodeList_cached]       # store the solution fields of the mesh in 3D
@@ -1216,7 +1214,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             push!(pressure, p) # store the pressure of the mesh in 3D
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(nodeList_cached[:,top_node_list_cached]', nodeList_cached[:,bottom_node_list_cached]', nodeList_cached[:,side_node_list_cached]')')
+            push!(surface_pts_3D, nodeList_cached[:,side_node_list_cached]')
             push!(gradList,dudθ)
             push!(gradList_3d, dmdθ_out)
             push!(pos2D, surface_pts_2d)
@@ -1312,7 +1310,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             push!(pressure, p) # store the pressure of the mesh in 3D
             push!(displacement, motion)
             push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, vcat(nodeList_cached[:,top_node_list_cached]', nodeList_cached[:,bottom_node_list_cached]', nodeList_cached[:,side_node_list_cached]')')
+            push!(surface_pts_3D, nodeList_cached[:,side_node_list_cached]')
             push!(gradList,dudθ)
             push!(pos2D, surface_pts_2d)
             push!(pos3D, nodeList_cached)

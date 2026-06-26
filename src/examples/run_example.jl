@@ -486,7 +486,7 @@ function write_gt_data(exp_params::Dict)
     filepath_gt::String = exp_params["filepath_gt"]
     obj_pose::AbstractArray = exp_params["obj_pose_gt"]
     camera_matrix::AbstractArray = exp_params["camera_matrix"]
-    z_angle_list::AbstractArray = exp_params["z_angle_list"]
+    z_angle_list::Vector{Float64} = get(exp_params, "z_angle_list", [0.0])
 
     sim_time_gt::Float64 = exp_params["sim_time_gt"]
     steps_gt::Float64 = exp_params["steps_gt"]
@@ -586,6 +586,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
 
     write_data(string(filepath,"/data/sim_data/node_points"), pos3D)
     write_data(string(filepath,"/data/sim_data/displacement_fields"), displacement)
+    write_data(string(filepath,"/data/sim_data/surface_nodes"), surface_pts_3D)
     write_data(string(filepath,"/data/sim_data/velocity_fields"), velocity)
     write_data(string(filepath,"/data/sim_data/pressure_fields"), pressure)
 
