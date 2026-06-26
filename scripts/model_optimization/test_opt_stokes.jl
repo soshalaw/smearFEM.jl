@@ -4350,7 +4350,7 @@ end
 function optimize_sim(use_parallel::Bool=true)
 
     FunctionClass_x_List = ["Q2"]
-    ne_list = [18, 15] # number of elements in the mesh
+    ne_list = [12, 10, 6, 3] # number of elements in the mesh
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
