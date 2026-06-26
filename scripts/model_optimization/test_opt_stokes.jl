@@ -946,7 +946,6 @@ function predict(filepath, filepath_gt)
 end
 
 function replot(filepath, filepath_gt)
-    
     elem_size_folders = readdir(joinpath(filepath))
     
     sim_params = read_json(joinpath(filepath_gt,"data","sim_params")) 
@@ -1025,7 +1024,9 @@ function replot(filepath, filepath_gt)
                         ne_exp = exp_params["ne_exp"]
                         data_type = exp_params["data_type"]
                         control = exp_params["control"]
-                        num_exp_points::Int = round(Int, sim_time_exp/t_steps)
+                        num_exp_points::Int = round(Int, 20/t_steps)
+
+                        printstyled(num_exp_points, " experimental points will be used for optimization\n"; color = :blue)
 
                         if data_type != "physical"
                             gt_h_ = readdlm(joinpath(filepath_gt,"data","h.csv"), ',', Float64)
@@ -1420,9 +1421,9 @@ function replot(filepath, filepath_gt)
                                 # catch err
                                 #     @warn "Failed to produce static PDF contour outputs: $err"
                                 # end
-                        catch err
-                            @warn "Failed to post-process contour parameters and cost surface: $err"
-                        end
+                            catch err
+                                @warn "Failed to post-process contour parameters and cost surface: $err"
+                            end
                         view_comp_data[view_folder] = Dict{String,Any}(
                             "est_η"       => vec(Float64.(collect(est_η))),
                             "est_β"       => vec(Float64.(collect(est_β))),
@@ -3902,10 +3903,10 @@ end
 function _get_borders(data_type::String, filepath_gt::String, exp_path::String, num_exp_points::Int)
 
     if data_type  == "synthetic"
-        ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","img_data","contour_data"))  
+        ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","img_data","contour_data","1"))  
         @info "Data type $data_type Reading synthetic ground truth contour data of $(length(ObsDataList)) time steps"
     elseif data_type == "simulated"
-        ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","sim_data","contour_data"))  
+        ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","sim_data","contour_data","1"))  
         @info "Data type : $data_type Reading simulated ground truth contour data from $(joinpath(filepath_gt,"data","sim_data","contour_data")) of $(length(ObsDataList)) time steps"
     else
         error("Unknown data type: $data_type")
@@ -3915,8 +3916,6 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
     sim_border_pt_lst, splinex, spliney = read_csv(joinpath(exp_path,"Results","data","sim_data","2D_border_points"))
     @info "Reading simulated contour data from $(joinpath(exp_path,"Results","data","sim_data","2D_border_points")) of $(length(sim_border_pt_lst)) time steps"
 
-    println("Number of observation border points: ", length(obs_border_pt_lst), typeof(obs_border_pt_lst))
-    # println("Number of simulation border points: ", length(sim_border_pt_lst), typeof(sim_border_pt_lst))
     @assert length(ObsDataList) >= num_exp_points "Not enough observation border points: have $(length(ObsDataList)), need at least $num_exp_points"
     # @assert length(sim_border_pt_lst) >= num_exp_points "Not enough simulation border points: have $(length(sim_border_pt_lst)), need at least $num_exp_points"
 
@@ -3929,6 +3928,7 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
     splinex = splinex[1:num_exp_points, :]
     spliney = spliney[1:num_exp_points, :]
 
+    printstyled("Returning border points for $num_exp_points time steps\n", color=:green)
 
     return obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney
 end
@@ -4639,8 +4639,8 @@ function plot_results()
     control::String = "force"
     viscosity_type_list = [] # "constant" or "bulk_viscosity"
     model_type = [] # "carreau" or "Stokes"
-    avoid_dirs = ["post_analysis_global","2","3"] # directories to skip in post-analysis and plotting
-    data_type_list = ["simulated", "synthetic", "physical"]
+    avoid_dirs = ["post_analysis_global","1","2","3","5","6","7","8"] # directories to skip in post-analysis and plotting
+    data_type_list = ["simulated"] # , "synthetic", "physical"]
     base_path = ""
 
     for data_type in data_type_list
@@ -4681,8 +4681,8 @@ function plot_results()
                         filepath_gt = joinpath(base_gt_path, "sim_data", "Carreau")
                         filepath_res = base_path
                     else
-                        filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Q2_16")
-                        filepath_res = joinpath(base_path, control, viscosity_type, "Q2_16")
+                        filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Hex2_3.25" , "cylinder")
+                        filepath_res = joinpath(base_path, control, viscosity_type, "Hex2_3.25" , "cylinder")
                     end
                 end
                 
@@ -4691,7 +4691,7 @@ function plot_results()
                     continue
                 end
                 dirs = readdir(filepath_gt)
-                for dir in dirs
+                for dir::String in dirs
                     if dir in avoid_dirs
                         continue
                         println("Skipping dir $dir")
@@ -4701,19 +4701,19 @@ function plot_results()
                     # predict(filepath_res_dir, filepath_gt_dir)
                     replot(filepath_res_dir, filepath_gt_dir)
                 end
-                if viscosity_type == "constant"
-                    post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
-                elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
-                    post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
-                elseif data_type == "physical"
-                    post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
-                end
+                # if viscosity_type == "constant"
+                #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
+                # elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
+                #     post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
+                # elseif data_type == "physical"
+                #     post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
+                # end
             end
         end
     end
 end
 
-optimize_sim(true)
+optimize_sim(false)
 # optimize_syn(false)
 # optimize_real(false)
 # plot_results()
