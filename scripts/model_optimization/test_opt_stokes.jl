@@ -128,12 +128,16 @@ function optimize(exp_params::Dict)
     camera_matrix::AbstractArray = exp_params["camera_matrix"]
     
     sim_time_exp::Float64 = exp_params["sim_time_exp"]
-    if haskey(exp_params, "steps_exp")
-        steps_exp = exp_params["steps_exp"]
+    t_steps_exp::Float64 = if haskey(exp_params, "dt")
+        steps_exp = sim_time_exp / Float64(exp_params["dt"])
+        Float64(exp_params["dt"])
+    elseif haskey(exp_params, "steps_exp")
+        steps_exp = Float64(exp_params["steps_exp"])
+        sim_time_exp / steps_exp
     else
-        steps_exp = sim_time_exp*10.0 # assuming 30 fps for the experiments
+        steps_exp = sim_time_exp / 0.1
+        0.1
     end
-    t_steps_exp::Float64 = sim_time_exp/steps_exp
     
     ne_exp::Int = exp_params["ne_exp"] # number of elements in the mesh for the experiment
     
@@ -4350,7 +4354,8 @@ end
 function optimize_sim(use_parallel::Bool=true)
 
     FunctionClass_x_List = ["Q2"]
-    ne_list = [12, 10, 6, 3] # number of elements in the mesh
+    ne_list = [18, 15, 12, 10, 8, 6, 3] # number of elements in the mesh
+    dt_list = [0.1] #, 0.3, 0.6, 0.9, 1.0] # time step size
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
@@ -4374,7 +4379,7 @@ function optimize_sim(use_parallel::Bool=true)
             end
             filepath_gt = joinpath(_filepath_gt, dir)
             for ne in ne_list
-                if ne == 6 && viscosity_type == "constant"
+                if ne == 6.5 && viscosity_type == "constant"
                     noise_level_list = [0.5, 1.0, 1.5, 2.0] # noise levels to test
                 else
                     noise_level_list = [0.0]
@@ -4388,15 +4393,17 @@ function optimize_sim(use_parallel::Bool=true)
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for FunctionClass_x in FunctionClass_x_List
-                            # filepath_res = joinpath(resolve_data_path(joinpath("experiments","sim_data","optimization","Stokes")), control, viscosity_type, "Hex2_3.25", geometry, dir, "$(FunctionClass_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", window)
-                            filepath_res = joinpath(resolve_data_path(joinpath("experiments","sim_data","convergence_analysis","stokes_convergence")), "experiment_mesh_conv", geometry, dir, "$(FunctionClass_x)_$(ne)")
-                            @info "Running optimization with FunctionClass_x = $FunctionClass_x with $ne elements"
+                            for dt in dt_list
+                                filepath_res = joinpath(resolve_data_path(joinpath("experiments","sim_data","convergence_analysis","stokes_convergence")), "experiment_mesh_conv", geometry, dir, "$(FunctionClass_x)_$(ne)", "dt_$(dt)")
+                                @info "Running optimization with FunctionClass_x = $FunctionClass_x, ne = $ne, dt = $dt"
 
-                            exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp, 
-                            "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"simulated", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
-                            "noise_level"=>noise_level, "mode"=>window)
+                                exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => "Q2", "FunctionClass_p" => "Q1", "ne_exp" => ne, "sim_time_exp" => sim_time_exp,
+                                "dt" => dt,
+                                "filepath_res" => filepath_res, "filepath_gt"=>filepath_gt, "control" => control, "data_type"=>"simulated", "camera_matrix" => camera_matrix, "WRITE_GT"=> false,
+                                "noise_level"=>noise_level, "mode"=>window)
 
-                            push!(param_list, exp_params)
+                                push!(param_list, exp_params)
+                            end
                         end
                     end
                 end
@@ -4706,7 +4713,7 @@ function plot_results()
     end
 end
 
-optimize_sim(true)
+optimize_sim(false)
 # optimize_syn(false)
 # optimize_real(false)
 # plot_results()
