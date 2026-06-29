@@ -149,15 +149,18 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Strin
                 xlabel=x_label, ylabel="Absolute Relative Error",
                 marker=:circle, markersize=4, markerstrokewidth=1.5, color="#FF7F0E",
                 yscale=:log10, xscale=:log10)
-    if conv_rate_str == "1"
-        Plots.plot!(plt, x_line_offset, y_ref_line, 
+    rate = round(Int, convergence_rate)
+    if rate == 0
+        @warn "Convergence rate is 0 — data may not be converging; skipping reference line"
+    elseif rate == 1
+        Plots.plot!(plt, x_line_offset, y_ref_line,
                     label=latexstring("O(\$$(x_label_latex)\$)"),
-                    line=2, linewidth=2.5, color=:teal, 
+                    line=2, linewidth=2.5, color=:teal,
                     yscale=:log10, xscale=:log10, linestyle=:dot)
     else
-        Plots.plot!(plt, x_line_offset, y_ref_line, 
+        Plots.plot!(plt, x_line_offset, y_ref_line,
                     label=latexstring("O(\$$(x_label_latex)^{$conv_rate_str}\$)"),
-                    line=2, linewidth=2.5, color=:teal, 
+                    line=2, linewidth=2.5, color=:teal,
                     yscale=:log10, xscale=:log10, linestyle=:dot)
     end
     @info "Convergence rate: O(h^$(conv_rate_str))"
@@ -172,7 +175,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
 
     height_list = AbstractArray[]
     height_error_list = Float64[]
-    border_error_list = Float64[]
+    rad_error_list = Float64[]
     effective_element_size_list = Float64[]
     μ_list = AbstractArray[]
     time_list = []
@@ -200,7 +203,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
 
     obj_pose = [0.0, height/2, 150.0]
     camera_matrix = get_camera_matrix()
-    ne = [15, 12, 9, 6, 3, 2] # number of elements for each mesh size
+    ne = [24, 21, 18, 15, 12, 9, 6, 3, 2] # number of elements for each mesh size
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
     
     h_ref = readdlm(joinpath(gt_path, "data", "h.csv"), ',', Float64, '\n', header=false)[end] # reference height from the finest mesh solution
@@ -239,7 +242,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             )
         
         try
-            write_gt_data(exp_params)
+            # write_gt_data(exp_params)
         catch e
             @error "Simulation failed for element size $ne" exception=(e, catch_backtrace())
             continue
@@ -252,13 +255,13 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             elapsed_time = readdlm(joinpath(filepath, "data","avg_time.csv"), ',', Float64)
             r, z = get_r(joinpath(filepath, "data", "sim_data", "surface_nodes"))
 
-            r_ref = r_ref.spline(z)  # Evaluate reference curve at the z values of the current mesh
+            r_int = r_ref.spline(z)  # Evaluate reference curve at the z values of the current mesh
 
             ne = exp_params["ne"]
             effective_element_size = (volume / ne)^(1/3)
             
-            δh = abs(h_mesh[end] - h_ref) / h_ref
-            δr = mean(abs.(r - r_ref) ./ r_ref)
+            δh = (h_mesh[end] - h_ref) / h_ref
+            δr = mean((r - r_int) ./ r_int)
             
             println("Height error: ", δh)
             println("Radius error: ", δr)
@@ -266,6 +269,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             push!(effective_element_size_list, effective_element_size)
             push!(height_list, h_mesh)
             push!(height_error_list, δh)
+            push!(rad_error_list, δr)
             push!(time_list, elapsed_time)
             iter_index += 1
         catch e
@@ -276,6 +280,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
     write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/effective_element_size"), effective_element_size_list)
     write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_list"), height_list)
     write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_error_list"), height_error_list)
+    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/rad_error_list"), rad_error_list)
     write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/elem_sizes"), elem_sizes)
     write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/time_list"), time_list)
 end
@@ -380,9 +385,11 @@ function plot_convergence_mesh(file_path::String)
         height_list_ = readdlm(joinpath(file_path, "height_list.csv"), ',', Float64)
         elem_sizes = readdlm(joinpath(file_path, "effective_element_size.csv"), ',', Float64)
         time_list_ = readdlm(joinpath(file_path, "time_list.csv"), ',', Float64)
-        
+        rad_error_list_ = readdlm(joinpath(file_path, "rad_error_list.csv"), ',', Float64)
+
         list_end = size(height_error_list, 1)
         relative_error = vec(height_error_list[1:(list_end), end])
+        rad_error_list = vec(rad_error_list_[1:(list_end), end])
         height_list = vec(height_list_[1:(list_end), end])
         time_list = vec(time_list_[1:(list_end), end])
         # println(time_list)
@@ -392,9 +399,9 @@ function plot_convergence_mesh(file_path::String)
         @info "Selected mesh size for experiment: $selected_mesh_size"
         plot_path = joinpath(file_path, "plots")
 
-        plt1 = plot_convergence_generic(elem_sizes_flat, relative_error, "Effective element size (h)", "h")
+        plt1 = plot_convergence_generic(elem_sizes_flat, abs.(relative_error), "Effective element size (h)", "h")
         Plots.ylims!(plt1, 1e-5, 10^(-2.7))
-        Plots.xlims!(plt1, 1, 50)
+        Plots.xlims!(plt1, 1, 15)
         Plots.vline!(plt1, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
 
         # plt2 = plot_convergence_generic(elem_sizes_flat, time_list, "Effective element size (h)", reference_shift=1.5)
@@ -416,7 +423,7 @@ function plot_convergence_mesh(file_path::String)
                           right_margin=PLOT_CONFIG[:right_margin],
                           top_margin=PLOT_CONFIG[:top_margin],
                           legend_column=2)
-        Plots.plot!(plt3, elem_sizes_flat, height_list_[:, end], label="Height error", xlabel="Effective element size (h)", ylabel="Height error", marker=:circle)
+        Plots.plot!(plt3, elem_sizes_flat, relative_error, label="Height error", xlabel="Effective element size (h)", ylabel="Height error", marker=:circle)
             
         plt4 = set_plot(PLOT_CONFIG[:font_size], 
                           sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
@@ -426,12 +433,28 @@ function plot_convergence_mesh(file_path::String)
                           legend_column=2)
         Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (s)", marker=:circle, yscale=:log10, xscale=:log10)
 
+        plt5 = plot_convergence_generic(elem_sizes_flat, abs.(rad_error_list), "Effective element size (h)", "h")
+        Plots.ylims!(plt5, 1e-2, 10^(-0.9))
+        Plots.xlims!(plt5, 1, 15)
+
+        plt6 = set_plot(PLOT_CONFIG[:font_size], 
+                          sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
+                          left_margin=PLOT_CONFIG[:left_margin],
+                          right_margin=PLOT_CONFIG[:right_margin],
+                          top_margin=PLOT_CONFIG[:top_margin],
+                          legend_column=2)
+        Plots.plot!(plt6, elem_sizes_flat, rad_error_list, label="Radius error", xlabel="Effective element size (h)", ylabel="Radius error", marker=:circle)
+
+
         Plots.savefig(plt1, joinpath(plot_path, "height_convergence.pdf"))
         Plots.savefig(plt2, joinpath(plot_path, "computational_cost_vs_elem_size.pdf"))
         Plots.savefig(plt3, joinpath(plot_path, "height_error_vs_elem_size.pdf"))
         Plots.savefig(plt4, joinpath(plot_path, "time_per_step_vs_elem_size.pdf"))
+        Plots.savefig(plt5, joinpath(plot_path, "radius_convergence.pdf"))
+        Plots.savefig(plt6, joinpath(plot_path, "radius_error_vs_elem_size.pdf"))
+
     catch e
-        @warn "Failed to plot mesh convergence: $e"
+        @warn "Failed to plot mesh convergence" exception=(e, catch_backtrace())
     end
 end
 
@@ -471,4 +494,4 @@ end
 # time_intergration_convergence_analysis()
 # plot_convergence_time(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis"))
 mesh_convergence_analysis()
-# plot_convergence_mesh(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis")) 
+plot_convergence_mesh(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis")) 

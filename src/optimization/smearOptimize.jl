@@ -42,6 +42,14 @@ For each frame pair, matches simulation points to observation points and compute
 - `cost_list::Vector{Float64}` : Mean squared error for each frame
 - `[pairsList, norm_cost_list]` : Tuple containing point pairs and normalized costs for each frame
 """
+function _as_2xN(x)
+    raw = x isa AbstractVector ? x[1] : x   # unwrap Vector{Matrix} wrapper if present
+    m = Matrix{Float64}(collect(raw))
+    return size(m, 1) == 2 ? m : Matrix{Float64}(m')
+end
+
+_as_dudθ(x) = Array{Float64}(x isa AbstractVector ? x[1] : x)
+
 function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; outliers::AbstractArray=[])
     # Define the cost function
     cost_list = Float64[]
@@ -57,8 +65,8 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; out
             continue
         end
 
-        sim_t = _sim_t[1]
-        obs_t = obs_t'
+        sim_t = _as_2xN(_sim_t)
+        obs_t = _as_2xN(obs_t)
 
         pairs = match_points(sim_t, obs_t) # match the points using the first border
         
@@ -116,9 +124,9 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dud
             continue
         end
 
-        sim_t = _sim_t[1]
-        du_tdθ = _du_tdθ[1]
-        obs_t = obs_t'
+        sim_t  = _as_2xN(_sim_t)
+        obs_t  = _as_2xN(obs_t)
+        du_tdθ = _as_dudθ(_du_tdθ)
 
         @argcheck size(sim_t,2) == size(du_tdθ,2) "Number of the border points and the gradient points should be the same"
 
