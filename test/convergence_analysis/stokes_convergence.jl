@@ -201,7 +201,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
     step_size = 0.1 # time step size in seconds
     steps = round(Int, sim_time/step_size)  
 
-    obj_pose = [0.0, height/2, 150.0]
+    obj_pose = [150, 0.0, height/2]
     camera_matrix = get_camera_matrix()
     ne = [24, 21, 18, 15, 12, 9, 6, 3, 2] # number of elements for each mesh size
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
