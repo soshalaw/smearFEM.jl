@@ -4363,7 +4363,7 @@ function optimize_sim(use_parallel::Bool=true)
     element_shape_x::Symbol = :Hex
     basis_order_x::Int = 2
 
-    ne_list =  [24, 21, 18, 15, 12, 9, 6] # number of elements in the mesh
+    ne_list =  Union{Int,Float64}[20, 19.75, 14, 10, 9, 6, 3, 2] # number of elements in the mesh
     dt_list = [0.1] #, 0.3, 0.6, 0.9, 1.0] # time step size
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]

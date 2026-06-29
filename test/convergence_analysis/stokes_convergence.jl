@@ -203,7 +203,8 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
 
     obj_pose = [150, 0.0, height/2]
     camera_matrix = get_camera_matrix()
-    ne = [24, 21, 18, 15, 12, 9, 6, 3, 2] # number of elements for each mesh size
+    ne = Union{Int,Float64}[20, 19.75, 14, 10, 9, 6, 3, 2] # number of elements for each mesh size
+    
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
     
     h_ref = readdlm(joinpath(gt_path, "data", "h.csv"), ',', Float64, '\n', header=false)[end] # reference height from the finest mesh solution
@@ -212,7 +213,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
     for (iter_index,ne) in enumerate(ne)
         filepath = resolve_data_path(joinpath("ground_truth", "sim_data", "Stokes", control, viscosity_type, "$(element_shape_x)_$(basis_order_x)", "convergence_analysis", "mesh_convergence_analysis", "mesh_sz_$ne"))
 
-        set_file(filepath)  # create the directory if it doesn't exist
+        # set_file(filepath)  # create the directory if it doesn't exist
 
         # Extract element size from directory name
         println("Running for element size = $ne")
@@ -242,7 +243,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             )
         
         try
-            write_gt_data(exp_params)
+            # write_gt_data(exp_params)
         catch e
             @error "Simulation failed for element size $ne" exception=(e, catch_backtrace())
             continue
@@ -333,7 +334,7 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
                          "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => true, "mesh_path" => mesh_filepath)
 
         try
-            write_gt_data(exp_params)
+            # write_gt_data(exp_params)
         catch e
             @error "Simulation failed for time step size $step_size" exception=e
             continue
@@ -348,10 +349,10 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
             effective_element_size = (volume / ne)^(1/3)
             border_r = get_r(joinpath(filepath, "data", "sim_data", "surface_nodes"))
 
-            if idx == 1
-                h_ref = h_mesh[end] # use the finest time step solution as reference for error calculation
-                continue
-            end
+            # if idx == 1
+            #     h_ref = h_mesh[end] # use the finest time step solution as reference for error calculation
+            #     continue
+            # end
             
             δh = abs(h_mesh[end] - h_ref) / h_ref
             _δh = (h_mesh[end] - h_ref) / h_ref
@@ -401,7 +402,7 @@ function plot_convergence_mesh(file_path::String)
 
         plt1 = plot_convergence_generic(elem_sizes_flat, abs.(relative_error), "Effective element size (h)", "h")
         Plots.ylims!(plt1, 1e-5, 10^(-2.7))
-        Plots.xlims!(plt1, 1, 15)
+        Plots.xlims!(plt1, 1, 25)
         Plots.vline!(plt1, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
 
         # plt2 = plot_convergence_generic(elem_sizes_flat, time_list, "Effective element size (h)", reference_shift=1.5)
@@ -414,8 +415,8 @@ function plot_convergence_mesh(file_path::String)
         Plots.plot!(plt2, elem_sizes_flat, time_list, label=L"t_{\mathrm{step}}", xlabel="Effective element size (h)", ylabel="Time per step (ms)", marker=:circle, yscale=:log10, xscale=:log10)
         Plots.vline!(plt2, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
         Plots.ylabel!(plt2, "Time per step (ms)")
-        Plots.xlims!(plt2, 10^(0.5), 10^(1.5))
-        Plots.ylims!(plt2, 1e2, 10^4.05)
+        Plots.xlims!(plt2, 1, 25)
+        Plots.ylims!(plt2, 1e1, 10^6.05)
 
         plt3 = set_plot(PLOT_CONFIG[:font_size], 
                           sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
@@ -434,8 +435,8 @@ function plot_convergence_mesh(file_path::String)
         Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (s)", marker=:circle, yscale=:log10, xscale=:log10)
 
         plt5 = plot_convergence_generic(elem_sizes_flat, abs.(rad_error_list), "Effective element size (h)", "h")
-        Plots.ylims!(plt5, 1e-2, 10^(-0.9))
-        Plots.xlims!(plt5, 1, 15)
+        Plots.ylims!(plt5, 10^(-1.51), 10^(-1.29))
+        Plots.xlims!(plt5, 1, 25)
 
         plt6 = set_plot(PLOT_CONFIG[:font_size], 
                           sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
