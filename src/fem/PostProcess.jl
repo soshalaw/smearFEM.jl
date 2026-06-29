@@ -111,7 +111,7 @@ points on straight hull edges (not just the vertex extremes).
 # Keyword Arguments
 - `tol`: Perpendicular-distance tolerance for edge membership (default: `1e-6`).
 """
-function get_convex_hull_boundary_points(surface_pts_2d::AbstractMatrix{Float64}, hull_vertex_ids::Vector{Int64}; tol::Float64=5.0)
+function get_convex_hull_boundary_points(surface_pts_2d::AbstractMatrix{Float64}, hull_vertex_ids::Vector{Int64}; tol::Float64=1.0)
     n_vertices = length(hull_vertex_ids)
     all_boundary_ids = Set(hull_vertex_ids)
     
