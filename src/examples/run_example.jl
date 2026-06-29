@@ -637,7 +637,7 @@ Initializes the mesh and writes the data to a file.
 - `splinep::Vector{Vector{Float64}}`: x coordinates of the border observation at each timestep interpolated.
 - `splineq::Vector{Vector{Float64}}`: y coordinates of the border observation at each timestep interpolated.
 """
-function initialize_mesh(r::Number, h::Number, ne::Int64, element_shape::Symbol, basis_order::Int,
+function initialize_mesh(r::Number, h::Number, ne::Number, element_shape::Symbol, basis_order::Int,
                             camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, z_angle_list::Vector{Float64}=[0.0];
                             geometry::Symbol=:cylinder, filepath::String="nothing",
                             edge_radius::Union{Float64,Nothing}=nothing)
@@ -667,7 +667,7 @@ function initialize_mesh(r::Number, h::Number, ne::Int64, element_shape::Symbol,
     writeborderList = [obs_border_pts]
 
     write_scene(joinpath(filepath,"data"), pos3D, mesh.IEN, ndim, pos3D, element_shape=mesh.volume_element_shape, basis_order=mesh.basis_order)
-    animate_fields(filepath = joinpath(filepath,"Results","images"), Nodes=pos3D , IEN=mesh.IEN, BorderNodes2D=borderPts2DList, fields2D=pos2D, cam_pose=obj_pose, h=h)
+    animate_fields(filepath = joinpath(filepath,"Results","images"), Nodes=pos3D , IEN=mesh.IEN, border_nodes_2d=borderPts2DList, sim_pts_2d=pos2D, cam_pose=obj_pose, h=h)
     write_data(joinpath(filepath,"Results"), writeborderList)
 
     return borderPts2DList, pos2D #, splinep, splineq

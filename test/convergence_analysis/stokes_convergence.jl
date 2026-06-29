@@ -203,20 +203,19 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
 
     obj_pose = [150, 0.0, height/2]
     camera_matrix = get_camera_matrix()
-    ne = Union{Int,Float64}[20, 19.75, 14, 10, 9, 6, 3, 2] # number of elements for each mesh size
-    
+    nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements for each mesh size
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
     
     h_ref = readdlm(joinpath(gt_path, "data", "h.csv"), ',', Float64, '\n', header=false)[end] # reference height from the finest mesh solution
     r_ref = get_r_curves(joinpath(gt_path, "data"))[end]
 
-    for (iter_index,ne) in enumerate(ne)
-        filepath = resolve_data_path(joinpath("ground_truth", "sim_data", "Stokes", control, viscosity_type, "$(element_shape_x)_$(basis_order_x)", "convergence_analysis", "mesh_convergence_analysis", "mesh_sz_$ne"))
+    for (iter_index,nz) in enumerate(nz_list)
+        filepath = resolve_data_path(joinpath("ground_truth", "sim_data", "Stokes", control, viscosity_type, "$(element_shape_x)_$(basis_order_x)", "convergence_analysis", "mesh_convergence_analysis", "mesh_sz_$nz"))
 
         # set_file(filepath)  # create the directory if it doesn't exist
 
         # Extract element size from directory name
-        println("Running for element size = $ne")
+        println("Running for element size = $nz")
         
         exp_params = Dict(
                 "element_shape_u" => element_shape_u,
@@ -225,7 +224,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
                 "basis_order_p"   => basis_order_p,
                 "element_shape_x" => element_shape_x,
                 "basis_order_x"   => basis_order_x,
-                "ne_gt" => ne,
+                "ne_gt" => nz,
                 "β_gt" => β,
                 "η_gt" => η,
                 "filepath_gt" => filepath,
@@ -243,9 +242,9 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             )
         
         try
-            # write_gt_data(exp_params)
+            write_gt_data(exp_params)
         catch e
-            @error "Simulation failed for element size $ne" exception=(e, catch_backtrace())
+            @error "Simulation failed for element size $nz" exception=(e, catch_backtrace())
             continue
         end
         
@@ -258,8 +257,8 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
 
             r_int = r_ref.spline(z)  # Evaluate reference curve at the z values of the current mesh
 
-            ne = exp_params["ne"]
-            effective_element_size = (volume / ne)^(1/3)
+            nz = exp_params["ne"]
+            effective_element_size = (volume / nz)^(1/3)
             
             δh = (h_mesh[end] - h_ref) / h_ref
             δr = mean((r - r_int) ./ r_int)
@@ -274,7 +273,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             push!(time_list, elapsed_time)
             iter_index += 1
         catch e
-            @error "Simulation failed for element size $ne" exception=(e, catch_backtrace())
+            @error "Simulation failed for element size $nz" exception=(e, catch_backtrace())
             continue
         end
     end

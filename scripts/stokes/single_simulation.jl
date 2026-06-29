@@ -65,7 +65,10 @@ function main()
     basis_order_p::Int = 1
     nDof_p::Int = 1
     nDof_u::Int = 3
-    ne::Int = 10
+    ne::Int = 6
+
+    r::Float64 = 25.0  # radius of the cylinder in mm
+    h::Float64 = 40.0  # height of the cylinder in mm
 
     camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
     obj_pose = [150.0, 0.0, 20.0]
@@ -79,6 +82,9 @@ function main()
     const_vel(lx, ly, lz, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p,
               nDof_p, element_shape_x, basis_order_x, ne, camera_matrix, obj_pose, z_angle_list;
               edge_radius=edge_radius)
+
+    # const_vel(r, h, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p,
+    #           nDof_p, element_shape_x, basis_order_x, ne, camera_matrix, obj_pose, z_angle_list)
 end
 
 main()

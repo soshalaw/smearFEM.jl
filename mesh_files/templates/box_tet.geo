@@ -5,7 +5,9 @@ lx = 1.0;
 ly = 1.0;
 lz = 1.0;
 r  = 0.1;         // vertical edge fillet radius
-elem_size = 0.25;
+nz = 4;           // number of elements along height (primary input)
+
+elem_size = lz / nz;
 
 hx = lx / 2;
 hy = ly / 2;

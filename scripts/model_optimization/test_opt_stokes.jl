@@ -4365,7 +4365,7 @@ function optimize_sim(use_parallel::Bool=true)
     element_shape_x::Symbol = :Hex
     basis_order_x::Int = 2
 
-    ne_list =  Union{Int,Float64}[9, 6, 3, 2] # number of elements in the mesh
+    nz_list =  Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements in the mesh
     dt_list = [0.1] #, 0.3, 0.6, 0.9, 1.0] # time step size
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
@@ -4389,8 +4389,8 @@ function optimize_sim(use_parallel::Bool=true)
                 println("Skipping dir $dir")
             end
             filepath_gt = joinpath(_filepath_gt, dir)
-            for ne in ne_list
-                if ne == 6.5 && viscosity_type == "constant"
+            for nz in nz_list
+                if nz == 6.5 && viscosity_type == "constant"
                     noise_level_list = [0.5, 1.0, 1.5, 2.0] # noise levels to test
                 else
                     noise_level_list = [0.0]
@@ -4402,16 +4402,16 @@ function optimize_sim(use_parallel::Bool=true)
                         if viscosity_type == "constant"
                             window = ""
                         end
-                        @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
+                        @info "Running optimization with ne = $nz and simulation time = $sim_time_exp with noise level = $noise_level"
                         for dt in dt_list
-                            filepath_res = joinpath(resolve_data_path(joinpath("experiments","sim_data","convergence_analysis","stokes_convergence")), "experiment_mesh_conv", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(ne)", "dt_$(dt)")
-                            @info "Running optimization with element_shape_x = $element_shape_x, basis_order_x = $basis_order_x, ne = $ne, dt = $dt"
+                            filepath_res = joinpath(resolve_data_path(joinpath("experiments","sim_data","convergence_analysis","stokes_convergence")), "experiment_mesh_conv", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(nz)", "dt_$(dt)")
+                            @info "Running optimization with element_shape_x = $element_shape_x, basis_order_x = $basis_order_x, ne = $nz, dt = $dt"
 
                             exp_params = Dict(
                                 "element_shape_u" => element_shape_u, "basis_order_u" => basis_order_u,
                                 "element_shape_p" => element_shape_p, "basis_order_p" => basis_order_p,
                                 "element_shape_x" => element_shape_x, "basis_order_x" => basis_order_x,
-                                "ne_exp" => ne, "sim_time_exp" => sim_time_exp, "dt" => dt,
+                                "ne_exp" => nz, "sim_time_exp" => sim_time_exp, "dt" => dt,
                                 "filepath_res" => filepath_res, "filepath_gt" => filepath_gt,
                                 "control" => control, "data_type" => "simulated",
                                 "camera_matrix" => camera_matrix, "WRITE_GT" => false,

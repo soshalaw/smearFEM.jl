@@ -11,7 +11,7 @@ function _get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, element_sh
     end
 
     mesh_params = isnothing(elem_size) ? nothing :
-        Dict{String,Any}("radius" => Float64(r), "height" => Float64(h), "elem_size_2d" => Float64(elem_size))
+        Dict{String,Any}("radius" => Float64(r), "height" => Float64(h), "nz" => round(Int, elem_size))
 
     mesh_path = joinpath(file_path, "cylinder", "$(element_shape)", "$(elem_size)_$(basis_order).msh")
     NodeList, IEN, face_IENs, nNodes, node_sets, ne = _get_mesh_data(mesh_path;
@@ -72,7 +72,7 @@ function _get_gmsh_box(file_path::String, ndof::Int, lx::T, ly::U, lz::V,
 
     mesh_params = isnothing(elem_size) ? nothing :
         Dict{String,Any}("lx" => Float64(lx), "ly" => Float64(ly), "lz" => Float64(lz),
-                         "elem_size" => Float64(elem_size), "r" => Float64(effective_r))
+                         "nz" => round(Int, elem_size), "r" => Float64(effective_r))
 
     mesh_path = joinpath(file_path, "box", "$(element_shape)", "$(lx)x$(ly)x$(lz)_$(elem_size)_$(basis_order)_r$(effective_r).msh")
     NodeList, IEN, face_IENs, nNodes, node_sets, ne = _get_mesh_data(mesh_path;

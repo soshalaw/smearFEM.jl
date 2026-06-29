@@ -3,16 +3,18 @@
 //-------------------------------------------------------------
 radius = 25.0;          // cylinder radius in mm
 height = 40.0;          // cylinder height in mm
-elem_size_2d = 10;      // characteristic element size
+nz = 4;                 // number of elements along height (primary input)
+
+elem_size = height / nz;
 
 //-------------------------------------------------------------
 // Bottom circle (z = 0)
 //-------------------------------------------------------------
-Point(1) = {0, 0, 0, elem_size_2d};
-Point(2) = { radius, 0, 0, elem_size_2d};
-Point(3) = { 0, radius, 0, elem_size_2d};
-Point(4) = {-radius, 0, 0, elem_size_2d};
-Point(5) = { 0,-radius, 0, elem_size_2d};
+Point(1) = {0, 0, 0, elem_size};
+Point(2) = { radius, 0, 0, elem_size};
+Point(3) = { 0, radius, 0, elem_size};
+Point(4) = {-radius, 0, 0, elem_size};
+Point(5) = { 0,-radius, 0, elem_size};
 
 Circle(1) = {2, 1, 3};
 Circle(2) = {3, 1, 4};
@@ -25,11 +27,11 @@ Plane Surface(1) = {1};
 //-------------------------------------------------------------
 // Top circle (z = height)
 //-------------------------------------------------------------
-Point(6) = {0, 0, height, elem_size_2d};
-Point(7) = { radius, 0, height, elem_size_2d};
-Point(8) = { 0, radius, height, elem_size_2d};
-Point(9) = {-radius, 0, height, elem_size_2d};
-Point(10) = { 0,-radius, height, elem_size_2d};
+Point(6) = {0, 0, height, elem_size};
+Point(7) = { radius, 0, height, elem_size};
+Point(8) = { 0, radius, height, elem_size};
+Point(9) = {-radius, 0, height, elem_size};
+Point(10) = { 0,-radius, height, elem_size};
 
 Circle(5) = {7, 6, 8};
 Circle(6) = {8, 6, 9};

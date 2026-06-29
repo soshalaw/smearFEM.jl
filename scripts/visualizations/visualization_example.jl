@@ -3,9 +3,9 @@ using smearFEM
 function main()
 
     # test case 
-    r::Float64 = 25.0  # radius of the cylinder in mm
+    r::Float64 = 25.0*2  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
-    ne = 3 # number of elements in the mesh for the ground truth
+    ne = 6 # number of elements in the mesh for the ground truth
     ndim = 3
     element_shape = :Hex
     basis_order = 2
