@@ -242,7 +242,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             )
         
         try
-            # write_gt_data(exp_params)
+            write_gt_data(exp_params)
         catch e
             @error "Simulation failed for element size $ne" exception=(e, catch_backtrace())
             continue
