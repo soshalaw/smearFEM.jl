@@ -346,7 +346,7 @@ function optimize(exp_params::Dict)
         splineyObs = spliney_angles[i]
         
         exp_params["z_angle"] = z_angles[i]
-        exp_path = joinpath(filepath_res, string(i))
+        exp_path = joinpath(directory(filepath_res), "view_$i", basename(filepath_res))
         write_json(joinpath(exp_path, "data","experiment_parameters"), exp_params)
 
         if gt_viscosity_type == "constant"
@@ -4746,8 +4746,8 @@ function plot_results()
                     end
                     filepath_gt_dir = joinpath(filepath_gt, dir)
                     filepath_res_dir = joinpath(filepath_res, dir)
-                    predict(filepath_res_dir, filepath_gt_dir)
-                    # replot(filepath_res_dir, filepath_gt_dir)
+                    # predict(filepath_res_dir, filepath_gt_dir)
+                    replot(filepath_res_dir, filepath_gt_dir)
                 end
                 # if viscosity_type == "constant"
                 #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
@@ -4762,6 +4762,6 @@ function plot_results()
 end
 
 # optimize_sim(false)
-optimize_syn(false)
+# optimize_syn(false)
 # optimize_real(false)
 plot_results()
