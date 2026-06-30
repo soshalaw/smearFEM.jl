@@ -152,7 +152,17 @@ function def_problem(geom::Cuboid, ne::Z, η_0::V,
         @error "Length of the Force vector ($(length(cParam))) is less than length of time array ($(length(time)))"
     end
 
-    η = viscosity_type == "bulk_viscosity" ? fill(Float64(η_0), len_t) : [Float64(η_0)]
+    η = if viscosity_type == "bulk_viscosity"
+        if viscosity_model == "power_law"
+            @info "Using power law viscosity model"
+            get_η_power_law.(time, -cParam[1:len_t], sqrt(geom.lx^2 + geom.ly^2), geom.lz, η_0)
+        else
+            fill(Float64(η_0), len_t)
+        end
+    else
+        [Float64(η_0)]
+    end
+
     stokes = set_model(geom, float(ne), η, element_shape_u, basis_order_u, nDof_u,
                        element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x;
                        filepath_mesh=mesh_path, GMESH_MESH=GMESH_MESH, edge_radius=edge_radius)

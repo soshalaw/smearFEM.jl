@@ -90,8 +90,8 @@ global color_palette = [
 
 function optimize(exp_params::Dict)
     
-    η_gt::Float64 = 0.0
-    β_gt::Float64 = 0.0
+    η_gt::Vector{Float64} = [0.0]
+    β_gt::Vector{Float64} = [0.0]
     F_ext::Float64 = 0.0
     sim_time_gt::Float64 = 0.0
     t_steps_gt::Float64 = 0.0
@@ -191,25 +191,25 @@ function optimize(exp_params::Dict)
                 viscosity_model = sim_params["model_type"]
             else
                 viscosity_model = "power_law"
-                η_gt = sim_params["η"][1]
-                β_gt = sim_params["β"][1]
+                η_gt = sim_params["η"]
+                β_gt = sim_params["β"]
             end
         else
-            η_gt = sim_params["η"][1]
-            β_gt = sim_params["β"][1]
+            η_gt = sim_params["η"]
+            β_gt = sim_params["β"]
         end
 
-        _shared = (η_gt, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, gt_viscosity_type, sim_time_gt, t_steps_gt)
+        _shared = (η_gt[1], element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt[1], F, control, gt_viscosity_type, sim_time_gt, t_steps_gt)
         model_gt, scene_exp = if geometry === :cylinder
-            def_problem(Cylinder(r, h), ne_exp, _shared...; _mesh_path_kw(exp_params)...)
-        elseif geometry === :cube
-            lx = Float64(get(exp_params, "lx", r))
-            ly = Float64(get(exp_params, "ly", r))
-            lz = Float64(get(exp_params, "lz", h))
-            def_problem(Cuboid(lx, ly, lz, edge_radius), ne_exp, _shared...; _mesh_path_kw(exp_params)...)
-        else
-            error("Unsupported geometry type: $geometry")
-        end
+                                def_problem(Cylinder(r, h), ne_exp, _shared...; _mesh_path_kw(exp_params)...)
+                            elseif geometry === :cube
+                                lx = Float64(get(exp_params, "lx", r))
+                                ly = Float64(get(exp_params, "ly", r))
+                                lz = Float64(get(exp_params, "lz", h))
+                                def_problem(Cuboid(lx, ly, lz, edge_radius), ne_exp, _shared...; _mesh_path_kw(exp_params)...)
+                            else
+                                error("Unsupported geometry type: $geometry")
+                            end
         
         for i::Int in 1:length(z_angles)
             if data_type == "synthetic"
@@ -223,8 +223,6 @@ function optimize(exp_params::Dict)
             push!(spliney_angles, splineyObs)
         end
 
-        printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
-        
     elseif data_type == "physical"
         r = exp_params["r"]  # radius of the cylinder in mm
         h = exp_params["h"]  # height of the cylinder in mm
@@ -320,28 +318,28 @@ function optimize(exp_params::Dict)
         t_steps_exp = t_steps_gt
     end
     
-    if data_type == "physical"  || viscosity_model == "carreau"
-        η_start = exp_params["η_start"]
-        β_start = exp_params["β_start"]
-    else
-        dev::Float64 = 0.3
-
-        dev_η::Float64 = dev*η_gt
-        η_start::Float64 = abs(η_gt - dev_η)
-
-        if β_gt >= 200.0 # setting the slip to partial slip for no slip cases
-            β_start = 50.0
-        elseif β_gt <= 1 # setting the slip to partial slip for free slip cases
-            β_start = 10.0
-        else
-            dev_β::Float64 = dev*β_gt
-            β_start::Float64 = abs(β_gt - dev_β)
-        end
-    end
-
-    θ::Vector{Float64} = [η_start, β_start]
-
     for i in eachindex(z_angles)
+        
+        if data_type == "physical"  || viscosity_model == "carreau"
+            η_start = exp_params["η_start"]
+            β_start = exp_params["β_start"]
+        else
+            dev::Float64 = 0.3
+            
+            dev_η::Float64 = dev*η_gt[1]
+            η_start::Float64 = abs(η_gt[1] - dev_η)
+            
+            if β_gt[1] >= 200.0 # setting the slip to partial slip for no slip cases
+                β_start = 50.0
+            elseif β_gt[1] <= 1 # setting the slip to partial slip for free slip cases
+                β_start = 10.0
+            else
+                dev_β::Float64 = dev*β_gt[1]
+                β_start::Float64 = abs(β_gt[1] - dev_β)
+            end
+        end
+        
+        θ::Vector{Float64} = [η_start, β_start]
 
         ObsDataList = obs_data_angles[i]
         splinexObs = splinex_angles[i]
@@ -353,6 +351,7 @@ function optimize(exp_params::Dict)
 
         if gt_viscosity_type == "constant"
             
+            printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
             _range = 1:(round(Int,sim_time_exp/t_steps_exp)+1)
             @info "Considering from frame $(first(_range)) to frame $(last(_range)) in the observations"
             ObsDataList = ObsDataList[_range] # align the observation points with the simulation time
@@ -615,11 +614,12 @@ function optimize(exp_params::Dict)
             obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
             mode::String = exp_params["mode"] # "single_window" or "multiple_window" or "full_time"
             sim_time_window::Float64 = 30.0 # time window size for optimization in seconds
-            
+            model_gt.η = η_gt
+
             viscosity_type = "constant"
             
             conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, viewing_angles=[z_angles[i]])
-            model, scene = def_problem(geom_exp, ne_exp, η_gt, _fem..., β_gt, F, control, viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
+            model, scene = def_problem(geom_exp, ne_exp, η_gt[1], _fem..., β_gt[1], F, control, viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
 
             set_file(joinpath(exp_path,"plots"))
             

@@ -307,10 +307,12 @@ end
 
 function write_2d_data(filepath::String, data_array::AbstractArray)
     @info "Writing contour files..."
+    root_folder = dirname(filepath)
+    folder_name = basename(filepath)
     for (t, t_data) in enumerate(data_array)
         cStr = string(t - 1, pad=3)
         for (a, angle_data) in enumerate(t_data)
-            angle_dir = joinpath(filepath, string(a))
+            angle_dir = joinpath(root_folder, "view_$a", folder_name)
             set_file(angle_dir)
             write_csv(joinpath(angle_dir, cStr), angle_data)
         end

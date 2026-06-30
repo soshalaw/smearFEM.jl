@@ -65,7 +65,6 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; out
             continue
         end
 
-        println("Frame $frame_idx: sim_t size = $(size(_sim_t)), obs_t size = $(size(obs_t))")
         sim_t = _as_2xN(_sim_t)
         obs_t = _as_2xN(obs_t)
         
