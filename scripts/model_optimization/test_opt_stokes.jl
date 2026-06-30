@@ -754,13 +754,13 @@ function optimize(exp_params::Dict)
                 est_model.η = est_ηpList
                 est_scene.β = est_βpList
                 
-                write_csv(joinpath(exp_path,"data", "view_$i", "est_η"), est_ηpList)
-                write_csv(joinpath(exp_path,"data","view_$i","est_β"), est_βpList)
-                write_csv(joinpath(exp_path,"data","view_$i","avg_η"), avg_ηList)
-                write_csv(joinpath(exp_path,"data","view_$i","window_data","time_windows"), time_windows)
-                write_csv(joinpath(exp_path,"data","view_$i","window_data","t_windows"), t_windows)
-                write_csv(joinpath(exp_path,"data","view_$i","window_data","data_ranges"), data_ranges_)
-                write_csv(joinpath(exp_path,"data","view_$i","window_data","windows_sizes"), windows)
+                write_csv(joinpath(exp_path,"data", "est_η"), est_ηpList)
+                write_csv(joinpath(exp_path,"data", "est_β"), est_βpList)
+                write_csv(joinpath(exp_path,"data", "avg_η"), avg_ηList)
+                write_csv(joinpath(exp_path,"data", "window_data","time_windows"), time_windows)
+                write_csv(joinpath(exp_path,"data", "window_data","t_windows"), t_windows)
+                write_csv(joinpath(exp_path,"data", "window_data","data_ranges"), data_ranges_)
+                write_csv(joinpath(exp_path,"data", "window_data","windows_sizes"), windows)
                 
                 est_μ_list, gradList, simBorderPts, fields_est, _, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
                 est_h_list = get_height(est_μ_list, h)
@@ -768,24 +768,24 @@ function optimize(exp_params::Dict)
                 if data_type != "physical" && viscosity_model != "carreau"
                     gt_μ_list, gradList, borderPts2DList_gt, fields_gt, _, pos2D_gt, pos3D_gt, _, _, _ = simulate(model_gt, scene_exp, conditions)
                     gt_h_list = get_height(gt_μ_list, h)
-                    write_csv(joinpath(exp_path,"data","view_$i","η_gt"), model_gt.η)
-                    write_csv(joinpath(exp_path,"data","view_$i","β_gt"), β_gt)
-                    write_csv(joinpath(exp_path,"data","view_$i","gt_h"), gt_h_list)
+                    write_csv(joinpath(exp_path,"data", "η_gt"), model_gt.η)
+                    write_csv(joinpath(exp_path,"data", "β_gt"), β_gt)
+                    write_csv(joinpath(exp_path,"data", "gt_h"), gt_h_list)
                     
-                    write_2d_data(joinpath(exp_path,"data","view_$i","sim_data","2D_surface_points_gt"), pos2D_gt)
-                    write_2d_data(joinpath(exp_path,"data","view_$i","sim_data","2D_border_points_gt"), borderPts2DList_gt)
+                    write_2d_data(joinpath(exp_path,"data", "sim_data","2D_surface_points_gt"), pos2D_gt)
+                    write_2d_data(joinpath(exp_path,"data", "sim_data","2D_border_points_gt"), borderPts2DList_gt)
 
-                    write_data(joinpath(exp_path,"data","view_$i","sim_data","3D_points_gt"), pos3D_gt)
-                    write_data(joinpath(exp_path,"data","view_$i","sim_data","motion_fields_gt "), fields_gt)
+                    write_data(joinpath(exp_path,"data", "sim_data","3D_points_gt"), pos3D_gt)
+                    write_data(joinpath(exp_path,"data", "sim_data","motion_fields_gt "), fields_gt)
                 end
             end
 
-            write_csv(joinpath(exp_path,"data","view_$i","est_h"), est_h_list)
+            write_csv(joinpath(exp_path,"data", "est_h"), est_h_list)
 
-            write_2d_data(joinpath(exp_path,"data","view_$i","sim_data","2D_surface_points"), pos2D_est)
-            write_data(joinpath(exp_path,"data","view_$i","sim_data","3D_points"), pos3D_est)
-            write_data(joinpath(exp_path,"data","view_$i","sim_data","motion_fields "), fields_est)
-            write_2d_data(joinpath(exp_path,"data","view_$i","sim_data","2D_border_points"), simBorderPts)
+            write_2d_data(joinpath(exp_path,"data", "sim_data","2D_surface_points"), pos2D_est)
+            write_data(joinpath(exp_path,"data", "sim_data","3D_points"), pos3D_est)
+            write_data(joinpath(exp_path,"data", "sim_data","motion_fields "), fields_est)
+            write_2d_data(joinpath(exp_path,"data", "sim_data","2D_border_points"), simBorderPts)
         end
         end_time = Dates.now()
         write_time_log(start_time, end_time, exp_params; dest_dir=joinpath(exp_path, "logs"))
