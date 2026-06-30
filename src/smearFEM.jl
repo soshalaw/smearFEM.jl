@@ -25,7 +25,7 @@ export simulate, write_sim_data, readData, initialize_mesh, write_gt_data, plot_
 export simulate_single_tstep_stokes, stokes_single_step_force
 export assemble_system_A, assemble_system_B, def_problem, set_model
 
-export read_csv, write_vtk, write_scene, write_csv, write_json, write_data, read_h5, read_json, read_perception_data, get_time_windows, write_stokes_scene, set_file # io.jl
+export read_csv, write_vtk, write_scene, write_csv, write_json, write_data, write_2d_data, read_h5, read_json, read_perception_data, get_time_windows, write_stokes_scene, set_file # io.jl
 export plot_mesh, animate_fields, plot_matches, plot_matches_h, set_plot, set_subplot # plotting.jl
 export plot_noise_covariance, plot_height_vs_slip, plot_field_at_height, arrow0!, get_norm, plot_data, plot_covariance! # analysis_plots.jl
 

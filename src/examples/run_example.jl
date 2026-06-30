@@ -668,7 +668,7 @@ function initialize_mesh(r::Number, h::Number, ne::Number, element_shape::Symbol
 
     write_scene(joinpath(filepath,"data"), pos3D, mesh.IEN, ndim, pos3D, element_shape=mesh.volume_element_shape, basis_order=mesh.basis_order)
     animate_fields(filepath = joinpath(filepath,"Results","images"), Nodes=pos3D , IEN=mesh.IEN, border_nodes_2d=borderPts2DList, sim_pts_2d=pos2D, cam_pose=obj_pose, h=h)
-    write_data(joinpath(filepath,"Results"), writeborderList)
+    write_2d_data(joinpath(filepath,"Results"), writeborderList)
 
     return borderPts2DList, pos2D #, splinep, splineq
 end 
