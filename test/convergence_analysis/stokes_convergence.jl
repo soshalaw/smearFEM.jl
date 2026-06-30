@@ -334,7 +334,7 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
                          "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => true, "mesh_path" => mesh_filepath)
 
         try
-            # write_gt_data(exp_params)
+            write_gt_data(exp_params)
         catch e
             @error "Simulation failed for time step size $step_size" exception=e
             continue
