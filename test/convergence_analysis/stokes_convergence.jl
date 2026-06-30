@@ -76,7 +76,7 @@ function get_r_curves(filepath::String)
         z = data[2:end, 1]
         r = data[2:end, 2]
         idx = sortperm(z)
-        spl = Spline1D(z[idx], r[idx]; k=3, bc="extrapolate")
+        spl = Spline1D(z[idx], r[idx]; k=1, bc="extrapolate")
         push!(r_curves, (z=z[idx], r=r[idx], spline=spl, file=name))
     end
     return r_curves
@@ -203,7 +203,8 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
 
     obj_pose = [150, 0.0, height/2]
     camera_matrix = get_camera_matrix()
-    nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements for each mesh size
+    # nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements for each mesh size
+    nz_list = Union{Int,Float64}[20, 14, 10, 9, 6, 3, 2] # number of elements for each mesh size
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
     
     h_ref = readdlm(joinpath(gt_path, "data", "h.csv"), ',', Float64, '\n', header=false)[end] # reference height from the finest mesh solution
@@ -242,7 +243,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             )
         
         try
-            write_gt_data(exp_params)
+            # write_gt_data(exp_params)
         catch e
             @error "Simulation failed for element size $nz" exception=(e, catch_backtrace())
             continue

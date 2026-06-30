@@ -139,7 +139,7 @@ function def_problem(geom::Cuboid, ne::Z, η_0::V,
                     element_shape_x::Symbol, basis_order_x::Int,
                     β::Y, cParam::Vector{Float64}, control::String, viscosity_type::String,
                     sim_time::W, t_steps::X;
-                    GMESH_MESH::Bool=true,
+                    viscosity_model::String="power_law", GMESH_MESH::Bool=true,
                     mesh_path::String = joinpath(dirname(dirname(@__DIR__)), "mesh_files")) where {V<:Number,W<:Number,X<:Number,Y<:Number,Z<:Number}
 
     edge_radius = geom.edge_radius

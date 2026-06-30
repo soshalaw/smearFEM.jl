@@ -7,8 +7,8 @@ lz = 1.0;
 r  = 0.1;         // vertical edge fillet radius
 nz = 4;           // number of elements along height (primary input)
 
-elem_size = lz / nz;
-
+// Decouple 2D char length from height so n_2D ≈ nz² for any lx/lz ratio.
+elem_size_xy = Sqrt(lx * ly) / nz;
 hx = lx / 2;
 hy = ly / 2;
 
@@ -16,36 +16,36 @@ hy = ly / 2;
 // Bottom face points (z = 0) — rounded rectangle, centered at origin in XY
 // 8 arc-endpoints + 4 arc centers, ordered CCW from above
 //-------------------------------------------------------------
-Point(1)  = {-hx+r,   -hy,    0, elem_size};  // front-left
-Point(2)  = { hx-r,   -hy,    0, elem_size};  // front-right
-Point(3)  = { hx,     -hy+r,  0, elem_size};  // right-front
-Point(4)  = { hx,      hy-r,  0, elem_size};  // right-back
-Point(5)  = { hx-r,    hy,    0, elem_size};  // back-right
-Point(6)  = {-hx+r,    hy,    0, elem_size};  // back-left
-Point(7)  = {-hx,      hy-r,  0, elem_size};  // left-back
-Point(8)  = {-hx,     -hy+r,  0, elem_size};  // left-front
+Point(1)  = {-hx+r,   -hy,    0, elem_size_xy};  // front-left
+Point(2)  = { hx-r,   -hy,    0, elem_size_xy};  // front-right
+Point(3)  = { hx,     -hy+r,  0, elem_size_xy};  // right-front
+Point(4)  = { hx,      hy-r,  0, elem_size_xy};  // right-back
+Point(5)  = { hx-r,    hy,    0, elem_size_xy};  // back-right
+Point(6)  = {-hx+r,    hy,    0, elem_size_xy};  // back-left
+Point(7)  = {-hx,      hy-r,  0, elem_size_xy};  // left-back
+Point(8)  = {-hx,     -hy+r,  0, elem_size_xy};  // left-front
 // arc centers (z = 0)
-Point(9)  = {-hx+r,   -hy+r,  0, elem_size};
-Point(10) = { hx-r,   -hy+r,  0, elem_size};
-Point(11) = { hx-r,    hy-r,  0, elem_size};
-Point(12) = {-hx+r,    hy-r,  0, elem_size};
+Point(9)  = {-hx+r,   -hy+r,  0, elem_size_xy};
+Point(10) = { hx-r,   -hy+r,  0, elem_size_xy};
+Point(11) = { hx-r,    hy-r,  0, elem_size_xy};
+Point(12) = {-hx+r,    hy-r,  0, elem_size_xy};
 
 //-------------------------------------------------------------
 // Top face points (z = lz) — same layout
 //-------------------------------------------------------------
-Point(13) = {-hx+r,   -hy,    lz, elem_size};
-Point(14) = { hx-r,   -hy,    lz, elem_size};
-Point(15) = { hx,     -hy+r,  lz, elem_size};
-Point(16) = { hx,      hy-r,  lz, elem_size};
-Point(17) = { hx-r,    hy,    lz, elem_size};
-Point(18) = {-hx+r,    hy,    lz, elem_size};
-Point(19) = {-hx,      hy-r,  lz, elem_size};
-Point(20) = {-hx,     -hy+r,  lz, elem_size};
+Point(13) = {-hx+r,   -hy,    lz, elem_size_xy};
+Point(14) = { hx-r,   -hy,    lz, elem_size_xy};
+Point(15) = { hx,     -hy+r,  lz, elem_size_xy};
+Point(16) = { hx,      hy-r,  lz, elem_size_xy};
+Point(17) = { hx-r,    hy,    lz, elem_size_xy};
+Point(18) = {-hx+r,    hy,    lz, elem_size_xy};
+Point(19) = {-hx,      hy-r,  lz, elem_size_xy};
+Point(20) = {-hx,     -hy+r,  lz, elem_size_xy};
 // arc centers (z = lz)
-Point(21) = {-hx+r,   -hy+r,  lz, elem_size};
-Point(22) = { hx-r,   -hy+r,  lz, elem_size};
-Point(23) = { hx-r,    hy-r,  lz, elem_size};
-Point(24) = {-hx+r,    hy-r,  lz, elem_size};
+Point(21) = {-hx+r,   -hy+r,  lz, elem_size_xy};
+Point(22) = { hx-r,   -hy+r,  lz, elem_size_xy};
+Point(23) = { hx-r,    hy-r,  lz, elem_size_xy};
+Point(24) = {-hx+r,    hy-r,  lz, elem_size_xy};
 
 //-------------------------------------------------------------
 // Bottom edges

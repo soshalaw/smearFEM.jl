@@ -989,7 +989,7 @@ function replot(filepath, filepath_gt)
      # Read ground truth height data
 
     for elem_size_folder in elem_size_folders
-        if elem_size_folder == "post_analysis" || elem_size_folder == "Q2_8" || elem_size_folder == "Q2_4"
+        if elem_size_folder == "post_analysis"
             continue
         end
         
@@ -1000,23 +1000,24 @@ function replot(filepath, filepath_gt)
             if !startswith(sim_time_folder, "simtime_")
                 continue
             end
-
+            
             noise_folders = readdir(joinpath(filepath, elem_size_folder, sim_time_folder))
             for noise_folder in noise_folders
                 if !startswith(noise_folder, "noise_")
                     continue
                 end
-                view_path = joinpath(filepath, elem_size_folder, sim_time_folder, noise_folder)
-                view_folders = readdir(view_path)
+                step_path = joinpath(filepath, elem_size_folder, sim_time_folder, noise_folder)
+                step_folders = readdir(step_path)
                 view_comp_data = Dict{String, Any}()
-
-                for view_folder in view_folders
-
+                
+                for view_folder in step_folders
+                    
+                    println("Simulation time folders: $(view_folder)")
                     if isnothing(tryparse(Int, view_folder))
                         continue
                     end
-
-                    exp_path = joinpath(view_path, view_folder)
+                    
+                    exp_path = joinpath(step_path, view_folder)
 
                     if viscosity_type == "constant"
                         println("Comparing experiments in: $exp_path")
@@ -1889,7 +1890,7 @@ function replot(filepath, filepath_gt)
 
                 # --- Multi-view comparison plots ---
                 if !isempty(view_comp_data)
-                    comp_path = joinpath(view_path, "post_analysis_view", "plots")
+                    comp_path = joinpath(step_path, "post_analysis_view", "plots")
                     mkpath(comp_path)
                     views = sort(collect(keys(view_comp_data)))
                     n_views = length(views)
@@ -4449,7 +4450,7 @@ function optimize_syn(use_parallel::Bool=true)
     element_shape_x::Symbol = :Hex
     basis_order_x::Int = 2
 
-    ne_list = [10]
+    ne_list = [6]
     noise_level_list = [0.0] # No noise for synthetic data
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["bulk_viscosity"]
@@ -4677,9 +4678,10 @@ function plot_results()
     control::String = "force"
     viscosity_type_list = [] # "constant" or "bulk_viscosity"
     model_type = [] # "carreau" or "Stokes"
-    avoid_dirs = ["post_analysis_global","2","3"] # directories to skip in post-analysis and plotting
-    data_type_list = ["simulated", "synthetic", "physical"]
+    avoid_dirs = ["post_analysis_global","1","2","3","5","6"] # directories to skip in post-analysis and plotting
+    data_type_list = ["synthetic"] # ["simulated", "synthetic", "physical"]
     base_path = ""
+    geometry::Symbol = :cube # :cylinder or :cube
 
     for data_type in data_type_list
         if data_type == "physical"
@@ -4700,7 +4702,7 @@ function plot_results()
                     viscosity_type_list = ["bulk_viscosity"] # for Carreau model, we only have bulk viscosity results for now
                 else
                     base_path = joinpath(base_experiments_path, "syn_data", "optimization", "Stokes")
-                    viscosity_type_list = ["constant", "bulk_viscosity"]
+                    viscosity_type_list = ["bulk_viscosity"]
                 end
             elseif data_type == "simulated"
                 base_path = joinpath(base_experiments_path, "sim_data", "optimization", "Stokes")
@@ -4719,8 +4721,8 @@ function plot_results()
                         filepath_gt = joinpath(base_gt_path, "sim_data", "Carreau")
                         filepath_res = base_path
                     else
-                        filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Hex2_3.25" , "cylinder")
-                        filepath_res = joinpath(base_path, control, viscosity_type, "Hex2_3.25" , "cylinder")
+                        filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Hex2_3.25" , string(geometry))
+                        filepath_res = joinpath(base_path, control, viscosity_type, "Hex2_3.25" , string(geometry))
                     end
                 end
                 
@@ -4751,7 +4753,7 @@ function plot_results()
     end
 end
 
-optimize_sim(false)
-# optimize_syn(false)
+# optimize_sim(false)
+optimize_syn(false)
 # optimize_real(false)
 # plot_results()

@@ -6,20 +6,21 @@ ly = 1.0;
 lz = 1.0;
 nz = 4;           // number of elements along height (primary input)
 
-elem_size = lz / nz;
-
+// Decouple 2D char length from height so n_2D ≈ nz² for any lx/lz ratio.
+// For a cube this equals lz/nz; for wider boxes it avoids over-refining XY.
+elem_size_xy = Sqrt(lx * ly) / nz;
 hx = lx / 2;
 hy = ly / 2;
-nx = Ceil(lx / elem_size);
-ny = Ceil(ly / elem_size);
+nx = Ceil(lx / elem_size_xy);
+ny = Ceil(ly / elem_size_xy);
 
 //-------------------------------------------------------------
 // Bottom face (z = 0) — centered at origin in XY
 //-------------------------------------------------------------
-Point(1) = {-hx, -hy, 0, elem_size};  // front-left
-Point(2) = { hx, -hy, 0, elem_size};  // front-right
-Point(3) = { hx,  hy, 0, elem_size};  // back-right
-Point(4) = {-hx,  hy, 0, elem_size};  // back-left
+Point(1) = {-hx, -hy, 0, elem_size_xy};  // front-left
+Point(2) = { hx, -hy, 0, elem_size_xy};  // front-right
+Point(3) = { hx,  hy, 0, elem_size_xy};  // back-right
+Point(4) = {-hx,  hy, 0, elem_size_xy};  // back-left
 
 Line(1) = {1, 2};  // Front (y=-hy)
 Line(2) = {2, 3};  // Right (x=hx)

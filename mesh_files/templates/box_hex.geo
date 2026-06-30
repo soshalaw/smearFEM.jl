@@ -9,25 +9,28 @@ nz = 4;           // number of elements along height (primary input)
 
 hx = lx / 2;
 hy = ly / 2;
-elem_size = lz / nz;
+// Full-quad recombination (algorithm 2) subdivides every quad into 4 sub-quads,
+// inflating n_2D by ~3.5×. Multiply char length by √3.5 so post-subdivision
+// count stays near nz². Empirically calibrated for rounded-rectangle base surfaces.
+elem_size_xy = Sqrt(3.5 * lx * ly) / nz;
 
 //-------------------------------------------------------------
 // Bottom face (z = 0) — rounded rectangle, centered at origin in XY
 // 8 arc-endpoints + 4 arc centers, ordered CCW from above
 //-------------------------------------------------------------
-Point(1)  = {-hx+r,   -hy,    0, elem_size};  // front-left
-Point(2)  = { hx-r,   -hy,    0, elem_size};  // front-right
-Point(3)  = { hx,     -hy+r,  0, elem_size};  // right-front
-Point(4)  = { hx,      hy-r,  0, elem_size};  // right-back
-Point(5)  = { hx-r,    hy,    0, elem_size};  // back-right
-Point(6)  = {-hx+r,    hy,    0, elem_size};  // back-left
-Point(7)  = {-hx,      hy-r,  0, elem_size};  // left-back
-Point(8)  = {-hx,     -hy+r,  0, elem_size};  // left-front
+Point(1)  = {-hx+r,   -hy,    0, elem_size_xy};  // front-left
+Point(2)  = { hx-r,   -hy,    0, elem_size_xy};  // front-right
+Point(3)  = { hx,     -hy+r,  0, elem_size_xy};  // right-front
+Point(4)  = { hx,      hy-r,  0, elem_size_xy};  // right-back
+Point(5)  = { hx-r,    hy,    0, elem_size_xy};  // back-right
+Point(6)  = {-hx+r,    hy,    0, elem_size_xy};  // back-left
+Point(7)  = {-hx,      hy-r,  0, elem_size_xy};  // left-back
+Point(8)  = {-hx,     -hy+r,  0, elem_size_xy};  // left-front
 // arc centers
-Point(9)  = {-hx+r,   -hy+r,  0, elem_size};
-Point(10) = { hx-r,   -hy+r,  0, elem_size};
-Point(11) = { hx-r,    hy-r,  0, elem_size};
-Point(12) = {-hx+r,    hy-r,  0, elem_size};
+Point(9)  = {-hx+r,   -hy+r,  0, elem_size_xy};
+Point(10) = { hx-r,   -hy+r,  0, elem_size_xy};
+Point(11) = { hx-r,    hy-r,  0, elem_size_xy};
+Point(12) = {-hx+r,    hy-r,  0, elem_size_xy};
 
 Line(1)   = {1, 2};
 Circle(2) = {2, 10, 3};
@@ -42,12 +45,8 @@ Curve Loop(1) = {1, 2, 3, 4, 5, 6, 7, 8};
 Plane Surface(1) = {1};
 Recombine Surface {1};
 
-// Force pure-quad meshing of the base surface so extrusion gives pure hexes.
-// RecombinationAlgorithm=2 (Blossom) maximises quad coverage; SubdivisionAlgorithm=1
-// converts any remaining triangles to quads via centroid subdivision.
 Mesh.RecombineAll = 1;
 Mesh.RecombinationAlgorithm = 2;
-Mesh.SubdivisionAlgorithm = 1;
 
 //-------------------------------------------------------------
 // Extrude in z to create hex volume
