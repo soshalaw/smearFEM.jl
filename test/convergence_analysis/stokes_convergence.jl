@@ -198,13 +198,13 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
 
     F_ext::Float64 = 9518.61 # force applied to the cylinder in N
     sim_time::Float64 = 5.0 # simulation time in seconds
-    step_size = 0.1 # time step size in seconds
+    step_size = 2.5e-3 # time step size in seconds
     steps = round(Int, sim_time/step_size)  
 
     obj_pose = [150, 0.0, height/2]
     camera_matrix = get_camera_matrix()
-    # nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements for each mesh size
-    nz_list = Union{Int,Float64}[20, 14, 10, 9, 6, 3, 2] # number of elements for each mesh size
+    nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements for each mesh size
+    # nz_list = Union{Int,Float64}[20, 14, 10, 9, 6, 3, 2] # number of elements for each mesh size
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
     
     h_ref = readdlm(joinpath(gt_path, "data", "h.csv"), ',', Float64, '\n', header=false)[end] # reference height from the finest mesh solution
