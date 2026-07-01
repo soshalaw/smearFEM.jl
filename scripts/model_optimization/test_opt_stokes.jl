@@ -323,7 +323,7 @@ function optimize(exp_params::Dict)
         if i != 3
             continue
         end
-        
+
         if data_type == "physical"  || viscosity_model == "carreau"
             η_start = exp_params["η_start"]
             β_start = exp_params["β_start"]
@@ -4828,6 +4828,6 @@ function plot_results()
 end
 
 # optimize_sim(false)
-# optimize_syn(false)
+optimize_syn(false)
 # optimize_real(false)
-plot_results()
+# plot_results()
