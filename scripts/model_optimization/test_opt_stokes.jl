@@ -320,7 +320,7 @@ function optimize(exp_params::Dict)
     
     for (i,z_angle) in enumerate(z_angles)
         
-        if i != 3
+        if i == 1
             continue
         end
 
@@ -4834,7 +4834,7 @@ function plot_results()
                     filepath_gt_dir = joinpath(filepath_gt, dir)
                     filepath_res_dir = joinpath(filepath_res, dir)
                     predict(filepath_res_dir, filepath_gt_dir)
-                    replot(filepath_res_dir, filepath_gt_dir)
+                    # replot(filepath_res_dir, filepath_gt_dir)
                 end
                 # if viscosity_type == "constant"
                 #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
