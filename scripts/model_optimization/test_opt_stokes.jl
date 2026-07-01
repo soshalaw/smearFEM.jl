@@ -125,7 +125,7 @@ function optimize(exp_params::Dict)
     obj_pose::Vector{Float64} = zeros(Float64, 3) # initial pose of the object
     camera_matrix::AbstractArray = exp_params["camera_matrix"]
     
-    sim_time_exp::Float64 = 2.0 #exp_params["sim_time_exp"]
+    sim_time_exp::Float64 = exp_params["sim_time_exp"]
     t_steps_exp::Float64 = if haskey(exp_params, "dt")
         steps_exp = sim_time_exp / Float64(exp_params["dt"])
         Float64(exp_params["dt"])
