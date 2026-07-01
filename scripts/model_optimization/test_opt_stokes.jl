@@ -722,15 +722,6 @@ function optimize(exp_params::Dict)
                     end
                     obs_border_pt_lst_t = windows[ti] # align the observation points with the simulation time
 
-                    if ti == 1
-                        pred_η[data_range_] .= est_ηpList[data_ranges_[ti]][1]
-                        pred_β[data_range_] .= est_βpList[data_ranges_[ti]][1]
-                    elseif ti > 1
-                        data_range_prev = data_ranges_[ti-1] # get the data range for the previous time window
-                        pred_η[data_range_] .= est_ηpList[data_range_prev][1]
-                        pred_β[data_range_] .= est_βpList[data_range_prev][1]
-                    end
-
                     printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
                     println("Data frame : $(data_range_)")
                     println("Time frame : $(scene.sim_time)")
@@ -769,14 +760,14 @@ function optimize(exp_params::Dict)
                 est_model.η = est_ηpList
                 est_scene.β = est_βpList
                 
-                pred_model, pred_scene = def_problem(geom_exp, ne_exp, η_start, _fem..., β_start, F, control, viscosity_type, sim_time_gt, t_steps_gt; viscosity_model=viscosity_model, _mesh_path_kw(exp_params)...)
-                pred_model.η = pred_η
-                pred_scene.β = pred_β
+                # pred_model, pred_scene = def_problem(geom_exp, ne_exp, η_start, _fem..., β_start, F, control, viscosity_type, sim_time_gt, t_steps_gt; viscosity_model=viscosity_model, _mesh_path_kw(exp_params)...)
+                # pred_model.η = pred_η
+                # pred_scene.β = pred_β
 
                 write_csv(joinpath(exp_path,"data", "est_η"), est_ηpList)
                 write_csv(joinpath(exp_path,"data", "est_β"), est_βpList)
-                write_csv(joinpath(exp_path,"data", "pred_η"), pred_η)
-                write_csv(joinpath(exp_path,"data", "pred_β"), pred_β)
+                # write_csv(joinpath(exp_path,"data", "pred_η"), pred_η)
+                # write_csv(joinpath(exp_path,"data", "pred_β"), pred_β)
 
                 write_csv(joinpath(exp_path,"data", "avg_η"), avg_ηList)
                 write_csv(joinpath(exp_path,"data", "window_data","time_windows"), time_windows)
@@ -787,9 +778,9 @@ function optimize(exp_params::Dict)
                 est_μ_list, gradList, simBorderPts, fields_est, _, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
                 est_h_list = get_height(est_μ_list, h)
 
-                pred_μ_list, gradList, pred_simBorderPts, fields_pred, _, pos2D_pred, pos3D_pred, _, _, _ = simulate(pred_model, pred_scene, conditions)
-                pred_h_list = get_height(pred_μ_list, h)
-                
+                # pred_μ_list, gradList, pred_simBorderPts, fields_pred, _, pos2D_pred, pos3D_pred, _, _, _ = simulate(pred_model, pred_scene, conditions)
+                # pred_h_list = get_height(pred_μ_list, h)
+
                 if data_type != "physical" && viscosity_model != "carreau"
                     gt_μ_list, gradList, borderPts2DList_gt, fields_gt, _, pos2D_gt, pos3D_gt, _, _, _ = simulate(model_gt, scene_exp, conditions)
                     gt_h_list = get_height(gt_μ_list, h)
@@ -805,20 +796,20 @@ function optimize(exp_params::Dict)
                 end
             end
             
-            write_csv(joinpath(exp_path,"data", "pred_h"), pred_h_list)
+            # write_csv(joinpath(exp_path,"data", "pred_h"), pred_h_list)
             write_csv(joinpath(exp_path,"data", "est_h"), est_h_list)
 
             write_data(joinpath(exp_path,"data", "sim_data","3D_points"), pos3D_est)
-            write_data(joinpath(exp_path,"data", "sim_data","3D_points_pred"), pos3D_pred)
+            # write_data(joinpath(exp_path,"data", "sim_data","3D_points_pred"), pos3D_pred)
 
             write_data(joinpath(exp_path,"data", "sim_data","motion_fields "), fields_est)
-            write_data(joinpath(exp_path,"data", "sim_data","motion_fields_pred "), fields_pred)
+            # write_data(joinpath(exp_path,"data", "sim_data","motion_fields_pred "), fields_pred)
 
             write_2d_data(joinpath(exp_path,"data", "sim_data","2D_surface_points"), pos2D_est)
-            write_2d_data(joinpath(exp_path,"data", "sim_data","2D_points_pred"), pos2D_pred)
+            # write_2d_data(joinpath(exp_path,"data", "sim_data","2D_points_pred"), pos2D_pred)
 
             write_2d_data(joinpath(exp_path,"data", "sim_data","2D_border_points"), simBorderPts)
-            write_2d_data(joinpath(exp_path,"data", "sim_data","2D_border_points_pred"), pred_simBorderPts)
+            # write_2d_data(joinpath(exp_path,"data", "sim_data","2D_border_points_pred"), pred_simBorderPts)
         end
         end_time = Dates.now()
         write_time_log(start_time, end_time, exp_params; dest_dir=joinpath(exp_path, "logs"))
@@ -933,9 +924,12 @@ function predict(filepath, filepath_gt)
                                 est_ηpList = readdlm(joinpath(win_exp_path,"data","est_η.csv"), ',', Float64)
                                 est_βpList = readdlm(joinpath(win_exp_path,"data","est_β.csv"), ',', Float64)
                                 est_h_list = readdlm(joinpath(win_exp_path,"data","est_h.csv"), ',', Float64)
-                                pred_h_list = AbstractArray[]
-                                # est_h_list_1 = AbstractArray[]
-                                pred_borderPts_list = AbstractArray[]
+                                
+                                h_pred_list = AbstractArray[]
+                                borderPts_pred_list = AbstractArray[]
+                                fields_list_pred_list = AbstractArray[]
+                                pos2D_pred_list = AbstractArray[]
+                                pos3D_pred_list = AbstractArray[]
 
                                 data_ranges_ = get_time_windows(joinpath(win_exp_path,"data","window_data","data_ranges.csv"))
                                 t_windows = readdlm(joinpath(win_exp_path,"data","window_data","t_windows.csv"),',',Float64)
@@ -943,77 +937,74 @@ function predict(filepath, filepath_gt)
                                 
                                 conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
                                 _fem = (element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x)
-                                pred_model, pred_scene = def_problem(geom, ne_exp, 1.0, _fem..., 1.0, F, control, viscosity_type, sim_time, t_steps; _mesh_path_kw(exp_params)...)
-                                pred_η = zeros(Float64, size(est_ηpList, 1))
-                                pred_β = zeros(Float64, size(est_βpList, 1))
+                                model, scene = def_problem(geom, ne_exp, 1.0, _fem..., 1.0, F, control, viscosity_type, sim_time, t_steps; _mesh_path_kw(exp_params)...)
 
                                 for ti::Int in 1:(size(data_ranges_, 1)-1)
-                 
-                                    data_range_ = data_ranges_[ti] # get the data range for the current time window
-                                    data_range_prev = ti > 1 ? data_ranges_[ti-1] : 1:data_range_[1]
-
-                                    if ti == 1
-                                        pred_η[data_range_] .= est_ηpList[data_ranges_[ti]][1]
-                                        pred_β[data_range_] .= est_βpList[data_ranges_[ti]][1]
-                                    elseif ti > 1
-                                        data_range_prev = data_ranges_[ti-1] # get the data range for the previous time window
-                                        pred_η[data_range_] .= est_ηpList[data_range_prev][1]
-                                        pred_β[data_range_] .= est_βpList[data_range_prev][1]
+                                    
+                                    if ti > 2
+                                        continue  # Skip the first two time windows for prediction
                                     end
-                                    # scene.sim_time = time_windows[ti]
-                                    # height_range = collect(Float64, range(start=data_range_[1], stop=data_range_[end]+1, step=1))
 
-                                    # η = est_ηpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
-                                    # β = est_βpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
-                                    # scene.cParam = F[data_range_]
+                                    data_range_ = data_ranges_[ti] # get the data range for the current time window
+                                    scene.sim_time = time_windows[ti]
+                                    height_range = collect(Float64, range(start=data_range_[1], stop=data_range_[end]+1, step=1))
 
-                                    # printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
-                                    # println("Data frame : $(data_range_)")
-                                    # println("Time frame : $(scene.sim_time)")
-                                    # @info "Time window $(t_windows[ti])"
+                                    η = est_ηpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
+                                    β = est_βpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
+                                    scene.cParam = F[data_range_]
 
-                                    # if ti > 1
-                                    #     @info "Predicting dynamics in time window $(ti)..."
-                                    #     reset_model!(model)
-                                    #      # get the data range for the previous time window
-                                    #     η_pred = est_ηpList[data_range_prev][1] # get the first value in the estimation window the rest are the same for the window
-                                    #     β_pred = est_βpList[data_range_prev][1] # get the first value in the estimation window the rest are the same for the window
+                                    printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
+                                    println("Data frame : $(data_range_)")
+                                    println("Time frame : $(scene.sim_time)")
+                                    @info "Time window $(t_windows[ti])"
 
-                                    #     model.η = [η_pred]
-                                    #     scene.β = [β_pred]
-                                    #     pred_μ_list, _, PredborderPts2DList, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
-                                    #     pred_h = get_height(pred_μ_list, h)
-                                    #     push!(pred_borderPts_list, PredborderPts2DList)
-                                    #     push!(pred_h_list, pred_h)
-                                    # end
+                                    if ti > 1
+                                        @info "Predicting dynamics in time window $(ti)..."
+                                        reset_model!(model)
+                                        data_range_prev = data_ranges_[ti-1] # get the data range for the previous time window
+                                        η_pred = est_ηpList[data_range_prev][1] # get the first value in the estimation window the rest are the same for the window
+                                        β_pred = est_βpList[data_range_prev][1] # get the first value in the estimation window the rest are the same for the window
 
-                                    # reset_model!(model)
-                                    # model.η = [η]
-                                    # scene.β = [β]
-                                    # est_μ_list, _, borderPts2DList, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
-                                    # h_est = get_height(est_μ_list, h)
-                                    # if ti == 1
-                                    #     push!(pred_borderPts_list, borderPts2DList)
-                                    #     push!(pred_h_list, h_est)
-                                    # end
-                                    # update_model!(model)
-                                    # h = h_est[end] # update the height for the next window simulation
+                                        model.η = [η_pred]
+                                        scene.β = [β_pred]
+                                        pred_μ_list, gradList, pred_simBorderPts, fields_pred, _, pos2D_pred, pos3D_pred, _, _, _  = simulate(model, scene, conditions)
+                                        pred_h = get_height(pred_μ_list, h)
+
+                                        push!(h_pred_list, pred_h)
+                                        push!(borderPts_pred_list, pred_simBorderPts)
+                                        push!(fields_list_pred_list, fields_pred)
+                                        push!(pos2D_pred_list, pos2D_pred)
+                                        push!(pos3D_pred_list, pos3D_pred)
+                                    end
+
+                                    reset_model!(model)
+                                    model.η = [η]
+                                    scene.β = [β]
+                                    est_μ_list, gradList, est_simBorderPts, fields_est, _, pos2D_est, pos3D_est, _, _, _ = simulate(model, scene, conditions)
+                                     
+                                    h_est = get_height(est_μ_list, h)
+                                    if ti == 1
+                                        push!(h_pred_list, h_est)
+                                        push!(borderPts_pred_list, est_simBorderPts)
+                                        push!(fields_list_pred_list, fields_est)
+                                        push!(pos2D_pred_list, pos2D_est)
+                                        push!(pos3D_pred_list, pos3D_est)
+                                    end
+                                    update_model!(model)
+                                    h = h_est[end] # update the height for the next window simulation
                                 end
-                                pred_model.η = pred_η
-                                pred_scene.β = pred_β
 
-                                pred_μ_list, gradList, pred_simBorderPts, fields_pred, _, pos2D_pred, pos3D_pred, _, _, _ = simulate(pred_model, pred_scene, conditions)
-                                pred_h_list = get_height(pred_μ_list, h)
+                                h_pred_vec         = reduce(vcat, h_pred_list)
+                                pos3D_pred_vec     = reduce(vcat, pos3D_pred_list)
+                                fields_pred_vec    = reduce(vcat, fields_list_pred_list)
+                                pos2D_pred_vec     = reduce(vcat, pos2D_pred_list)
+                                borderPts_pred_vec = reduce(vcat, borderPts_pred_list)
 
-                                write_csv(joinpath(win_exp_path,"data", "pred_h"), pred_h_list)
-
-                                write_data(joinpath(win_exp_path,"data", "sim_data","3D_points_pred"), pos3D_pred)
-
-                                write_data(joinpath(win_exp_path,"data", "sim_data","motion_fields_pred "), fields_pred)
-
-                                write_2d_data(joinpath(win_exp_path,"data", "sim_data","2D_points_pred"), pos2D_pred)
-
-                                write_2d_data(joinpath(win_exp_path,"data", "sim_data","2D_border_points_pred"), pred_simBorderPts)
+                                write_csv(joinpath(win_exp_path,"data", "pred_h"), h_pred_vec)
+                                write_data(joinpath(win_exp_path,"data", "sim_data","3D_points_pred"), pos3D_pred_vec)
+                                write_data(joinpath(win_exp_path,"data", "sim_data","motion_fields_pred "), fields_pred_vec)
+                                write_2d_data(joinpath(win_exp_path,"data", "sim_data","2D_points_pred"), pos2D_pred_vec)
+                                write_2d_data(joinpath(win_exp_path,"data", "sim_data","2D_border_points_pred"), borderPts_pred_vec)
                             end
                         end
                     end
@@ -3995,20 +3986,23 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
     @info "Reading simulated contour data from $(joinpath(exp_path,"data","sim_data",view_folder,"2D_border_points")) of $(length(sim_border_pt_lst)) time steps"
 
     pred_path = joinpath(exp_path, "data","sim_data",view_folder,"2D_border_points_pred")
-    pred_border_pt_lst = isdir(pred_path) ? read_csv(pred_path) : nothing
-    println("Reading predicted contour data from $(pred_path) of $(length(pred_border_pt_lst)) time steps")
+    pred_border_pts = isdir(pred_path) ? read_csv(pred_path) : nothing
 
     @assert length(ObsDataList) >= num_exp_points "Not enough observation border points: have $(length(ObsDataList)), need at least $num_exp_points"
     @assert length(sim_border_pt_lst) >= num_exp_points "Not enough simulation border points: have $(length(sim_border_pt_lst)), need at least $num_exp_points"
 
     obs_border_pt_lst = obs_border_pt_lst[1:num_exp_points, :]
     sim_border_pt_lst = sim_border_pt_lst[1:num_exp_points, :]
+    pred_border_pt_lst = pred_border_pts !== nothing ? pred_border_pts[1][1:num_exp_points, :] : nothing
 
     gt_Splinex = gt_Splinex[1:num_exp_points, :]
     gt_Spliney = gt_Spliney[1:num_exp_points, :]
 
     splinex = splinex[1:num_exp_points, :]
     spliney = spliney[1:num_exp_points, :]
+
+    pred_splinex = pred_border_pts !== nothing ? pred_border_pts[2][1:num_exp_points, :] : nothing
+    pred_spliney = pred_border_pts !== nothing ? pred_border_pts[3][1:num_exp_points, :] : nothing
 
     return obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney, pred_border_pt_lst
 end
@@ -4828,6 +4822,6 @@ function plot_results()
 end
 
 # optimize_sim(false)
-optimize_syn(false)
+# optimize_syn(false)
 # optimize_real(false)
-# plot_results()
+plot_results()
