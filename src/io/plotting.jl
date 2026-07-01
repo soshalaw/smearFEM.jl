@@ -57,14 +57,14 @@ Function to animate the fields as a gif
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, cam_pose::Union{Nothing,Vector{Float64}}=nothing, h::Union{Nothing,Float64}=nothing)
+function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, sim_border_nodes_2d=nothing, obs_border_nodes_2d=nothing,sim_pts_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, cam_pose::Union{Nothing,Vector{Float64}}=nothing, h::Union{Nothing,Float64}=nothing)
     set_file(filepath) # create the directory to store the VTK files
-    if isnothing(Nodes) && isnothing(sim_pts_2d) && isnothing(border_nodes_2d) && isnothing(IEN) && isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
+    if isnothing(Nodes) && isnothing(sim_pts_2d) && isnothing(sim_border_nodes_2d) && isnothing(IEN) && isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
         throw(AssertionError("No fields provided"))
     elseif isnothing(Nodes) && isnothing(SurfaceNodes3D)
-        animate2D(border_nodes_2d=border_nodes_2d, sim_pts_2d=sim_pts_2d, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
+        animate2D(border_nodes_2d=sim_border_nodes_2d, sim_pts_2d=sim_pts_2d, obs_border_nodes_2d=obs_border_nodes_2d, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
         return
-    elseif isnothing(sim_pts_2d) && isnothing(border_nodes_2d) && isnothing(p) && isnothing(q)
+    elseif isnothing(sim_pts_2d) && isnothing(sim_border_nodes_2d) && isnothing(p) && isnothing(q)
         animate3D(fields=Nodes, IEN=IEN, filepath=filepath, cam_pose=cam_pose, height=h)
         return
     else 
@@ -73,7 +73,7 @@ function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3
         else
             animate3D(fields=Nodes, IEN=IEN, filepath=filepath, cam_pose=cam_pose, height=h)
         end
-        animate2D(border_nodes_2d=border_nodes_2d, sim_pts_2d=sim_pts_2d, p=p, q=q, pObs=pObs, qObs=qObs, filepath=filepath)
+        animate2D(border_nodes_2d=sim_border_nodes_2d, sim_pts_2d=sim_pts_2d, obs_border_nodes_2d=obs_border_nodes_2d, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
     end
 end 
 
@@ -88,7 +88,7 @@ Function to animate the 2D fields as a gif
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function animate2D(;border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, filepath="images/2D_grid.gif")
+function animate2D(;border_nodes_2d=nothing, sim_pts_2d=nothing, obs_border_nodes_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, filepath="images/2D_grid.gif")
 
     if isnothing(border_nodes_2d) && isnothing(sim_pts_2d) && isnothing(p) && isnothing(pObs)
         throw(AssertionError("No fields provided"))
@@ -113,6 +113,9 @@ function animate2D(;border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=no
                    
         borders_θ = _multi_angle(border_nodes_2d) ?
             [[border_nodes_2d[t][a] for t in 1:sz] for a in 1:n_angles] : nothing
+        obs_borders_θ = _multi_angle(obs_border_nodes_2d) ?
+                [[obs_border_nodes_2d[t][a] for t in 1:sz] for a in 1:n_angles] :
+                (!isnothing(obs_border_nodes_2d) ? [obs_border_nodes_2d for _ in 1:n_angles] : nothing)
         sim_pts_θ = _multi_angle(sim_pts_2d) ?
             [[sim_pts_2d[t][a] for t in 1:sz] for a in 1:n_angles] :
             [sim_pts_2d for _ in 1:n_angles]
@@ -120,7 +123,9 @@ function animate2D(;border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=no
         for a in 1:n_angles
             pr = Progress(sz; desc="Animating 2D fields (angle $a of $n_angles)...", showspeed=true)
             borders_a  = !isnothing(borders_θ) ? borders_θ[a] : nothing
-            sim_pts_2d_a = sim_pts_θ[a]
+            obs_borders_a = !isnothing(obs_borders_θ) ? obs_borders_θ[a] : nothing
+            sim_pts_2d_a = !isnothing(sim_pts_θ) ? sim_pts_θ[a] : nothing
+
             animation = @animate for i in 1:sz
                 plt = set_plot(12, frame=true, bottom_margin=0mm)
                 if !isnothing(pObs) && !isnothing(p) && !isnothing(pgt)
@@ -139,6 +144,9 @@ function animate2D(;border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=no
                     end
                     if !isnothing(borders_a)
                         Plots.scatter!(plt, borders_a[i][1,:], borders_a[i][2,:], ms=:3, mc=:indianred2, legend=true, labels=L"\widehat{\mathcal{B}}_{k,j}", aspect_ratio=:equal, dpi=:400)
+                    end
+                    if !isnothing(obs_borders_a)
+                        Plots.scatter!(plt, obs_borders_a[i][1,:], obs_borders_a[i][2,:], ms=:3, mc=:green4, legend=true, labels=L"\mathrm{Observation}", aspect_ratio=:equal, dpi=:400)
                     end
                 end
 

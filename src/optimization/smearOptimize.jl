@@ -466,6 +466,13 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     
     printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+
+    @debug begin
+        path = joinpath(get_scratch_dir(), "optimization_animation")
+        animate_fields(filepath=path, sim_border_nodes_2d=simBorderPts, obs_border_nodes_2d=obsBorderPts)
+        "Saved optimization animation to $path"
+    end
+
     d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
     totdinit::Float64 = sum(d)/length(d)
 

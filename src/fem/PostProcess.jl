@@ -956,7 +956,7 @@ end
 
 function _rotate_round_z(node_list, d_angle::Float64=0.0)
 
-    angle = d_angle/180*pi # convert to radians
+    angle = d_angle # convert to radians
 
     # Create rotation matrix
     R = [cos(angle) -sin(angle) 0;

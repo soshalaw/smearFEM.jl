@@ -125,7 +125,7 @@ function optimize(exp_params::Dict)
     obj_pose::Vector{Float64} = zeros(Float64, 3) # initial pose of the object
     camera_matrix::AbstractArray = exp_params["camera_matrix"]
     
-    sim_time_exp::Float64 = exp_params["sim_time_exp"]
+    sim_time_exp::Float64 = 2.0 #exp_params["sim_time_exp"]
     t_steps_exp::Float64 = if haskey(exp_params, "dt")
         steps_exp = sim_time_exp / Float64(exp_params["dt"])
         Float64(exp_params["dt"])
@@ -833,10 +833,10 @@ function predict(filepath, filepath_gt)
     
     camera_matrix::AbstractArray = reshape(Array(float.(sim_params["camera_matrix"])),3,3)
     _obj_pose::AbstractArray = sim_params["obj_pose"]
-    obj_pose::Vector{Float64} = if size(_obj_pose) == (4,4)
-                                    _obj_pose[1:3,4]
+    obj_pose::Vector{Float64} = if size(_obj_pose, 1) == 4 && size(_obj_pose, 2) == 4
+                                    _obj_pose[[3,1,2],4]
                                 else
-                                    _obj_pose
+                                    _obj_pose[[3,1,2]]
                                 end
     control::String = sim_params["control_type"]
     edge_radius::Union{Float64, Nothing} = get(sim_params, "edge_radius", nothing)
@@ -915,6 +915,7 @@ function predict(filepath, filepath_gt)
 
                                 data_type::String = exp_params["data_type"]
                                 ne_exp::Int = exp_params["ne_exp"]
+                                z_angle::Float64 = exp_params["z_angle"]
                                 element_shape_u = Symbol(exp_params["element_shape_u"])
                                 basis_order_u   = Int(exp_params["basis_order_u"])
                                 element_shape_p = Symbol(exp_params["element_shape_p"])
@@ -936,15 +937,11 @@ function predict(filepath, filepath_gt)
                                 t_windows = readdlm(joinpath(win_exp_path,"data","window_data","t_windows.csv"),',',Float64)
                                 time_windows = readdlm(joinpath(win_exp_path,"data","window_data","time_windows.csv"),',',Float64)
                                 
-                                conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
+                                conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, viewing_angles=[z_angle])
                                 _fem = (element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x)
                                 model, scene = def_problem(geom, ne_exp, 1.0, _fem..., 1.0, F, control, viscosity_type, sim_time, t_steps; _mesh_path_kw(exp_params)...)
 
-                                for ti::Int in 1:(size(data_ranges_, 1)-1)
-                                    
-                                    if ti > 2
-                                        continue  # Skip the first two time windows for prediction
-                                    end
+                                for ti::Int in 1:(size(data_ranges_, 1))
 
                                     data_range_ = data_ranges_[ti] # get the data range for the current time window
                                     scene.sim_time = time_windows[ti]
@@ -982,7 +979,6 @@ function predict(filepath, filepath_gt)
                                     model.η = [η]
                                     scene.β = [β]
                                     est_μ_list, gradList, est_simBorderPts, fields_est, _, pos2D_est, pos3D_est, _, _, _ = simulate(model, scene, conditions)
-                                     
                                     h_est = get_height(est_μ_list, h)
                                     if ti == 1
                                         push!(h_pred_list, h_est)
@@ -1032,11 +1028,11 @@ function replot(filepath, filepath_gt)
     
     camera_matrix::Matrix{Float64} = reshape(Array(float.(sim_params["camera_matrix"])),3,3)
     _obj_pose::AbstractArray = sim_params["obj_pose"]
-    if size(_obj_pose) == (4,4)
-        obj_pose = _obj_pose[1:3,4]
-    else
-        obj_pose = _obj_pose
-    end
+    obj_pose::Vector{Float64} = if size(_obj_pose, 1) == 4 && size(_obj_pose, 2) == 4
+                                    _obj_pose[[3,1,2],4]
+                                else
+                                    _obj_pose[[3,1,2]]
+                                end
     
     control::String = sim_params["control_type"]
 
@@ -1686,36 +1682,54 @@ function replot(filepath, filepath_gt)
                                     est_h_list = est_h_list[1:data_point_len+1, :]
 
                                     d_est, _ = closest_point(sim_border_pt_lst, obs_border_pt_lst)
-                                    d_pred, _ = closest_point(pred_border_pt_lst, obs_border_pt_lst)
                                     
-                                    t_full_h = collect(range(start=0, stop=effective_sim_time, step=t_steps))
+                                    Plots.plot(sim_border_pt_lst[1][:,1], sim_border_pt_lst[1][:,2], label="Simulated border", color=:blue)
+                                    Plots.plot!(pred_border_pt_lst[1][:,1], pred_border_pt_lst[1][:,2], label="Observed border", color=:red)
+                                    Plots.xlabel!(L"x [px]")
+                                    Plots.ylabel!(L"y [px]")
+                                    Plots.savefig(joinpath("home","soshala","border_comparison.pdf"))
 
-                                    plt_cnt_error = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
-                                    Plots.plot!(plt_cnt_error, [], label=false, legend=:outerbottom, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
-                                    Plots.plot!(plt_cnt_error, t_full_h, d_est, label="Closest point distance error")
-                                    Plots.plot!(plt_cnt_error, t_full_h, d_pred, label="Predicted closest point distance error")
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
-                                        t = t_windows[ti]
-                                        Plots.vline!(plt_cnt_error, [t], color=:gray, linestyle=:dash, label=false)
-                                    end
-                                    Plots.xlabel!(plt_cnt_error, L"\mathrm{Time\;[s]}")
-                                    Plots.ylabel!(plt_cnt_error, L"\mathrm{Closest\;Point\;Distance\;[px]}")
-                                    Plots.xlims!(plt_cnt_error, 0, end_obs_win)
-                                    Plots.ylims!(plt_cnt_error, 0, max(maximum(d_est)*1.1, 0.5))
-                                    Plots.savefig(plt_cnt_error, joinpath(win_exp_path,"plots","closest_point_distance_error.pdf"))
+
+                                    t_full_h = collect(range(start=0, stop=effective_sim_time, step=t_steps))
+                                    
+                                    # plt_cnt_error = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
+                                    # Plots.plot!(plt_cnt_error, [], label=false, legend=:outerbottom, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
+                                    # Plots.plot!(plt_cnt_error, t_full_h, d_est, label="Closest point distance error")
+                                    # for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                    #     range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                                    #     range_pred = if ti === 1
+                                    #                     collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                                    #                 else
+                                    #                     collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
+                                    #                 end
+                                    #     d_pred, _ = closest_point(pred_border_pt_lst[range_pred], obs_border_pt_lst[range_])
+                                    #     t = t_windows[ti]
+                                    #     Plots.vline!(plt_cnt_error, [t], color=:gray, linestyle=:dash, label=false)
+                                    #     if ti === 1
+                                    #         Plots.plot!(plt_cnt_error, t_full_h, d_pred, label="Predicted closest point distance error")
+                                    #     else
+                                    #         Plots.plot!(plt_cnt_error, t_full_h, d_pred, label=false)
+                                    #     end
+                                    #     pred_range_start = range_pred[end] + 1
+                                    # end
+                                    # Plots.xlabel!(plt_cnt_error, L"\mathrm{Time\;[s]}")
+                                    # Plots.ylabel!(plt_cnt_error, L"\mathrm{Closest\;Point\;Distance\;[px]}")
+                                    # Plots.xlims!(plt_cnt_error, 0, end_obs_win)
+                                    # # Plots.ylims!(plt_cnt_error, 0, max(max(maximum(d_est)*1.1, maximum(d_pred)*1.1), 0.5))
+                                    # Plots.savefig(plt_cnt_error, joinpath(win_exp_path,"plots","closest_point_distance_error.pdf"))
                                     
                                     t_full = collect(range(start=t_steps, stop=effective_sim_time, step=t_steps))
 
                                     plt_η = set_plot(fs, sz=(plt_width, plt_height), legend_column=4, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
                                     Plots.plot!(plt_η, [], label=false, legend=:outerbottom, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                    for ti::Int in 1:(size(data_ranges_, 1))
                                         t = t_windows[ti]
                                         Plots.vline!(plt_η, [t], color=:gray, linestyle=:dash, label=false)
                                     end
                                     # Plots.savefig(plt_η, joinpath(win_exp_path,"plots","η_gt.pdf"))
                                     t_prev = 0.1
                                     prev_η = 0.0
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                    for ti::Int in 1:(size(data_ranges_, 1))
                                         t = t_windows[ti]
                                         data_range_ = data_ranges_[ti]
                                         t_win = collect(range(start=t_prev, stop=t, step=t_steps))
@@ -1747,7 +1761,7 @@ function replot(filepath, filepath_gt)
                                     plt_β = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
                                     t_prev = 0.1
                                     prev_β = 0.0
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                    for ti::Int in 1:(size(data_ranges_, 1))
                                         t = t_windows[ti]
                                         Plots.vline!(plt_β, [t], color=:gray, linestyle=:dash, label=false)
                                         data_range_ = data_ranges_[ti]
@@ -1773,7 +1787,7 @@ function replot(filepath, filepath_gt)
                                     
                                     plot_param_ratio = set_plot(fs, sz=(plt_width, plt_height), legend_column=2, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
                                     t_prev = 0.1
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                    for ti::Int in 1:(size(data_ranges_, 1))
                                         t = t_windows[ti]
                                         data_range_ = data_ranges_[ti]
                                         t_win = collect(range(start=t_prev, stop=t, step=t_steps))
@@ -1795,7 +1809,7 @@ function replot(filepath, filepath_gt)
 
                                     plot_param_product = set_plot(fs, sz=(plt_width, plt_height), legend_column=2, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
                                     t_prev = 0.1
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                    for ti::Int in 1:(size(data_ranges_, 1))
                                         t = t_windows[ti]
                                         data_range_ = data_ranges_[ti]
                                         t_win = collect(range(start=t_prev, stop=t, step=t_steps))
@@ -1817,7 +1831,7 @@ function replot(filepath, filepath_gt)
 
                                     plot_param_sum = set_plot(fs, sz=(plt_width, plt_height), legend_column=2, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
                                     t_prev = 0.1
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
+                                    for ti::Int in 1:(size(data_ranges_, 1))
                                         t = t_windows[ti]
                                         data_range_ = data_ranges_[ti]
                                         t_win = collect(range(start=t_prev, stop=t, step=t_steps))
@@ -1840,16 +1854,22 @@ function replot(filepath, filepath_gt)
                                 
                                     h_plt = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
                                     Plots.plot!(h_plt, t_full_h, est_h_list, label=L"h_{\mathrm{est}}", color=def_red)
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
-                                        pred_h_list_vec = pred_h_list[ti]
+                                    println("Data ranges: $(data_ranges_)")
+                                    for ti::Int in 1:(size(data_ranges_, 1))
                                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                                        range_pred = if ti === 1
+                                                        collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                                                    else
+                                                        collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
+                                                    end
                                         t = t_windows[ti]
                                         if ti == 1
                                             Plots.plot!(h_plt, [], label=L"h_{\mathrm{pred}}", linestyle=:dash, color=def_blue)
                                         else
-                                            Plots.plot!(h_plt, t_full_h[range_], pred_h_list_vec, linestyle=:dash, color=def_blue, label=false)
+                                            Plots.plot!(h_plt, t_full_h[range_], pred_h_list[range_pred], linestyle=:dash, color=def_blue, label=false)
                                         end
                                         Plots.vline!(h_plt, [t], color=:gray, linestyle=:dash, label=false)
+                                        pred_range_start = range_pred[end] + 1
                                     end
                                     if data_type != "physical"
                                         Plots.plot!(h_plt, t_full_h, gt_h, label=L"h_{\mathrm{gt}}", color=def_green)
@@ -1864,9 +1884,14 @@ function replot(filepath, filepath_gt)
 
                                     h_normalized_plt = set_plot(fs, sz=(plt_width, plt_height), legend_column=2, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
                                     # Plots.plot!(h_normalized_plt, t_full_h, est_h_list./gt_h, label=L"h_{\mathrm{est}}/h_{\mathrm{gt}}", color=def_red)
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
-                                        pred_h_list_vec = pred_h_list[ti]
+                                    pred_range_start = 0
+                                    for ti::Int in 1:(size(data_ranges_, 1))
                                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                                        range_pred = if ti === 1
+                                                        collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                                                    else
+                                                        collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
+                                                    end
                                         t = t_windows[ti]
                                         if ti == 1
                                             if data_type != "physical"
@@ -1877,10 +1902,11 @@ function replot(filepath, filepath_gt)
                                                 Plots.plot!(h_normalized_plt, [], label=L"h_{\mathrm{pred}}/h_{\mathrm{m}}", linestyle=:dash, color=def_blue)
                                             end
                                         else
-                                            Plots.plot!(h_normalized_plt, t_full_h[range_], pred_h_list_vec./gt_h[range_], linestyle=:dash, color=def_blue, label=false)
+                                            Plots.plot!(h_normalized_plt, t_full_h[range_], pred_h_list[range_pred]./gt_h[range_], linestyle=:dash, color=def_blue, label=false)
                                             Plots.plot!(h_normalized_plt, t_full_h[range_], est_h_list[range_]./gt_h[range_], color=def_red, label=false)
                                         end
                                         Plots.vline!(h_normalized_plt, [t], color=:gray, linestyle=:dash, label=false)
+                                        pred_range_start = range_pred[end] + 1 
                                     end
                                     Plots.xlabel!(h_normalized_plt, L"\mathrm{Time\;[s]}")
                                     Plots.ylabel!(h_normalized_plt, L"h_{\mathrm{est}}/h_{\mathrm{gt}}")
@@ -1890,14 +1916,14 @@ function replot(filepath, filepath_gt)
 
                                     error_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
                                     Plots.plot!(error_plt, t_full_h, abs.(est_h_list-gt_h), label="Estimation", color=def_red)
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
-                                        pred_h_list_vec = pred_h_list[ti]
+                                    for ti::Int in 1:(size(data_ranges_, 1))
+                                        
                                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
                                         t = t_windows[ti]
                                         if ti == 1
                                             Plots.plot!(error_plt, [], label="Prediction", linestyle=:dash, color=def_blue)
                                         else
-                                            Plots.plot!(error_plt, t_full_h[range_], abs.(pred_h_list_vec-gt_h[range_]), linestyle=:dash, color=def_blue, label=false)
+                                            Plots.plot!(error_plt, t_full_h[range_], abs.(pred_h_list[range_]-gt_h[range_]), linestyle=:dash, color=def_blue, label=false)
                                         end
                                         Plots.vline!(error_plt, [t], color=:gray, linestyle=:dash, label=false)
                                     end
@@ -1908,14 +1934,14 @@ function replot(filepath, filepath_gt)
 
                                     rel_error_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
                                     Plots.plot!(rel_error_plt, t_full_h, abs.(est_h_list-gt_h)./gt_h*100, label="Estimation", color=def_red)
-                                    for ti::Int in 1:(size(data_ranges_, 1)-1)
-                                        pred_h_list_vec = pred_h_list[ti]
+                                    for ti::Int in 1:(size(data_ranges_, 1))
+                                        
                                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
                                         t = t_windows[ti]
                                         if ti == 1
                                             Plots.plot!(rel_error_plt, [], label="Prediction", linestyle=:dash, color=def_blue)
                                         else
-                                            Plots.plot!(rel_error_plt, t_full_h[range_], abs.(pred_h_list_vec-gt_h[range_])./gt_h[range_]*100, linestyle=:dash, color=def_blue, label=false)
+                                            Plots.plot!(rel_error_plt, t_full_h[range_], abs.(pred_h_list[range_]-gt_h[range_])./gt_h[range_]*100, linestyle=:dash, color=def_blue, label=false)
                                         end
                                         Plots.vline!(rel_error_plt, [t], color=:gray, linestyle=:dash, label=false)
                                     end
@@ -4825,4 +4851,4 @@ end
 # optimize_sim(false)
 optimize_syn(false)
 # optimize_real(false)
-# plot_results()
+plot_results()
