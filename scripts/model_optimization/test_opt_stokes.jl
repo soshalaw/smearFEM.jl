@@ -4822,6 +4822,6 @@ function plot_results()
 end
 
 # optimize_sim(false)
-# optimize_syn(false)
+optimize_syn(false)
 # optimize_real(false)
-plot_results()
+# plot_results()
