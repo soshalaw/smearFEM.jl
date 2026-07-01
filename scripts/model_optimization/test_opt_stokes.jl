@@ -318,7 +318,11 @@ function optimize(exp_params::Dict)
         t_steps_exp = t_steps_gt
     end
     
-    for i in eachindex(z_angles)
+    for (i,z_angle) in enumerate(z_angles)
+        
+        if i != 3
+            continue
+        end
         
         if data_type == "physical"  || viscosity_model == "carreau"
             η_start = exp_params["η_start"]
@@ -345,7 +349,7 @@ function optimize(exp_params::Dict)
         splinexObs = splinex_angles[i]
         splineyObs = spliney_angles[i]
         
-        exp_params["z_angle"] = z_angles[i]
+        exp_params["z_angle"] = z_angle
         exp_path = joinpath(dirname(filepath_res), "view_$i", basename(filepath_res))
         write_json(joinpath(exp_path, "data","experiment_parameters"), exp_params)
 
@@ -359,7 +363,7 @@ function optimize(exp_params::Dict)
             # Read the gt data
             model, scene = def_problem(geom_exp, ne_exp, η_gt, _fem..., β_gt, F, control, gt_viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
             est_model, est_scene = def_problem(geom_exp, ne_exp, η_start, _fem..., β_start, F, control, gt_viscosity_type, sim_time_gt, t_steps_exp; _mesh_path_kw(exp_params)...)
-            conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, filepath=exp_path, ANIMATE=false, viewing_angles=[z_angles[i]])
+            conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, filepath=exp_path, ANIMATE=false, viewing_angles=[z_angle])
             
             gt_h_ = readdlm(joinpath(filepath_gt,"data","h.csv"), ',', Float64)
             gt_h = gt_h_[1:(round(Int,sim_time_gt/t_steps_exp)+1)]
@@ -618,7 +622,7 @@ function optimize(exp_params::Dict)
 
             viscosity_type = "constant"
             
-            conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, viewing_angles=[z_angles[i]])
+            conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, viewing_angles=[z_angle)
             model, scene = def_problem(geom_exp, ne_exp, η_gt[1], _fem..., β_gt[1], F, control, viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
 
             set_file(joinpath(exp_path,"plots"))
@@ -707,6 +711,8 @@ function optimize(exp_params::Dict)
 
                 for ti::Int in 1:length(windows)
                     data_range_ = data_ranges_[ti]
+                    data_range_prev = ti > 1 ? data_ranges_[ti-1] : 1:data_range_[1]
+
                     scene.sim_time = time_windows[ti]
                     if data_type == "physical"
                         _F = -F_ext*ones(Float64, round(Int, scene.sim_time*frame_rate)) # force applied to the cylinder in N
@@ -715,7 +721,16 @@ function optimize(exp_params::Dict)
                         scene.cParam = F[data_range_]
                     end
                     obs_border_pt_lst_t = windows[ti] # align the observation points with the simulation time
-                    
+
+                    if ti == 1
+                        pred_η[data_range_] .= est_ηpList[data_ranges_[ti]][1]
+                        pred_β[data_range_] .= est_βpList[data_ranges_[ti]][1]
+                    elseif ti > 1
+                        data_range_prev = data_ranges_[ti-1] # get the data range for the previous time window
+                        pred_η[data_range_] .= est_ηpList[data_range_prev][1]
+                        pred_β[data_range_] .= est_βpList[data_range_prev][1]
+                    end
+
                     printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
                     println("Data frame : $(data_range_)")
                     println("Time frame : $(scene.sim_time)")
@@ -754,8 +769,15 @@ function optimize(exp_params::Dict)
                 est_model.η = est_ηpList
                 est_scene.β = est_βpList
                 
+                pred_model, pred_scene = def_problem(geom_exp, ne_exp, η_start, _fem..., β_start, F, control, viscosity_type, sim_time_gt, t_steps_gt; viscosity_model=viscosity_model, _mesh_path_kw(exp_params)...)
+                pred_model.η = pred_η
+                pred_scene.β = pred_β
+
                 write_csv(joinpath(exp_path,"data", "est_η"), est_ηpList)
                 write_csv(joinpath(exp_path,"data", "est_β"), est_βpList)
+                write_csv(joinpath(exp_path,"data", "pred_η"), pred_η)
+                write_csv(joinpath(exp_path,"data", "pred_β"), pred_β)
+
                 write_csv(joinpath(exp_path,"data", "avg_η"), avg_ηList)
                 write_csv(joinpath(exp_path,"data", "window_data","time_windows"), time_windows)
                 write_csv(joinpath(exp_path,"data", "window_data","t_windows"), t_windows)
@@ -764,6 +786,9 @@ function optimize(exp_params::Dict)
                 
                 est_μ_list, gradList, simBorderPts, fields_est, _, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
                 est_h_list = get_height(est_μ_list, h)
+
+                pred_μ_list, gradList, pred_simBorderPts, fields_pred, _, pos2D_pred, pos3D_pred, _, _, _ = simulate(pred_model, pred_scene, conditions)
+                pred_h_list = get_height(pred_μ_list, h)
                 
                 if data_type != "physical" && viscosity_model != "carreau"
                     gt_μ_list, gradList, borderPts2DList_gt, fields_gt, _, pos2D_gt, pos3D_gt, _, _, _ = simulate(model_gt, scene_exp, conditions)
@@ -779,13 +804,21 @@ function optimize(exp_params::Dict)
                     write_data(joinpath(exp_path,"data", "sim_data","motion_fields_gt "), fields_gt)
                 end
             end
-
+            
+            write_csv(joinpath(exp_path,"data", "pred_h"), pred_h_list)
             write_csv(joinpath(exp_path,"data", "est_h"), est_h_list)
 
-            write_2d_data(joinpath(exp_path,"data", "sim_data","2D_surface_points"), pos2D_est)
             write_data(joinpath(exp_path,"data", "sim_data","3D_points"), pos3D_est)
+            write_data(joinpath(exp_path,"data", "sim_data","3D_points_pred"), pos3D_pred)
+
             write_data(joinpath(exp_path,"data", "sim_data","motion_fields "), fields_est)
+            write_data(joinpath(exp_path,"data", "sim_data","motion_fields_pred "), fields_pred)
+
+            write_2d_data(joinpath(exp_path,"data", "sim_data","2D_surface_points"), pos2D_est)
+            write_2d_data(joinpath(exp_path,"data", "sim_data","2D_points_pred"), pos2D_pred)
+
             write_2d_data(joinpath(exp_path,"data", "sim_data","2D_border_points"), simBorderPts)
+            write_2d_data(joinpath(exp_path,"data", "sim_data","2D_border_points_pred"), pred_simBorderPts)
         end
         end_time = Dates.now()
         write_time_log(start_time, end_time, exp_params; dest_dir=joinpath(exp_path, "logs"))
@@ -887,7 +920,7 @@ function predict(filepath, filepath_gt)
 
                                 println("Processing window: $win_exp_path")
                                 exp_params = read_json(joinpath(win_exp_path ,"data","experiment_parameters"))
-                                sim_time_exp::Float64 = exp_params["sim_time_exp"]
+
                                 data_type::String = exp_params["data_type"]
                                 ne_exp::Int = exp_params["ne_exp"]
                                 element_shape_u = Symbol(exp_params["element_shape_u"])
@@ -910,51 +943,77 @@ function predict(filepath, filepath_gt)
                                 
                                 conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
                                 _fem = (element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x)
-                                model, scene = def_problem(geom, ne_exp, 1.0, _fem..., 1.0, F, control, viscosity_type, sim_time_exp, t_steps; _mesh_path_kw(exp_params)...)
+                                pred_model, pred_scene = def_problem(geom, ne_exp, 1.0, _fem..., 1.0, F, control, viscosity_type, sim_time, t_steps; _mesh_path_kw(exp_params)...)
+                                pred_η = zeros(Float64, size(est_ηpList, 1))
+                                pred_β = zeros(Float64, size(est_βpList, 1))
+
                                 for ti::Int in 1:(size(data_ranges_, 1)-1)
-
+                 
                                     data_range_ = data_ranges_[ti] # get the data range for the current time window
-                                    scene.sim_time = time_windows[ti]
-                                    height_range = collect(Float64, range(start=data_range_[1], stop=data_range_[end]+1, step=1))
+                                    data_range_prev = ti > 1 ? data_ranges_[ti-1] : 1:data_range_[1]
 
-                                    η = est_ηpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
-                                    β = est_βpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
-                                    scene.cParam = F[data_range_]
-
-                                    printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
-                                    println("Data frame : $(data_range_)")
-                                    println("Time frame : $(scene.sim_time)")
-                                    @info "Time window $(t_windows[ti])"
-
-                                    if ti > 1
-                                        @info "Predicting dynamics in time window $(ti)..."
-                                        reset_model!(model)
-                                        data_range_prev = data_ranges_[ti-1] # get the data range for the previous time window
-                                        η_pred = est_ηpList[data_range_prev][1] # get the first value in the estimation window the rest are the same for the window
-                                        β_pred = est_βpList[data_range_prev][1] # get the first value in the estimation window the rest are the same for the window
-
-                                        model.η = [η_pred]
-                                        scene.β = [β_pred]
-                                        pred_μ_list, _, PredborderPts2DList, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
-                                        pred_h = get_height(pred_μ_list, h)
-                                        push!(pred_borderPts_list, PredborderPts2DList)
-                                        push!(pred_h_list, pred_h)
-                                    end
-
-                                    reset_model!(model)
-                                    model.η = [η]
-                                    scene.β = [β]
-                                    est_μ_list, _, borderPts2DList, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
-                                    h_est = get_height(est_μ_list, h)
                                     if ti == 1
-                                        push!(pred_borderPts_list, borderPts2DList)
-                                        push!(pred_h_list, h_est)
+                                        pred_η[data_range_] .= est_ηpList[data_ranges_[ti]][1]
+                                        pred_β[data_range_] .= est_βpList[data_ranges_[ti]][1]
+                                    elseif ti > 1
+                                        data_range_prev = data_ranges_[ti-1] # get the data range for the previous time window
+                                        pred_η[data_range_] .= est_ηpList[data_range_prev][1]
+                                        pred_β[data_range_] .= est_βpList[data_range_prev][1]
                                     end
-                                    update_model!(model)
-                                    h = h_est[end] # update the height for the next window simulation
+                                    # scene.sim_time = time_windows[ti]
+                                    # height_range = collect(Float64, range(start=data_range_[1], stop=data_range_[end]+1, step=1))
+
+                                    # η = est_ηpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
+                                    # β = est_βpList[data_range_][1] # get the first value in the estimation window the rest are the same for the window
+                                    # scene.cParam = F[data_range_]
+
+                                    # printstyled("Time window: $(ti), time frames: $(scene.sim_time)\n"; color = :blue)
+                                    # println("Data frame : $(data_range_)")
+                                    # println("Time frame : $(scene.sim_time)")
+                                    # @info "Time window $(t_windows[ti])"
+
+                                    # if ti > 1
+                                    #     @info "Predicting dynamics in time window $(ti)..."
+                                    #     reset_model!(model)
+                                    #      # get the data range for the previous time window
+                                    #     η_pred = est_ηpList[data_range_prev][1] # get the first value in the estimation window the rest are the same for the window
+                                    #     β_pred = est_βpList[data_range_prev][1] # get the first value in the estimation window the rest are the same for the window
+
+                                    #     model.η = [η_pred]
+                                    #     scene.β = [β_pred]
+                                    #     pred_μ_list, _, PredborderPts2DList, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+                                    #     pred_h = get_height(pred_μ_list, h)
+                                    #     push!(pred_borderPts_list, PredborderPts2DList)
+                                    #     push!(pred_h_list, pred_h)
+                                    # end
+
+                                    # reset_model!(model)
+                                    # model.η = [η]
+                                    # scene.β = [β]
+                                    # est_μ_list, _, borderPts2DList, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+                                    # h_est = get_height(est_μ_list, h)
+                                    # if ti == 1
+                                    #     push!(pred_borderPts_list, borderPts2DList)
+                                    #     push!(pred_h_list, h_est)
+                                    # end
+                                    # update_model!(model)
+                                    # h = h_est[end] # update the height for the next window simulation
                                 end
-                                write_csv(joinpath(win_exp_path,"data","pred_h"), pred_h_list)
-                                write_2d_data(joinpath(win_exp_path,"data","sim_data","pred_2D_border_points"), pred_borderPts_list)
+                                pred_model.η = pred_η
+                                pred_scene.β = pred_β
+
+                                pred_μ_list, gradList, pred_simBorderPts, fields_pred, _, pos2D_pred, pos3D_pred, _, _, _ = simulate(pred_model, pred_scene, conditions)
+                                pred_h_list = get_height(pred_μ_list, h)
+
+                                write_csv(joinpath(win_exp_path,"data", "pred_h"), pred_h_list)
+
+                                write_data(joinpath(win_exp_path,"data", "sim_data","3D_points_pred"), pos3D_pred)
+
+                                write_data(joinpath(win_exp_path,"data", "sim_data","motion_fields_pred "), fields_pred)
+
+                                write_2d_data(joinpath(win_exp_path,"data", "sim_data","2D_points_pred"), pos2D_pred)
+
+                                write_2d_data(joinpath(win_exp_path,"data", "sim_data","2D_border_points_pred"), pred_simBorderPts)
                             end
                         end
                     end
@@ -1072,7 +1131,7 @@ function replot(filepath, filepath_gt)
 
                             conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
                             if noise_level == 0.0
-                                obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path, num_exp_points)
+                                obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney, _ = _get_borders(data_type, filepath_gt, exp_path, num_exp_points)
                                 
                                 est_η = readdlm(joinpath(exp_path,"data","η.csv"), ',', Float64)
                                 est_β = readdlm(joinpath(exp_path,"data","β.csv"), ',', Float64)
@@ -1083,7 +1142,7 @@ function replot(filepath, filepath_gt)
                                 η = stats["η"]
                                 β = stats["β"]
                                 
-                                d, pairs = closest_point(sim_border_pt_lst, obs_border_pt_lst)
+                                d_est, pairs = closest_point(sim_border_pt_lst, obs_border_pt_lst)
 
                                 if sim_time_exp == 5.0
                                     cont_y_min = 350
@@ -1125,11 +1184,11 @@ function replot(filepath, filepath_gt)
                                 iterList = stats["iterList"]
 
                                 plt_cnt_error = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin)
-                                Plots.plot!(plt_cnt_error, time[1:(length(d)-1)], d[2:end], label="Closest point distance error", legend=:outerbottom, legend_column=2)
+                                Plots.plot!(plt_cnt_error, time[1:(length(d_est)-1)], d_est[2:end], label="Closest point distance error", legend=:outerbottom, legend_column=2)
                                 Plots.xlabel!(plt_cnt_error, L"\mathrm{Time\;[s]}")
                                 Plots.ylabel!(plt_cnt_error, L"\mathrm{Closest\;Point\;Distance\;[px]}")
                                 Plots.xlims!(plt_cnt_error, 0, end_obs_win)
-                                Plots.ylims!(plt_cnt_error, 0, max(maximum(d[2:end])*1.1, 0.5))
+                                Plots.ylims!(plt_cnt_error, 0, max(maximum(d_est[2:end])*1.1, 0.5))
                                 Plots.savefig(plt_cnt_error, joinpath(exp_path,"plots","closest_point_distance_error.pdf"))
                                 
                                 # Plot the estimated and ground truth height with inset zoom
@@ -1458,7 +1517,7 @@ function replot(filepath, filepath_gt)
                                 "est_β_final" => float(stats["β"]),
                                 "est_h"       => est_h[1:n_time],
                                 "gt_h"        => gt_h[1:n_time],
-                                "d"           => vec(Float64.(collect(d))),
+                                "d"           => vec(Float64.(collect(d_est))),
                                 "time"        => time[1:n_time],
                                 "costList"    => vec(Float64.(collect(costList))),
                                 "iterList"    => vec(Float64.(collect(iterList))),
@@ -1586,8 +1645,9 @@ function replot(filepath, filepath_gt)
 
                                     est_ηpList = readdlm(joinpath(win_exp_path,"data","est_η.csv"), ',', Float64)
                                     est_βpList = readdlm(joinpath(win_exp_path,"data","est_β.csv"), ',', Float64)
+   
                                     est_h_list = readdlm(joinpath(win_exp_path,"data","est_h.csv"), ',', Float64)
-                                    pred_h_list = read_unstrcut_csv(joinpath(win_exp_path,"data","pred_h.csv"))
+                                    pred_h_list = readdlm(joinpath(win_exp_path,"data","pred_h.csv"))
                                     ratio_gt = similar(est_ηpList)
                                     ratio_opt = similar(est_ηpList)
                                     avg_ηList = similar(est_ηpList)
@@ -1612,7 +1672,7 @@ function replot(filepath, filepath_gt)
                                     end
 
                                     data_point_len = round(Int, obs_time/t_steps)
-                                    obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney = _get_borders(data_type, filepath_gt, win_exp_path, data_point_len+1; view_folder=view_folder)
+                                    obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney, pred_border_pt_lst = _get_borders(data_type, filepath_gt, win_exp_path, data_point_len+1; view_folder=view_folder)
 
                                     ratio_opt = est_ηpList ./ est_βpList
                                     product_opt = est_ηpList .* est_βpList
@@ -1633,13 +1693,15 @@ function replot(filepath, filepath_gt)
 
                                     est_h_list = est_h_list[1:data_point_len+1, :]
 
-                                    d, pairs = closest_point(sim_border_pt_lst, obs_border_pt_lst)
+                                    d_est, _ = closest_point(sim_border_pt_lst, obs_border_pt_lst)
+                                    d_pred, _ = closest_point(pred_border_pt_lst, obs_border_pt_lst)
                                     
                                     t_full_h = collect(range(start=0, stop=effective_sim_time, step=t_steps))
 
                                     plt_cnt_error = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
                                     Plots.plot!(plt_cnt_error, [], label=false, legend=:outerbottom, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
-                                    Plots.plot!(plt_cnt_error, t_full_h, d, label="Closest point distance error")
+                                    Plots.plot!(plt_cnt_error, t_full_h, d_est, label="Closest point distance error")
+                                    Plots.plot!(plt_cnt_error, t_full_h, d_pred, label="Predicted closest point distance error")
                                     for ti::Int in 1:(size(data_ranges_, 1)-1)
                                         t = t_windows[ti]
                                         Plots.vline!(plt_cnt_error, [t], color=:gray, linestyle=:dash, label=false)
@@ -1647,7 +1709,7 @@ function replot(filepath, filepath_gt)
                                     Plots.xlabel!(plt_cnt_error, L"\mathrm{Time\;[s]}")
                                     Plots.ylabel!(plt_cnt_error, L"\mathrm{Closest\;Point\;Distance\;[px]}")
                                     Plots.xlims!(plt_cnt_error, 0, end_obs_win)
-                                    Plots.ylims!(plt_cnt_error, 0, max(maximum(d)*1.1, 0.5))
+                                    Plots.ylims!(plt_cnt_error, 0, max(maximum(d_est)*1.1, 0.5))
                                     Plots.savefig(plt_cnt_error, joinpath(win_exp_path,"plots","closest_point_distance_error.pdf"))
                                     
                                     t_full = collect(range(start=t_steps, stop=effective_sim_time, step=t_steps))
@@ -1880,7 +1942,7 @@ function replot(filepath, filepath_gt)
                                     "est_ηpList" => vec(Float64.(collect(est_ηpList))),
                                     "est_βpList" => vec(Float64.(collect(est_βpList))),
                                     "est_h_list" => vec(Float64.(collect(est_h_list))),
-                                    "d"          => vec(Float64.(collect(d))),
+                                    "d"          => vec(Float64.(collect(d_est))),
                                     "t_full_h"   => vec(Float64.(collect(t_full_h))),
                                     "η_gt"       => vec(Float64.(collect(η_gt))),
                                     "β_gt"       => vec(Float64.(collect(β_gt))),
@@ -2667,7 +2729,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                     num_exp_points::Int = round(Int,sim_time/t_steps)
 
                     printstyled("Processing for noise level: $(noise_level): $(exp_path)\n", color=:yellow)
-                    obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path_n0, num_exp_points)
+                    obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney, _ = _get_borders(data_type, filepath_gt, exp_path_n0, num_exp_points)
                     if noise_level == 0.0
                         
                         est_η = readdlm(joinpath(exp_path,"data","η.csv"), ',', Float64)
@@ -3929,8 +3991,12 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
     end
 
     obs_border_pt_lst, gt_Splinex, gt_Spliney, pd = add_noise(ObsDataList, nFactor=0.0)
-    sim_border_pt_lst, splinex, spliney = read_csv(joinpath(exp_path,"data","sim_data","2D_border_points"))
-    @info "Reading simulated contour data from $(joinpath(exp_path,"data","sim_data","2D_border_points")) of $(length(sim_border_pt_lst)) time steps"
+    sim_border_pt_lst, splinex, spliney = read_csv(joinpath(exp_path,"data","sim_data",view_folder,"2D_border_points"))
+    @info "Reading simulated contour data from $(joinpath(exp_path,"data","sim_data",view_folder,"2D_border_points")) of $(length(sim_border_pt_lst)) time steps"
+
+    pred_path = joinpath(exp_path, "data","sim_data",view_folder,"2D_border_points_pred")
+    pred_border_pt_lst = isdir(pred_path) ? read_csv(pred_path) : nothing
+    println("Reading predicted contour data from $(pred_path) of $(length(pred_border_pt_lst)) time steps")
 
     @assert length(ObsDataList) >= num_exp_points "Not enough observation border points: have $(length(ObsDataList)), need at least $num_exp_points"
     @assert length(sim_border_pt_lst) >= num_exp_points "Not enough simulation border points: have $(length(sim_border_pt_lst)), need at least $num_exp_points"
@@ -3944,7 +4010,7 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
     splinex = splinex[1:num_exp_points, :]
     spliney = spliney[1:num_exp_points, :]
 
-    return obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney
+    return obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney, pred_border_pt_lst
 end
 
 # Save Plotly surface with optional scatter overlays to interactive HTML file
@@ -4762,6 +4828,6 @@ function plot_results()
 end
 
 # optimize_sim(false)
-optimize_syn(false)
+# optimize_syn(false)
 # optimize_real(false)
-# plot_results()
+plot_results()

@@ -68,7 +68,6 @@ function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; out
         sim_t = _as_2xN(_sim_t)
         obs_t = _as_2xN(obs_t)
         
-        println("Frame $frame_idx: sim_t size = $(size(sim_t)), obs_t size = $(size(obs_t))")
         pairs = match_points(sim_t, obs_t) # match the points using the first border
         
         pSim, qSim = sim_t[1, :], sim_t[2, :]
