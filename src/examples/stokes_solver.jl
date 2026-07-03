@@ -1338,7 +1338,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     
     # write the data to a file
     if conditions.ANIMATE
-        animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=IEN_u_cached, border_nodes_2d=borderPts2DList, sim_pts_2d=pos2D)
+        animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=IEN_u_cached, sim_border_nodes_2d=borderPts2DList, sim_pts_2d=pos2D)
         animate_fields(filepath = string(conditions.filepath,"/Results/images/surface"), Nodes=surface_pts_3D)
     end
     

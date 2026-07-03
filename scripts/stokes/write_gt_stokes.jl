@@ -139,9 +139,6 @@ function calibrate_multipliers(param_list::Vector{Dict}; target_height::Float64=
     return multipliers
 end
 
-# Get available system memory in MB (Linux: /proc/meminfo)
-
-
 # Write error logs to file
 function write_error_log(err::Exception, bt::Vector; params::Dict=Dict(), dest_dir::String=".")
     mkpath(dest_dir)
