@@ -807,13 +807,16 @@ end
 function compare_pt_clouds(pred_pts::AbstractArray, gt_pts::AbstractArray)
     hausdorff_distances = Float64[]
     chamfer_distances = Float64[]
+    closest_pt_distances = Float64[]
     for (sim_pts, gt_pts) in zip(pred_pts, gt_pts)
         hausdorff_dist = hausdorff_distance_kdtree(sim_pts, gt_pts)
         chamfer_dist = chamfer_distance_kdtree(sim_pts, gt_pts)
+        closest_pt_dist = closest_point_distance_kdtree(sim_pts, gt_pts)
         push!(hausdorff_distances, hausdorff_dist)
         push!(chamfer_distances, chamfer_dist)
+        push!(closest_pt_distances, closest_pt_dist)
     end
-    return  hausdorff_distances, chamfer_distances
+    return  hausdorff_distances, chamfer_distances, closest_pt_distances
 end
 
 function hausdorff_distance(pred_pts::AbstractArray, gt_pts::AbstractArray)
@@ -851,6 +854,12 @@ function chamfer_distance_kdtree(pred_pts::AbstractArray, gt_pts::AbstractArray)
     d_pred_to_gt = _nn_min_dists(pred_pts, gt_pts)
     d_gt_to_pred = _nn_min_dists(gt_pts, pred_pts)
     return mean(d_pred_to_gt) + mean(d_gt_to_pred)
+end
+
+# RMSE of the pred->gt nearest-neighbor distances (one-directional, unlike the symmetric chamfer/hausdorff distances above)
+function closest_point_distance_kdtree(pred_pts::AbstractArray, gt_pts::AbstractArray)
+    d_pred_to_gt = _nn_min_dists(pred_pts, gt_pts)
+    return sqrt(mean(d_pred_to_gt.^2))
 end
 
 function predict(filepath, filepath_gt)
@@ -1140,9 +1149,6 @@ function replot(filepath, filepath_gt)
         for leaf in group.leaves
             view_folder = leaf.view_folder
             exp_path = leaf.exp_path
-            if leaf.view_folder == "view_1"
-                continue
-            end
             if viscosity_type == "constant"
                 println("Comparing experiments in: $exp_path")
                 
@@ -1653,7 +1659,7 @@ function replot(filepath, filepath_gt)
 
                     data_point_len = round(Int, obs_time/t_steps)
                     obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney = _get_borders(data_type, filepath_gt, win_exp_path, data_point_len+1; view_folder=view_folder)
-                    pred_border_pt_lst, _, _ = read_csv(joinpath(win_exp_path,"data","sim_data","view_1","2D_border_points"))
+                    pred_border_pt_lst, _, _ = read_csv(joinpath(win_exp_path,"data","sim_data","view_1","2D_border_points_pred"))
 
                     ratio_opt = est_ηpList ./ est_βpList
                     product_opt = est_ηpList .* est_βpList
@@ -1685,9 +1691,10 @@ function replot(filepath, filepath_gt)
 
                     t_full_h = collect(range(start=0, stop=effective_sim_time, step=t_steps))
                     
-                    d_surface_est = compare_pt_clouds(est_surface_pt_lst, gt_surface_pt_lst)
+                    dc_surface_est, dh_surface_est, dcp_surface_est = compare_pt_clouds(est_surface_pt_lst, gt_surface_pt_lst)
                     plt_surface_error_dc = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
                     plt_surface_error_dh = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
+                    plt_surface_error_dcp = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
                     pred_range_start = 0
                     for ti::Int in 1:(size(data_ranges_, 1))
                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
@@ -1696,30 +1703,39 @@ function replot(filepath, filepath_gt)
                                     else
                                         collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
                                     end
-                        dc_surface_pred, dh_surface_pred = compare_pt_clouds(pred_surface_pt_lst[range_pred], gt_surface_pt_lst[range_])
+                        dc_surface_pred, dh_surface_pred, dcp_surface_pred = compare_pt_clouds(pred_surface_pt_lst[range_pred], gt_surface_pt_lst[range_])
                         t = t_windows[ti]
                         Plots.vline!(plt_surface_error_dc, [t], color=:gray, linestyle=:dash, label=false)
                         Plots.vline!(plt_surface_error_dh, [t], color=:gray, linestyle=:dash, label=false)
+                        Plots.vline!(plt_surface_error_dcp, [t], color=:gray, linestyle=:dash, label=false)
                         if ti === 1
                             Plots.plot!(plt_surface_error_dc, t_full_h[range_], dc_surface_pred, label="Prediction error", color=def_blue, linestyle=:dash)
                             Plots.plot!(plt_surface_error_dh, t_full_h[range_], dh_surface_pred, label="Prediction error", color=def_blue, linestyle=:dash)
+                            Plots.plot!(plt_surface_error_dcp, t_full_h[range_], dcp_surface_pred, label="Prediction error", color=def_blue, linestyle=:dash)
                         else
                             Plots.plot!(plt_surface_error_dc, t_full_h[range_], dc_surface_pred, label=false, color=def_blue, linestyle=:dash)
                             Plots.plot!(plt_surface_error_dh, t_full_h[range_], dh_surface_pred, label=false, color=def_blue, linestyle=:dash)
+                            Plots.plot!(plt_surface_error_dcp, t_full_h[range_], dcp_surface_pred, label=false, color=def_blue, linestyle=:dash)
                         end
                         pred_range_start = range_pred[end] + 1
                     end
-                    Plots.plot!(plt_surface_error_dc, t_full_h, d_surface_est, label="Estimation error", color=def_red)
+                    Plots.plot!(plt_surface_error_dc, t_full_h, dc_surface_est, label="Estimation error", color=def_red)
                     Plots.xlabel!(plt_surface_error_dc, L"\mathrm{Time\;[s]}")
                     Plots.ylabel!(plt_surface_error_dc, L"\mathrm{Chamfer\;Distance\;[mm]}")
                     Plots.xlims!(plt_surface_error_dc, 0, end_obs_win)
                     Plots.savefig(plt_surface_error_dc, joinpath(win_exp_path,"plots","surface_point_distance_error_dc.pdf"))
 
-                    Plots.plot!(plt_surface_error_dh, t_full_h, d_surface_est, label="Estimation error", color=def_red)
+                    Plots.plot!(plt_surface_error_dh, t_full_h, dh_surface_est, label="Estimation error", color=def_red)
                     Plots.xlabel!(plt_surface_error_dh, L"\mathrm{Time\;[s]}")
                     Plots.ylabel!(plt_surface_error_dh, L"\mathrm{Hausdorff\;Distance\;[mm]}")
                     Plots.xlims!(plt_surface_error_dh, 0, end_obs_win)
                     Plots.savefig(plt_surface_error_dh, joinpath(win_exp_path,"plots","surface_point_distance_error_dh.pdf"))
+
+                    Plots.plot!(plt_surface_error_dcp, t_full_h, dcp_surface_est, label="Estimation error", color=def_red)
+                    Plots.xlabel!(plt_surface_error_dcp, L"\mathrm{Time\;[s]}")
+                    Plots.ylabel!(plt_surface_error_dcp, L"\mathrm{Closest\;Point\;Distance\;[mm]}")
+                    Plots.xlims!(plt_surface_error_dcp, 0, end_obs_win)
+                    Plots.savefig(plt_surface_error_dcp, joinpath(win_exp_path,"plots","surface_point_distance_error_dcp.pdf"))
 
                     d_est, _ = closest_point(sim_border_pt_lst, obs_border_pt_lst)
 
@@ -4630,8 +4646,8 @@ function plot_results()
                     end
                     filepath_gt_dir = joinpath(filepath_gt, dir)
                     filepath_res_dir = joinpath(filepath_res, dir)
-                    predict(filepath_res_dir, filepath_gt_dir)
-                    # replot(filepath_res_dir, filepath_gt_dir)
+                    # predict(filepath_res_dir, filepath_gt_dir)
+                    replot(filepath_res_dir, filepath_gt_dir)
                 end
                 # if viscosity_type == "constant"
                 #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
