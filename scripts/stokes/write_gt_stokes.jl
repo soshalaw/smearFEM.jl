@@ -170,13 +170,13 @@ end
 
 function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int=-1, memory_per_experiment_mb::Float64=512.0)
     # parameters for the optimization
-    r::Float64 = 25.0  # radius of the cylinder in mm
+    r::Float64 = 25.0*2  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Float64 = 16 # number of elements in the mesh for the ground truth
     # ne_gt = 10.0
-    β_gt_list = [100] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
+    β_gt_list = [0.01, 10, 50, 100 ,500, 1e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
-    z_angle_list = [0.0, 30.0, 60.0] # rotation angles around the z-axis in degrees 
+    z_angle_list = [0.0, 5.0, 30.0, 45.0, 60.0] # rotation angles around the z-axis in degrees 
 
     control = "force" # "force" or "velocity"
 
@@ -190,7 +190,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     basis_order_x::Int      = 2
     mesh_label = "$(element_shape_u)$(basis_order_u)"
 
-    geometry::Symbol = :cylinder # :cylinder or :cube
+    geometry::Symbol = :cube # :cylinder or :cube
     edge_radius::Float64 = 3.0   # fillet radius on vertical edges (mm)
 
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
@@ -206,8 +206,8 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
         for β_gt in β_gt_list
             for η_gt in η_gt_list
                 F_ext = _get_F_ext(β_gt)
-                # filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$(mesh_label)_$(ne_gt)/$geometry/$run_id")
-                filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/")
+                filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$(mesh_label)_$(ne_gt)/$geometry/$run_id")
+                # filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/")
                 
                 exp_params = Dict(
                     "element_shape_u" => element_shape_u,
@@ -298,4 +298,4 @@ end
 
 # Usage: main(use_parallel=true, calibrate=false) or main(use_parallel=true, calibrate=true)
 # Default: Run with current F_ext values (to calibrate: pass calibrate=true)
-main(use_parallel=false, calibrate=false, memory_per_experiment_mb=1024.0)
+main(use_parallel=true, calibrate=false, memory_per_experiment_mb=1024.0)
