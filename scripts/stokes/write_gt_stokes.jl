@@ -180,7 +180,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
 
     control = "force" # "force" or "velocity"
 
-    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
 
     element_shape_u::Symbol = :Hex
     basis_order_u::Int      = 2
