@@ -176,11 +176,11 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     # ne_gt = 10.0
     β_gt_list = [0.01, 10, 50, 100 ,500, 1e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
-    z_angle_list = [0.0, 5.0, 30.0, 45.0, 60.0] # rotation angles around the z-axis in degrees 
+    z_angle_list = [0.0, 5.0, 15.0, 30.0, 45.0] # rotation angles around the z-axis in degrees 
 
     control = "force" # "force" or "velocity"
 
-    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
 
     element_shape_u::Symbol = :Hex
     basis_order_u::Int      = 2
