@@ -238,7 +238,7 @@ function optimize(exp_params::Dict)
             if data_type == "synthetic"
                 ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","img_data","view_$i","contour_data"))
             elseif data_type == "simulated"
-                ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","sim_data","contour_data", string(i)))  
+                ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","sim_data","view_$i","contour_data"))  
             end
 
             push!(obs_data_angles, ObsDataList)
