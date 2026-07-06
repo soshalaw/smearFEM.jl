@@ -174,13 +174,13 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     h::Float64 = 40.0  # height of the cylinder in mm
     ne_gt::Float64 = 16 # number of elements in the mesh for the ground truth
     # ne_gt = 10.0
-    β_gt_list = [0.01, 10, 50, 100 ,500, 1e3] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
+    β_gt_list = [100] # penalty parameters for the ground truth [2e3, 5e3, 1e4, 1e5, 1e10]
     η_gt_list = [1e2] # viscosity values for the ground truth in kg/(mm⋅s)
     z_angle_list = [0.0, 5.0, 15.0, 30.0, 45.0] # rotation angles around the z-axis in degrees 
 
     control = "force" # "force" or "velocity"
 
-    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
 
     element_shape_u::Symbol = :Hex
     basis_order_u::Int      = 2
@@ -190,7 +190,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     basis_order_x::Int      = 2
     mesh_label = "$(element_shape_u)$(basis_order_u)"
 
-    geometry::Symbol = :cube # :cylinder or :cube
+    geometry::Symbol = :cylinder # :cylinder or :cube
     edge_radius::Float64 = 3.0   # fillet radius on vertical edges (mm)
 
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
@@ -206,8 +206,8 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
         for β_gt in β_gt_list
             for η_gt in η_gt_list
                 F_ext = _get_F_ext(β_gt)
-                filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$(mesh_label)_$(ne_gt)/$geometry/$run_id")
-                # filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/")
+                # filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$(mesh_label)_$(ne_gt)/$geometry/$run_id")
+                filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/")
                 
                 exp_params = Dict(
                     "element_shape_u" => element_shape_u,
