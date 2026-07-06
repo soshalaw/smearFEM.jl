@@ -53,12 +53,12 @@ global plt_top_margin = 0pt
 # global plt_top_margin = -1pt
 
 # for physical data
-global y_lims_h_norm = (0.8, 1.05)
-global y_lims_rel_error = (-0.05, 20)
+# global y_lims_h_norm = (0.8, 1.05)
+# global y_lims_rel_error = (-0.05, 20)
 
 # for synthetic data
-# global y_lims_h_norm = (0.97, 1.02)
-# global y_lims_rel_error = (-0.1, 3.0)
+global y_lims_h_norm = (0.97, 1.02)
+global y_lims_rel_error = (-0.1, 3.0)
 
 # for sim data
 # global y_lims_h_norm = (0.995, 1.005)
@@ -89,8 +89,30 @@ global color_palette = [
     RGB(89/255, 89/255, 89/255)         # 20. dark gray (neutral)
 ]
 
+"""
+    optimize(exp_params)
+
+Run the full parameter-estimation pipeline for one experiment configuration:
+build the ground-truth (or physical) model and observation data described by
+`exp_params`, fit viscosity `η` (and slip `β`) to the observed contours via
+Gauss-Newton (`fit_model`), then re-simulate with the estimated parameters and
+write all results (fitted parameters, cost/iteration history, 2D/3D fields,
+heights) to `exp_params["filepath_res"]`.
+
+Supports `exp_params["data_type"] ∈ ("simulated"|"synthetic", "physical")`,
+`viscosity_type ∈ ("constant", "bulk_viscosity")` (the latter optionally
+windowed in time via `exp_params["mode"]`), and multiple camera view angles
+(`exp_params["z_angle_list"]` in the ground-truth data).
+
+# Arguments
+- `exp_params::Dict`: experiment configuration (data/viscosity type, mesh,
+  camera, and output-path parameters).
+
+# Returns
+None. All outputs are side effects written to disk.
+"""
 function optimize(exp_params::Dict)
-    
+
     η_gt::Vector{Float64} = [0.0]
     β_gt::Vector{Float64} = [0.0]
     F_ext::Float64 = 0.0
@@ -177,12 +199,12 @@ function optimize(exp_params::Dict)
         obj_pose = if size(_obj_pose, 1) == 4 && size(_obj_pose, 2) == 4
                         _obj_pose[[3,1,2],4]
                     else
-                        _obj_pose[[3,1,2]]
+                        _obj_pose
                     end
         
         control = sim_params["control_type"]
 
-        if WRITE_GT == true # write the ground truth data
+        if WRITE_GT == true
             @info "Writing ground truth gt data to with $ne_exp elements to $exp_path"
             write_gt_data(exp_params)
         end
@@ -320,10 +342,6 @@ function optimize(exp_params::Dict)
     end
     
     for (i,z_angle) in enumerate(z_angles)
-        
-        if i == 1
-            continue
-        end
 
         printstyled("Processing view $i with z_angle = $z_angle degrees\n"; color = :blue)
         if data_type == "physical"  || viscosity_model == "carreau"
@@ -352,7 +370,7 @@ function optimize(exp_params::Dict)
         splineyObs = spliney_angles[i]
         
         exp_params["z_angle"] = z_angle
-        exp_path = joinpath(dirname(filepath_res), "view_$i", basename(filepath_res))
+        exp_path = joinpath(filepath_res, "view_$i")
         write_json(joinpath(exp_path, "data","experiment_parameters"), exp_params)
 
         if gt_viscosity_type == "constant"
@@ -363,7 +381,7 @@ function optimize(exp_params::Dict)
             ObsDataList = ObsDataList[_range] # align the observation points with the simulation time
 
             # Read the gt data
-            model, scene = def_problem(geom_exp, ne_exp, η_gt, _fem..., β_gt, F, control, gt_viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
+            model, scene = def_problem(geom_exp, ne_exp, η_gt[1], _fem..., β_gt[1], F, control, gt_viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
             est_model, est_scene = def_problem(geom_exp, ne_exp, η_start, _fem..., β_start, F, control, gt_viscosity_type, sim_time_gt, t_steps_exp; _mesh_path_kw(exp_params)...)
             conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, filepath=exp_path, ANIMATE=false, viewing_angles=[z_angle])
             
@@ -386,8 +404,8 @@ function optimize(exp_params::Dict)
 
                 printstyled("Estimated η : $(η), estimated β: $(β)\n"; color = :green)
 
-                η_accuracy = (1-abs((η_gt-η)/η_gt))*100
-                β_accuracy = (1-abs((β_gt-β)/β_gt))*100
+                η_accuracy = (1-abs((η_gt[1]-η)/η_gt[1]))*100
+                β_accuracy = (1-abs((β_gt[1]-β)/β_gt[1]))*100
                 printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
                 printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
 
@@ -403,15 +421,16 @@ function optimize(exp_params::Dict)
                 est_model.η = [η]
                 est_scene.β = [β]
                 
-                # simulate the model with the estimated parameters
-                est_μ_list, gradList, borderPts2DList, fields, _, pos2D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
+                est_μ_list, gradList, borderPts2DList, fields, surface_pts_3D_gt, pos2D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
                 est_h = get_height(est_μ_list, h)
 
-                write_csv(joinpath(exp_path,"data","view_$i","est_h"), est_h)
-                write_2d_data(joinpath(exp_path,"data","view_$i","sim_data","2D_surface_points"), pos2D)
-                write_data(joinpath(exp_path,"data","view_$i","sim_data","3D_points"), pos3D)
-                write_data(joinpath(exp_path,"data","view_$i","sim_data","motion_fields "), fields)
-                write_2d_data(joinpath(exp_path,"data","view_$i","sim_data","2D_border_points"), borderPts2DList)
+                write_csv(joinpath(exp_path,"data","est_h"), est_h)
+                write_data(joinpath(exp_path,"data","sim_data","3D_point_est"), pos3D)
+                write_data(joinpath(exp_path,"data","sim_data","motion_fields_est "), fields)
+                write_data(joinpath(exp_path,"data","sim_data","3D_surface_points_est"), surface_pts_3D_gt)
+
+                write_2d_data(joinpath(exp_path,"data","sim_data","2D_surface_points_est"), pos2D)
+                write_2d_data(joinpath(exp_path,"data","sim_data","2D_border_points_est"), borderPts2DList)
 
                 if maximum(ηpList) > η+dev_η
                     ηStop = maximum(ηpList)*1.1
@@ -556,13 +575,12 @@ function optimize(exp_params::Dict)
                     est_model.η = [η]
                     est_scene.β = [β]
                     
-                    # simulate the model with the estimated parameters
-                    est_μ_list, gradList, borderPts2DList, fields, _, pos2D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
+                    est_μ_list, gradList, borderPts2DList, fields, surface_pts_3D_gt, pos2D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
 
                     est_h = get_height(est_μ_list, h)
                     
-                    η_accuracy = (1-abs((η_gt-η)/η_gt))*100
-                    β_accuracy = (1-abs((β_gt-β)/β_gt))*100
+                    η_accuracy = (1-abs((η_gt[1]-η)/η_gt[1]))*100
+                    β_accuracy = (1-abs((β_gt[1]-β)/β_gt[1]))*100
                     printstyled("η accuracy: $(η_accuracy) %\n"; color = :green)
                     printstyled("β accuracy: $(β_accuracy) %\n"; color = :green)
                     
@@ -701,7 +719,7 @@ function optimize(exp_params::Dict)
                 βpList = stats["βList"]
 
                 viscosity_type = "bulk_viscosity"
-                est_model, est_scene = def_problem(geom_exp, ne_exp, η_gt, _fem..., β_gt, F[data_range_], control, viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
+                est_model, est_scene = def_problem(geom_exp, ne_exp, η_gt[1], _fem..., β_gt[1], F[data_range_], control, viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
                 est_model.η = est_ηpList[data_range_] 
                 est_scene.β = est_βpList[data_range_]
                 est_μ_list, gradList, borderPts2DList, fields_est, _, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
@@ -804,6 +822,21 @@ function optimize(exp_params::Dict)
     end
 end
 
+"""
+    compare_pt_clouds(pred_pts, gt_pts) -> (hausdorff_distances, chamfer_distances, closest_pt_distances)
+
+Compute, frame by frame, the KD-tree-based Hausdorff, Chamfer, and
+(one-directional) closest-point RMSE distances between matching pairs of
+predicted and ground-truth point clouds.
+
+# Arguments
+- `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: matching iterables of
+  point-cloud arrays, one pair per frame.
+
+# Returns
+- `hausdorff_distances::Vector{Float64}`, `chamfer_distances::Vector{Float64}`,
+  `closest_pt_distances::Vector{Float64}`: one distance per frame.
+"""
 function compare_pt_clouds(pred_pts::AbstractArray, gt_pts::AbstractArray)
     hausdorff_distances = Float64[]
     chamfer_distances = Float64[]
@@ -819,49 +852,159 @@ function compare_pt_clouds(pred_pts::AbstractArray, gt_pts::AbstractArray)
     return  hausdorff_distances, chamfer_distances, closest_pt_distances
 end
 
+"""
+    hausdorff_distance(pred_pts, gt_pts) -> Float64
+
+Brute-force (O(N·M)) Hausdorff distance between two point clouds: the largest
+of the two directional sup-min distances between `pred_pts` and `gt_pts`.
+Superseded by `hausdorff_distance_kdtree`; kept for reference/benchmarking.
+
+# Arguments
+- `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
+
+# Returns
+- `hausdorff_dist::Float64`: the Hausdorff distance between the two point clouds.
+"""
 function hausdorff_distance(pred_pts::AbstractArray, gt_pts::AbstractArray)
-    # get the Hausdorff distance between the predicted and ground truth point clouds
     sup_pred = maximum([minimum(sqrt.(sum((gt_pts .- permutedims(pred_pt)).^2, dims=2))) for pred_pt in eachrow(pred_pts)])
     sup_gt = maximum([minimum(sqrt.(sum((pred_pts .- permutedims(gt_pt)).^2, dims=2))) for gt_pt in eachrow(gt_pts)])
     hausdorff_dist = max(sup_pred, sup_gt)
     return hausdorff_dist
 end
 
+"""
+    chamfer_distance(pred_pts, gt_pts) -> Float64
+
+Brute-force (O(N·M)) Chamfer distance between two point clouds: the sum of
+the two directional mean-min distances between `pred_pts` and `gt_pts`.
+Superseded by `chamfer_distance_kdtree`; kept for reference/benchmarking.
+
+# Arguments
+- `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
+
+# Returns
+- `chamfer_dist::Float64`: the Chamfer distance between the two point clouds.
+"""
 function chamfer_distance(pred_pts::AbstractArray, gt_pts::AbstractArray)
-    # get the Chamfer distance between the predicted and ground truth point clouds
     mean_pred = mean([minimum(sqrt.(sum((gt_pts .- permutedims(pred_pt)).^2, dims=2))) for pred_pt in eachrow(pred_pts)])
     mean_gt = mean([minimum(sqrt.(sum((pred_pts .- permutedims(gt_pt)).^2, dims=2))) for gt_pt in eachrow(gt_pts)])
     chamfer_dist = mean_pred + mean_gt
     return chamfer_dist
 end
 
-# Nearest-neighbor distance from each row of query_pts to the closest row of ref_pts,
-# via a KDTree instead of brute-force O(N*M) broadcasting. Not currently used by
-# compare_pt_clouds (kept alongside the brute-force version above for reference/benchmarking).
+"""
+    _as_points_by_rows(pts) -> AbstractArray
+
+Normalize a point cloud to a `(n_points, n_dims)` layout. Upstream writers are
+inconsistent about whether points are stored by row or by column (e.g.
+`surface_nodes` vs `3D_points_*`), so orient defensively: the coordinate axis
+(2 or 3) is always the smaller of the two dimensions for a real point cloud.
+
+# Arguments
+- `pts::AbstractArray`: point cloud, stored as either `(n_points, n_dims)` or
+  `(n_dims, n_points)`.
+
+# Returns
+- `AbstractArray`: `pts`, transposed if necessary, oriented as `(n_points, n_dims)`.
+"""
+function _as_points_by_rows(pts::AbstractArray)
+    return size(pts, 1) < size(pts, 2) ? permutedims(pts) : pts
+end
+
+"""
+    _nn_min_dists(query_pts, ref_pts) -> Vector{Float64}
+
+Nearest-neighbor distance from each row of `query_pts` to the closest row of
+`ref_pts`, via a `KDTree` instead of brute-force O(N·M) broadcasting.
+
+# Arguments
+- `query_pts::AbstractArray`, `ref_pts::AbstractArray`: point clouds (row- or
+  column-major; normalized internally via `_as_points_by_rows`).
+
+# Returns
+- `dists::Vector{Float64}`: nearest-neighbor distance for each point in `query_pts`.
+"""
 function _nn_min_dists(query_pts::AbstractArray, ref_pts::AbstractArray)
-    tree = KDTree(permutedims(ref_pts))
-    _, dists = nn(tree, permutedims(query_pts))
+    tree = KDTree(permutedims(_as_points_by_rows(ref_pts)))
+    _, dists = nn(tree, permutedims(_as_points_by_rows(query_pts)))
     return dists
 end
 
+"""
+    hausdorff_distance_kdtree(pred_pts, gt_pts) -> Float64
+
+KDTree-accelerated Hausdorff distance: the larger of the two directional
+max nearest-neighbor distances between `pred_pts` and `gt_pts`.
+
+# Arguments
+- `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
+
+# Returns
+- `Float64`: the Hausdorff distance between the two point clouds.
+"""
 function hausdorff_distance_kdtree(pred_pts::AbstractArray, gt_pts::AbstractArray)
     d_pred_to_gt = _nn_min_dists(pred_pts, gt_pts)
     d_gt_to_pred = _nn_min_dists(gt_pts, pred_pts)
     return max(maximum(d_pred_to_gt), maximum(d_gt_to_pred))
 end
 
+"""
+    chamfer_distance_kdtree(pred_pts, gt_pts) -> Float64
+
+KDTree-accelerated Chamfer distance: the sum of the two directional mean
+nearest-neighbor distances between `pred_pts` and `gt_pts`.
+
+# Arguments
+- `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
+
+# Returns
+- `Float64`: the Chamfer distance between the two point clouds.
+"""
 function chamfer_distance_kdtree(pred_pts::AbstractArray, gt_pts::AbstractArray)
     d_pred_to_gt = _nn_min_dists(pred_pts, gt_pts)
     d_gt_to_pred = _nn_min_dists(gt_pts, pred_pts)
     return mean(d_pred_to_gt) + mean(d_gt_to_pred)
 end
 
-# RMSE of the pred->gt nearest-neighbor distances (one-directional, unlike the symmetric chamfer/hausdorff distances above)
+"""
+    closest_point_distance_kdtree(pred_pts, gt_pts) -> Float64
+
+RMSE of the `pred_pts` → `gt_pts` nearest-neighbor distances (one-directional,
+unlike the symmetric `chamfer_distance_kdtree`/`hausdorff_distance_kdtree`).
+
+# Arguments
+- `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
+
+# Returns
+- `Float64`: RMSE of the `pred_pts` → `gt_pts` nearest-neighbor distances.
+"""
 function closest_point_distance_kdtree(pred_pts::AbstractArray, gt_pts::AbstractArray)
     d_pred_to_gt = _nn_min_dists(pred_pts, gt_pts)
     return sqrt(mean(d_pred_to_gt.^2))
 end
 
+"""
+    predict(filepath, filepath_gt)
+
+Out-of-sample forward prediction for bulk-viscosity experiments already fit by
+`optimize`/`replot`-style time windowing. For every leaf
+directory under `filepath` (excluding `view_1`, walking
+`elem_size/simtime/noise/dt/view/window`), re-simulate each time window using
+the η/β estimated for that window (and, from the second window onward, also
+simulate the *previous* window's estimate forward for comparison), then write
+the resulting predicted height, 3D points, motion fields, and 2D
+border/surface points back into that experiment's `data` directory.
+
+Only applies when `sim_params["viscosity_type"] == "bulk_viscosity"`; a no-op
+otherwise.
+
+# Arguments
+- `filepath::String`: root of the result tree to walk and update in place.
+- `filepath_gt::String`: ground-truth data root (supplies `sim_params`).
+
+# Returns
+None. All outputs are side effects written to disk.
+"""
 function predict(filepath, filepath_gt)
 
     sim_params = read_json(joinpath(filepath_gt,"data","sim_params")) 
@@ -878,9 +1021,9 @@ function predict(filepath, filepath_gt)
     camera_matrix::AbstractArray = reshape(Array(float.(sim_params["camera_matrix"])),3,3)
     _obj_pose::AbstractArray = sim_params["obj_pose"]
     obj_pose::Vector{Float64} = if size(_obj_pose, 1) == 4 && size(_obj_pose, 2) == 4
-                                    _obj_pose[[3,1,2],4]
+                                    _obj_pose[1:3,4]
                                 else
-                                    _obj_pose[[3,1,2]]
+                                    _obj_pose
                                 end
     control::String = sim_params["control_type"]
     edge_radius::Union{Float64, Nothing} = get(sim_params, "edge_radius", nothing)
@@ -945,8 +1088,6 @@ function predict(filepath, filepath_gt)
                         view_folders = readdir(step_path)
                         for view_folder in view_folders
                             if !startswith(view_folder, "view_")
-                                continue
-                            elseif view_folder == "view_1"
                                 continue
                             end
                             view_path = joinpath(step_path, view_folder)
@@ -1041,15 +1182,16 @@ function predict(filepath, filepath_gt)
                                     _h = h_est[end] # update the height for the next window simulation
                                 end
 
-                                h_pred_vec         = reduce(vcat, h_pred_list)
-                                pos3D_pred_vec     = reduce(vcat, pos3D_pred_list)
-                                fields_pred_vec    = reduce(vcat, fields_list_pred_list)
-                                pos2D_pred_vec     = reduce(vcat, pos2D_pred_list)
-                                borderPts_pred_vec = reduce(vcat, borderPts_pred_list)
+                                h_pred_vec               = reduce(vcat, h_pred_list)
+                                pos3D_pred_vec           = reduce(vcat, pos3D_pred_list)
+                                surface_pts_3D_pred_vec  = reduce(vcat, surface_pts_3D_pred_list)
+                                fields_pred_vec          = reduce(vcat, fields_list_pred_list)
+                                pos2D_pred_vec           = reduce(vcat, pos2D_pred_list)
+                                borderPts_pred_vec       = reduce(vcat, borderPts_pred_list)
 
                                 write_csv(joinpath(win_exp_path,"data", "pred_h"), h_pred_vec)
                                 write_data(joinpath(win_exp_path,"data", "sim_data","3D_points_pred"), pos3D_pred_vec)
-                                write_data(joinpath(win_exp_path,"data", "sim_data","3D_surface_points_pred"), surface_pts_3D_pred_list)
+                                write_data(joinpath(win_exp_path,"data", "sim_data","3D_surface_points_pred"), surface_pts_3D_pred_vec)
                                 write_data(joinpath(win_exp_path,"data", "sim_data","motion_fields_pred "), fields_pred_vec)
                                 write_2d_data(joinpath(win_exp_path,"data", "sim_data","2D_points_pred"), pos2D_pred_vec)
                                 write_2d_data(joinpath(win_exp_path,"data", "sim_data","2D_border_points_pred"), borderPts_pred_vec)
@@ -1063,12 +1205,23 @@ function predict(filepath, filepath_gt)
     return
 end
 
+"""
+    ExpLeaf
+
+One `dt_.../view_...` result directory (`exp_path`) within an `ExpGroup`.
+"""
 struct ExpLeaf
     step_folder::String
     view_folder::String
     exp_path::String
 end
 
+"""
+    ExpGroup
+
+All `ExpLeaf`s sharing the same `(elem_size_folder, sim_time_folder,
+noise_folder)` combination, as produced by `collect_experiment_groups`.
+"""
 struct ExpGroup
     elem_size_folder::String
     sim_time_folder::String
@@ -1077,9 +1230,20 @@ struct ExpGroup
     leaves::Vector{ExpLeaf}
 end
 
-# Walk the elem_size/simtime/noise/dt/view folder tree once and group leaves by
-# (elem_size_folder, sim_time_folder, noise_folder), which is the level at which
-# replot() resets its cross-view comparison data.
+"""
+    collect_experiment_groups(filepath) -> Vector{ExpGroup}
+
+Walk the `elem_size/simtime/noise/dt/view` result folder tree under `filepath`
+once and group leaves by `(elem_size_folder, sim_time_folder, noise_folder)`,
+which is the level at which `replot` resets its cross-view comparison
+data.
+
+# Arguments
+- `filepath::String`: root of the result tree to walk.
+
+# Returns
+- `Vector{ExpGroup}`: one group per `(elem_size_folder, sim_time_folder, noise_folder)` combination.
+"""
 function collect_experiment_groups(filepath)
     groups = ExpGroup[]
     for elem_size_folder in readdir(filepath)
@@ -1110,12 +1274,50 @@ function collect_experiment_groups(filepath)
     return groups
 end
 
+"""
+    replot(filepath, filepath_gt)
+
+Regenerate all comparison plots (and some derived post-processed data) for
+every fitted experiment found under `filepath`, using the ground-truth
+`sim_params`/height/contour data in `filepath_gt`. Does not re-run any
+optimization; it only reads previously written `optimize`/`predict` outputs
+and produces plots/derived data from them. Iterates leaves grouped by
+`collect_experiment_groups`.
+
+For `viscosity_type == "constant"`: plots the observed-vs-simulated contour,
+closest-point distance error, estimated-vs-ground-truth height (and its
+error), η/β vs. iteration, and cost vs. iteration. When `noise_level == 0`,
+additionally post-processes the stored ``(η, β)`` cost-surface grid — locating
+its minimum, computing the local Hessian and its principal (steepest/flattest)
+directions, and plotting cost-surface slices along them — and writes the
+result to `data/direction_analysis`/`data/slice_data`. When `noise_level != 0`
+(repeated noisy-sample runs), instead plots the covariance ellipse and
+error-banded height/relative-error/normalized-error series across samples.
+
+For `viscosity_type == "bulk_viscosity"`: for each time-windowed
+sub-experiment, plots per-window estimated vs. ground-truth η, β, and their
+ratio/product/sum, height and height error/normalized error, closest-point
+distance error, and (via `compare_pt_clouds`) Hausdorff/Chamfer/
+closest-point 3D surface distances — each comparing the within-window
+estimate against the forward-predicted trajectory from the previous window,
+with vertical lines marking window boundaries.
+
+# Arguments
+- `filepath::String`: root of the result tree to walk and regenerate plots for.
+- `filepath_gt::String`: ground-truth data root (supplies `sim_params`, height,
+  and contour data).
+
+# Returns
+None. All outputs are side effects (PDFs under each experiment's `plots/`
+directory, JSON/CSV under `data/`).
+"""
 function replot(filepath, filepath_gt)
     sim_params = read_json(joinpath(filepath_gt,"data","sim_params"))
 
     r::Float64 = sim_params["r"]
     h::Float64 = sim_params["h"]
-    
+
+
     viscosity_type::String = sim_params["viscosity_type"]
     F = Array(float.(sim_params["cParam"]))
 
@@ -1125,11 +1327,11 @@ function replot(filepath, filepath_gt)
     camera_matrix::Matrix{Float64} = reshape(Array(float.(sim_params["camera_matrix"])),3,3)
     _obj_pose::AbstractArray = sim_params["obj_pose"]
     obj_pose::Vector{Float64} = if size(_obj_pose, 1) == 4 && size(_obj_pose, 2) == 4
-                                    _obj_pose[[3,1,2],4]
+                                    _obj_pose[1:3,4]
                                 else
-                                    _obj_pose[[3,1,2]]
+                                    _obj_pose
                                 end
-    
+
     control::String = sim_params["control_type"]
 
     viscosity_model::String = ""
@@ -1685,11 +1887,38 @@ function replot(filepath, filepath_gt)
                     # Plots.ylabel!(L"y [px]")
                     # Plots.savefig(joinpath("home","soshala","border_comparison.pdf"))
 
-                    pred_surface_pt_lst, _, _ = read_csv(joinpath(win_exp_path,"data","sim_data","3D_points_pred"))
-                    gt_surface_pt_lst, _, _ = read_csv(joinpath(win_exp_path,"data","sim_data","3D_points_gt"))
-                    est_surface_pt_lst, _, _ = read_csv(joinpath(win_exp_path,"data","sim_data","3D_points"))
+                    pred_surface_pt_lst, _, _ = read_csv(joinpath(win_exp_path,"data","sim_data","3D_surface_points_pred"))
+                    gt_surface_pt_lst, _, _ = read_csv(joinpath(filepath_gt,"data","sim_data","surface_nodes"))
+                    est_surface_pt_lst, _, _ = read_csv(joinpath(win_exp_path,"data","sim_data","3D_surface_points_est"))
 
                     t_full_h = collect(range(start=0, stop=effective_sim_time, step=t_steps))
+
+                    qoi_est = get_surface_qoi(est_surface_pt_lst, obj_pose, h)
+                    qoi_pred = get_surface_qoi(pred_surface_pt_lst, obj_pose, h)
+                    qoi_gt = get_surface_qoi(gt_surface_pt_lst, obj_pose, h)
+                    plt_surface_qoi = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
+                    for ti::Int in 1:(size(data_ranges_, 1))
+                        range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                        range_pred = if ti === 1
+                            collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+                        else
+                            collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
+                        end
+                        t = t_windows[ti]
+                        Plots.vline!(plt_surface_qoi, [t], color=:gray, linestyle=:dash, label=false)
+                        if ti === 1
+                            Plots.plot!(plt_surface_qoi, t_full_h[range_], qoi_pred[range_pred]./qoi_gt[range_], label=L"\mathrm{QoI}_{\mathrm{pred}}/\mathrm{QoI}_{\mathrm{gt}}", color=def_blue, linestyle=:dash)
+                        else
+                            Plots.plot!(plt_surface_qoi, t_full_h[range_], qoi_pred[range_pred]./qoi_gt[range_], label=false, color=def_blue, linestyle=:dash)
+                        end
+                        pred_range_start = range_pred[end] + 1
+                    end
+                    Plots.plot!(plt_surface_qoi, t_full_h, qoi_est./qoi_gt, label=L"\mathrm{QoI}_{\mathrm{est}}/\mathrm{QoI}_{\mathrm{gt}}", color=def_red)
+                    Plots.xlabel!(plt_surface_qoi, L"\mathrm{Time\;[s]}")
+                    Plots.ylabel!(plt_surface_qoi, L"\mathrm{QoI}_{\mathrm{est}}/\mathrm{QoI}_{\mathrm{gt}}")
+                    Plots.xlims!(plt_surface_qoi, 0, end_obs_win)
+                    Plots.ylims!(plt_surface_qoi, y_lims_h_norm)
+                    Plots.savefig(plt_surface_qoi, joinpath(win_exp_path,"plots","surface_area_qoi.pdf"))
                     
                     dc_surface_est, dh_surface_est, dcp_surface_est = compare_pt_clouds(est_surface_pt_lst, gt_surface_pt_lst)
                     plt_surface_error_dc = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
@@ -2019,6 +2248,37 @@ function replot(filepath, filepath_gt)
     return
 end
 
+"""
+    post_analysis_const(filepath_gt_, filepath, avoid_list)
+
+Cross-experiment post-analysis and figure generation for `viscosity_type ==
+"constant"` results (the counterpart of `replot`, which handles a
+single experiment). Walks the nested `dir/elem_size_folder/simtime_folder/
+noise_folder` result tree under `filepath` (top-level entries in `avoid_list`,
+or `"post_analysis_global"`, are skipped), reads each leaf experiment's
+already-computed `optimize`/`replot` outputs (η/β estimates, cost history,
+height, contours), and overlays them onto shared comparison figures at four
+nested levels:
+
+- **global** (across all top-level `dir`s): cost convergence, normalized
+  η/β/ratio, height/normalized-height/relative-error, and contour comparison,
+  bucketed by simulation-time case (2/5/10/20/30 s).
+- **per-`dir`** (across element sizes): mesh-convergence plots of cost, η, β,
+  their ratio, and height/relative-height-error.
+- **per-`elem_size_folder`** (across simulation-time windows): the same set
+  of comparison plots, plus cost-surface slice-direction plots.
+- **per-`sim_time_folder`** (across noise levels): covariance ellipse and
+  noisy height/error/ratio distribution plots.
+
+# Arguments
+- `filepath_gt_::String`: ground-truth data root each experiment is compared against.
+- `filepath::String`: root of the result tree to walk.
+- `avoid_list`: top-level `dir` names under `filepath` to skip.
+
+# Returns
+None. All outputs are PDFs written under `plot_path_global`/`plot_path_elems`/
+`plot_path_sim_time`/`plot_path_noise`.
+"""
 function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     dir_list = readdir(filepath)
 
@@ -2896,14 +3156,23 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     @info "Saved plots to $plot_path_global"
 end
 
+"""
+    plot_contours(filepath_gt_, time_point=0)
+
+Extract and plot ground-truth contours (one curve per numerically-named slip
+case directory under `filepath_gt_`) at a single specified time point,
+producing an overview and a zoomed comparison figure plus a shared slip-case
+legend.
+
+# Arguments
+- `filepath_gt_::String`: path to ground truth data, containing numerically-named
+  slip-case subdirectories.
+- `time_point::Int`: time index to plot (`0` for the last time point).
+
+# Returns
+None. All outputs are PDFs written under `plot_path_global`.
+"""
 function plot_contours(filepath_gt_::String, time_point::Int=0)
-    """
-    Extracts and plots contours from ground truth data only at a specified time point.
-    
-    Args:
-        filepath_gt_: Path to ground truth data
-        time_point: Time index to plot (0 for last time point)
-    """
     dir_list = readdir(filepath_gt_)
 
     # Initialize contour plots
@@ -3001,9 +3270,40 @@ function plot_contours(filepath_gt_::String, time_point::Int=0)
     @info "Saved contour plots to $plot_path_global"
 end
 
+"""
+    post_analysis_bulk(filepath_gt_, filepath, avoid_list)
+
+Cross-experiment post-analysis and figure generation for `viscosity_type ==
+"bulk_viscosity"` results — the bulk-viscosity counterpart of
+`post_analysis_const`. Walks the same nested `dir/elem_size_folder/
+simtime_folder/window` result tree under `filepath` (skipping entries in
+`avoid_list`, `"post_analysis_global"`, and a few hardcoded element-size
+folders), and overlays each leaf's time-windowed η/β estimates, their
+ratio/product/sum, and height/relative-height-error against the ground truth
+in `filepath_gt_`, at three nested levels:
+
+- **global** (across all top-level `dir`s): normalized η/β/ratio, product,
+  sum, and height/normalized-height/relative-error, bucketed by
+  simulation-time case (5/10 s).
+- **per-`dir`** (across element sizes): mesh-convergence plots of η, β, their
+  ratio, and height/relative-height-error.
+- **per-`elem_size_folder`** (across simulation-time windows): the same
+  comparison plots, plus cost-surface slice-direction plots and (per
+  simulation-time folder) height-error plots aggregated across windows.
+
+# Arguments
+- `filepath_gt_::String`: ground-truth data root each experiment is compared against.
+- `filepath::String`: root of the result tree to walk.
+- `avoid_list`: top-level `dir` names under `filepath` to skip.
+
+# Returns
+None. All outputs are PDFs written under `plot_path_global`/
+`plot_path_elems`/`plot_path_sim_time`/`plot_path_noise`.
+"""
 function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
     dir_list = readdir(filepath)
-    
+
+
     # figures to compare convergence with slip levels
     η_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
     Plots.hline!(η_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black)
@@ -3475,6 +3775,32 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
     @info "Saved plots to $plot_path_global"
 end
 
+"""
+    post_analysis_real(filepath_gt_, filepath, avoid_list)
+
+Cross-experiment post-analysis and figure generation for physical (real,
+measured) experiments — the counterpart of `post_analysis_bulk` for
+`data_type == "physical"`, where no ground-truth η/β parameters exist, only a
+measured height `h_m(t)`. Walks the same nested `dir/elem_size_folder/
+simtime_folder/window` result tree under `filepath` (skipping entries in
+`avoid_list`, `"post_analysis_global"`, a few hardcoded element-size folders,
+and `simtime_2.0`), and overlays each leaf's time-windowed η(t)/β(t)
+estimates, their ratio/product/sum, and height/relative-height-error against
+the measured height in `filepath_gt_`, at three nested levels: global (across
+all top-level `dir`s, bucketed by simulation-time case), per-`dir` (across
+element sizes), and per-`elem_size_folder` (across simulation-time windows,
+plus per-window height-error plots).
+
+# Arguments
+- `filepath_gt_::String`: ground-truth (measured height) data root each experiment
+  is compared against.
+- `filepath::String`: root of the result tree to walk.
+- `avoid_list`: top-level `dir` names under `filepath` to skip.
+
+# Returns
+None. All outputs are PDFs written under `plot_path_global`/
+`plot_path_elems`/`plot_path_sim_time`.
+"""
 function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
     dir_list = readdir(filepath)
 
@@ -3799,6 +4125,19 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
     @info "Saved plots to $plot_path_global"
 end
 
+"""
+    read_unstrcut_csv(file_path) -> Vector
+
+Read a CSV where each row is a single comma-joined string of numbers (a
+"ragged"/unstructured layout `readdlm` can't parse directly as a numeric
+matrix), and parse each row into a `Vector{Float64}`.
+
+# Arguments
+- `file_path::String`: path to the CSV file.
+
+# Returns
+- `data_list::Vector`: one `Vector{Float64}` per row.
+"""
 function read_unstrcut_csv(file_path::String)
     data_list = []
 
@@ -3813,6 +4152,30 @@ function read_unstrcut_csv(file_path::String)
     return data_list
 end
 
+"""
+    _get_borders(data_type, filepath_gt, exp_path, num_exp_points; view_folder="view_1") -> (obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney)
+
+Load and align the observed (ground-truth) and simulated 2D border/contour
+data for one experiment, truncated to the first `num_exp_points` frames.
+
+# Arguments
+- `data_type::String`: `"synthetic"`, `"physical"`, or `"simulated"` — selects
+  where the ground-truth contour data is read from under `filepath_gt`.
+- `filepath_gt::String`: ground-truth data root.
+- `exp_path::String`: experiment result directory containing the simulated
+  `2D_border_points`.
+- `num_exp_points::Int`: number of leading time frames to keep.
+
+# Keyword Arguments
+- `view_folder::String`: camera-view subdirectory to read ground-truth data
+  from (default: `"view_1"`).
+
+# Returns
+- `obs_border_pt_lst`, `sim_border_pt_lst`: observed and simulated border
+  points, truncated to `num_exp_points` frames.
+- `gt_Splinex`, `gt_Spliney`, `splinex`, `spliney`: matching spline-sampled
+  x/y coordinates for the observed and simulated contours.
+"""
 function _get_borders(data_type::String, filepath_gt::String, exp_path::String, num_exp_points::Int; view_folder::String="view_1")
 
     if data_type  == "synthetic"
@@ -3822,15 +4185,15 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
         ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","img_data",view_folder,"contour_data"))
         @info "Data type $data_type Reading physical contour data of $(length(ObsDataList)) time steps"
     elseif data_type == "simulated"
-        ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","sim_data",view_folder,"contour_data"))
+        ObsDataList, splinexObs, splineyObs = read_csv(joinpath(filepath_gt,"data","sim_data","contour_data"))
         @info "Data type : $data_type Reading simulated ground truth contour data from $(joinpath(filepath_gt,"data","sim_data",view_folder,"contour_data")) of $(length(ObsDataList)) time steps"
     else
         error("Unknown data type: $data_type")
     end
 
     obs_border_pt_lst, gt_Splinex, gt_Spliney, pd = add_noise(ObsDataList, nFactor=0.0)
-    sim_border_pt_lst, splinex, spliney = read_csv(joinpath(exp_path,"data","sim_data","view_1","2D_border_points"))
-    @info "Reading simulated contour data from $(joinpath(exp_path,"data","sim_data","view_1","2D_border_points")) of $(length(sim_border_pt_lst)) time steps"
+    sim_border_pt_lst, splinex, spliney = read_csv(joinpath(exp_path,"data","sim_data","view_1","2D_border_points_est"))
+    @info "Reading simulated contour data from $(joinpath(exp_path,"data","sim_data","view_1","2D_border_points_est")) of $(length(sim_border_pt_lst)) time steps"
 
     @assert length(ObsDataList) >= num_exp_points "Not enough observation border points: have $(length(ObsDataList)), need at least $num_exp_points"
     @assert length(sim_border_pt_lst) >= num_exp_points "Not enough simulation border points: have $(length(sim_border_pt_lst)), need at least $num_exp_points"
@@ -3847,7 +4210,49 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
     return obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney
 end
 
-# Save Plotly surface with optional scatter overlays to interactive HTML file
+"""
+    save_plotly_surface_html(filename, xg, yg, Z; kwargs...) -> Bool
+
+Render `Z` as an interactive Plotly 3D surface (grid `xg` × `yg`) with
+optional overlaid estimation-path and ground-truth scatter traces, and write
+it to `filename` as a self-contained HTML file. Used to make the
+η/β cost-surface plots (see `replot`) explorable interactively,
+complementing the static PDF contour plots.
+
+Loads `PlotlyJS` lazily (via `@eval using`) so it isn't a hard dependency of
+this script; returns `false` (and warns) instead of throwing if `PlotlyJS` is
+unavailable or rendering fails for any other reason, so callers can treat this
+as a best-effort side output. Small z offsets are added to overlay traces to
+avoid z-fighting with the surface.
+
+# Arguments
+- `filename::AbstractString`: destination path for the HTML file.
+- `xg`, `yg`: grid coordinates the surface `Z` is defined on.
+- `Z`: surface height values on the `xg` × `yg` grid.
+
+# Keyword Arguments
+- `xs`, `ys`, `zs`: estimation-path overlay coordinates (default: empty; `zs`
+  is back-filled via `interp_z_at` if omitted or mismatched in length).
+- `gt_x`, `gt_y`, `gt_z`: single ground-truth marker coordinates (default: `nothing`).
+- `title`: plot title (default: `""`).
+- `colormap::AbstractString`: surface colormap (default: `"Viridis"`).
+- `surface_label::AbstractString`: legend label for the surface (default: `"Cost surface"`).
+- `path_label::AbstractString`: legend label for the estimation-path overlay (default: `"Estimations"`).
+- `gt_label::AbstractString`: legend label for the ground-truth marker (default: `"Ground truth"`).
+- `path_color::AbstractString`: color of the estimation-path markers (default: `"red"`).
+- `gt_color::AbstractString`: colormap of the ground-truth marker (default: `"heat"`).
+- `path_marker_size::Int`: marker size for the estimation-path overlay (default: `14`).
+- `gt_marker_size::Int`: marker size for the ground-truth marker (default: `18`).
+- `x_label::AbstractString`, `y_label::AbstractString`: axis labels (default: `""`).
+- `font_size::Int`: axis/label font size (default: `14`).
+- `latex_labels::Bool`: render labels as LaTeX (default: `false`).
+- `z_offset::Real`: z offset applied to overlay traces to avoid z-fighting (default: `0.0`).
+- `surface_opacity::Real`: opacity of the surface (default: `1.0`).
+
+# Returns
+- `Bool`: `true` if the HTML file was written; `false` if `PlotlyJS` is
+  unavailable or rendering failed.
+"""
 function save_plotly_surface_html(filename::AbstractString, xg, yg, Z; xs=AbstractVector[], ys=AbstractVector[], zs=AbstractVector[],
                                   title="", colormap="Viridis",
                                   surface_label::AbstractString = "Cost surface",
@@ -4054,7 +4459,23 @@ function save_plotly_surface_html(filename::AbstractString, xg, yg, Z; xs=Abstra
     end
 end
 
-# Bilinear interpolation: return z value at (x, y) using vectors xg, yg and matrix Z (ny, nx)
+"""
+    interp_z_at(x, y, xg, yg, Z) -> Float64
+
+Bilinearly interpolate `Z` (defined on the grid `xg` × `yg`, with rows
+indexing `yg` and columns indexing `xg`) at the point `(x, y)`, clamping
+`(x, y)` to the grid extents. Tolerates `Z` being 1D, transposed, or of a
+non-`Float64` element type (e.g. JSON-backed arrays) by coercing/reshaping it
+to the expected `(length(yg), length(xg))` orientation first.
+
+# Arguments
+- `x::Real`, `y::Real`: point to interpolate at.
+- `xg::AbstractVector`, `yg::AbstractVector`: grid coordinates `Z` is defined on.
+- `Z::AbstractMatrix`: surface values on the `xg` × `yg` grid.
+
+# Returns
+- `Float64`: the interpolated value at `(x, y)`.
+"""
 function interp_z_at(x::Real, y::Real, xg::AbstractVector, yg::AbstractVector, Z::AbstractMatrix)
     # Coerce grid vectors and Z to concrete Float64 arrays/matrix and
     # normalize shapes. This avoids errors when Z is an Adjoint, 1D Vec,
@@ -4129,8 +4550,21 @@ function interp_z_at(x::Real, y::Real, xg::AbstractVector, yg::AbstractVector, Z
     return z
 end
 
+"""
+    interp_z_at(xs, ys, xg, yg, Z) -> Vector{Float64}
+
+Vectorized form of `interp_z_at(x, y, xg, yg, Z)`: bilinearly
+interpolate `Z` at each `(xs[i], ys[i])` pair.
+
+# Arguments
+- `xs::AbstractVector{<:Real}`, `ys::AbstractVector{<:Real}`: points to interpolate at.
+- `xg::AbstractVector`, `yg::AbstractVector`: grid coordinates `Z` is defined on.
+- `Z::AbstractMatrix`: surface values on the `xg` × `yg` grid.
+
+# Returns
+- `Vector{Float64}`: the interpolated value at each `(xs[i], ys[i])`.
+"""
 function interp_z_at(xs::AbstractVector{<:Real}, ys::AbstractVector{<:Real}, xg::AbstractVector, yg::AbstractVector, Z::AbstractMatrix)
-    # If single-element vectors, delegate to scalar version
     if length(xs) == 1 && length(ys) == 1
         return interp_z_at(xs[1], ys[1], xg, yg, Z)
     end
@@ -4141,11 +4575,23 @@ function interp_z_at(xs::AbstractVector{<:Real}, ys::AbstractVector{<:Real}, xg:
     error("interp_z_at: expecting scalar x,y or vectors of equal length")
 end
 
+"""
+    _ensure_scalar_float(x) -> Float64
+
+Coerce `x` to a `Float64`, taking the first element if `x` is a collection
+rather than a plain `Number` (defensive against JSON-backed values that may
+come back as length-1 arrays instead of scalars).
+
+# Arguments
+- `x`: a `Number`, or a collection whose first element is a `Number`.
+
+# Returns
+- `Float64`: `x` (or its first element) as a `Float64`.
+"""
 function _ensure_scalar_float(x)
     if isa(x, Number)
         return Float64(x)
     end
-    # otherwise try to collect and take the first element
     try
         c = collect(x)
         if length(c) >= 1
@@ -4158,6 +4604,33 @@ function _ensure_scalar_float(x)
     end
 end
 
+"""
+    set_time_window(time_step_len, data; method="linear", window_size=10.0, global_window_sz=30.0) -> (time_windows, windows, data_ranges, t_windows)
+
+Split `data` (indexed along its first dimension by time) into successive time
+windows whose cumulative end time grows according to `method`
+(`"linear"`: `window_size*iter`; `"quadratic"`: `window_size*iter^2`;
+`"exponential"`: `window_size*exp(3*(iter-1))`), stopping once the window end
+reaches the end of `data` or `global_window_sz`.
+
+# Arguments
+- `time_step_len::Float64`: time step length of `data`.
+- `data::AbstractArray`: array indexed along its first dimension by time.
+
+# Keyword Arguments
+- `method::String`: window growth schedule, `"linear"`, `"quadratic"`, or
+  `"exponential"` (default: `"linear"`).
+- `window_size::Float64`: base window size (default: `10.0`).
+- `global_window_sz::Float64`: overall time budget the windows are truncated
+  to (default: `30.0`).
+
+# Returns
+- `time_windows::Vector{Float64}`: duration of each window.
+- `windows::Vector{AbstractArray}`: the slice of `data` in each window.
+- `data_ranges::Vector{AbstractArray}`: the index range (relative to `data`)
+  of each window.
+- `t_windows::Vector{Float64}`: cumulative end time of each window.
+"""
 function set_time_window(time_step_len::Float64, data::AbstractArray; method::String="linear", window_size::Float64=10.0, global_window_sz::Float64=30.0)
     windows::Vector{AbstractArray} = Vector{AbstractArray}()
     time_windows::Vector{Float64} = Vector{Float64}()
@@ -4241,7 +4714,19 @@ function set_time_window(time_step_len::Float64, data::AbstractArray; method::St
     return time_windows, windows, data_ranges, t_windows
 end
 
-# Display batch information
+"""
+    display_batch_info(n_experiments, n_cores=Threads.nthreads()) -> Int
+
+Log how `n_experiments` parallel experiments will be split across
+`n_cores`-sized batches, and return the number of batches.
+
+# Arguments
+- `n_experiments::Int`: total number of experiments to run.
+- `n_cores::Int`: number of parallel cores/batches (default: `Threads.nthreads()`).
+
+# Returns
+- `n_batches::Int`: number of batches `n_experiments` is split into.
+"""
 function display_batch_info(n_experiments::Int, n_cores::Int=Threads.nthreads())
     n_batches = ceil(Int, n_experiments / n_cores)
     experiments_per_batch = n_experiments ÷ n_batches
@@ -4260,11 +4745,103 @@ function display_batch_info(n_experiments::Int, n_cores::Int=Threads.nthreads())
     return n_batches
 end
 
+"""
+    _handle_worker_error(err, i, params)
+
+Log a failed parallel worker task (index `i`, its `params`, and the caught
+exception `err` with backtrace) via `@error`, for use in a `catch` block.
+
+# Arguments
+- `err`: the caught exception.
+- `i::Int`: index of the failed task.
+- `params`: parameters passed to the failed task, logged for diagnosis.
+
+# Returns
+None.
+"""
 function _handle_worker_error(err, i::Int, params)
     bt = catch_backtrace()
     @error "Task $i failed" params exception=(err, bt)
 end
 
+
+"""
+    _max_band_mean(z, tol) -> Float64
+
+Mean of all entries of `z` within `tol` of `maximum(z)`.
+
+Used instead of a hard `maximum` so that a flat edge/face (many points tying
+for the max within meshing/floating-point tolerance) doesn't collapse to a
+single, arbitrarily-chosen point, and doesn't produce a QoI that jumps
+discretely between mesh nodes as the geometry deforms.
+
+# Arguments
+- `z::AbstractVector`: values to reduce.
+- `tol::Float64`: band width around `maximum(z)` over which entries are averaged.
+
+# Returns
+- `Float64`: mean of all entries of `z` within `tol` of `maximum(z)`.
+"""
+function _max_band_mean(z::AbstractVector, tol::Float64)
+    z_max = maximum(z)
+    band = z[z .≥ z_max - tol]
+    return sum(band) / length(band)
+end
+
+"""
+    get_surface_qoi(surface_list, cam_pose, height; tol=1e-3) -> Vector{Float64}
+
+Quantity of interest for surface comparison: the depth (z, along the camera's
+viewing axis) of the furthest surface points, per frame.
+
+Each surface is transformed into the camera frame via `project_to_camera_frame`,
+then reduced with `_max_band_mean` so that flat faces/edges facing the
+camera (e.g. a cubic mesh) are averaged over rather than reduced to a single
+mesh vertex.
+
+# Arguments
+- `surface_list::AbstractArray`: list of 3×N surface point matrices, one per frame.
+- `cam_pose::AbstractArray`: camera pose used to build the camera frame.
+- `height::Float64`: current specimen height, passed through to `project_to_camera_frame`.
+
+# Keyword Arguments
+- `tol::Float64`: band width (in the same units as the mesh) around the max
+  depth over which points are averaged (default: `1e-3`).
+
+# Returns
+- `qoi::Vector{Float64}`: one QoI value per frame.
+"""
+function get_surface_qoi(surface_list::AbstractArray, cam_pose::AbstractArray, height::Float64; tol::Float64=1e-3)
+    qoi = Vector{Float64}(undef, length(surface_list))
+
+    for (i, sim_surface) in enumerate(surface_list)
+        transformed_sim_surface = project_to_camera_frame(sim_surface, cam_pose, height)
+        qoi[i] = _max_band_mean(transformed_sim_surface[3, :], tol)
+    end
+
+    return qoi
+end
+
+"""
+    optimize_sim(use_parallel=true)
+
+Driver for the mesh-convergence study: builds one `optimize` call
+(`exp_params`) per combination of mesh element count (`nz_list`), noise level,
+simulation time, and time step for `data_type == "simulated"`, constant
+viscosity, reading ground truth from `ground_truth/sim_data/Stokes` and
+writing results under `experiments/sim_data/convergence_analysis/
+stokes_convergence`. Dispatches the resulting parameter list to
+`run_parallel_tasks` when `use_parallel`, otherwise runs `optimize`
+sequentially, logging (not raising) any per-task failure via
+`_handle_worker_error`.
+
+# Arguments
+- `use_parallel::Bool`: dispatch to `run_parallel_tasks` instead of running
+  sequentially (default: `true`).
+
+# Returns
+None.
+"""
 function optimize_sim(use_parallel::Bool=true)
 
     element_shape_u::Symbol = :Hex
@@ -4273,9 +4850,14 @@ function optimize_sim(use_parallel::Bool=true)
     basis_order_p::Int = 1
     element_shape_x::Symbol = :Hex
     basis_order_x::Int = 2
+    nz_list = Union{Int,Float64}[6]
+    mode::Symbol = :conv_exp_mesh  # :exp
 
+    if mode == :conv_exp_mesh
+        nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements in the mesh
+    end
     nz_list =  Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements in the mesh
-    dt_list = [0.1] #, 0.3, 0.6, 0.9, 1.0] # time step size
+    dt_list = [0.1] 
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
     window = "multi_window"
@@ -4286,7 +4868,7 @@ function optimize_sim(use_parallel::Bool=true)
 
     avoid_dirs = ["post_analysis_global", "1", "2", "3", "4", "5" , "7", "8"]
     for viscosity_type in viscosity_type_list
-        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_3.25", string(geometry))
+        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_16.0", string(geometry))
         if !isdir(_filepath_gt)
             @warn "Ground truth directory not found, skipping: $_filepath_gt"
             continue
@@ -4297,8 +4879,16 @@ function optimize_sim(use_parallel::Bool=true)
                 continue
                 println("Skipping dir $dir")
             end
-            filepath_gt = joinpath(_filepath_gt, dir)
+            filepath_gt = if mode === :conv_exp_mesh
+                            joinpath("Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/")
+                          else    
+                            joinpath(_filepath_gt, dir)
+                          end
+
             for nz in nz_list
+                if nz == 6 && mode == :conv_exp_mesh
+                    dt_list = [0.1, 0.3, 0.6, 0.9, 1.0] # time step size
+                end
                 if nz == 6.5 && viscosity_type == "constant"
                     noise_level_list = [0.5, 1.0, 1.5, 2.0] # noise levels to test
                 else
@@ -4313,8 +4903,12 @@ function optimize_sim(use_parallel::Bool=true)
                         end
                         @info "Running optimization with ne = $nz and simulation time = $sim_time_exp with noise level = $noise_level"
                         for dt in dt_list
-                            filepath_res = joinpath(resolve_data_path(joinpath("experiments","sim_data","convergence_analysis","stokes_convergence")), "experiment_mesh_conv", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(nz)", "dt_$(dt)")
-                            @info "Running optimization with element_shape_x = $element_shape_x, basis_order_x = $basis_order_x, ne = $nz, dt = $dt"
+                            filepath_res = if mode === :conv_exp_mesh
+                                                joinpath(resolve_data_path(joinpath("experiments","sim_data","convergence_analysis","stokes_convergence")), "experiment_mesh_conv", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(nz)", "dt_$(dt)")
+                                            else
+                                                joinpath(resolve_data_path(joinpath("experiments","sim_data","optimization","Stokes")), control, viscosity_type, "Hex2_16.0", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(nz)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", "dt_$(dt)", window)
+                                            end
+                                                @info "Running optimization with element_shape_x = $element_shape_x, basis_order_x = $basis_order_x, ne = $nz, dt = $dt"
 
                             exp_params = Dict(
                                 "element_shape_u" => element_shape_u, "basis_order_u" => basis_order_u,
@@ -4349,6 +4943,26 @@ function optimize_sim(use_parallel::Bool=true)
     end
 end
 
+"""
+    optimize_syn(use_parallel=true)
+
+Driver for synthetic (rendered-image) bulk-viscosity experiments: builds one
+`optimize` call per combination of mesh element count (`ne_list`),
+noise level, simulation time, and time step for `data_type == "synthetic"`,
+`viscosity_type == "bulk_viscosity"`, reading ground truth from
+`ground_truth/sim_data/Stokes` and writing results under
+`experiments/syn_data/optimization/Stokes`. Dispatches the resulting
+parameter list to `run_parallel_tasks` when `use_parallel`, otherwise runs
+`optimize` sequentially, logging (not raising) any per-task failure via
+`_handle_worker_error`.
+
+# Arguments
+- `use_parallel::Bool`: dispatch to `run_parallel_tasks` instead of running
+  sequentially (default: `true`).
+
+# Returns
+None.
+"""
 function optimize_syn(use_parallel::Bool=true)
 
     element_shape_u::Symbol = :Hex
@@ -4371,7 +4985,7 @@ function optimize_syn(use_parallel::Bool=true)
     dt_list = [0.1]
 
     for viscosity_type in viscosity_type_list
-        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_3.25", string(geometry))
+        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_16.0", string(geometry))
         if !isdir(_filepath_gt)
             @warn "Ground truth directory not found, skipping: $_filepath_gt"
             continue
@@ -4393,7 +5007,7 @@ function optimize_syn(use_parallel::Bool=true)
                         end
                         @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
                         for dt in dt_list
-                            filepath_res = joinpath(resolve_data_path(joinpath("experiments","syn_data","optimization","Stokes")), control, viscosity_type, "Hex2_3.25", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", "dt_$(dt)", window)
+                            filepath_res = joinpath(resolve_data_path(joinpath("experiments","syn_data","optimization","Stokes")), control, viscosity_type, "Hex2_16.0", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", "dt_$(dt)", window)
                             @info "Running optimization with element_shape_x = $element_shape_x, basis_order_x = $basis_order_x with $ne elements"
 
                             exp_params = Dict(
@@ -4428,6 +5042,27 @@ function optimize_syn(use_parallel::Bool=true)
     end
 end
 
+"""
+    optimize_real(use_parallel=true)
+
+Driver for physically-measured (or Carreau-model synthetic) bulk-viscosity
+experiments: builds one `optimize` call per ground-truth directory
+and mesh element count (`ne_list`). When `model_type == "carreau"`, reads
+ground truth from `ground_truth/sim_data/Carreau` and sets `data_type =
+"synthetic"`; otherwise reads from `ground_truth/physical_data` and sets
+`data_type = "physical"` (supplying the applied force `F_ext`, cylinder
+radius `r`, and height `h`). Dispatches the resulting parameter list to
+`run_parallel_tasks` when `use_parallel`, otherwise runs `optimize`
+sequentially, logging (not raising) any per-task failure via
+`_handle_worker_error`.
+
+# Arguments
+- `use_parallel::Bool`: dispatch to `run_parallel_tasks` instead of running
+  sequentially (default: `true`).
+
+# Returns
+None.
+"""
 function optimize_real(use_parallel::Bool=true)
     F_ext::Float64 = 9.812*1e3 # force applied to the cylinder in N
     sim_time_exp_list::Vector{Float64} = [0.5] # simulation time in seconds
@@ -4538,6 +5173,24 @@ function optimize_real(use_parallel::Bool=true)
 end
 
 
+"""
+    set_plot_config(data_type, viscosity_type)
+
+Set the module-global plot styling variables (`fs`, `plt_height`, `plt_width`,
+margins, and the `y_lims_h_norm`/`y_lims_rel_error` axis limits used
+throughout `replot`/`post_analysis_*`) to the preset appropriate for
+`data_type ∈ ("physical", "synthetic", "simulated")` (and, for `"synthetic"`,
+further split by `viscosity_type`). Leaves the current config unchanged (with
+a warning) for an unrecognized `data_type`.
+
+# Arguments
+- `data_type::String`: `"physical"`, `"synthetic"`, or `"simulated"`.
+- `viscosity_type::String`: `"constant"` or `"bulk_viscosity"` (only used to
+  further split the `"synthetic"` preset).
+
+# Returns
+None. The effect is entirely via the mutated globals.
+"""
 function set_plot_config(data_type::String, viscosity_type::String)
     global fs, plt_height, plt_width, plt_lft_margin, plt_right_margin, plt_top_margin
     global y_lims_h_norm, y_lims_rel_error
@@ -4582,14 +5235,30 @@ function set_plot_config(data_type::String, viscosity_type::String)
     end
 end
 
+"""
+    plot_results()
+
+Top-level driver that regenerates plots for every result tree under
+`~/SMEAR-PhD/SMEAR-DataFiles/Data/experiments`, across the configured
+`data_type_list` (`"simulated"`/`"synthetic"`/`"physical"`) and their
+applicable `model_type` (`"Stokes"`/`"carreau"`) and `viscosity_type`
+combinations. For each ground-truth directory (skipping `avoid_dirs`), applies
+`set_plot_config` for that data/viscosity type and calls
+`replot` on the matching experiment directory (`predict` and
+the `post_analysis_*` cross-experiment summaries are wired in but currently
+commented out below).
+
+# Returns
+None. All outputs are the side effects of `replot`.
+"""
 function plot_results()
     control::String = "force"
     viscosity_type_list = [] # "constant" or "bulk_viscosity"
     model_type = [] # "carreau" or "Stokes"
-    avoid_dirs = ["post_analysis_global","1","2","3","5","6"] # directories to skip in post-analysis and plotting
-    data_type_list = ["synthetic"] # ["simulated", "synthetic", "physical"]
+    avoid_dirs = ["post_analysis_global","1","2","3","4","5","7","8"] # directories to skip in post-analysis and plotting
+    data_type_list = ["simulated"] # ["simulated", "synthetic", "physical"]
     base_path = ""
-    geometry::Symbol = :cube # :cylinder or :cube
+    geometry::Symbol = :cylinder # :cylinder or :cube
 
     for data_type in data_type_list
         if data_type == "physical"
@@ -4629,8 +5298,9 @@ function plot_results()
                         filepath_gt = joinpath(base_gt_path, "sim_data", "Carreau")
                         filepath_res = base_path
                     else
-                        filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Hex2_3.25" , string(geometry))
-                        filepath_res = joinpath(base_path, control, viscosity_type, "Hex2_3.25" , string(geometry))
+                        filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Hex2_16.0" , string(geometry))
+                        # filepath_res = joinpath(base_path, control, viscosity_type, "Hex2_16.0" , string(geometry))
+                        filepath_res = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/experiment_mesh_conv", string(geometry))
                     end
                 end
                 
@@ -4649,19 +5319,19 @@ function plot_results()
                     # predict(filepath_res_dir, filepath_gt_dir)
                     replot(filepath_res_dir, filepath_gt_dir)
                 end
-                # if viscosity_type == "constant"
-                #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
-                # elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
-                #     post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
-                # elseif data_type == "physical"
-                #     post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
-                # end
+                if viscosity_type == "constant"
+                    post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
+                elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
+                    post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
+                elseif data_type == "physical"
+                    post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
+                end
             end
         end
     end
 end
 
-# optimize_sim(false)
+optimize_sim(false)
 # optimize_syn(false)
 # optimize_real(false)
-plot_results()
+# plot_results()

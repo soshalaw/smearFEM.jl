@@ -954,6 +954,32 @@ function _set_cam_frame(cam_pose, height)
     return T_o_c
 end
 
+"""
+    project_to_camera_frame(x, cam_pose, height) -> Matrix{Float64}
+
+Rotate 3D points into the camera frame (without the translation component),
+i.e. apply the rotation block of `_set_cam_frame(cam_pose, height)` to `x`.
+
+# Arguments
+- `x`: `(3, N)` or `(N, 3)` matrix of 3D point coordinates.
+- `cam_pose`: camera pose used to build the camera frame.
+- `height`: current specimen height, passed through to `_set_cam_frame`.
+
+# Returns
+- `projected_pts::Matrix{Float64}`: `(3, N)` matrix of points rotated into the camera frame.
+"""
+function project_to_camera_frame(x, cam_pose, height)
+
+    T_o_c = _set_cam_frame(cam_pose, height)
+
+    rot_mat = T_o_c[1:3, 1:3]
+    _x = size(x, 1) == 3 ? x : x' # Ensure x is 3×N
+    projected_pts = rot_mat * _x
+
+    return projected_pts
+end
+
+
 function _rotate_round_z(node_list, d_angle::Float64=0.0)
 
     angle = d_angle/180 * π # convert to radians

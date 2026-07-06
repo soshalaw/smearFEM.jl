@@ -17,7 +17,7 @@ export EnvConditions, Conditions # types.jl
 export meshgrid_cylinder, meshgrid_cuboid, meshgrid_square, meshgrid_disk, meshgrid_line # Meshes.jl
 export reset_mesh!, update_initial_state! # Meshes.jl
 export gaussian_quadrature, basis_function, get_quadrature, BasisFunctionCache, get_basis_volume_functions, get_surface_basis_functions # fem.jl
-export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, plot_covariance, eval_on_cylinder, get_lagrange_proj, get_lagrange_pts, get_nurbs_2_lagrange_proj, detect_outlier_observations, get_pose # PostProcess.jl
+export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, plot_covariance, eval_on_cylinder, get_lagrange_proj, get_lagrange_pts, get_nurbs_2_lagrange_proj, detect_outlier_observations, get_pose, project_to_camera_frame # PostProcess.jl
 export closest_point, match_points, fit_model # smearOptimize.jl
 export reset_model!, update_model! # models.jl
 
