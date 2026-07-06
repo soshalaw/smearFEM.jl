@@ -4880,7 +4880,7 @@ function optimize_sim(use_parallel::Bool=true)
                 println("Skipping dir $dir")
             end
             filepath_gt = if mode === :conv_exp_mesh
-                            joinpath("Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/")
+                            joinpath(resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/"))
                           else    
                             joinpath(_filepath_gt, dir)
                           end
