@@ -4866,7 +4866,7 @@ function optimize_sim(use_parallel::Bool=true)
     param_list = Vector{Dict}(undef, 0)
     geometry::Symbol = :cylinder # :cylinder or :cube
 
-    avoid_dirs = ["post_analysis_global", "1", "2", "3", "4", "5" , "7", "8"]
+    avoid_dirs = ["post_analysis_global", "1", "2", "6", "4", "5" , "7", "8"]
     for viscosity_type in viscosity_type_list
         _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_16.0", string(geometry))
         if !isdir(_filepath_gt)
