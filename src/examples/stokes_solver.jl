@@ -3,6 +3,11 @@ using SparseArrays
 using ProgressMeter
 using Parameters
 
+# SuiteSparse's sparse `lu` (UMFPACK) is not safe to call concurrently from
+# multiple Julia threads (mirrors the GMSH_LOCK precedent in io/gmsh_utils.jl).
+# Serialize factorization + solve so parallel task workers don't segfault.
+const SPARSE_LU_LOCK = ReentrantLock()
+
 """
     assemble_system_A(mdl::Stokes, cache::BasisFunctionCache)
 
@@ -1162,11 +1167,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
                 push!(A_list, norm(A))
             end
 
-            lum = lu(M) # LU decomposition of the system of equations
-
-            sol = lum\r            # solve the system of equations
-            dsoldη = lum\(drdη - dMdη*sol) # solve the system of equations
-            dsoldβ = lum\(drdβ - dMdβ*sol) # solve the system of equations
+            sol, dsoldη, dsoldβ = lock(SPARSE_LU_LOCK) do
+                lum = lu(M) # LU decomposition of the system of equations
+                sol = lum\r            # solve the system of equations
+                dsoldη = lum\(drdη - dMdη*sol) # solve the system of equations
+                dsoldβ = lum\(drdβ - dMdβ*sol) # solve the system of equations
+                sol, dsoldη, dsoldβ
+            end
 
             q_f = view(sol, 1:size(A_free, 1))
             dqfdη = view(dsoldη, 1:size(A_free, 1))
@@ -1260,15 +1267,17 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dKdη = [C_Tu*dAdη*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
             dKdβ = [C_Tu*dAdβ*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
             
-            luk = lu(K_free) # LU decomposition of the system of equations
-        
             r = [C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
             drdη = [C_Tu*dAdη*q_d; zero_matrix_p_q] # solve the system of equations
             drdβ = [C_Tu*dAdβ*q_d; zero_matrix_p_q] # solve the system of equations
 
-            sol = luk\-Matrix(r)                    # solve the system of equations
-            dsoldη = luk\-(drdη + dKdη*sol) # solve the system of equations
-            dsoldβ = luk\-(drdβ + dKdβ*sol) # solve the system of equations
+            sol, dsoldη, dsoldβ = lock(SPARSE_LU_LOCK) do
+                luk = lu(K_free) # LU decomposition of the system of equations
+                sol = luk\-Matrix(r)                    # solve the system of equations
+                dsoldη = luk\-(drdη + dKdη*sol) # solve the system of equations
+                dsoldβ = luk\-(drdβ + dKdβ*sol) # solve the system of equations
+                sol, dsoldη, dsoldβ
+            end
         
             q_f = sol[1:size(A_free,1)]      # extract the free part of the solution
             dqfdη = dsoldη[1:size(A_free,1)] # extract the free part of the solution

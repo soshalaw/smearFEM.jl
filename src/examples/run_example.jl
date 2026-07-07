@@ -295,11 +295,13 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdη*q_d] # solve the system of equations
         drdβ = -[C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdβ*q_d] # solve the system of equations
 
-        lum = lu(M) # LU decomposition of the system of equations
-
-        sol = lum\Matrix(r)             # solve the system of equations
-        dsoldη = lum\(drdη - dMdη*sol)  # solve the system of equations
-        dsoldβ = lum\(drdβ - dMdβ*sol)  # solve the system of equations
+        sol, dsoldη, dsoldβ = lock(SPARSE_LU_LOCK) do
+            lum = lu(M) # LU decomposition of the system of equations
+            sol = lum\Matrix(r)             # solve the system of equations
+            dsoldη = lum\(drdη - dMdη*sol)  # solve the system of equations
+            dsoldβ = lum\(drdβ - dMdβ*sol)  # solve the system of equations
+            sol, dsoldη, dsoldβ
+        end
 
         q_f = view(sol, 1:size(A_free, 1))
         dqfdη = view(dsoldη, 1:size(A_free, 1))
