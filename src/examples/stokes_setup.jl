@@ -155,7 +155,7 @@ function def_problem(geom::Cuboid, ne::Z, η_0::V,
     η = if viscosity_type == "bulk_viscosity"
         if viscosity_model == "power_law"
             @info "Using power law viscosity model"
-            get_η_power_law.(time, -cParam[1:len_t], (geom.lx + geom.ly)/2, geom.lz, η_0)
+            get_η_power_law.(time, -cParam[1:len_t], geom.lx/2, geom.lz, η_0)
         else
             fill(Float64(η_0), len_t)
         end
