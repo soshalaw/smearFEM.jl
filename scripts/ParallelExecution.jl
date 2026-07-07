@@ -20,6 +20,7 @@ module ParallelExecution
 
 using Dates
 using LinearAlgebra
+using Logging
 
 export get_available_memory_mb,
        allocate_workers,
@@ -194,13 +195,15 @@ function run_parallel_tasks(task_list::Vector, task_func::Function;
                         idx = take!(ch)
                         
                         try
-                            # Execute task with output redirection
-                            redirect_stdout(devnull) do
-                                redirect_stderr(devnull) do
-                                    task_func(task_list[idx])
-                                end
+                            # Suppress @info/@warn/@debug noise from the task. Uses
+                            # Logging's task-local scoped logger (safe under concurrent
+                            # Threads.@spawn) instead of redirect_stdout/redirect_stderr,
+                            # which dup() the process-wide stdout/stderr file descriptors
+                            # and segfault when raced across worker threads.
+                            with_logger(NullLogger()) do
+                                task_func(task_list[idx])
                             end
-                            
+
                             Base.GC.gc(true)
                             worker_iters += 1
                             Threads.atomic_add!(completed, 1)
