@@ -342,10 +342,7 @@ function optimize(exp_params::Dict)
     end
     
     for (i,z_angle) in enumerate(z_angles)
-
-        if i != 1
-            continue
-        end
+        
         printstyled("Processing view $i with z_angle = $z_angle degrees\n"; color = :blue)
         if data_type == "physical"  || viscosity_model == "carreau"
             η_start = exp_params["η_start"]
@@ -4857,9 +4854,8 @@ function optimize_sim(use_parallel::Bool=true)
     mode::Symbol = :conv_exp_mesh  # :exp
 
     if mode == :conv_exp_mesh
-        nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements in the mesh
+        nz_list = Union{Int,Float64}[10, 12, 14, 16] # number of elements in the mesh
     end
-    nz_list =  Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements in the mesh
     dt_list = [0.1] 
     control = "force" # "force" or "velocity"
     viscosity_type_list = ["constant"]
@@ -4891,6 +4887,8 @@ function optimize_sim(use_parallel::Bool=true)
             for nz in nz_list
                 if nz == 6 && mode == :conv_exp_mesh
                     dt_list = [0.1, 0.3, 0.6, 0.9, 1.0] # time step size
+                else
+                    dt_list = [0.1]
                 end
                 if nz == 6.5 && viscosity_type == "constant"
                     noise_level_list = [0.5, 1.0, 1.5, 2.0] # noise levels to test
