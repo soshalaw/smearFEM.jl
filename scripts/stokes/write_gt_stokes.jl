@@ -180,7 +180,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
 
     control = "force" # "force" or "velocity"
 
-    viscosity_type_list = ["constant"] # "constant" or "bulk_viscosity"
+    viscosity_type_list = ["bulk_viscosity"] # "constant" or "bulk_viscosity"
 
     element_shape_u::Symbol = :Hex
     basis_order_u::Int      = 2
@@ -190,7 +190,7 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     basis_order_x::Int      = 2
     mesh_label = "$(element_shape_u)$(basis_order_u)"
 
-    geometry::Symbol = :cylinder # :cylinder or :cube
+    geometry::Symbol = :cube # :cylinder or :cube
     edge_radius::Float64 = 3.0   # fillet radius on vertical edges (mm)
 
     sim_time_gt::Float64 = 30.0 # simulation time in seconds
@@ -202,12 +202,12 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
     # Build list of all experiment parameters
     param_list = Dict[]
     for viscosity_type in viscosity_type_list
-        run_id = 1
+        run_id = 4
         for β_gt in β_gt_list
             for η_gt in η_gt_list
                 F_ext = _get_F_ext(β_gt)
-                # filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$(mesh_label)_$(ne_gt)/$geometry/$run_id")
-                filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/")
+                filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$(mesh_label)_$(ne_gt)/$geometry/$run_id")
+                # filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/")
                 
                 exp_params = Dict(
                     "element_shape_u" => element_shape_u,
