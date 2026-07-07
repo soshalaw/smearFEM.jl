@@ -4857,7 +4857,7 @@ function optimize_sim(use_parallel::Bool=true)
     mode::Symbol = :conv_exp_mesh  # :exp
 
     if mode == :conv_exp_mesh
-        nz_list = Union{Int,Float64}[12, 14, 16] # number of elements in the mesh
+        nz_list = Union{Int,Float64}[2, 4, 8, 10, 12, 14, 16] # number of elements in the mesh
     end
     dt_list = [0.1] 
     control = "force" # "force" or "velocity"
@@ -5335,7 +5335,7 @@ function plot_results()
     end
 end
 
-optimize_sim(false)
+optimize_sim(true)
 # optimize_syn(false)
 # optimize_real(false)
 # plot_results()
