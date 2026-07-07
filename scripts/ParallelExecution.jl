@@ -52,8 +52,8 @@ Returns (n_workers, blas_threads_per_worker, info_message)
 function allocate_workers(n_tasks::Int, available_memory_mb::Float64; 
                          memory_per_task_mb::Float64=512.0, max_workers::Int=-1)
     
-    # Memory constraint
-    safety_factor = 0.7
+    # Memory constraint: never plan to occupy more than 50% of available RAM
+    safety_factor = 0.5
     max_by_memory = max(1, floor(Int, (available_memory_mb * safety_factor) / memory_per_task_mb))
     
     # PRIORITY: Prefer 4 threads per worker

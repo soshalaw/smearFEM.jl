@@ -4857,7 +4857,7 @@ function optimize_sim(use_parallel::Bool=true)
     mode::Symbol = :conv_exp_mesh  # :exp
 
     if mode == :conv_exp_mesh
-        nz_list = Union{Int,Float64}[2, 4, 8, 10, 12, 14, 16] # number of elements in the mesh
+        nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements in the mesh
     end
     dt_list = [0.1] 
     control = "force" # "force" or "velocity"
@@ -4931,7 +4931,7 @@ function optimize_sim(use_parallel::Bool=true)
             end
         end
         if use_parallel
-            run_parallel_tasks(param_list, optimize; max_workers=15)
+            run_parallel_tasks(param_list, optimize; max_workers=15, memory_per_task_mb=8192.0)
         else
             for (i, params) in enumerate(param_list)
                 @info "Sequential execution: calling write_gt_data for index $i / $(length(param_list))"
@@ -5030,7 +5030,7 @@ function optimize_syn(use_parallel::Bool=true)
             end
         end
         if use_parallel
-            run_parallel_tasks(param_list, optimize; max_workers=15)
+            run_parallel_tasks(param_list, optimize; max_workers=15, memory_per_task_mb=8192.0)
         else
             for (i, params) in enumerate(param_list)
                 @info "Sequential execution: calling write_gt_data for index $i / $(length(param_list))"
@@ -5161,7 +5161,7 @@ function optimize_real(use_parallel::Bool=true)
         end
     end
     if use_parallel
-        run_parallel_tasks(param_list, optimize; max_workers=5)
+        run_parallel_tasks(param_list, optimize; max_workers=5, memory_per_task_mb=8192.0)
     else
         for (i, params) in enumerate(param_list)
             @info "Sequential execution: calling write_gt_data for index $i / $(length(param_list))"
