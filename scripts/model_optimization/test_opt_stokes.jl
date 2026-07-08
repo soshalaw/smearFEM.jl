@@ -667,7 +667,7 @@ function optimize(exp_params::Dict)
             est_ηpList = Vector{Float64}(undef,data_pt_len)
             avg_ηList = Vector{Float64}(undef,data_pt_len)
             est_βpList = Vector{Float64}(undef,data_pt_len)
-            cost_list = Vector{Float64}(undef,data_pt_len)
+            cost_list = AbstractArray[]
             pred_h_list = AbstractArray[]
 
             if mode == "single_window"
