@@ -4985,7 +4985,7 @@ function optimize_syn(use_parallel::Bool=true)
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
     geometry::Symbol = :cube # :cylinder or :cube
-    avoid_dirs = ["post_analysis_global", "1", "2", "3", "6", "5" , "7", "8"]
+    avoid_dirs = ["post_analysis_global", "1", "2", "3", "4", "6" , "7", "8"]
     dt_list = [0.1]
 
     for viscosity_type in viscosity_type_list
@@ -5320,8 +5320,8 @@ function plot_results()
                     end
                     filepath_gt_dir = joinpath(filepath_gt, dir)
                     filepath_res_dir = joinpath(filepath_res, dir)
-                    # predict(filepath_res_dir, filepath_gt_dir)
-                    replot(filepath_res_dir, filepath_gt_dir)
+                    predict(filepath_res_dir, filepath_gt_dir)
+                    # replot(filepath_res_dir, filepath_gt_dir)
                 end
                 if viscosity_type == "constant"
                     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
@@ -5335,7 +5335,7 @@ function plot_results()
     end
 end
 
-optimize_sim(false)
-# optimize_syn(false)
+# optimize_sim(false)
+optimize_syn(false)
 # optimize_real(false)
-# plot_results()
+plot_results()
