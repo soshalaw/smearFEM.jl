@@ -343,9 +343,6 @@ function optimize(exp_params::Dict)
     
     for (i,z_angle) in enumerate(z_angles)
         
-        if i != 1
-            continue  # Skip additional angles for now; can be enabled later
-        end
         printstyled("Processing view $i with z_angle = $z_angle degrees\n"; color = :blue)
         if data_type == "physical"  || viscosity_model == "carreau"
             η_start = exp_params["η_start"]
@@ -670,6 +667,7 @@ function optimize(exp_params::Dict)
             est_ηpList = Vector{Float64}(undef,data_pt_len)
             avg_ηList = Vector{Float64}(undef,data_pt_len)
             est_βpList = Vector{Float64}(undef,data_pt_len)
+            cost_list = Vector{Float64}(undef,data_pt_len)
             pred_h_list = AbstractArray[]
 
             if mode == "single_window"
@@ -769,6 +767,7 @@ function optimize(exp_params::Dict)
 
                     est_ηpList[data_range_] .= stats["η"]
                     est_βpList[data_range_] .= stats["β"]
+                    push!(cost_list, stats["cost_list"])
 
                     θ[1] = stats["η"]
                     θ[2] = stats["β"]
@@ -791,6 +790,7 @@ function optimize(exp_params::Dict)
                 write_csv(joinpath(exp_path,"data", "window_data","t_windows"), t_windows)
                 write_csv(joinpath(exp_path,"data", "window_data","data_ranges"), data_ranges_)
                 write_csv(joinpath(exp_path,"data", "window_data","windows_sizes"), windows)
+                write_csv(joinpath(exp_path,"data", "window_data","cost_windows"), cost_list)
                 
                 est_μ_list, gradList, simBorderPts, fields_est, surface_pts_3D_est, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
                 est_h_list = get_height(est_μ_list, h)
