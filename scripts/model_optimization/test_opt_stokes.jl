@@ -420,6 +420,7 @@ function optimize(exp_params::Dict)
                 est_model.η = [η]
                 est_scene.β = [β]
                 
+                conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, filepath=exp_path, ANIMATE=true, viewing_angles=[z_angle])
                 est_μ_list, gradList, borderPts2DList, fields, surface_pts_3D_gt, pos2D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
                 est_h = get_height(est_μ_list, h)
 
