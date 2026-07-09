@@ -79,7 +79,7 @@ function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String)
     Plots.hline!(plt_beta, [1.0], label=false, color=:black, linestyle=:dash)
     Plots.ylims!(plt_beta, y_lims)
     Plots.xlabel!(plt_beta, "Mesh Size")
-    Plots.ylabel!(plt_beta, "β Value")
+    Plots.ylabel!(plt_beta, L"\frac{\beta_{exp}}{\beta_{gt}}")
     Plots.savefig(plt_beta, joinpath(plot_path, "mesh_convergence_beta.pdf"))
 
     plt_eta = set_plot(PLOT_CONFIG[:font_size], 
@@ -92,7 +92,7 @@ function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String)
     Plots.hline!(plt_eta, [1.0], label=false, color=:black, linestyle=:dash)
     Plots.ylims!(plt_eta, y_lims)
     Plots.xlabel!(plt_eta, "Mesh Size")
-    Plots.ylabel!(plt_eta, "η Value")
+    Plots.ylabel!(plt_eta, L"\frac{\eta_{exp}}{\eta_{gt}}")
     Plots.savefig(plt_eta, joinpath(plot_path, "mesh_convergence_eta.pdf"))
 
 end
