@@ -157,7 +157,6 @@ function optimize(exp_params::Dict)
         sim_time_exp / steps_exp
     else
         steps_exp = sim_time_exp / 0.1
-        0.1
     end
     
     ne_exp::Int = exp_params["ne_exp"] # number of elements in the mesh for the experiment
@@ -336,7 +335,7 @@ function optimize(exp_params::Dict)
         sim_time_exp = sim_time_gt
     end
 
-    if t_steps_exp > t_steps_gt
+    if t_steps_gt > t_steps_exp
         @warn "time resolution of the ground truth $t_steps_gt is larger than the experimental $t_steps_exp, switching to ground truth resolution"
         t_steps_exp = t_steps_gt
     end
@@ -1356,9 +1355,7 @@ function replot(filepath, filepath_gt)
     for group in collect_experiment_groups(filepath)
         for leaf in group.leaves
             view_folder = leaf.view_folder
-            # if view_folder != "view_1"
-            #     continue
-            # end
+   
             exp_path = leaf.exp_path
             if viscosity_type == "constant"
                 println("Comparing experiments in: $exp_path")
@@ -4863,7 +4860,7 @@ function optimize_sim(use_parallel::Bool=true)
     mode::Symbol = :conv_exp_mesh  # :exp
 
     if mode == :conv_exp_mesh
-        nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements in the mesh
+        nz_list = Union{Int,Float64}[6, 12, 14] # number of elements in the mesh
     end
     dt_list = [0.1] 
     control = "force" # "force" or "velocity"
@@ -5342,7 +5339,7 @@ function plot_results()
     end
 end
 
-# optimize_sim(false)
+optimize_sim(false)
 # optimize_syn(false)
 # optimize_real(false)
 plot_results()
