@@ -17,11 +17,11 @@ using Dierckx
 
 # Plot configuration constants
 const PLOT_CONFIG = Dict(
-    :font_size => 10,
-    :plot_height => 360,
-    :plot_width => 330,
-    :left_margin => -6pt,
-    :right_margin => 10pt,
+    :font_size => 11,
+    :plot_height => 320,
+    :plot_width => 480,
+    :left_margin => 1pt,
+    :right_margin => 1pt,
     :top_margin => -3pt
 )
 
@@ -176,45 +176,45 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Strin
                 xlabel=x_label, ylabel="Relative RMSE",
                 marker=:circle, markersize=4, markerstrokewidth=1.5, color="#FF7F0E",
                 yscale=:log10, xscale=:log10)
-    if rate == 0
-        @warn "Convergence rate is 0 — data may not be converging; skipping reference line"
-    else
-        nearest_int = round(Int, rate)
-        slopes = abs(rate - nearest_int) <= int_tol ? [nearest_int] : [floor(Int, rate), ceil(Int, rate)]
-        label_for(m) = if m == 0
-            latexstring("O(1)")
-        elseif m == 1
-            latexstring("O(\$$(x_label_latex)\$)")
-        else
-            latexstring("O(\$$(x_label_latex)^{$m}\$)")
-        end
-        if length(slopes) == 1
-            m = slopes[1]
-            C = (fit_at(x_max) * 4) / x_max^m
-            x_ref = x_range_for(m, C)
-            Plots.plot!(plt, x_ref, ref_line(m, x_ref, C),
-                        label=label_for(m),
-                        line=2, linewidth=2.5, color=:teal,
-                        yscale=:log10, xscale=:log10, linestyle=:dash)
-        else
-            # Floor-order line offset below the data (anchored near x_min), ceil-order line
-            # offset above (anchored near x_max) — each spans exactly [ref_y_min, ref_y_max]
-            # for its own slope, so the x-range differs between the two lines
-            m_left, m_right = slopes[1], slopes[2]
-            C_left = (fit_at(x_min) / 1.5) / x_min^m_left
-            C_right = (fit_at(x_max) * 10) / x_max^m_right
-            x_ref_left = x_range_for(m_left, C_left)
-            x_ref_right = x_range_for(m_right, C_right)
-            Plots.plot!(plt, x_ref_left, ref_line(m_left, x_ref_left, C_left),
-                        label=label_for(m_left),
-                        line=2, linewidth=2.5, color=:teal,
-                        yscale=:log10, xscale=:log10, linestyle=:dash)
-            Plots.plot!(plt, x_ref_right, ref_line(m_right, x_ref_right, C_right),
-                        label=label_for(m_right),
-                        line=2, linewidth=2.5, color=:teal,
-                        yscale=:log10, xscale=:log10, linestyle=:dot)
-        end
-    end
+    # if rate == 0
+    #     @warn "Convergence rate is 0 — data may not be converging; skipping reference line"
+    # else
+    #     nearest_int = round(Int, rate)
+    #     slopes = abs(rate - nearest_int) <= int_tol ? [nearest_int] : [floor(Int, rate), ceil(Int, rate)]
+    #     label_for(m) = if m == 0
+    #         latexstring("O(1)")
+    #     elseif m == 1
+    #         latexstring("O(\$$(x_label_latex)\$)")
+    #     else
+    #         latexstring("O(\$$(x_label_latex)^{$m}\$)")
+    #     end
+    #     if length(slopes) == 1
+    #         m = slopes[1]
+    #         C = (fit_at(x_max) * 4) / x_max^m
+    #         x_ref = x_range_for(m, C)
+    #         Plots.plot!(plt, x_ref, ref_line(m, x_ref, C),
+    #                     label=label_for(m),
+    #                     line=2, linewidth=2.5, color=:teal,
+    #                     yscale=:log10, xscale=:log10, linestyle=:dash)
+    #     else
+    #         # Floor-order line offset below the data (anchored near x_min), ceil-order line
+    #         # offset above (anchored near x_max) — each spans exactly [ref_y_min, ref_y_max]
+    #         # for its own slope, so the x-range differs between the two lines
+    #         m_left, m_right = slopes[1], slopes[2]
+    #         C_left = (fit_at(x_min) / 1.5) / x_min^m_left
+    #         C_right = (fit_at(x_max) * 10) / x_max^m_right
+    #         x_ref_left = x_range_for(m_left, C_left)
+    #         x_ref_right = x_range_for(m_right, C_right)
+    #         Plots.plot!(plt, x_ref_left, ref_line(m_left, x_ref_left, C_left),
+    #                     label=label_for(m_left),
+    #                     line=2, linewidth=2.5, color=:teal,
+    #                     yscale=:log10, xscale=:log10, linestyle=:dash)
+    #         Plots.plot!(plt, x_ref_right, ref_line(m_right, x_ref_right, C_right),
+    #                     label=label_for(m_right),
+    #                     line=2, linewidth=2.5, color=:teal,
+    #                     yscale=:log10, xscale=:log10, linestyle=:dot)
+    #     end
+    # end
     @info "Convergence rate: O(h^$(conv_rate_str))"
 
     # Save plot
@@ -556,6 +556,6 @@ function plot_convergence_time(file_path::String)
 end
 
 # time_intergration_convergence_analysis()
-# plot_convergence_time(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis"))
+plot_convergence_time(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis"))
 # mesh_convergence_analysis()
 plot_convergence_mesh(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis")) 

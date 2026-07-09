@@ -1090,7 +1090,10 @@ function predict(filepath, filepath_gt)
                         step_path = joinpath(step_path, step_folder)
                         view_folders = readdir(step_path)
                         for view_folder in view_folders
+                            println("Processing view folder: $view_folder")
                             if !startswith(view_folder, "view_")
+                                continue
+                            elseif view_folder != "view_1"
                                 continue
                             end
                             view_path = joinpath(step_path, view_folder)
@@ -1353,6 +1356,9 @@ function replot(filepath, filepath_gt)
     for group in collect_experiment_groups(filepath)
         for leaf in group.leaves
             view_folder = leaf.view_folder
+            if view_folder != "view_1"
+                continue
+            end
             exp_path = leaf.exp_path
             if viscosity_type == "constant"
                 println("Comparing experiments in: $exp_path")
@@ -1487,7 +1493,7 @@ function replot(filepath, filepath_gt)
                     Plots.plot!(β_plt, est_β, label="Estimated β", marker=1, legend=:outerbottom, legend_column=2)
                     Plots.hline!(β_plt, [β_gt], label="Ground truth β",legend=:outerbottom, legend_column=2)
                     Plots.xlabel!(β_plt, L"\mathrm{Iterations}")
-                    Plots.ylabel!(β_plt, latexstring("\$\\beta\$ [Pa s m\$^{-1}\$]"))   
+                    Plots.ylabel!(β_plt, latexstring("\$\\beta\$ [MPa s m\$^{-1}\$]"))   
                     Plots.savefig(β_plt, joinpath(exp_path,"plots","β.pdf"))
 
                     # Plot the cost function with iterations
@@ -1730,7 +1736,7 @@ function replot(filepath, filepath_gt)
                         covarience_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin)
                         plot_covariance!(covarience_plt, η_pred[:,1], β_pred[:,1])
                         Plots.xlabel!(covarience_plt, latexstring("\$\\eta\$ [kPa s]"))
-                        Plots.ylabel!(covarience_plt, latexstring("\$\\beta\$ [Pa s m\$^{-1}\$]"))
+                        Plots.ylabel!(covarience_plt, latexstring("\$\\beta\$ [MPa s m\$^{-1}\$]"))
                         Plots.savefig(covarience_plt, joinpath(exp_path,"plots","covariance.pdf"))
 
                         n_time = min(length(time), size(h_pred, 2), length(gt_h)) #, (end_obs_win/t_steps + 1))
@@ -2066,7 +2072,7 @@ function replot(filepath, filepath_gt)
                     end
                     # Plots.ylims!(plt_β, max(minimum(est_βpList)*0.8,0), min((maximum(est_βpList)*1.1),(maximum(est_βpList)+10)))
                     Plots.xlabel!(plt_β, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(plt_β, latexstring("\$\\beta(t)\$ [Pa s m\$^{-1}\$]"))
+                    Plots.ylabel!(plt_β, latexstring("\$\\beta(t)\$ [MPa s m\$^{-1}\$]"))
                     Plots.xlims!(plt_β, 0, end_obs_win)
                     Plots.savefig(plt_β, joinpath(win_exp_path,"plots","β.pdf"))
                     
@@ -3485,7 +3491,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
             sim_window_β_plt = set_plot(fs, sz=(plt_width, plt_height))
             Plots.hline!(sim_window_β_plt, [β_gt[1]], label="Ground truth β")
             Plots.xlabel!(sim_window_β_plt, L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_β_plt, latexstring("\$\\beta\$ [Pa s m\$^{-1}\$]"))
+            Plots.ylabel!(sim_window_β_plt, latexstring("\$\\beta\$ [MPa s m\$^{-1}\$]"))
 
             sim_window_ratio_plt = set_plot(fs, sz=(plt_width, plt_height))
             Plots.hline!(sim_window_ratio_plt, [η_gt[1]/β_gt[1]], label="Ground truth η/β",  left_margin=plt_lft_margin)
@@ -3814,7 +3820,7 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
 
     β_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
     Plots.xlabel!(β_plot_5, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(β_plot_5, latexstring("\$\\beta_{\\mathrm{est}}(t)\$ [Pa s m\$^{-1}\$]"))
+    Plots.ylabel!(β_plot_5, latexstring("\$\\beta_{\\mathrm{est}}(t)\$ [MPa s m\$^{-1}\$]"))
 
     η_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
     Plots.xlabel!(η_plot_10,L"\mathrm{Time\;[s]}")
@@ -3822,7 +3828,7 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
 
     β_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
     Plots.xlabel!(β_plot_10, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(β_plot_10, latexstring("\$\\beta_{\\mathrm{est}}(t)\$ [Pa s m\$^{-1}\$]"))
+    Plots.ylabel!(β_plot_10, latexstring("\$\\beta_{\\mathrm{est}}(t)\$ [MPa s m\$^{-1}\$]"))
 
     # height plots
     gt_h_plot = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
@@ -5259,10 +5265,10 @@ function plot_results()
     control::String = "force"
     viscosity_type_list = [] # "constant" or "bulk_viscosity"
     model_type = [] # "carreau" or "Stokes"
-    avoid_dirs = ["post_analysis_global","1","2","3","4","5","7","8"] # directories to skip in post-analysis and plotting
-    data_type_list = ["simulated"] # ["simulated", "synthetic", "physical"]
+    avoid_dirs = ["post_analysis_global","1","2","3","4","6","7","8"] # directories to skip in post-analysis and plotting
+    data_type_list = ["synthetic"] # ["simulated", "synthetic", "physical"]
     base_path = ""
-    geometry::Symbol = :cylinder # :cylinder or :cube
+    geometry::Symbol = :cube # :cylinder or :cube
 
     for data_type in data_type_list
         if data_type == "physical"
@@ -5303,8 +5309,8 @@ function plot_results()
                         filepath_res = base_path
                     else
                         filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Hex2_16.0" , string(geometry))
-                        # filepath_res = joinpath(base_path, control, viscosity_type, "Hex2_16.0" , string(geometry))
-                        filepath_res = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/experiment_mesh_conv", string(geometry))
+                        filepath_res = joinpath(base_path, control, viscosity_type, "Hex2_16.0" , string(geometry))
+                        # filepath_res = joinpath("/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/experiments/sim_data/convergence_analysis/stokes_convergence/experiment_mesh_conv", string(geometry))
                     end
                 end
                 
@@ -5320,22 +5326,23 @@ function plot_results()
                     end
                     filepath_gt_dir = joinpath(filepath_gt, dir)
                     filepath_res_dir = joinpath(filepath_res, dir)
+                    println("Processing ground truth directory: $filepath_gt_dir for $viscosity_type viscosity ...")
                     predict(filepath_res_dir, filepath_gt_dir)
-                    # replot(filepath_res_dir, filepath_gt_dir)
+                    replot(filepath_res_dir, filepath_gt_dir)
                 end
-                if viscosity_type == "constant"
-                    post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
-                elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
-                    post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
-                elseif data_type == "physical"
-                    post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
-                end
+                # if viscosity_type == "constant"
+                #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
+                # elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
+                #     post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
+                # elseif data_type == "physical"
+                #     post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
+                # end
             end
         end
     end
 end
 
 # optimize_sim(false)
-optimize_syn(false)
+# optimize_syn(false)
 # optimize_real(false)
 plot_results()
