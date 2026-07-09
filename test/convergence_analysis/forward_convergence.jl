@@ -137,7 +137,7 @@ Plot convergence data with a fitted power-law reference line.
 # Returns
 - `plt`: the convergence plot.
 """
-function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::String, x_label_latex::String="",;
+function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::AbstractString, x_label_latex::String="",;
                                   int_tol::Float64=0.2, shift::Float64=5.0)
     # Filter valid data
     valid_idx = findall(x -> !isnan(x) && !isinf(x) && x > 0, y_vals)
@@ -322,7 +322,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             δr = sqrt(mean(((r_cmp - r_int) ./ r_int).^2))
 
             path =resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/plots")
-            Plots.plot(z[end], r[end], label="Current mesh", xlabel="z", ylabel="r", title="Radius vs Height for element size $nz")
+            Plots.plot(z[end], r[end], label="Current mesh", xlabel=L"z", ylabel=L"r", title=latexstring("Radius vs Height for element size ", nz))
             Plots.plot!(z_cmp, r_int, label="Reference mesh", linestyle=:dash)
             Plots.savefig(joinpath(path, "radius_vs_height_mesh_sz_$nz.pdf"))
 
@@ -462,7 +462,7 @@ function plot_convergence_mesh(file_path::String)
         @info "Selected mesh size for experiment: $selected_mesh_size"
         plot_path = joinpath(file_path, "plots")
 
-        plt1 = plot_convergence_generic(elem_sizes_flat, abs.(relative_error), "Effective element size (h)", "h")
+        plt1 = plot_convergence_generic(elem_sizes_flat, abs.(relative_error), L"Effective element size (h)", "h")
         Plots.ylims!(plt1, 10^(-4.5), 10^(-2.8))
         Plots.xlims!(plt1, 1,100)
         Plots.vline!(plt1, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=4)
@@ -474,7 +474,7 @@ function plot_convergence_mesh(file_path::String)
                           right_margin=PLOT_CONFIG[:right_margin],
                           top_margin=PLOT_CONFIG[:top_margin],
                           legend_column=2)
-        Plots.plot!(plt2, elem_sizes_flat, time_list, label=L"t_{\mathrm{step}}", xlabel="Effective element size (h)", ylabel="Time per step (ms)", marker=:circle, yscale=:log10, xscale=:log10)
+        Plots.plot!(plt2, elem_sizes_flat, time_list, label=L"t_{\mathrm{step}}", xlabel=L"Effective element size (h)", ylabel="Time per step (ms)", marker=:circle, yscale=:log10, xscale=:log10)
         Plots.vline!(plt2, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
         Plots.ylabel!(plt2, "Time per step (ms)")
         Plots.xlims!(plt2, 1,100)
@@ -486,7 +486,7 @@ function plot_convergence_mesh(file_path::String)
                           right_margin=PLOT_CONFIG[:right_margin],
                           top_margin=PLOT_CONFIG[:top_margin],
                           legend_column=2)
-        Plots.plot!(plt3, elem_sizes_flat, relative_error, label="RMSE", xlabel="Effective element size (h)", ylabel="RMSE", marker=:circle)
+        Plots.plot!(plt3, elem_sizes_flat, relative_error, label="RMSE", xlabel=L"Effective element size (h)", ylabel="RMSE", marker=:circle)
             
         plt4 = set_plot(PLOT_CONFIG[:font_size], 
                           sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
@@ -494,9 +494,9 @@ function plot_convergence_mesh(file_path::String)
                           right_margin=PLOT_CONFIG[:right_margin],
                           top_margin=PLOT_CONFIG[:top_margin],
                           legend_column=2)
-        Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (s)", marker=:circle, yscale=:log10, xscale=:log10)
+        Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel=L"Effective element size (h)", ylabel="Time per step (s)", marker=:circle, yscale=:log10, xscale=:log10)
 
-        plt5 = plot_convergence_generic(elem_sizes_flat, abs.(rad_error_list), "Effective element size (h)", "h")
+        plt5 = plot_convergence_generic(elem_sizes_flat, abs.(rad_error_list), L"Effective element size (h)", "h")
         Plots.vline!(plt5, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
         Plots.ylims!(plt5, 10^(-5), 10^(-2.05))
         Plots.xlims!(plt5, 1,100)
@@ -507,7 +507,7 @@ function plot_convergence_mesh(file_path::String)
                           right_margin=PLOT_CONFIG[:right_margin],
                           top_margin=PLOT_CONFIG[:top_margin],
                           legend_column=2)
-        Plots.plot!(plt6, elem_sizes_flat, abs.(rad_error_list), label="RMSE", xlabel="Effective element size (h)", ylabel="RMSE", marker=:circle)
+        Plots.plot!(plt6, elem_sizes_flat, abs.(rad_error_list), label="RMSE", xlabel=L"Effective element size (h)", ylabel="RMSE", marker=:circle)
 
 
         Plots.savefig(plt1, joinpath(plot_path, "height_convergence.pdf"))
@@ -535,7 +535,7 @@ function plot_convergence_time(file_path::String)
         selected_dt = 0.1 # time step size used in the experiment
 
         plot_path = joinpath(file_path, "plots")
-        plt1 = plot_convergence_generic(dt_sizes, relative_error, "Time step size (Δt)", "\\Delta t")
+        plt1 = plot_convergence_generic(dt_sizes, relative_error, L"Time step size (\Delta t)", "\\Delta t")
         Plots.vline!(plt1, [selected_dt], label=L"\Delta t_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
         Plots.xlims!(plt1, 10^(-3), 5)
         Plots.ylims!(plt1, 1e-6, 10^(-2.2))
@@ -546,7 +546,7 @@ function plot_convergence_time(file_path::String)
                           right_margin=PLOT_CONFIG[:right_margin],
                           top_margin=PLOT_CONFIG[:top_margin],
                           legend_column=2)
-        Plots.plot(plt2, dt_list, h_end_list, label="Final height", xlabel="Time step size (Δt)", ylabel="Final height", yscale=:log10, xscale=:log10, marker=:circle)
+        Plots.plot(plt2, dt_list, h_end_list, label="Final height", xlabel=L"Time step size (\Delta t)", ylabel="Final height", yscale=:log10, xscale=:log10, marker=:circle)
 
         Plots.savefig(plt1, joinpath(plot_path, "time_convergence.pdf"))
         Plots.savefig(plt2, joinpath(plot_path, "final_height_vs_dt.pdf"))

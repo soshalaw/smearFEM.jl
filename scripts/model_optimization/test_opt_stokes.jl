@@ -369,7 +369,7 @@ function optimize(exp_params::Dict)
         splineyObs = spliney_angles[i]
         
         exp_params["z_angle"] = z_angle
-        exp_path = joinpath(directory(filepath_res), "view_$i",basename(filepath_res))
+        exp_path = joinpath(dirname(filepath_res), "view_$i", basename(filepath_res))
         write_json(joinpath(exp_path, "data","experiment_parameters"), exp_params)
 
         if gt_viscosity_type == "constant"
