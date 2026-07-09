@@ -370,7 +370,7 @@ function optimize(exp_params::Dict)
         splineyObs = spliney_angles[i]
         
         exp_params["z_angle"] = z_angle
-        exp_path = joinpath(filepath_res, "view_$i")
+        exp_path = joinpath(directory(filepath_res), "view_$i",basename(filepath_res))
         write_json(joinpath(exp_path, "data","experiment_parameters"), exp_params)
 
         if gt_viscosity_type == "constant"
@@ -1093,8 +1093,8 @@ function predict(filepath, filepath_gt)
                             println("Processing view folder: $view_folder")
                             if !startswith(view_folder, "view_")
                                 continue
-                            elseif view_folder != "view_1"
-                                continue
+                            # elseif view_folder != "view_1"
+                            #     continue
                             end
                             view_path = joinpath(step_path, view_folder)
 
@@ -1356,9 +1356,9 @@ function replot(filepath, filepath_gt)
     for group in collect_experiment_groups(filepath)
         for leaf in group.leaves
             view_folder = leaf.view_folder
-            if view_folder != "view_1"
-                continue
-            end
+            # if view_folder != "view_1"
+            #     continue
+            # end
             exp_path = leaf.exp_path
             if viscosity_type == "constant"
                 println("Comparing experiments in: $exp_path")
