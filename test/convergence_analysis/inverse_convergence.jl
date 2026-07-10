@@ -40,9 +40,9 @@ function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String)
 
         path = joinpath(filepath_res, mesh_folder, "dt_0.1", "view_1", "data")
         exp_data = read_json(joinpath(path, "experiment_parameters.jld2"))
-        cost_iter = readdlm(joinpath(path, "cost_iter.csv"), ',', Float64)
-        β_iter = readdlm(joinpath(path, "β.csv"), ',', Float64)
-        η_iter = readdlm(joinpath(path, "η.csv"), ',', Float64)
+        cost_iter = readdlm(joinpath(path,"view_1","cost_iter.csv"), ',', Float64)
+        β_iter = readdlm(joinpath(path, "view_1", "β.csv"), ',', Float64)
+        η_iter = readdlm(joinpath(path, "view_1", "η.csv"), ',', Float64)
 
         ne = exp_data["ne_exp"]
 
