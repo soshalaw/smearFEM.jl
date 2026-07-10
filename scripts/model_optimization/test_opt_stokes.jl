@@ -4670,7 +4670,7 @@ function optimize_sim(use_parallel::Bool=true)
     mode::Symbol = :conv_exp_mesh  # :exp
 
     if mode == :conv_exp_mesh
-        nz_list = Union{Int,Float64}[6, 12, 14]
+        nz_list = Union{Int,Float64}[6]
     end
     dt_list = [0.1] 
     control = "force" # "force" or "velocity"
@@ -4702,7 +4702,7 @@ function optimize_sim(use_parallel::Bool=true)
             println("Ground truth directory: $filepath_gt")
             for nz in nz_list
                 if nz == 6 && mode == :conv_exp_mesh
-                    dt_list = [0.1, 0.3, 0.6, 0.9, 1.0]
+                    dt_list = [1.0, 0.9, 0.6, 0.3, 0.1]
                 else
                     dt_list = [0.1]
                 end
@@ -5119,4 +5119,5 @@ function plot_results()
     end
 end
 
-plot_results()
+optimize_sim(false)
+# plot_results()
