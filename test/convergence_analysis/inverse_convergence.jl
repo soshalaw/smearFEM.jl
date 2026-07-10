@@ -121,9 +121,9 @@ function plot_inv_time_convergence(filepath_res::String, filepath_gt::String)
 
         path = joinpath(filepath_res, "Hex2_6", dt_folder, "view_1", "data")
         exp_data = read_json(joinpath(path, "experiment_parameters.jld2"))
-        cost_iter = readdlm(joinpath(path, "cost_iter.csv"), ',', Float64)
-        β_iter = readdlm(joinpath(path, "β.csv"), ',', Float64)
-        η_iter = readdlm(joinpath(path, "η.csv"), ',', Float64)
+        cost_iter = readdlm(joinpath(path, "view_1", "cost_iter.csv"), ',', Float64)
+        β_iter = readdlm(joinpath(path, "view_1", "β.csv"), ',', Float64)
+        η_iter = readdlm(joinpath(path, "view_1", "η.csv"), ',', Float64)
 
         dt = exp_data["dt"]
 
