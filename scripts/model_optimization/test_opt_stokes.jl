@@ -368,7 +368,10 @@ function optimize(exp_params::Dict)
     end
     
     for (i,z_angle) in enumerate(z_angles)
-        
+        if i != 1
+            @info "Processing view $i with z_angle = $z_angle degrees"
+            continue
+        end
         printstyled("Processing view $i with z_angle = $z_angle degrees\n"; color = :blue)
         if data_type == "physical"  || viscosity_model == "carreau"
             η_start = exp_params["η_start"]
