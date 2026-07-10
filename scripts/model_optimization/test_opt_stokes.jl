@@ -4703,7 +4703,7 @@ function optimize_sim(use_parallel::Bool=true)
             println("Ground truth directory: $filepath_gt")
             for nz in nz_list
                 if nz == 6 && mode == :conv_exp_mesh
-                    dt_list = [0.1]
+                    dt_list = [0.1, 0.2, 0.5, 0.7, 0.9, 1.0]
                 else
                     dt_list = [0.1]
                 end
