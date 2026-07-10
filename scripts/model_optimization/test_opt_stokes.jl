@@ -396,7 +396,6 @@ function optimize(exp_params::Dict)
         splineyObs = spliney_angles[i]
         
         exp_params["z_angle"] = z_angle
-        println("exp mesh elements: $(ne_exp), ground truth mesh elements: $(model_gt.mesh_u.ne)")
         exp_params["num_ne"] = model_gt.mesh_u.ne
         exp_path = joinpath(dirname(filepath_res), "view_$i", basename(filepath_res))
         write_json(joinpath(exp_path, "data","experiment_parameters"), exp_params)
