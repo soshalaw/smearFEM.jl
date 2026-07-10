@@ -1,6 +1,7 @@
 using DelimitedFiles
 using Plots
 using Plots.PlotMeasures
+using LaTeXStrings
 using smearFEM
 
 global def_orange = RGB(245/255,118/255,0)
@@ -62,11 +63,12 @@ function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String)
                     right_margin=PLOT_CONFIG[:right_margin],
                     top_margin=PLOT_CONFIG[:top_margin],
                     legend_column=2)
-    Plots.plot!(plt_cost, mesh_size[sorted_indices], conv_cost_list[sorted_indices], label="Cost", color=def_red, marker=:circle, markersize=4)
+    Plots.plot!(plt_cost, mesh_size[sorted_indices], conv_cost_list[sorted_indices], label=false, marker=:circle, markersize=4)
     Plots.hline!(plt_cost, [1.0], label=false, color=:black, linestyle=:dash)
+    Plots.vline!(plt_cost, [6.0], label=L"\mathrm{h}_{\mathrm{exp}}", line=:dash, color=:red)
     Plots.ylims!(plt_cost, y_lims)
-    Plots.xlabel!(plt_cost, "Mesh Size")
-    Plots.ylabel!(plt_cost, "Cost Value")
+    Plots.xlabel!(plt_cost, "Effective element size (h)")
+    Plots.ylabel!(plt_cost, "Relative cost reduction")
     Plots.savefig(plt_cost, joinpath(plot_path, "mesh_convergence_cost.pdf"))
 
     plt_beta = set_plot(PLOT_CONFIG[:font_size], 
@@ -75,11 +77,12 @@ function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String)
                     right_margin=PLOT_CONFIG[:right_margin],
                     top_margin=PLOT_CONFIG[:top_margin],
                     legend_column=2)
-    Plots.plot!(plt_beta, mesh_size[sorted_indices], conv_β_list[sorted_indices], label="β",  color=def_red, marker=:circle, markersize=4)
+    Plots.plot!(plt_beta, mesh_size[sorted_indices], conv_β_list[sorted_indices], label=false,  marker=:circle, markersize=4)
     Plots.hline!(plt_beta, [1.0], label=false, color=:black, linestyle=:dash)
+    Plots.vline!(plt_beta, [6.0], label=L"\mathrm{h}_{\mathrm{exp}}", line=:dash, color=:red)
     Plots.ylims!(plt_beta, y_lims)
-    Plots.xlabel!(plt_beta, "Mesh Size")
-    Plots.ylabel!(plt_beta, L"\frac{\beta_{exp}}{\beta_{gt}}")
+    Plots.xlabel!(plt_beta, "Effective element size (h)")
+    Plots.ylabel!(plt_beta, L"\beta_{\mathrm{exp}}/\beta_{\mathrm{gt}}")
     Plots.savefig(plt_beta, joinpath(plot_path, "mesh_convergence_beta.pdf"))
 
     plt_eta = set_plot(PLOT_CONFIG[:font_size], 
@@ -88,11 +91,12 @@ function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String)
                     right_margin=PLOT_CONFIG[:right_margin],
                     top_margin=PLOT_CONFIG[:top_margin],
                     legend_column=2)
-    Plots.plot!(plt_eta, mesh_size[sorted_indices], conv_η_list[sorted_indices], label="η",  color=def_red, marker=:circle, markersize=4)
+    Plots.plot!(plt_eta, mesh_size[sorted_indices], conv_η_list[sorted_indices], label=false,  marker=:circle, markersize=4)
     Plots.hline!(plt_eta, [1.0], label=false, color=:black, linestyle=:dash)
+    Plots.vline!(plt_eta, [6.0], label=L"\mathrm{h}_{\mathrm{exp}}", line=:dash, color=:red)
     Plots.ylims!(plt_eta, y_lims)
-    Plots.xlabel!(plt_eta, "Mesh Size")
-    Plots.ylabel!(plt_eta, L"\frac{\eta_{exp}}{\eta_{gt}}")
+    Plots.xlabel!(plt_eta, "Effective element size (h)")
+    Plots.ylabel!(plt_eta, L"\eta_{\mathrm{exp}}/\eta_{\mathrm{gt}}")
     Plots.savefig(plt_eta, joinpath(plot_path, "mesh_convergence_eta.pdf"))
 
 end
@@ -140,11 +144,14 @@ function plot_inv_time_convergence(filepath_res::String, filepath_gt::String)
                     right_margin=PLOT_CONFIG[:right_margin],
                     top_margin=PLOT_CONFIG[:top_margin],
                     legend_column=2)
-    Plots.plot!(plt_cost, dt_size[sorted_indices], conv_cost_list[sorted_indices], label="Cost",  color=def_red, marker=:circle, markersize=4)
+    Plots.plot!(plt_cost, dt_size[sorted_indices], conv_cost_list[sorted_indices], label=false,  marker=:circle, markersize=4)
     Plots.hline!(plt_cost, [1.0], label=false, color=:black, linestyle=:dash)
+    Plots.Plots.vline!(plt_cost, [0.1], label=L"\Delta t_{\mathrm{exp}}", line=:dash, color=:red)
     Plots.ylims!(plt_cost, y_lims)
-    Plots.xlabel!(plt_cost, "Time Step Size")
-    Plots.ylabel!(plt_cost, "Cost Value")
+    Plots.xlims!(plt_cost, (0, 1.1))
+    Plots.xticks!(plt_cost, [0, 0.25, 0.5, 0.75, 1.0], ["0", "0.25", "0.5", "0.75", "1.0"])
+    Plots.xlabel!(plt_cost, latexstring("Time step size \$(\\Delta t)\$"))
+    Plots.ylabel!(plt_cost, "Relative cost reduction")
     Plots.savefig(plt_cost, joinpath(plot_path, "time_convergence_cost.pdf"))
 
     plt_beta = set_plot(PLOT_CONFIG[:font_size], 
@@ -153,11 +160,14 @@ function plot_inv_time_convergence(filepath_res::String, filepath_gt::String)
                     right_margin=PLOT_CONFIG[:right_margin],
                     top_margin=PLOT_CONFIG[:top_margin],
                     legend_column=2)
-    Plots.plot!(plt_beta, dt_size[sorted_indices], conv_β_list[sorted_indices], label="β",  color=def_red, marker=:circle, markersize=4)
+    Plots.plot!(plt_beta, dt_size[sorted_indices], conv_β_list[sorted_indices], label=false,  marker=:circle, markersize=4)
     Plots.hline!(plt_beta, [1.0], label=false, color=:black, linestyle=:dash)
+    Plots.vline!(plt_beta, [0.1], label=L"\Delta t_{\mathrm{exp}}", line=:dash, color=:red)
     Plots.ylims!(plt_beta, y_lims)
-    Plots.xlabel!(plt_beta, "Time Step Size")
-    Plots.ylabel!(plt_beta, "β Value")
+    Plots.xlims!(plt_beta, (0, 1.1))
+    Plots.xticks!(plt_beta, [0, 0.25, 0.5, 0.75, 1.0], ["0", "0.25", "0.5", "0.75", "1.0"])
+    Plots.xlabel!(plt_beta, latexstring("Time step size \$(\\Delta t)\$"))
+    Plots.ylabel!(plt_beta, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
     Plots.savefig(plt_beta, joinpath(plot_path, "time_convergence_beta.pdf"))
 
     plt_eta = set_plot(PLOT_CONFIG[:font_size], 
@@ -166,11 +176,14 @@ function plot_inv_time_convergence(filepath_res::String, filepath_gt::String)
                     right_margin=PLOT_CONFIG[:right_margin],
                     top_margin=PLOT_CONFIG[:top_margin],
                     legend_column=2)
-    Plots.plot!(plt_eta, dt_size[sorted_indices], conv_η_list[sorted_indices], label="η",  color=def_red, marker=:circle, markersize=4)
+    Plots.plot!(plt_eta, dt_size[sorted_indices], conv_η_list[sorted_indices], label=false,  marker=:circle, markersize=4)
     Plots.hline!(plt_eta, [1.0], label=false, color=:black, linestyle=:dash)
+    Plots.vline!(plt_eta, [0.1], label=L"\Delta t_{\mathrm{exp}}", line=:dash, color=:red)
     Plots.ylims!(plt_eta, y_lims)
-    Plots.xlabel!(plt_eta, "Time Step Size")
-    Plots.ylabel!(plt_eta, "η Value")
+    Plots.xlims!(plt_eta, (0, 1.1))
+    Plots.xticks!(plt_eta, [0, 0.25, 0.5, 0.75, 1.0], ["0", "0.25", "0.5", "0.75", "1.0"])
+    Plots.xlabel!(plt_eta, latexstring("Time step size \$(\\Delta t)\$"))
+    Plots.ylabel!(plt_eta, L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
     Plots.savefig(plt_eta, joinpath(plot_path, "time_convergence_eta.pdf"))
 end
 
