@@ -396,6 +396,8 @@ function optimize(exp_params::Dict)
         splineyObs = spliney_angles[i]
         
         exp_params["z_angle"] = z_angle
+        println("exp mesh elements: $(ne_exp), ground truth mesh elements: $(model_gt.mesh_u.ne)")
+        exp_params["num_ne"] = model_gt.mesh_u.ne
         exp_path = joinpath(dirname(filepath_res), "view_$i", basename(filepath_res))
         write_json(joinpath(exp_path, "data","experiment_parameters"), exp_params)
 
@@ -4703,7 +4705,7 @@ function optimize_sim(use_parallel::Bool=true)
             println("Ground truth directory: $filepath_gt")
             for nz in nz_list
                 if nz == 6 && mode == :conv_exp_mesh
-                    dt_list = [0.1, 0.2, 0.5, 0.7, 0.9, 1.0]
+                    dt_list = [0.1]
                 else
                     dt_list = [0.1]
                 end
