@@ -402,10 +402,11 @@ function optimize(exp_params::Dict)
         if gt_viscosity_type == "constant"
             
             printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
-            _range = 1:(round(Int,sim_time_exp/t_steps_exp)+1)
+            _range = collect(range(start = 1, stop = (round(Int,sim_time_exp/t_steps_gt)+1), step = round(Int,t_steps_exp/t_steps_gt)))
+            println(round(Int,sim_time_exp/t_steps_gt)+1," ",round(Int,t_steps_exp/t_steps_gt)," ",length(_range))
             @info "Considering from frame $(first(_range)) to frame $(last(_range)) in the observations"
             ObsDataList = ObsDataList[_range] # align the observation points with the simulation time
-
+            printstyled("Observation data length: $(length(ObsDataList))\n"; color = :blue)
             model, scene = def_problem(geom_exp, ne_exp, η_gt[1], _fem..., β_gt[1], F, control, gt_viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
             est_model, est_scene = def_problem(geom_exp, ne_exp, η_start, _fem..., β_start, F, control, gt_viscosity_type, sim_time_gt, t_steps_exp; _mesh_path_kw(exp_params)...)
             conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, filepath=exp_path, ANIMATE=false, viewing_angles=[z_angle])
@@ -4702,7 +4703,7 @@ function optimize_sim(use_parallel::Bool=true)
             println("Ground truth directory: $filepath_gt")
             for nz in nz_list
                 if nz == 6 && mode == :conv_exp_mesh
-                    dt_list = [0.1]
+                    dt_list = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
                 else
                     dt_list = [0.1]
                 end
