@@ -127,6 +127,55 @@ function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields;
     end
 end 
 
+function extract_p_from_u_nodes(NodeList_u, NodeList_p, IEN_p)
+    # Map each pressure node to its closest velocity node by Euclidean distance.
+    _ = IEN_p  # kept for API compatibility
+
+    node_axis_u = (size(NodeList_u, 1) <= 3 && size(NodeList_u, 2) > size(NodeList_u, 1)) ? :cols : :rows
+    node_axis_p = (size(NodeList_p, 1) <= 3 && size(NodeList_p, 2) > size(NodeList_p, 1)) ? :cols : :rows
+
+    nNodes_u = node_axis_u == :cols ? size(NodeList_u, 2) : size(NodeList_u, 1)
+    nNodes_p = node_axis_p == :cols ? size(NodeList_p, 2) : size(NodeList_p, 1)
+
+    p_to_u_idx = Vector{Int}(undef, nNodes_p)
+    min_dist2 = Vector{Float64}(undef, nNodes_p)
+
+    @views for p_idx in 1:nNodes_p
+        p_node = node_axis_p == :cols ? NodeList_p[:, p_idx] : NodeList_p[p_idx, :]
+        best_u_idx = 1
+        best_dist2 = Inf
+
+        for u_idx in 1:nNodes_u
+            u_node = node_axis_u == :cols ? NodeList_u[:, u_idx] : NodeList_u[u_idx, :]
+            dist2 = sum((p_node .- u_node) .^ 2)
+            if dist2 < best_dist2
+                best_dist2 = dist2
+                best_u_idx = u_idx
+            end
+        end
+
+        p_to_u_idx[p_idx] = best_u_idx
+        min_dist2[p_idx] = best_dist2
+    end
+
+    node_list_p = node_axis_u == :cols ? NodeList_u[:, p_to_u_idx] : NodeList_u[p_to_u_idx, :]
+
+    # Sanity check: alignment quality between original pressure nodes and mapped velocity nodes.
+    min_dists = sqrt.(min_dist2)
+    max_dist = maximum(min_dists)
+    mean_dist = sum(min_dists) / length(min_dists)
+    tol = 1e-8
+    if max_dist > tol
+        @warn "Nearest-neighbor mapping sanity check: max distance = $(max_dist), mean distance = $(mean_dist)."
+    else
+        @info "Nearest-neighbor mapping sanity check passed: max distance = $(max_dist), mean distance = $(mean_dist)."
+    end
+
+    println("Extracted $(size(node_list_p)) pressure nodes from $(size(NodeList_u)) velocity nodes using nearest-neighbor mapping.")
+
+    return node_list_p, p_to_u_idx
+end
+
 """
     write_stokes_scene(filepath, NodeList_u, IEN_u, NodeList_p, IEN_p, ne, ndim, velocities, pressures)
 
@@ -200,20 +249,24 @@ function write_stokes_scene(
     cells_p = [MeshCell(cellType_p, IEN_p[:, e]) for e in 1:size(IEN_p, 2)]
     fieldIter = 1:length(pressures)
 
+    
+    node_list = length(pos3D) != 0 ? pos3D : NodeList_u
     paraview_collection(string(filepath, "/vtkFiles/", collection_name_velocity)) do pvd
         @showprogress "Writing out velocity to VTK..." for i in fieldIter
-            node_list_u = isa(NodeList_u, AbstractVector) ? NodeList_u[i] : NodeList_u
-            vtk_grid(string(filepath, "/vtkFiles/velocity_$i"), node_list_u, cells_u) do vtk
+            node_list = isa(node_list, AbstractVector) ? node_list[i] : node_list
+            vtk_grid(string(filepath, "/vtkFiles/velocity_$i"), node_list, cells_u) do vtk
                 vtk[velocity_name] = velocities[i]
                 time = (i - 1)
                 pvd[time] = vtk
             end
         end
     end
-
+    
+    _node_list_p, p_to_u_idx = extract_p_from_u_nodes(NodeList_u, NodeList_p, IEN_p) 
     paraview_collection(string(filepath, "/vtkFiles/", collection_name_pressure)) do pvd
         @showprogress "Writing out pressure to VTK..." for i in fieldIter
-            node_list_p = isa(NodeList_p, AbstractVector) ? NodeList_p[i] : NodeList_p
+            node_list_p = isa(pos3D, AbstractVector) ? pos3D[i] : NodeList_p
+            node_list_p = length(pos3D) != 0 ? node_list_p[:, p_to_u_idx] : node_list_p
             vtk_grid(string(filepath, "/vtkFiles/pressure_$i"), node_list_p, cells_p) do vtk
                 vtk[pressure_name] = pressures[i]
                 time = (i - 1)

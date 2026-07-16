@@ -13,12 +13,15 @@ function const_vel(r::Float64, h::Float64,
 
     control::String = "force"
     viscosity_type::String = "constant"
-    sim_time::Float64 = 20.0
-    t_steps::Float64 = 1.0
+    
+    sim_time::Float64 = 5.0 # simulation time in seconds
+    t_steps::Float64 = 2.5e-3 # time step size in seconds
     β_gt = 100.0
-    η_gt = 70.0
-    F_ext = 9.813e3
+    η_gt = 100.0
+    F_ext::Float64 = 9518.61 # force applied to the cylinder in N
     F::Vector{Float64} = -F_ext * ones(Float64, round(Int, sim_time / t_steps))
+
+    steps = round(Int, sim_time/t_steps)  
 
     model, scene = def_problem(Cylinder(r, h), ne, η_gt,
                                element_shape_u, basis_order_u, nDof_u,
@@ -39,11 +42,11 @@ function const_vel(lx::Float64, ly::Float64, lz::Float64,
 
     control::String = "force"
     viscosity_type::String = "bulk_viscosity"
-    sim_time::Float64 = 20.0
+    sim_time::Float64 = 5.0
     t_steps::Float64 = 1.0
     β_gt = 100.0
-    η_gt = 70.0
-    F_ext = 9.813e3
+    η_gt = 100.0
+    F_ext = 9518.61
     F::Vector{Float64} = -F_ext * ones(Float64, round(Int, sim_time / t_steps))
 
     model, scene = def_problem(Cuboid(lx, ly, lz, edge_radius), ne, η_gt,
@@ -65,12 +68,12 @@ function main()
     basis_order_p::Int = 1
     nDof_p::Int = 1
     nDof_u::Int = 3
-    ne::Int = 6
+    ne::Int = 16
 
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
 
-    camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+    camera_matrix = get_camera_matrix()
     obj_pose = [150.0, 0.0, 20.0]
     z_angle_list = [0.0, 30.0, 60.0]
 

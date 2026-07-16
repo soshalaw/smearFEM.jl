@@ -9,11 +9,11 @@ function main()
     ndim = 3
     element_shape = :Hex
     basis_order = 2
-    camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+    camera_matrix = get_camera_matrix()
     # obj_pose = Float64.([-1.0 0.0 0.0 0.0; 0.0 0.0 -1.0 20.0; 0.0 -1.0 0.0 150; 0.0 0.0 0.0 1.0])
     obj_pose = [150.0, 0.0, 20.0]
 
-    filepath = "/home/soshala/SMEAR-PhD/SMEAR-DataFiles/Data/sim_experiments/visualization_test/"
+    filepath = resolve_data_path("sim_experiments/visualization_test")
     set_file(filepath)
     geometry = :cube # :cylinder or :cube
     edge_radius = 3.0

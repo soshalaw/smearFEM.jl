@@ -165,7 +165,7 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
 
     @unpack camera_matrix, obj_pose, SIDES = conditions    
     camera_matrix_cached::Matrix{Float64} = camera_matrix
-    obj_pose_cached::Vector{Float64} = obj_pose
+    obj_pose_cached::AbstractArray{Float64} = obj_pose
     
     NodeList_cached::Matrix{Float64} = NodeList_u_cached
     ID_cached::Matrix{Int} = ID_u_cached
@@ -552,7 +552,7 @@ Initializes the simulation and writes the data to a file.
 # Returns
 None.
 """
-function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, z_angle_list::Vector{Float64}=[0.0], filepath::String="nothing"; ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true)
+function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractArray{Float64}, z_angle_list::Vector{Float64}=[0.0], filepath::String="nothing"; ANIMATE=true, WRITECONTOUR=true, RENDER=true, WRITEVTK=true)
 
     # copy the model and scene to avoid modifying the original objects
     model::AbstractModel = deepcopy(_model)
@@ -640,19 +640,19 @@ Initializes the mesh and writes the data to a file.
 - `splineq::Vector{Vector{Float64}}`: y coordinates of the border observation at each timestep interpolated.
 """
 function initialize_mesh(r::Number, h::Number, ne::Number, element_shape::Symbol, basis_order::Int,
-                            camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, z_angle_list::Vector{Float64}=[0.0];
+                            camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractArray{Float64}, z_angle_list::Vector{Float64}=[0.0];
                             geometry::Symbol=:cylinder, filepath::String="nothing",
-                            edge_radius::Union{Float64,Nothing}=nothing)
+                            edge_radius::Union{Float64,Nothing}=nothing,
+                            mesh_path::String=joinpath(dirname(dirname(@__DIR__)), "mesh_files"))
 
     geometry in (:cylinder, :cube) || throw(ArgumentError("geometry must be :cylinder or :cube, got :$geometry"))
     isnothing(filepath) && throw(AssertionError("Please provide a filepath to write the data"))
     set_file(filepath)
 
     ndim::Int = 3
-    filepath_mesh = joinpath("/home", "soshala", "SMEAR-PhD", "smear-modules", "smearFEM.jl", "mesh_files")
-    println("Initializing $geometry mesh with $ne elements and writing to $filepath_mesh")
+    @info "Initializing $geometry mesh with $ne elements from $mesh_path"
     mesh_kwargs = (mesh_type=:unstructured, ndof=1, element_shape=element_shape, basis_order=basis_order,
-                   elem_size=Float64(ne), mesh_path=filepath_mesh)
+                   elem_size=Float64(ne), mesh_path=mesh_path)
     mesh = if geometry === :cylinder
         meshgrid_cylinder(r, h; mesh_kwargs...)
     else
@@ -669,7 +669,7 @@ function initialize_mesh(r::Number, h::Number, ne::Number, element_shape::Symbol
     writeborderList = [obs_border_pts]
 
     write_scene(joinpath(filepath,"data"), pos3D, mesh.IEN, ndim, pos3D, element_shape=mesh.volume_element_shape, basis_order=mesh.basis_order)
-    animate_fields(filepath = joinpath(filepath,"Results","images"), Nodes=pos3D , IEN=mesh.IEN, border_nodes_2d=borderPts2DList, sim_pts_2d=pos2D, cam_pose=obj_pose, h=h)
+    animate_fields(filepath = joinpath(filepath,"Results","images"), Nodes=pos3D , IEN=mesh.IEN, sim_border_nodes_2d=borderPts2DList, sim_pts_2d=pos2D, cam_pose=obj_pose, h=h)
     write_2d_data(joinpath(filepath,"Results"), writeborderList)
 
     return borderPts2DList, pos2D #, splinep, splineq

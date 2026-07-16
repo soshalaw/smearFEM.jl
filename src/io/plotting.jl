@@ -478,3 +478,18 @@ function plot_covariance!(plt::Plots.Plot, η_list::Vector{Float64}, β_list::Ve
 
     # Plots.scatter!(plt, η_list, β_list; scatter_kwargs...)
 end
+
+"""
+    set_plot_from_config(cfg; left_margin=nothing, right_margin=nothing, top_margin=nothing)
+
+Build a plot from a `PLOT_CONFIG`-style dict holding `:font_size`, `:plot_width`,
+`:plot_height`, `:left_margin`, `:right_margin`, and `:top_margin`. The margin
+keyword arguments, when given, override the corresponding config entries.
+"""
+function set_plot_from_config(cfg; left_margin=nothing, right_margin=nothing, top_margin=nothing)
+    lm = left_margin  !== nothing ? left_margin  : cfg[:left_margin]
+    rm = right_margin !== nothing ? right_margin : cfg[:right_margin]
+    tm = top_margin   !== nothing ? top_margin   : cfg[:top_margin]
+    return set_plot(cfg[:font_size], sz=(cfg[:plot_width], cfg[:plot_height]),
+                    left_margin=lm, right_margin=rm, top_margin=tm, legend_column=2)
+end

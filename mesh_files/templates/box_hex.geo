@@ -9,10 +9,16 @@ nz = 4;           // number of elements along height (primary input)
 
 hx = lx / 2;
 hy = ly / 2;
-// Full-quad recombination (algorithm 2) subdivides every quad into 4 sub-quads,
-// inflating n_2D by ~3.5×. Multiply char length by √3.5 so post-subdivision
-// count stays near nz². Empirically calibrated for rounded-rectangle base surfaces.
-elem_size_xy = Sqrt(3.5 * lx * ly) / nz;
+// Full-quad recombination (algorithm 2) inflates n_2D by ~2x on a rounded-rectangle
+// base (not the ~3.5x assumed previously, which left the mesh half as fine as asked).
+// Multiply char length by sqrt(2) so the post-subdivision count stays near nz^2,
+// giving ~nz^3 elements after extrusion, matching the cylinder template's convention.
+// The recombiner quantises n_2D onto plateaus (48 / 124 / 272), so this factor sits
+// mid-plateau rather than at a boundary.
+// NOTE: do not write "<param> = value" inside these comments. _generate_mesh_geo
+// substitutes params with the regex `<param>\s*=\s*[^;]+;`, which spans newlines and
+// would swallow everything up to the next semicolon, including this definition.
+elem_size_xy = Sqrt(2.0 * lx * ly) / nz;
 
 //-------------------------------------------------------------
 // Bottom face (z = 0) — rounded rectangle, centered at origin in XY

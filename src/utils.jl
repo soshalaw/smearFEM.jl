@@ -180,3 +180,12 @@ function get_cMat(c1::Float64, c2::Float64; type::String="lame")::Matrix{Float64
         throw(ArgumentError("Type of cMat unknown it should be either 'lame' or 'standard'"))  
     end
 end
+"""
+    get_camera_matrix() -> Adjoint{Float64}
+
+Intrinsic camera matrix for the experimental RGB rig (2048×1536 sensor,
+8 mm focal length), returned transposed to match the project's row convention.
+"""
+function get_camera_matrix()
+    return [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+end

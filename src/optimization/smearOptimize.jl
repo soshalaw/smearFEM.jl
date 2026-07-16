@@ -180,7 +180,7 @@ None. Prints optimization progress and final results to console.
 function init_cylinder()::Nothing
     scale::Int = 100
     ne::Int = 4
-    camera_matrix::Matrix{Float64} = [[8 * 2048 / 7.07, 0.0, 2048 / 2] [0.0, 8 * 1536 / 5.3, 1536 / 2] [0.0, 0.0, 1.0]]'
+    camera_matrix::Matrix{Float64} = get_camera_matrix()
     camera_pose::Vector{Float64} = scale * [0 -0.25 2]'
 
     _box = meshgrid_cuboid(1.0, 1.0, 1.0; mesh_type=:structured, ne=ne, element_shape=:Hex, basis_order=2)
@@ -544,7 +544,7 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         @debug "Result: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))"
         @debug "Deltas: Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))"
 
-        if c_grad_rel < 1e-3 && c_grad < 1e-3 && iter > 30
+        if c_grad_rel < 1e-3 && c_grad < 1e-3
             printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n 
                         η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4))", color=:green)
             break

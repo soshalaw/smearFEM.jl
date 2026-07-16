@@ -28,7 +28,7 @@ parameter gradients through the projection.
 # Returns (GRAD=true)
 `border_pts_sorted, ∇border_pts_sorted, surface_pts_2d, ∇surface_pts_2d`
 """
-function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, height::Float64, rot_angle::Float64=[0.0]; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2))
+function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractArray{Float64}, height::Float64, rot_angle::Float64=[0.0]; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2))
 
     if length(BorderNodesList) != 0
         surface_nodes = NodeList[:,BorderNodesList]
@@ -65,7 +65,7 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
     end
 end
 
-function _get_2D_data(NodeList_cached::Matrix{Float64}, camera_matrix_cached::AbstractMatrix{Float64}, obj_pose_cached::Vector{Float64}, h_cached::Float64; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), angles::Vector{Float64}=[0.0])
+function _get_2D_data(NodeList_cached::Matrix{Float64}, camera_matrix_cached::AbstractMatrix{Float64}, obj_pose_cached::AbstractArray{Float64}, h_cached::Float64; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), angles::Vector{Float64}=[0.0])
     BorderPts2D   = Vector{Matrix{Float64}}()
     SurfacePts2D  = Vector{Matrix{Float64}}()
     dudθ       = Vector{Array{Float64,3}}()
@@ -204,7 +204,7 @@ Project the 3D mesh to 2D image plane
 - `x2D::Matrix{Float64}{2,nNodes}`: 2D coordinates of the nodes
 - `dπdx::Array{Float64, nNodes}`{nNodes×2×nParams}: ∇π(x)
 """
-function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, dxdθ::AbstractArray{Float64}, height::Float64, rot_angle::Float64=0.0)
+function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractArray{Float64}, dxdθ::AbstractArray{Float64}, height::Float64, rot_angle::Float64=0.0)
     
     nx = size(x,2)
     nθ = size(dxdθ,3)
@@ -262,7 +262,7 @@ Project 3D points into the 2D image plane without gradient computation.
 # Returns
 - `x2D::Matrix{Float64}`: 2×N matrix of pixel coordinates.
 """
-function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::Vector{Float64}, height::Float64, rot_angle::Float64=0.0)
+function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractArray{Float64}, height::Float64, rot_angle::Float64=0.0)
 
     x_rot = _rotate_round_z(x, rot_angle)
     obj_trans = _set_cam_frame(obj_pose, height)
@@ -515,24 +515,33 @@ end
     get_pose(frames) -> obj_pose
 
 Estimate the object pose by averaging a stack of 4×4 homogeneous transformation
-matrices across all frames.
+matrices across all frames. Frames where tracking failed are stored as all-zero
+matrices and are skipped; averaging them in would drag the pose towards the
+camera origin.
 
 # Arguments
 - `frames::AbstractArray`: 4×4×T array of per-frame pose matrices.
 
 # Returns
-- `obj_pose::Matrix{Float64}`: 4×4 mean pose matrix.
+- `obj_pose::Matrix{Float64}`: 4×4 mean pose matrix over the valid frames.
 """
 function get_pose(frames::AbstractArray)
-    @info "Computing specimen pose from $(size(frames,3)) frames"
-    pose_mat = zeros(Float64, 4,4)
     frame_len = size(frames,3)
 
-    iter = 1:frame_len
-    for i in iter
+    valid = [i for i in 1:frame_len if isapprox(frames[4,4,i], 1.0) && all(isfinite, frames[:,:,i])]
+
+    if isempty(valid)
+        error("No valid pose frames: all $frame_len frames are invalid (tracking failure).")
+    elseif length(valid) < frame_len
+        @warn "Skipping $(frame_len - length(valid)) of $frame_len invalid pose frames (tracking failure)."
+    end
+    @info "Computing specimen pose from $(length(valid)) frames"
+
+    pose_mat = zeros(Float64, 4,4)
+    for i in valid
         pose_mat = pose_mat + frames[:,:,i]
     end
-    obj_pose = pose_mat/frame_len
+    obj_pose = pose_mat/length(valid)
     return obj_pose
 end
 """
@@ -941,7 +950,7 @@ function get_lagrange_pts(IEN_cp, IEN_l, C_vol, X_cp, W_cp)
     return X_l
 end
 
-function _set_cam_frame(cam_pose, height)
+function _set_cam_frame(cam_pose::AbstractVector, height)
 
     cam_pose_ = cam_pose - [0.0, 0.0, height/2]  # translate to camera frame
     z = [0.0, 0.0, 1.0]
@@ -953,6 +962,21 @@ function _set_cam_frame(cam_pose, height)
 
     return T_o_c
 end
+
+"""
+    _set_cam_frame(obj_pose::AbstractMatrix, height) -> Matrix{Float64}
+
+Object-to-camera transform for a pose that is already a 4×4 rigid transform, as
+measured by the marker tracking in the physical experiments: it is used as-is and
+`height` is ignored.
+
+This is the distinction between the two data sources. A synthetic pose is only a
+camera *position* (a 3-vector), so the orientation has to be synthesised — the
+vector method above aims the optical axis at the specimen's mid-height. A measured
+pose already carries the true orientation, including the small camera tilt, which
+that synthesis cannot represent and would otherwise discard.
+"""
+_set_cam_frame(obj_pose::AbstractMatrix, height) = Matrix{Float64}(obj_pose)
 
 """
     project_to_camera_frame(x, cam_pose, height) -> Matrix{Float64}

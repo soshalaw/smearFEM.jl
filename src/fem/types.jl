@@ -8,7 +8,9 @@ mutable struct Conditions <: EnvConditions
     RENDER::Bool
     filepath::String
     camera_matrix::AbstractMatrix{Float64}
-    obj_pose::Vector{Float64}
+    # Either a camera position (3-vector), whose orientation is synthesised by
+    # `_set_cam_frame`, or a measured 4×4 object-to-camera transform (physical data).
+    obj_pose::AbstractArray{Float64}
     viewing_angles::Vector{Float64}
 
     # Constructor with keyword arguments and default values
@@ -19,7 +21,7 @@ mutable struct Conditions <: EnvConditions
         RENDER::Bool = false,
         filepath::String = "",
         camera_matrix::AbstractMatrix{Float64} = Matrix{Float64}(undef, 4, 4),
-        obj_pose::Vector{Float64} = zeros(Float64, 3),
+        obj_pose::AbstractArray{Float64} = zeros(Float64, 3),
         viewing_angles::Vector{Float64} = zeros(Float64, 1)
     )
         return new(ANIMATE, WRITEVTK, WRITECONTOUR, RENDER, filepath, camera_matrix, obj_pose, viewing_angles)

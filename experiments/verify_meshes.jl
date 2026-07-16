@@ -21,7 +21,7 @@ using smearFEM
 
     ne::Int = 11 # number of elements in the mesh for the ground truth
 
-    camera_matrix = [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
+    camera_matrix = get_camera_matrix()
     obj_pose = Float64.([-1.0 0.0 0.0 0.0; 0.0 0.0 -1.0 20.0; 0.0 -1.0 0.0 150; 0.0 0.0 0.0 1.0])
     acc = 1e-3
 

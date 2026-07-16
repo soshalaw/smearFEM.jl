@@ -16,19 +16,18 @@ using CurveFit
 using Dierckx
 
 # Plot configuration constants
+
 const PLOT_CONFIG = Dict(
-    :font_size => 11,
-    :plot_height => 320,
-    :plot_width => 480,
+    :font_size => 12,
+    :plot_height => 360,
+    :plot_width => 330,
     :left_margin => 1pt,
     :right_margin => 1pt,
     :top_margin => -3pt
 )
 
-function get_camera_matrix()
-    """Returns camera matrix for rendering."""
-    return [[8*2048/7.07, 0.0, 2048/2] [0.0, 8*1536/5.3, 1536/2] [0.0, 0.0, 1.0]]'
-end
+# Root for this analysis's output tree.
+conv_path(parts...) = resolve_data_path(joinpath("experiments", "sim_data", "convergence_analysis", "stokes_convergence", parts...))
 
 
 function get_r(filepath::String)   
@@ -85,27 +84,8 @@ function get_r_curves(filepath::String)
     return r_curves
 end
 
-# Plotting utilities
-function setup_plot_config(; left_margin=nothing, right_margin=nothing, top_margin=nothing)
-    """Configure plot with standard settings."""
-    figsize = (PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height])
-    lm = left_margin !== nothing ? left_margin : PLOT_CONFIG[:left_margin]
-    rm = right_margin !== nothing ? right_margin : PLOT_CONFIG[:right_margin]
-    tm = top_margin !== nothing ? top_margin : PLOT_CONFIG[:top_margin]
-    
-    return set_plot(PLOT_CONFIG[:font_size], 
-                          sz=figsize, 
-                          left_margin=lm,
-                          right_margin=rm,
-                          top_margin=tm,
-                          legend_column=2)
-end
-
 function fit_convergence_rate(x_vals::Vector, y_vals::Vector)
-    """Fit convergence rate using linear regression in log-log space.
-    
-    Returns: (intercept, convergence_rate)
-    """
+    # Linear regression in log-log space; returns (intercept, rate).
     log_x = log.(x_vals)
     log_y = log.(y_vals)
     A = [ones(length(log_x)) log_x]
@@ -137,7 +117,7 @@ Plot convergence data with a fitted power-law reference line.
 # Returns
 - `plt`: the convergence plot.
 """
-function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::AbstractString, x_label_latex::String="",;
+function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::AbstractString, x_label_latex::String="";
                                   int_tol::Float64=0.2, shift::Float64=5.0)
     # Filter valid data
     valid_idx = findall(x -> !isnan(x) && !isinf(x) && x > 0, y_vals)
@@ -169,52 +149,14 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Abstr
                                   exp.(range(log(get_x(ref_y_min, m, C)), log(get_x(ref_y_max, m, C)), length=100))
 
     conv_rate_str = @sprintf("%.3f", rate)
-    plt = setup_plot_config()
+    plt = set_plot_from_config(PLOT_CONFIG)
 
     Plots.plot!(plt, x_vals_clean, y_vals_clean,
-                label="rRMSE  ", mode="markers",
-                xlabel=x_label, ylabel="Relative RMSE",
+                label="RAE  ", mode="markers",
+                xlabel=x_label, ylabel="Relative Absolute Error (RAE)",
                 marker=:circle, markersize=4, markerstrokewidth=1.5, color="#FF7F0E",
                 yscale=:log10, xscale=:log10)
-    # if rate == 0
-    #     @warn "Convergence rate is 0 — data may not be converging; skipping reference line"
-    # else
-    #     nearest_int = round(Int, rate)
-    #     slopes = abs(rate - nearest_int) <= int_tol ? [nearest_int] : [floor(Int, rate), ceil(Int, rate)]
-    #     label_for(m) = if m == 0
-    #         latexstring("O(1)")
-    #     elseif m == 1
-    #         latexstring("O(\$$(x_label_latex)\$)")
-    #     else
-    #         latexstring("O(\$$(x_label_latex)^{$m}\$)")
-    #     end
-    #     if length(slopes) == 1
-    #         m = slopes[1]
-    #         C = (fit_at(x_max) * 4) / x_max^m
-    #         x_ref = x_range_for(m, C)
-    #         Plots.plot!(plt, x_ref, ref_line(m, x_ref, C),
-    #                     label=label_for(m),
-    #                     line=2, linewidth=2.5, color=:teal,
-    #                     yscale=:log10, xscale=:log10, linestyle=:dash)
-    #     else
-    #         # Floor-order line offset below the data (anchored near x_min), ceil-order line
-    #         # offset above (anchored near x_max) — each spans exactly [ref_y_min, ref_y_max]
-    #         # for its own slope, so the x-range differs between the two lines
-    #         m_left, m_right = slopes[1], slopes[2]
-    #         C_left = (fit_at(x_min) / 1.5) / x_min^m_left
-    #         C_right = (fit_at(x_max) * 10) / x_max^m_right
-    #         x_ref_left = x_range_for(m_left, C_left)
-    #         x_ref_right = x_range_for(m_right, C_right)
-    #         Plots.plot!(plt, x_ref_left, ref_line(m_left, x_ref_left, C_left),
-    #                     label=label_for(m_left),
-    #                     line=2, linewidth=2.5, color=:teal,
-    #                     yscale=:log10, xscale=:log10, linestyle=:dash)
-    #         Plots.plot!(plt, x_ref_right, ref_line(m_right, x_ref_right, C_right),
-    #                     label=label_for(m_right),
-    #                     line=2, linewidth=2.5, color=:teal,
-    #                     yscale=:log10, xscale=:log10, linestyle=:dot)
-    #     end
-    # end
+    
     @info "Convergence rate: O(h^$(conv_rate_str))"
 
     # Save plot
@@ -256,7 +198,6 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
     obj_pose = [150, 0.0, height/2]
     camera_matrix = get_camera_matrix()
     nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements for each mesh size
-    # nz_list = Union{Int,Float64}[20, 14, 10, 9, 6, 3, 2] # number of elements for each mesh size
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
     
     h_ref = readdlm(joinpath(gt_path, "data", "h.csv"), ',', Float64, '\n', header=false)[end] # reference height from the finest mesh solution
@@ -264,10 +205,6 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
 
     for (iter_index,nz) in enumerate(nz_list)
         filepath = resolve_data_path(joinpath("ground_truth", "sim_data", "Stokes", control, viscosity_type, "$(element_shape_x)_$(basis_order_x)", "convergence_analysis", "mesh_convergence_analysis", "mesh_sz_$nz"))
-        # if nz == 4 || nz == 10 || nz == 12 
-        #     continue
-        # end
-        # set_file(filepath)  # create the directory if it doesn't exist
 
         # Extract element size from directory name
         println("Running for element size = $nz")
@@ -297,7 +234,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             )
         
         try
-            # write_gt_data(exp_params)
+            write_gt_data(exp_params)
         catch e
             @error "Simulation failed for element size $nz" exception=(e, catch_backtrace())
             continue
@@ -321,8 +258,8 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             δh = sqrt(mean(((h_mesh[end] - h_ref) / h_ref).^2))
             δr = sqrt(mean(((r_cmp - r_int) ./ r_int).^2))
 
-            path =resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/plots")
-            Plots.plot(z[end], r[end], label="Current mesh", xlabel=L"z", ylabel=L"r", title=latexstring("Radius vs Height for element size ", nz))
+            path =conv_path("mesh_convergence_analysis/plots")
+            Plots.plot(z[end], r[end], label="Current mesh", xlabel="z", ylabel="r", title="Radius vs Height for element size $nz")
             Plots.plot!(z_cmp, r_int, label="Reference mesh", linestyle=:dash)
             Plots.savefig(joinpath(path, "radius_vs_height_mesh_sz_$nz.pdf"))
 
@@ -340,12 +277,12 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             continue
         end
     end
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/effective_element_size"), effective_element_size_list)
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_list"), height_list)
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/height_error_list"), height_error_list)
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/rad_error_list"), rad_error_list)
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/elem_sizes"), elem_sizes)
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis/time_list"), time_list)
+    write_csv(conv_path("mesh_convergence_analysis/effective_element_size"), effective_element_size_list)
+    write_csv(conv_path("mesh_convergence_analysis/height_list"), height_list)
+    write_csv(conv_path("mesh_convergence_analysis/height_error_list"), height_error_list)
+    write_csv(conv_path("mesh_convergence_analysis/rad_error_list"), rad_error_list)
+    write_csv(conv_path("mesh_convergence_analysis/elem_sizes"), elem_sizes)
+    write_csv(conv_path("mesh_convergence_analysis/time_list"), time_list)
 end
 
 function time_intergration_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, dt_list::Vector=[2, 1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001], 
@@ -354,34 +291,42 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
     final_height_list = Float64[]
     height_error_list = Float64[]
     effective_element_size_list = Float64[]
+    border_r_list = AbstractArray[]
     _dt_list = []
 
     β::Float64 = 100.0 # penalty parameter for the ground truth
     η::Float64 = 100.0
 
     viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
-    FunctionClass_x::String = "Q2" # Function space for the ground truth
-    FunctionClass_p::String = "Q1"
-    FunctionClass_u::String = "Q2"
+    element_shape_x::Symbol = :Hex
+    basis_order_x::Int = 2
+    element_shape_u::Symbol = :Hex
+    basis_order_u::Int = 2
+    element_shape_p::Symbol = :Hex
+    basis_order_p::Int = 1
     control::String = "force" # "force" or "velocity"
+
+    geometry::Symbol = :cylinder # geometry type for the mesh generation
+
+    nz::Int = 4 # mesh held fixed across the time-step sweep
 
     F_ext::Float64 = 9518.61 # force applied to the cylinder in N
     sim_time::Float64 = 5.0 # simulation time in seconds
 
-    obj_pose = get_object_pose(height)
+    obj_pose = [150, 0.0, height/2]
     camera_matrix = get_camera_matrix()
-    filepath = resolve_data_path("ground_truth/sim_data/Stokes/$control/$viscosity_type/$FunctionClass_x/convergence_analysis")
-    gt_path = resolve_data_path("ground_truth","sim_data","Stokes","force","constant","Hex_2","convergence_analysis","mesh_convergence_analysis","mesh_convergence_tfem_data")
-    
+    filepath = resolve_data_path(joinpath("ground_truth", "sim_data", "Stokes", control, viscosity_type, "$(element_shape_x)_$(basis_order_x)", "convergence_analysis"))
+    gt_path = resolve_data_path(joinpath("ground_truth", "sim_data", "Stokes", "force", "constant", "Hex_2", "convergence_analysis", "mesh_convergence_analysis", "mesh_convergence_tfem_data"))
+
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
-    
+
     mesh_dir = dirname(filepath)
     set_file(mesh_dir)  # create the directory if it doesn't exist
-    
+
     iter_index = 1
-    
-    mesh_filepath = joinpath(mesh_dir, "convergence_analysis", "mesh_convergence_analysis", "mesh_4.0")
-    
+
+    h_ref = readdlm(joinpath(gt_path, "data", "h.csv"), ',', Float64, '\n', header=false)[end] # reference height from the finest solution
+
     for (idx,step_size) in enumerate(Float64.(reverse(dt_list)))
 
         filepath = joinpath(mesh_dir, "convergence_analysis", "time_integration_convergence_analysis","step_$step_size", "simulation")
@@ -389,11 +334,29 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
         steps = round(Int, sim_time/step_size)
         
         # Run simulation with the generated mesh
-        exp_params = Dict("FunctionClass_x" => FunctionClass_x, "FunctionClass_u" => FunctionClass_u, "FunctionClass_p" => FunctionClass_p, 
-                         "ne_gt" => 4, "β_gt" => β, "η_gt" => η, "filepath_gt" => filepath, 
-                         "control" => control, "viscosity_type" => viscosity_type, "obj_pose_gt" => obj_pose, 
-                         "F_ext" => F_ext, "sim_time_gt" => sim_time, "steps_gt" => steps, 
-                         "r" => radius, "h" => height, "camera_matrix" => camera_matrix, "animate" => true, "mesh_path" => mesh_filepath)
+        exp_params = Dict(
+                "element_shape_u" => element_shape_u,
+                "basis_order_u"   => basis_order_u,
+                "element_shape_p" => element_shape_p,
+                "basis_order_p"   => basis_order_p,
+                "element_shape_x" => element_shape_x,
+                "basis_order_x"   => basis_order_x,
+                "ne_gt" => nz,
+                "β_gt" => β,
+                "η_gt" => η,
+                "filepath_gt" => filepath,
+                "control" => control,
+                "viscosity_type" => viscosity_type,
+                "obj_pose_gt" => obj_pose,
+                "F_ext" => F_ext,
+                "sim_time_gt" => sim_time,
+                "steps_gt" => steps,
+                "r" => radius,
+                "h" => height,
+                "camera_matrix" => camera_matrix,
+                "animate" => true,
+                "geometry" => geometry
+            )
 
         try
             write_gt_data(exp_params)
@@ -409,13 +372,8 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
             dt = exp_params["time_steps"]
             ne = exp_params["ne"]
             effective_element_size = (volume / ne)^(1/3)
-            border_r = get_r(joinpath(filepath, "data", "sim_data", "surface_nodes"))
+            border_r, _ = get_r(joinpath(filepath, "data", "sim_data", "surface_nodes"))
 
-            # if idx == 1
-            #     h_ref = h_mesh[end] # use the finest time step solution as reference for error calculation
-            #     continue
-            # end
-            
             δh = abs(h_mesh[end] - h_ref) / h_ref
             _δh = (h_mesh[end] - h_ref) / h_ref
             
@@ -425,22 +383,22 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
             push!(height_error_list, δh)
             push!(_dt_list, dt)
             push!(final_height_list, h_mesh[end])
-            push!(border_r_list, border_r)
+            push!(border_r_list, border_r[end]) # final-timestep radius profile
             iter_index += 1
         catch e
             @warn "Failed to read results for time step size $step_size: $e"
         end
     end
     println("Final height list: ", final_height_list)
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/effective_element_size"), effective_element_size_list)
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/height_list"), height_list)
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/height_error_list"), height_error_list)
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/t_steps"), _dt_list)
-    write_csv(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis/final_height_list"), final_height_list)
+    write_csv(conv_path("time_convergence_analysis/effective_element_size"), effective_element_size_list)
+    write_csv(conv_path("time_convergence_analysis/height_list"), height_list)
+    write_csv(conv_path("time_convergence_analysis/height_error_list"), height_error_list)
+    write_csv(conv_path("time_convergence_analysis/t_steps"), _dt_list)
+    write_csv(conv_path("time_convergence_analysis/final_height_list"), final_height_list)
+    write_csv(conv_path("time_convergence_analysis/border_r_list"), border_r_list)
 end
 
 function plot_convergence_mesh(file_path::String)
-    """Plot mesh convergence analysis results."""
     try
         radius = 25.0
         height = 40.0
@@ -455,59 +413,36 @@ function plot_convergence_mesh(file_path::String)
         rad_error_list = vec(rad_error_list_[1:(list_end), end])
         height_list = vec(height_list_[1:(list_end), end])
         time_list = vec(time_list_[1:(list_end), end])
-        # println(time_list)
         elem_sizes_flat = vec(elem_sizes[1:(list_end), 1])
         
         selected_mesh_size =  (π*radius^2*height / 192)^(1/3) # effective element size for the experiment mesh.
         @info "Selected mesh size for experiment: $selected_mesh_size"
         plot_path = joinpath(file_path, "plots")
 
-        plt1 = plot_convergence_generic(elem_sizes_flat, abs.(relative_error), L"Effective element size (h)", "h")
+        plt1 = plot_convergence_generic(elem_sizes_flat, abs.(relative_error), "Effective element size (h)", "h")
         Plots.ylims!(plt1, 10^(-4.5), 10^(-2.8))
         Plots.xlims!(plt1, 1,100)
         Plots.vline!(plt1, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=4)
-
-        # plt2 = plot_convergence_generic(elem_sizes_flat, time_list, "Effective element size (h)")
-        plt2 = set_plot(PLOT_CONFIG[:font_size], 
-                          sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
-                          left_margin=PLOT_CONFIG[:left_margin],
-                          right_margin=PLOT_CONFIG[:right_margin],
-                          top_margin=PLOT_CONFIG[:top_margin],
-                          legend_column=2)
-        Plots.plot!(plt2, elem_sizes_flat, time_list, label=L"t_{\mathrm{step}}", xlabel=L"Effective element size (h)", ylabel="Time per step (ms)", marker=:circle, yscale=:log10, xscale=:log10)
+        plt2 = set_plot_from_config(PLOT_CONFIG)
+        Plots.plot!(plt2, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (ms)", marker=:circle, yscale=:log10, xscale=:log10)
         Plots.vline!(plt2, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
         Plots.ylabel!(plt2, "Time per step (ms)")
         Plots.xlims!(plt2, 1,100)
         Plots.ylims!(plt2, 1e1, 10^5.05)
 
-        plt3 = set_plot(PLOT_CONFIG[:font_size], 
-                          sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
-                          left_margin=PLOT_CONFIG[:left_margin],
-                          right_margin=PLOT_CONFIG[:right_margin],
-                          top_margin=PLOT_CONFIG[:top_margin],
-                          legend_column=2)
-        Plots.plot!(plt3, elem_sizes_flat, relative_error, label="RMSE", xlabel=L"Effective element size (h)", ylabel="RMSE", marker=:circle)
+        plt3 = set_plot_from_config(PLOT_CONFIG)
+        Plots.plot!(plt3, elem_sizes_flat, relative_error, label="RMSE", xlabel="Effective element size (h)", ylabel="RMSE", marker=:circle)
             
-        plt4 = set_plot(PLOT_CONFIG[:font_size], 
-                          sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
-                          left_margin=PLOT_CONFIG[:left_margin],
-                          right_margin=PLOT_CONFIG[:right_margin],
-                          top_margin=PLOT_CONFIG[:top_margin],
-                          legend_column=2)
-        Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel=L"Effective element size (h)", ylabel="Time per step (s)", marker=:circle, yscale=:log10, xscale=:log10)
+        plt4 = set_plot_from_config(PLOT_CONFIG)
+        Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (s)", marker=:circle, yscale=:log10, xscale=:log10)
 
-        plt5 = plot_convergence_generic(elem_sizes_flat, abs.(rad_error_list), L"Effective element size (h)", "h")
+        plt5 = plot_convergence_generic(elem_sizes_flat, abs.(rad_error_list), "Effective element size (h)", "h")
         Plots.vline!(plt5, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
         Plots.ylims!(plt5, 10^(-5), 10^(-2.05))
         Plots.xlims!(plt5, 1,100)
 
-        plt6 = set_plot(PLOT_CONFIG[:font_size], 
-                          sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
-                          left_margin=PLOT_CONFIG[:left_margin],
-                          right_margin=PLOT_CONFIG[:right_margin],
-                          top_margin=PLOT_CONFIG[:top_margin],
-                          legend_column=2)
-        Plots.plot!(plt6, elem_sizes_flat, abs.(rad_error_list), label="RMSE", xlabel=L"Effective element size (h)", ylabel="RMSE", marker=:circle)
+        plt6 = set_plot_from_config(PLOT_CONFIG)
+        Plots.plot!(plt6, elem_sizes_flat, abs.(rad_error_list), label="RMSE", xlabel="Effective element size (h)", ylabel="RMSE", marker=:circle)
 
 
         Plots.savefig(plt1, joinpath(plot_path, "height_convergence.pdf"))
@@ -523,8 +458,6 @@ function plot_convergence_mesh(file_path::String)
 end
 
 function plot_convergence_time(file_path::String)
-    """Plot convergence results for time integration analysis."""
-    # try
         height_error_list = readdlm(joinpath(file_path, "height_error_list.csv"), ',', Float64)
         dt_list = readdlm(joinpath(file_path, "t_steps.csv"), ',', Float64)
         h_end_list = readdlm(joinpath(file_path, "final_height_list.csv"), ',', Float64)
@@ -535,27 +468,32 @@ function plot_convergence_time(file_path::String)
         selected_dt = 0.1 # time step size used in the experiment
 
         plot_path = joinpath(file_path, "plots")
-        plt1 = plot_convergence_generic(dt_sizes, relative_error, L"Time step size (\Delta t)", "\\Delta t")
+        plt1 = plot_convergence_generic(dt_sizes, relative_error, "Time step size (dt)", "\\Delta t")
         Plots.vline!(plt1, [selected_dt], label=L"\Delta t_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
         Plots.xlims!(plt1, 10^(-3), 5)
         Plots.ylims!(plt1, 1e-6, 10^(-2.2))
 
-        plt2 = set_plot(PLOT_CONFIG[:font_size], 
-                          sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]), 
-                          left_margin=PLOT_CONFIG[:left_margin],
-                          right_margin=PLOT_CONFIG[:right_margin],
-                          top_margin=PLOT_CONFIG[:top_margin],
-                          legend_column=2)
-        Plots.plot(plt2, dt_list, h_end_list, label="Final height", xlabel=L"Time step size (\Delta t)", ylabel="Final height", yscale=:log10, xscale=:log10, marker=:circle)
+        plt2 = set_plot_from_config(PLOT_CONFIG)
+        Plots.plot(plt2, dt_list, h_end_list, label="Final height", xlabel="Time step size (dt)", ylabel="Final height", yscale=:log10, xscale=:log10, marker=:circle)
 
         Plots.savefig(plt1, joinpath(plot_path, "time_convergence.pdf"))
         Plots.savefig(plt2, joinpath(plot_path, "final_height_vs_dt.pdf"))
-        # catch e
-    #     @warn "Failed to plot time integration convergence: $e"
-    # end
 end
 
-# time_intergration_convergence_analysis()
-plot_convergence_time(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/time_convergence_analysis"))
-# mesh_convergence_analysis()
-plot_convergence_mesh(resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/mesh_convergence_analysis")) 
+"""
+    main()
+
+Run both convergence studies (time-integration and mesh) and plot their
+results. Invoked automatically when this file is run as a script
+(`julia forward_convergence.jl`), but not when it is `include`d.
+"""
+function main()
+    time_intergration_convergence_analysis()
+    plot_convergence_time(conv_path("time_convergence_analysis"))
+    mesh_convergence_analysis()
+    plot_convergence_mesh(conv_path("mesh_convergence_analysis"))
+end
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end
