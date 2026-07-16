@@ -1023,7 +1023,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     @unpack camera_matrix, obj_pose, viewing_angles = conditions    
     rot_angle_cached::Vector{Float64} = viewing_angles
     camera_matrix_cached::Matrix{Float64} = camera_matrix
-    obj_pose_cached::Vector{Float64} = obj_pose
+    obj_pose_cached::AbstractArray{Float64} = obj_pose
     
     nodeList_cached::Matrix{Float64} = NodeList_u_cached
     ID_cached::Matrix{Int} = ID_u_cached
@@ -1049,7 +1049,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
     displacement = AbstractArray[zeros(Float64,size(nodeList_cached,1),size(nodeList_cached,2))] # store the displacement of the mesh in 3D
     surface_fields = AbstractArray[]
     surface_pts_3D = AbstractArray[nodeList_cached[:,side_node_list_cached]'] # store the solution fields of the mesh in 3D
-    gradList = AbstractArray[zeros(Float64, size(BorderPts2D,1),size(BorderPts2D,2),2)] # store the solution fields of the border nodes in 2D
+    gradList = AbstractArray[[zeros(Float64, 3, size(b,2), 2) for b in BorderPts2D]] # store the solution fields of the border nodes in 2D, one entry per view; the initial contour is θ-independent
     gradList_3d = AbstractArray[zeros(Float64, size(nodeList_cached,1),size(nodeList_cached,2),2)] # store the solution fields of the border nodes in 3D
     pos3D = AbstractArray[nodeList_cached]       # store the solution fields of the mesh in 3D
     pos3D_cp = AbstractArray[nodeList_cached]
@@ -1151,16 +1151,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             drdβ .= -[C_Tu*dAdβ*q_d; zero_matrix_p_q; q_d_cached_top'*dAdβ*q_d] # solve the system of equations           
             
             @debug begin
-                println("Time: ", t)
-                println("Iteration: ", iter)
-                println("η: ", η_cached[1])
-                println("β: ", β_cached[1])
-                println("Norm of _A_bar: ", maximum(_A_bar))
-                println("Norm of A: ", maximum(A))
-                println("Norm of b: ", maximum(b))
-                println("Norm of A: ", maximum(A))
-                println("Norm of B: ", maximum(B))
-                println("Norm of M: ", maximum(M))
+                "Time: $t, Iteration: $iter, η: $(η_cached[1]), β: $(β_cached[1])"
+                "Norm of _A_bar: $(maximum(_A_bar)), A: $(maximum(A)), b: $(maximum(b))"
+                "Norm of B: $(maximum(B)), M: $(maximum(M))"
                 push!(dac_list, norm(q_d_cached_top'*A*C_uc_cached))
                 push!(bd_list, norm(q_d_cached_top'*B))
                 push!(dad_list, norm((q_d_cached_top'*A*q_d_cached_top)[end]))

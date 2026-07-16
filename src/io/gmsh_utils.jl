@@ -183,7 +183,7 @@ function _get_mesh_data(filePath::String;
                     error("Mesh '$filePath' not found. Provide `params` and `template_path` for auto-generation.")
                 end
                 geo_path = splitext(filePath)[1] * ".geo"
-                println(geo_path)
+                @debug "Generated mesh file path: $geo_path"
                 mkpath(dirname(filePath))
                 _generate_mesh_geo(geo_path, template_path, params)
                 _run_gmsh(geo_path, filePath, mesh_order; dim=mesh_dim) ||
