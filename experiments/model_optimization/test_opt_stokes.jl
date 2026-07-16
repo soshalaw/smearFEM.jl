@@ -4194,10 +4194,9 @@ function optimize_real(use_parallel::Bool=true)
         h = 38.5  # height of the cylinder in mm
     end
 
-    # Extract base paths to variables using joinpath for cross-platform compatibility
-    data_root = joinpath(homedir(), "SMEAR-PhD", "SMEAR-DataFiles", "Data")
-    base_experiments_path = joinpath(data_root, "experiments")
-    base_gt_path = joinpath(data_root, "ground_truth")
+    # Extract base paths to variables using resolve_data_path for configuration-aware resolution
+    base_experiments_path = resolve_data_path("experiments")
+    base_gt_path = resolve_data_path("ground_truth")
 
     if !isdir(_filepath_gt)
         @warn "Ground truth directory not found, skipping optimize_real: $_filepath_gt"
@@ -4302,9 +4301,8 @@ function plot_results()
             model_type = ["Stokes"]
         end
 
-        data_root = joinpath(homedir(), "SMEAR-PhD", "SMEAR-DataFiles", "Data")
-        base_experiments_path = joinpath(data_root, "experiments")
-        base_gt_path = joinpath(data_root, "ground_truth")
+        base_experiments_path = resolve_data_path("experiments")
+        base_gt_path = resolve_data_path("ground_truth")
         for model_type::String in model_type
             if data_type == "synthetic" 
                 if model_type == "carreau"
