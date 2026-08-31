@@ -133,12 +133,15 @@ and β to `[1e-3, 1e8]` L/mm. Pass `outliers` to skip frame indices.
 smearFEM resolves data paths via a three-tier system (highest priority first):
 
 1. **Environment variables**: `SMEAR_DATA_DIR`, `SMEAR_MESH_DIR`, `SMEAR_SCRATCH_DIR`
-2. **Config file**: create `config.toml` in the package root (gitignored):
+2. **Config file**: `config.toml`, searched for from the package root upwards. It lives in the
+   `smear-modules` directory alongside this repo, so smearFEM.jl and smearPerception share one
+   copy — start from `smear-modules/config.toml.example`:
    ```toml
-   data_dir    = "${HOME}/SMEAR-DataFiles/Data"
+   data_dir    = "../SMEAR-DataFiles/Data"
    scratch_dir = "/tmp/smear"
    ```
-   `${VAR}` references are expanded from the environment.
+   Relative paths are resolved against the directory holding `config.toml`, and `${VAR}`
+   references are expanded from the environment. Set `SMEAR_CONFIG_FILE` to point elsewhere.
 3. **Defaults**: `~/SMEAR-Data` for data, `<data_dir>/meshes` for meshes, `/tmp/smear` for scratch
    (`~/SMEAR-Scratch` on Windows).
 
@@ -238,5 +241,3 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 - **GitHub Issues**: [Report a bug or request a feature](https://github.com/soshalaw/smearFEM.jl/issues)
 - **Documentation**: [API Reference](https://soshalaw.github.io/smearFEM.jl/dev/)
-</content>
-</invoke>

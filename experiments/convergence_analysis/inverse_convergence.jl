@@ -17,7 +17,15 @@ const PLOT_CONFIG = Dict(
     :top_margin => -3pt
 )
 
-function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String)
+# Result directories gained an `<opt_method>` level between `dt_*` and `view_*` on
+# 2026-08-26. Resolve either layout so this script reads pre- and post-migration trees.
+function _view_path(dt_path::String, opt_method::String, view::String="view_1")
+    with_method = joinpath(dt_path, opt_method, view)
+    isdir(with_method) && return with_method
+    return joinpath(dt_path, view)   # pre-2026-08-26 layout
+end
+
+function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String; opt_method::String="gn")
     # Load the data from the CSV file
     _mesh_dir = readdir(filepath_res)
     mesh_dir = filter(x -> startswith(x, "Hex2_"), _mesh_dir)
@@ -39,7 +47,7 @@ function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String)
             continue
         end
 
-        path = joinpath(filepath_res, mesh_folder, "dt_0.1", "view_1", "data")
+        path = joinpath(_view_path(joinpath(filepath_res, mesh_folder, "dt_0.1"), opt_method), "data")
         exp_data = read_json(joinpath(path, "experiment_parameters.jld2"))
         cost_iter = readdlm(joinpath(path, "cost_iter.csv"), ',', Float64)
         β_iter = readdlm(joinpath(path, "β.csv"), ',', Float64)
@@ -91,7 +99,7 @@ function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String)
 
 end
 
-function plot_inv_time_convergence(filepath_res::String, filepath_gt::String)
+function plot_inv_time_convergence(filepath_res::String, filepath_gt::String; opt_method::String="gn")
      # Load the data from the CSV file
     _dt_dir = readdir(joinpath(filepath_res, "Hex2_6"))
     dt_dir = filter(x -> startswith(x, "dt_"), _dt_dir)
@@ -112,7 +120,7 @@ function plot_inv_time_convergence(filepath_res::String, filepath_gt::String)
             continue
         end
 
-        path = joinpath(filepath_res, "Hex2_6", dt_folder, "view_1", "data")
+        path = joinpath(_view_path(joinpath(filepath_res, "Hex2_6", dt_folder), opt_method), "data")
         exp_data = read_json(joinpath(path, "experiment_parameters.jld2"))
         cost_iter = readdlm(joinpath(path, "cost_iter.csv"), ',', Float64)
         β_iter = readdlm(joinpath(path, "β.csv"), ',', Float64)
@@ -171,8 +179,9 @@ when this file is run as a script (`julia inverse_convergence.jl`), but not
 when it is `include`d.
 """
 function main()
-    filepath_res = resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/experiment_mesh_conv/cylinder/3")
-    filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/")
+    filepath_res = resolve_data_path("experiments/sim_data/convergence_analysis/stokes_convergence/experiment_mesh_conv/cylinder/4")
+    # Scenario A.IV (η = 100 kPa s, β = 100 MPa s m⁻¹); only sim_params (η, β, r, h) is read from here.
+    filepath_gt = resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex2_16/cylinder/4/")
 
     plot_inv_mesh_convergence(filepath_res, filepath_gt)
     plot_inv_time_convergence(filepath_res, filepath_gt)

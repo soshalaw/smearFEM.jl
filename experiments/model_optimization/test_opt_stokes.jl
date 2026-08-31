@@ -10,6 +10,8 @@ using Dates
 using Plots
 using LaTeXStrings
 using DelimitedFiles
+using Printf
+using Statistics
 
 using ArgCheck
 using Base.Threads
@@ -66,19 +68,19 @@ global eta_beta_plt_height::Int = 360
 # is further split by viscosity_type since its geometry differs.
 const PLOT_PRESETS = Dict(
     "physical" => Dict(
-        :font_size => 12, :plot_height => 350, :plot_width => 477,
+        :font_size => 12, :plot_height => 360, :plot_width => 330,
         :left_margin => 1pt, :right_margin => 5pt, :top_margin => 1pt,
         :y_lims_h_norm => (0.8, 1.05), :y_lims_rel_error => (-0.05, 20),
     ),
     ("synthetic", "constant") => Dict(
         :font_size => 12, :plot_height => 350, :plot_width => 477,
         :left_margin => 1pt, :right_margin => 5pt, :top_margin => 1pt,
-        :y_lims_h_norm => (0.97, 1.02), :y_lims_rel_error => (-0.1, 3.0),
+        :y_lims_h_norm => (0.97, 1.03), :y_lims_rel_error => (-0.1, 3.0),
     ),
     ("synthetic", "bulk_viscosity") => Dict(
         :font_size => 12, :plot_height => 360, :plot_width => 330,
         :left_margin => -2pt, :right_margin => 1pt, :top_margin => 0pt,
-        :y_lims_h_norm => (0.97, 1.02), :y_lims_rel_error => (-0.1, 3.0),
+        :y_lims_h_norm => (0.97, 1.031), :y_lims_rel_error => (-0.1, 3.0),
     ),
     "simulated" => Dict(
         :font_size => 12, :plot_height => 350, :plot_width => 477,
@@ -115,8 +117,6 @@ global color_palette = [
     RGB(89/255, 89/255, 89/255)         # 20. dark gray (neutral)
 ]
 
-# ===== Low-level I/O, pose & interpolation helpers =====
-
 # JSON stores matrices column-major flattened; reshape back to 3x3.
 _read_camera_matrix(sim_params) = reshape(Array(float.(sim_params["camera_matrix"])), 3, 3)
 
@@ -138,11 +138,8 @@ _obj_pose_for(sim_params) = get(sim_params, "data_type", "") == "physical" ?
 datapath(p, parts...) = joinpath(p, "data", parts...)
 plotpath(p, parts...) = joinpath(p, "plots", parts...)
 
-# Post-analysis tree helpers. The result tree is walked by
-# `collect_experiment_groups`; these pick out the levels the cross-experiment
-# `post_analysis_*` functions aggregate over. Each group is expected to hold a
-# single `dt_*/view_*` leaf — more than one means the tree has grown a
-# dimension these functions do not plot, so fail loudly rather than pick one.
+# Levels of the `collect_experiment_groups` tree that post_analysis_* aggregates over.
+# A group must hold exactly one dt_*/view_* leaf; more is a dimension these do not plot.
 _elem_size_folders(groups) = unique(g.elem_size_folder for g in groups)
 _sim_time_folders(groups, elem_size_folder) =
     unique(g.sim_time_folder for g in groups if g.elem_size_folder == elem_size_folder)
@@ -170,7 +167,7 @@ function _single_leaf(group)
 end
 
 # Default figure geometry (the globals seeded from PLOT_CONFIG at load time).
-default_plot() = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin)
+default_plot() = _fig(margins=:all)
 
 """
     _ensure_scalar_float(x) -> Float64
@@ -315,8 +312,6 @@ function interp_z_at(xs::AbstractVector{<:Real}, ys::AbstractVector{<:Real}, xg:
     error("interp_z_at: expecting scalar x,y or vectors of equal length")
 end
 
-# ===== Time-windowing & experiment-tree utilities =====
-
 """
     set_time_window(time_step_len, data; method="linear", window_size=10.0, global_window_sz=30.0) -> (time_windows, windows, data_ranges, t_windows)
 
@@ -344,7 +339,7 @@ reaches the end of `data` or `global_window_sz`.
   of each window.
 - `t_windows::Vector{Float64}`: cumulative end time of each window.
 """
-function set_time_window(time_step_len::Float64, data::AbstractArray; method::String="linear", window_size::Float64=10.0, global_window_sz::Float64=30.0)
+function set_time_window(time_step_len::Float64, data::AbstractArray; method::String="linear", window_size::Float64=10.0, global_window_sz::Float64=50.0)
     windows::Vector{AbstractArray} = Vector{AbstractArray}()
     time_windows::Vector{Float64} = Vector{Float64}()
     data_ranges::Vector{AbstractArray} = Vector{AbstractArray}()
@@ -427,7 +422,6 @@ function set_time_window(time_step_len::Float64, data::AbstractArray; method::St
     return time_windows, windows, data_ranges, t_windows
 end
 
-
 """
     _get_borders(data_type, filepath_gt, exp_path, num_exp_points; view_folder="view_1") -> (obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney)
 
@@ -461,6 +455,14 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
         # Physical ground truth is single-camera and stores contours flat (no view_* level),
         # matching what `optimize` reads for data_type == "physical".
         ObsDataList, splinexObs, splineyObs = read_csv(datapath(filepath_gt,"img_data","contour_data"))
+        # The video starts before the press engages, so index by `compressed_frames` exactly
+        # as `optimize` does. Without this, frame k is scored against simulation step k and
+        # lands ~100 frames early — every contour metric downstream is measured against
+        # footage of an unloaded specimen.
+        meta = read_json(datapath(filepath_gt,"video_metadata"))
+        ObsDataList = ObsDataList[meta["compressed_frames"]]
+        splinexObs = splinexObs[meta["compressed_frames"]]
+        splineyObs = splineyObs[meta["compressed_frames"]]
         @info "Data type $data_type Reading physical contour data of $(length(ObsDataList)) time steps"
     elseif data_type == "simulated"
         ObsDataList, splinexObs, splineyObs = read_csv(datapath(filepath_gt,"sim_data",view_folder,"contour_data"))
@@ -470,8 +472,9 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
     end
 
     obs_border_pt_lst, gt_Splinex, gt_Spliney, pd = add_noise(ObsDataList, nFactor=0.0)
-    sim_border_pt_lst, splinex, spliney = read_csv(datapath(exp_path,"sim_data",view_folder,"2D_border_points_est"))
-    @info "Reading simulated contour data from $(datapath(exp_path,"sim_data",view_folder,"2D_border_points_est")) of $(length(sim_border_pt_lst)) time steps"
+    # write_2d_data numbers angles within one simulation; experiments sim a single angle.
+    sim_border_pt_lst, splinex, spliney = read_csv(datapath(exp_path,"sim_data","view_1","2D_border_points_est"))
+    @info "Reading simulated contour data from $(datapath(exp_path,"sim_data","view_1","2D_border_points_est")) of $(length(sim_border_pt_lst)) time steps"
 
     @assert length(ObsDataList) >= num_exp_points "Not enough observation border points: have $(length(ObsDataList)), need at least $num_exp_points"
     @assert length(sim_border_pt_lst) >= num_exp_points "Not enough simulation border points: have $(length(sim_border_pt_lst)), need at least $num_exp_points"
@@ -486,6 +489,165 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
     spliney = spliney[1:num_exp_points, :]
 
     return obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney
+end
+
+"""
+    iteration_contour_metrics(data_type, filepath_gt, exp_path; view_folder, sim_view, write_results)
+        -> Dict
+
+Score every optimizer iterate against the observed contours.
+
+Reads the per-iteration simulated contours written by `optimize` under
+`<exp_path>/data/opt_data/iter_<n>/<sim_view>/2D_border_points` (produced when
+`fit_model` is called with `store_border_pts=true`) and compares each against the
+ground-truth contours with `compare_pt_clouds`, giving Hausdorff and squared-Chamfer
+distances per frame, per iteration. The Chamfer figure is squared so it is directly
+comparable to the optimizer's `ChamferCost`; Hausdorff and closest-point stay in pixel
+units, so the three series only share an axis because each is normalized by its own first
+iterate before plotting.
+
+Iterate `n` is index-aligned with `stats["iterList"]`/`ηList`/`βList`, so `iter_1`
+is the initial guess and `iter_2` the first accepted step. Frames are truncated to
+the shorter of the observed and simulated sequences.
+
+# Arguments
+- `data_type::String`: `"synthetic"`, `"physical"` or `"simulated"` — selects where
+  the ground-truth contours are read from under `filepath_gt` (same sources as
+  [`_get_borders`](@ref)).
+- `filepath_gt::String`: ground-truth data root.
+- `exp_path::String`: experiment result directory containing `data/opt_data`.
+
+# Keyword Arguments
+- `view_folder::String`: camera-view subdirectory for the ground-truth contours
+  (default: `"view_1"`).
+- `sim_view::String`: camera-view subdirectory for the simulated contours
+  (default: `"view_1"`).
+- `write_results::Bool`: also write the per-iteration series to
+  `<exp_path>/data/opt_data/metrics/` (default: `true`).
+- `plot_results::Bool`: also plot the time-averaged (frame-averaged) Chamfer,
+  Hausdorff and closest-point distances against iteration, together on
+  `<exp_path>/plots/contour_metrics_iter.pdf` (default: `true`). Each curve is
+  normalized by its own value at the first iterate, so all three start at 1 and the
+  axis reads as the fraction of the initial cost remaining; this affects the plot
+  only, and the returned `Dict` and the written CSVs keep the raw px distances.
+  Uses a log y-axis when every value is positive, falling back to linear otherwise.
+
+# Returns
+- `Dict` with `"iters"` (iteration indices) and, per iteration,
+  `"hausdorff_mean"`, `"hausdorff_max"`, `"chamfer_mean"`, `"chamfer_max"` (squared),
+  `"closest_pt_mean"`, plus the per-frame series `"hausdorff_frames"` and
+  `"chamfer_frames"` (one vector per iteration).
+"""
+function iteration_contour_metrics(data_type::String, filepath_gt::String, exp_path::String;
+                                   view_folder::String="view_1", sim_view::String="view_1",
+                                   write_results::Bool=true, plot_results::Bool=true)
+
+    if data_type == "synthetic"
+        ObsDataList, _, _ = read_csv(datapath(filepath_gt,"img_data",view_folder,"contour_data"))
+    elseif data_type == "physical"
+        # Physical ground truth is single-camera and stores contours flat (no view_* level).
+        ObsDataList, _, _ = read_csv(datapath(filepath_gt,"img_data","contour_data"))
+    elseif data_type == "simulated"
+        ObsDataList, _, _ = read_csv(datapath(filepath_gt,"sim_data",view_folder,"contour_data"))
+    else
+        error("Unknown data type: $data_type")
+    end
+    @info "Read $(length(ObsDataList)) ground-truth contour frames for data type $data_type"
+
+    opt_root = datapath(exp_path, "opt_data")
+    isdir(opt_root) || throw(SystemError("No opt_data directory at $opt_root"))
+
+    # "iter_10" sorts before "iter_2" lexicographically, so order by the parsed index.
+    iter_dirs = filter(d -> occursin(r"^iter_[0-9]+$", d), readdir(opt_root))
+    isempty(iter_dirs) && throw(ArgumentError(
+        "No iter_* directories under $opt_root — was the fit run with store_border_pts=true?"))
+    iters = sort(parse.(Int, replace.(iter_dirs, "iter_" => "")))
+
+    hausdorff_mean = Float64[]; hausdorff_max = Float64[]
+    chamfer_mean   = Float64[]; chamfer_max   = Float64[]
+    closest_pt_mean = Float64[]
+    hausdorff_frames = Vector{Vector{Float64}}()
+    chamfer_frames   = Vector{Vector{Float64}}()
+
+    for n in iters
+        sim_pts, _, _ = read_csv(datapath(exp_path,"opt_data","iter_$n",sim_view,"2D_border_points"))
+        nf = min(length(sim_pts), length(ObsDataList))
+        nf > 0 || throw(ArgumentError("No overlapping frames for iteration $n"))
+        h, c, cp = compare_pt_clouds(sim_pts[1:nf], ObsDataList[1:nf])
+
+        push!(hausdorff_frames, h);      push!(chamfer_frames, c)
+        push!(hausdorff_mean, mean(h));  push!(hausdorff_max, maximum(h))
+        push!(chamfer_mean, mean(c));    push!(chamfer_max, maximum(c))
+        push!(closest_pt_mean, mean(cp))
+        @info "iter $n ($nf frames): chamfer(mean)=$(round(mean(c), sigdigits=4)), " *
+              "hausdorff(mean)=$(round(mean(h), sigdigits=4)), hausdorff(max)=$(round(maximum(h), sigdigits=4))"
+    end
+
+    metrics = Dict{String,Any}(
+        "iters"            => iters,
+        "hausdorff_mean"   => hausdorff_mean,
+        "hausdorff_max"    => hausdorff_max,
+        "chamfer_mean"     => chamfer_mean,
+        "chamfer_max"      => chamfer_max,
+        "closest_pt_mean"  => closest_pt_mean,
+        "hausdorff_frames" => hausdorff_frames,
+        "chamfer_frames"   => chamfer_frames,
+    )
+
+    if write_results
+        for k in ("iters","hausdorff_mean","hausdorff_max","chamfer_mean","chamfer_max","closest_pt_mean")
+            write_csv(datapath(exp_path,"opt_data","metrics",k), metrics[k])
+        end
+        # per-frame series: one file per iteration
+        for (i, n) in enumerate(iters)
+            write_csv(datapath(exp_path,"opt_data","metrics","hausdorff_frames","iter_$n"), hausdorff_frames[i])
+            write_csv(datapath(exp_path,"opt_data","metrics","chamfer_frames","iter_$n"), chamfer_frames[i])
+        end
+        @info "Wrote iteration contour metrics to $(datapath(exp_path,"opt_data","metrics"))"
+    end
+
+    if plot_results
+        set_file(plotpath(exp_path))
+
+        # Normalize each metric by its own value at the first iterate (the initial guess),
+        # so every curve starts at 1 and the plot reads as "fraction of the initial cost
+        # remaining". This is presentation-only: `metrics` and the written CSVs keep the
+        # raw distances in px. A non-positive or non-finite reference cannot be divided
+        # out meaningfully, so that series is left in raw units instead.
+        function normalize_to_initial(v::Vector{Float64}, name::String)
+            ref = isempty(v) ? 0.0 : v[1]
+            if !(isfinite(ref) && ref > 0)
+                @warn "Initial $name is $ref; plotting $name unnormalized"
+                return v
+            end
+            return v ./ ref
+        end
+        chamfer_rel     = normalize_to_initial(chamfer_mean, "Chamfer")
+        hausdorff_rel   = normalize_to_initial(hausdorff_mean, "Hausdorff")
+        closest_pt_rel  = normalize_to_initial(closest_pt_mean, "closest-point")
+
+        # Metrics decay over several decades as the fit converges, so prefer a log axis;
+        # an exact zero (or a single iterate) would make that invalid.
+        use_log = all(>(0), chamfer_rel) && all(>(0), hausdorff_rel) && all(>(0), closest_pt_rel)
+        yscale = use_log ? :log10 : :identity
+
+        # The three metrics can sit almost on top of each other (a near-uniform contour
+        # offset makes mean and max nearest-neighbour distance nearly equal), so vary the
+        # line style as well as the colour to keep them separable.
+        metric_plt = default_plot()
+        Plots.plot!(metric_plt, iters, chamfer_rel, label=L"\mathrm{Chamfer}^2", marker=1,
+                    linestyle=:solid, yscale=yscale, xminorgrid=:false,
+                    legend=:outerbottom, legend_column=3)
+        Plots.plot!(metric_plt, iters, hausdorff_rel, label=L"\mathrm{Hausdorff}", marker=1,
+                    linestyle=:dash, yscale=yscale, legend=:outerbottom, legend_column=3)
+        Plots.plot!(metric_plt, iters, closest_pt_rel, label=L"\mathrm{Closest\;point}", marker=1,
+                    linestyle=:dot, yscale=yscale, legend=:outerbottom, legend_column=3)
+        _label!(metric_plt, L"\mathrm{Iterations}", L"d^{[\imath]}/d^{[1]}")
+        Plots.savefig(metric_plt, plotpath(exp_path,"contour_metrics_iter.pdf"))
+        @info "Wrote $(plotpath(exp_path,"contour_metrics_iter.pdf"))"
+    end
+
+    return metrics
 end
 
 """
@@ -563,8 +725,6 @@ function _handle_worker_error(err, i::Int, params)
     bt = catch_backtrace()
     @error "Task $i failed" params exception=(err, bt)
 end
-
-# ===== Forward-prediction helpers =====
 
 """
     run_window_predictions(model, scene, conditions, est_ηpList, est_βpList,
@@ -691,8 +851,6 @@ function write_window_predictions(dest_data_dir, h_pred_vec, pos3D_pred_vec,
     write_2d_data(joinpath(dest_data_dir, "sim_data", "2D_border_points_pred"), borderPts_pred_vec)
 end
 
-# ===== Core parameter estimation =====
-
 """
     optimize(exp_params)
 
@@ -738,6 +896,52 @@ function optimize(exp_params::Dict)
     basis_order_x   = Int(exp_params["basis_order_x"])
 
     _mesh_path_kw(d) = haskey(d, "mesh_path") ? (mesh_path=d["mesh_path"],) : (;)
+
+    # Optimization method and the `fit_model` keyword arguments that go with it, supplied
+    # by the driver (`optimize_sim`/`optimize_syn`/`optimize_real`) through `exp_params`.
+    # Absent keys mean plain Gauss-Newton with no extra kwargs, which is what every
+    # experiment written before 2026-08-26 used.
+    #
+    # `exp_params` reaches here either as native Julia (in-process or via
+    # `run_parallel_tasks`) or round-tripped through `experiment_parameters.json`, so
+    # coerce the types a JSON round-trip changes: Symbols come back as `String`, and a
+    # `λ_scale` written as `1` comes back `Int`, which `fit_model`'s `::Float64` would
+    # reject with a MethodError.
+    opt_method::Symbol = Symbol(get(exp_params, "opt_method", :gn))
+
+    # Which contour cost drives the fit. `:closest_point` is the historical default, so an
+    # experiment that does not name one behaves exactly as it did before the cost became
+    # configurable.
+    cost_function::Symbol = Symbol(get(exp_params, "cost_function", :closest_point))
+    contour_cost_fn = _contour_cost(cost_function)
+
+    function _opt_kwargs(d)
+        kw = Dict{Symbol,Any}(Symbol(k) => v for (k, v) in get(d, "opt_kwargs", Dict{String,Any}()))
+        haskey(kw, :line_search_method) && (kw[:line_search_method] = Symbol(kw[:line_search_method]))
+        haskey(kw, :λ_scale)            && (kw[:λ_scale] = float(kw[:λ_scale]))
+        haskey(kw, :θ_p)                && (kw[:θ_p] = Vector{Float64}(kw[:θ_p]))
+        # Γ takes a spec rather than a matrix: `:relative` (drop it, so the optimizer's own
+        # default diag(1 ./ |θ|) applies) or `:identity`. A raw nested array still works as
+        # an escape hatch — JSON hands matrices back row-wise, hence the permutedims.
+        if haskey(kw, :Γ)
+            spec = kw[:Γ]
+            if spec isa Symbol || spec isa String
+                if Symbol(spec) === :relative
+                    delete!(kw, :Γ)
+                elseif Symbol(spec) === :identity
+                    kw[:Γ] = Matrix{Float64}(I, 2, 2)
+                else
+                    error("Unknown Γ spec :$spec — use :relative, :identity, or a matrix")
+                end
+            else
+                kw[:Γ] = permutedims(reduce(hcat, [Vector{Float64}(r) for r in spec]))
+            end
+        end
+        return (; kw...)
+    end
+    opt_kw = _method_kwargs(opt_method, (; _opt_kwargs(exp_params)..., cost=contour_cost_fn))
+    @info "Optimization method: $opt_method" cost_function opt_kw
+
     _fem = (element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x)
 
     iterList::Vector{Float64} = Vector{Float64}()
@@ -993,7 +1197,8 @@ function optimize(exp_params::Dict)
             if noiseLevel == 0.0
 
                 obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
-                stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ, outliers=outlier_frames, method=:gn)
+                stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ; outliers=outlier_frames,
+                                  method=opt_method, store_border_pts=true, opt_kw...)
 
                 iterList = stats["iterList"]
                 costList = stats["cost_list"]
@@ -1017,6 +1222,10 @@ function optimize(exp_params::Dict)
                 write_csv(datapath(exp_path,"β"), βpList)
                 write_csv(datapath(exp_path,"gt_h"), gt_h)
                 write_csv(datapath(exp_path,"cost_iter"), costList)
+
+                for (n, iter_border_pts) in enumerate(stats["simBorderPtsList"])
+                    write_2d_data(datapath(exp_path,"opt_data","iter_$n","2D_border_points"), iter_border_pts)
+                end
 
                 reset_model!(est_model)
                 est_model.η = [η]
@@ -1074,7 +1283,8 @@ function optimize(exp_params::Dict)
                 for n::Int in 1:n_samples
                     obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=noiseLevel)
 
-                    stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ, outliers=outlier_frames)
+                    stats = fit_model(model, scene, conditions, obs_border_pt_lst, θ; outliers=outlier_frames,
+                                      method=opt_method, opt_kw...)
 
                     iterList = stats["iterList"]
                     costList = stats["cost_list"]
@@ -1219,7 +1429,8 @@ function optimize(exp_params::Dict)
                     printstyled("Average ground truth η in the window: $(av_η), ground truth β: $(β_gt)\n"; color = :green)
                 end
 
-                stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ, outliers=outlier_frames)
+                stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ; outliers=outlier_frames,
+                                  method=opt_method, opt_kw...)
 
                 est_ηpList[data_range_] .= stats["η"]
                 est_βpList[data_range_] .= stats["β"]
@@ -1289,7 +1500,8 @@ function optimize(exp_params::Dict)
                     end
 
                     @info "Fitting model in time window $(ti)..."
-                    stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ, outliers=outlier_frames)
+                    stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ; outliers=outlier_frames,
+                                  method=opt_method, opt_kw...)
 
                     est_ηpList[data_range_] .= stats["η"]
                     est_βpList[data_range_] .= stats["β"]
@@ -1397,8 +1609,6 @@ function optimize(exp_params::Dict)
     end
 end
 
-# ===== Out-of-sample prediction (disk fallback) =====
-
 """
     predict(filepath, filepath_gt)
 
@@ -1470,7 +1680,7 @@ function predict(filepath, filepath_gt)
 
         # Each leaf is a dt_/view_ directory; predictions live one level deeper,
         # under per-window subdirectories of the view.
-        for group in collect_experiment_groups(filepath)
+        for group in collect_experiment_groups(filepath; method=method)
             for leaf in group.leaves
                 view_path = leaf.exp_path
                 for window_dir in readdir(view_path)
@@ -1512,8 +1722,6 @@ function predict(filepath, filepath_gt)
     end
     return
 end
-
-# ===== Post-processing & plotting =====
 
 """
     set_plot_config(data_type, viscosity_type)
@@ -1557,6 +1765,319 @@ function set_plot_config(data_type::String, viscosity_type::String)
 end
 
 """
+    _palette(i) -> colour
+
+The `i`-th plot colour, wrapping around `color_palette`. `_exp_color` takes the experiment
+directory name instead, so a given experiment keeps one colour across every figure.
+"""
+_palette(i::Integer) = color_palette[(i - 1) % length(color_palette) + 1]
+_exp_color(dir::AbstractString) = _palette(parse(Int, dir))
+
+"""
+    _fig(; legend_column=1, margins=:sides, sz=(plt_width, plt_height)) -> plot
+
+An empty figure at this file's standard size.
+
+`margins` names the three geometries actually in use — `:all` (left, right and top),
+`:sides`, or `:none` — rather than repeating the margin constants at every call. They are
+not interchangeable: which one a figure uses changes its layout.
+"""
+function _fig(; legend_column::Int=1, margins::Symbol=:sides, sz=(plt_width, plt_height))
+    margins === :all && return set_plot(fs; sz=sz, legend_column=legend_column,
+                                        left_margin=plt_lft_margin, right_margin=plt_right_margin,
+                                        top_margin=plt_top_margin)
+    margins === :sides && return set_plot(fs; sz=sz, legend_column=legend_column,
+                                          left_margin=plt_lft_margin, right_margin=plt_right_margin)
+    return set_plot(fs; sz=sz, legend_column=legend_column)
+end
+
+"""
+    _label!(p, xlabel, ylabel; xlims=nothing, ylims=nothing) -> p
+
+Label a plot's axes and optionally set their limits. Kept separate from `_fig` because the
+margin geometry is a per-figure choice while labelling is uniform.
+"""
+function _label!(p, xlabel, ylabel; xlims=nothing, ylims=nothing)
+    Plots.xlabel!(p, xlabel)
+    Plots.ylabel!(p, ylabel)
+    isnothing(xlims) || Plots.xlims!(p, xlims...)
+    isnothing(ylims) || Plots.ylims!(p, ylims...)
+    return p
+end
+
+"""
+    _align_windowed(series, data_ranges, n) -> Vector{Float64}
+
+Map a per-window prediction series onto the `n`-step time axis.
+
+`pred_h` is not a time series: it is the per-window predictions concatenated, and each window
+contributes one sample *more* than its own length — the step that carries into the next
+window. Indexing it against time directly therefore drifts by one step per window boundary
+(0.7 s by the last window of a standard eight-window fit), which silently corrupts anything
+computed from it.
+
+Windows overlap by that one step: window `k` ends on the index window `k+1` starts on, and
+the later window wins. Unwritten steps stay `NaN` rather than 0, so a gap cannot be mistaken
+for a measurement. Mirrors the `range_`/`range_pred` bookkeeping `replot` uses to plot the
+same quantity.
+"""
+function _align_windowed(series::AbstractVector, data_ranges, n::Int)
+    aligned = fill(NaN, n)
+    pred_start = 1
+    for ti in 1:size(data_ranges, 1)
+        w = data_ranges[ti]
+        rng      = w[1]:min(w[end] + 1, n)
+        rng_pred = ti == 1 ? (w[1]:(w[end] + 1)) : (pred_start:(pred_start + length(w)))
+        pred_start = rng_pred[end] + 1
+        k = min(length(rng), length(rng_pred), max(0, length(series) - rng_pred[1] + 1))
+        k > 0 || continue
+        aligned[rng[1:k]] = series[rng_pred[1:k]]
+    end
+    return aligned
+end
+
+"""
+    _windowed_series(series, data_ranges, n) -> Vector{Tuple{UnitRange{Int},Vector{Float64}}}
+
+Split a per-window prediction into `(time indices, values)`, one entry per window.
+
+Each window runs to `w[end] + 1` — its own final value, the step that carries into the next
+window — so consecutive windows both hold a value at that index. A single time-indexed
+vector cannot represent that: [`_align_windowed`](@ref) has to let one of them win, which is
+fine for statistics but wrong for drawing, because it makes window `k` end on window `k+1`'s
+value and the two appear joined. Trimming the range instead just loses window `k`'s last
+point. Keeping the windows apart is the only representation that is right on both counts.
+"""
+function _windowed_series(series::AbstractVector, data_ranges, n::Int)
+    out = Tuple{UnitRange{Int},Vector{Float64}}[]
+    pred_start = 1
+    for ti in 1:size(data_ranges, 1)
+        w = data_ranges[ti]
+        rng      = w[1]:min(w[end] + 1, n)
+        rng_pred = ti == 1 ? (w[1]:(w[end] + 1)) : (pred_start:(pred_start + length(w)))
+        pred_start = rng_pred[end] + 1
+        k = min(length(rng), length(rng_pred), max(0, length(series) - rng_pred[1] + 1))
+        k > 0 || continue
+        push!(out, (rng[1]:rng[k], Float64.(series[rng_pred[1:k]])))
+    end
+    return out
+end
+
+"""
+    _stat_fig(groups, tgrid, outpath; xlabel, ylabel, kwargs...) -> plt
+
+A statistical figure: for each group, every run drawn thin and its replicate mean ± 95% CI
+on top.
+
+`groups` is an iterable of `(runs, stats, colour, linestyle, label)`. Estimation and
+prediction go on one figure — solid red and dashed blue, as the per-experiment figures draw
+them — because the two are read against each other, and separate axes make that comparison
+by eye impossible.
+
+Runs are drawn at their final width rather than thinned afterwards the way [`_band!`](@ref)
+does for shared plots: this figure exists only for the band, so there is no plain version
+whose widths need preserving.
+"""
+function _stat_fig(groups, tgrid, outpath; xlabel, ylabel, xlims=nothing, ylims=nothing,
+                   hline=nothing, vlines=nothing, legend_column::Int=3, run_lw=0.6)
+    plt = _fig(legend_column=legend_column)
+    isnothing(hline) || Plots.hline!(plt, [hline], linestyle=:dash, label=false, color=:black)
+    # Window boundaries: a windowed fit restarts at each one, so a step in the curves there
+    # is the method, not the material.
+    isnothing(vlines) || for t in vlines
+        Plots.vline!(plt, [t], color=:gray, linestyle=:dash, label=false)
+    end
+    _label!(plt, xlabel, ylabel; xlims=xlims, ylims=ylims)
+
+    groups = collect(groups)
+    for (gi, (runs, st, col, ls, lbl)) in enumerate(groups)
+        (isnothing(st) || isempty(runs)) && continue
+        last_group = gi == length(groups)
+        band_label = string(lbl, L"\;\mathrm{mean}\pm95\%\;\mathrm{CI}")
+
+        if eltype(runs) <: AbstractVector{<:Tuple}
+            # Per-window segments: each window is its own series, and its band is computed
+            # from that window's values across runs — not sliced out of a shared vector,
+            # which would take the neighbouring window's value at the boundary.
+            for (wi, _) in enumerate(runs[1])
+                cols = [r[wi][2] for r in runs if wi <= length(r)]
+                isempty(cols) && continue
+                m = minimum(length, cols)
+                M = hcat((c[1:m] for c in cols)...)
+                rng = runs[1][wi][1]
+                rr = rng[1]:rng[m]
+                for c in cols
+                    Plots.plot!(plt, tgrid[rr], c[1:m]; lw=run_lw, color=col, linestyle=ls,
+                                linealpha=0.45, label=false)
+                end
+                Plots.plot!(plt, tgrid[rr], vec(mean(M; dims=2));
+                            ribbon=replicate_ci(vec(std(M; dims=2)), size(M, 2)),
+                            lw=1, color=col, linestyle=ls,
+                            label=(wi == 1 ? band_label : false))
+            end
+            last_group && Plots.savefig(plt, outpath)
+        else
+            for v in runs
+                k = min(length(v), length(tgrid))
+                Plots.plot!(plt, tgrid[1:k], v[1:k]; lw=run_lw, color=col, linestyle=ls,
+                            linealpha=0.45, label=false)
+            end
+            _band!(plt, st, tgrid, outpath; color=col, linestyle=ls, thin_runs=false,
+                   save=last_group, label=band_label)
+        end
+    end
+    return plt
+end
+
+"""
+    _method_kwargs(method, kw) -> NamedTuple
+
+Drop the entries of `kw` that `method`'s optimizer does not accept, warning for each.
+
+`opt_kwargs` is one configuration bag shared by every method, so it naturally accumulates
+keys that only some of them take — `λ_scale`/`θ_p`/`Γ` belong to `:gn_tikhonov`, `λ` to
+`:lm`. Forwarding those to `:gn` is a `MethodError` that kills the run partway through a
+long sweep. Warning and dropping keeps a stray key visible without being fatal; the accepted
+set is read from the optimizer itself, so it cannot drift out of date.
+"""
+function _method_kwargs(method::Symbol, kw)
+    target = method === :lm           ? smearFEM._fit_model_LM :
+             method === :gn_tikhonov  ? smearFEM._fit_model_GN_tikhonov :
+                                        smearFEM._fit_model_GN
+    accepted = Set(Base.kwarg_decl(first(methods(target))))
+    dropped = [k for k in keys(kw) if !(k in accepted)]
+    isempty(dropped) || @warn "Ignoring keyword(s) that :$method does not accept" dropped
+    return (; (k => v for (k, v) in pairs(kw) if k in accepted)...)
+end
+
+"""
+    _contour_cost(name) -> ContourCost
+
+Map a configuration symbol to the cost object `fit_model` takes.
+
+Experiments are configured with symbols so they survive the JSON round-trip through
+`experiment_parameters.json`, which cannot carry a Julia struct.
+"""
+function _contour_cost(name::Symbol)
+    name === :closest_point && return ClosestPointCost()
+    name === :chamfer       && return ChamferCost()
+    error("Unknown cost function :$name — use :closest_point or :chamfer")
+end
+
+"""
+    _run_dir(method, cost) -> String
+
+The result-path segment identifying how a fit was produced.
+
+`:closest_point` keeps the bare method name because every result written before the cost
+became configurable used it — so existing trees stay valid and only a new cost gets a new
+directory. Any other cost is suffixed, e.g. `gn_chamfer`.
+"""
+_run_dir(method, cost) =
+    Symbol(cost) === :closest_point ? string(method) : string(method, "_", cost)
+
+"""
+    _method_dir(base, method) -> String
+
+Post-analysis output directory for one optimizer. `gn` and `gn_tikhonov` results live under
+the same experiment, so writing their plots to one directory would silently overwrite one
+with the other. `nothing` keeps the flat layout for a tree that has only ever seen one.
+"""
+_method_dir(base::String, method) = isnothing(method) ? base : joinpath(base, method)
+
+"""
+    _skip_incomplete(exp_path) -> Bool
+
+Whether `exp_path` holds no results — an interrupted fit — warning if so, for use as
+`_skip_incomplete(p) && continue` in a walk over `ExpLeaf`s.
+
+`optimize` writes `experiment_parameters` before it starts fitting, so that file proves only
+that a run *started*; the test is that something else was written after it. Without this a
+single dead run aborts the whole pass, and with several optimizers under one experiment it
+would take every other method's output down with it.
+
+Both layouts count: a single-window fit writes `<leaf>/data`, a windowed one
+`<leaf>/<window>/data`.
+"""
+function _skip_incomplete(exp_path::String)
+    has(d) = isdir(d) && any(f -> !startswith(f, "experiment_parameters"), readdir(d))
+    ok = has(datapath(exp_path)) ||
+         (isdir(exp_path) && any(sub -> has(datapath(joinpath(exp_path, sub))), readdir(exp_path)))
+    ok || @warn "Incomplete run, skipping" exp_path
+    return !ok
+end
+
+"""
+    _band!(plt, st, tgrid, outpath; color, label, lw, save) -> plt
+
+Draw a replicate mean ± 95% CI ribbon over the individual runs already on `plt`, and save it.
+
+Defaults to `def_orange`, the one scheme colour with no series meaning attached — red,
+blue and green already stand for estimation, prediction and ground truth, and every
+`color_palette` entry is in use by a per-run curve underneath. Reserving orange for the
+aggregate keeps the band from reading as one more run, or as a series semantic it does not
+carry. Pass `color=` to override, as the MOSD figure does for its two curves.
+
+`thin_runs` drops the curves already on `plt` to `run_lw` first, so the mean reads against
+them. This happens here rather than where the runs are drawn because the same plot object is
+also saved without a band: thinning at the source would change that figure too. Pass
+`thin_runs=false` when layering a second band, or the first band's mean gets thinned as well.
+
+Pass `save=false` to layer several bands on one figure and write it once.
+"""
+function _band!(plt, st, tgrid, outpath; color=def_orange, lw=1, save::Bool=true,
+                thin_runs::Bool=true, run_lw=0.6, linestyle=:solid, segments=nothing,
+                label=L"\mathrm{mean}\;\pm\;95\%\;\mathrm{CI}")
+    # Only the data curves. `hline!`/`vline!` reference lines and the annotation arrows are
+    # 3-point series, and thinning those would fade the very guides the band is read against.
+    thin_runs && for ser in plt.series_list
+        length(ser[:y]) > 3 && (ser[:linewidth] = run_lw)
+    end
+    k = min(st.n_steps, length(tgrid))
+    ci = replicate_ci(st.pointwise_sd[1:k], st.n_runs)
+    if isnothing(segments)
+        Plots.plot!(plt, tgrid[1:k], st.pointwise_mean[1:k]; ribbon=ci, lw=lw, color=color,
+                    linestyle=linestyle, label=label)
+    else
+        # One series per window so the mean breaks at each boundary like the runs beneath it.
+        for (si, seg) in enumerate(segments)
+            r = seg[1]:min(seg[end], k)
+            isempty(r) && continue
+            Plots.plot!(plt, tgrid[r], st.pointwise_mean[r]; ribbon=ci[r], lw=lw, color=color,
+                        linestyle=linestyle, label=(si == 1 ? label : false))
+        end
+    end
+    save && Plots.savefig(plt, outpath)
+    return plt
+end
+
+"""
+    _result_methods(filepath_res, dirs, avoid_dirs) -> Vector{Union{Nothing,String}}
+
+Which optimizers have results under a result tree, read off the `dt_*/<method>/view_*` path
+level. Returns `[nothing]` for a pre-2026-08-26 tree with no method level, so it is
+post-processed once into the flat layout it already uses.
+"""
+function _result_methods(filepath_res::String, dirs, avoid_dirs)
+    found = Set{String}()
+    flat = false
+    for dir in dirs
+        dir in avoid_dirs && continue
+        root = joinpath(filepath_res, dir)
+        isdir(root) || continue
+        for (parent, subdirs, _) in walkdir(root)
+            startswith(basename(parent), "dt_") || continue
+            for sd in subdirs
+                startswith(sd, "view_") ? (flat = true) : push!(found, sd)
+            end
+        end
+    end
+    methods = Union{Nothing,String}[m for m in sort(collect(found))]
+    flat && push!(methods, nothing)
+    return isempty(methods) ? Union{Nothing,String}[nothing] : methods
+end
+
+"""
     replot(filepath, filepath_gt)
 
 Regenerate all comparison plots (and some derived post-processed data) for
@@ -1577,7 +2098,8 @@ result to `data/direction_analysis`/`data/slice_data`. When `noise_level != 0`
 error-banded height/relative-error/normalized-error series across samples.
 
 For `viscosity_type == "bulk_viscosity"`: for each time-windowed
-sub-experiment, plots per-window estimated vs. ground-truth η, β, and their
+sub-experiment, plots per-window estimated vs. ground-truth η and β,
+height and height error/normalized error, closest-point
 distance error, and (via `compare_pt_clouds`) Hausdorff/Chamfer/
 closest-point 3D surface distances — each comparing the within-window
 estimate against the forward-predicted trajectory from the previous window,
@@ -1592,7 +2114,7 @@ with vertical lines marking window boundaries.
 None. All outputs are side effects (PDFs under each experiment's `plots/`
 directory, JSON/CSV under `data/`).
 """
-function replot(filepath, filepath_gt)
+function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
     sim_params = read_json(datapath(filepath_gt,"sim_params"))
 
     r::Float64 = sim_params["r"]
@@ -1620,11 +2142,13 @@ function replot(filepath, filepath_gt)
 
     gt_h_::Matrix{Float64} = Matrix{Float64}(undef,0,0)
 
-    for group in collect_experiment_groups(filepath)
+    for group in collect_experiment_groups(filepath; method=method)
         for leaf in group.leaves
             view_folder = leaf.view_folder
 
             exp_path = leaf.exp_path
+
+            _skip_incomplete(exp_path) && continue
             if viscosity_type == "constant"
                 @debug "Comparing experiments in: $exp_path"
 
@@ -1646,11 +2170,12 @@ function replot(filepath, filepath_gt)
                     gt_h_ = readdlm(datapath(filepath_gt,"h.csv"), ',', Float64)
                 end
                 if data_type  == "synthetic"
-                    ObsDataList, splinexObs, splineyObs = read_csv(datapath(filepath_gt,"img_data","contour_data"))  
+                    # Ground-truth contours live under a view_* level, as `_get_borders` reads them.
+                    ObsDataList, splinexObs, splineyObs = read_csv(datapath(filepath_gt,"img_data",view_folder,"contour_data"))
                     @info "Data type $data_type Reading synthetic contour data of $(length(ObsDataList)) time steps"
                 elseif data_type == "simulated"
-                    ObsDataList, splinexObs, splineyObs = read_csv(datapath(filepath_gt,"sim_data","contour_data"))  
-                    @info "Data type $data_type Reading simulated contour data from $(datapath(filepath_gt,"sim_data","contour_data")) of $(length(ObsDataList)) time steps"
+                    ObsDataList, splinexObs, splineyObs = read_csv(datapath(filepath_gt,"sim_data",view_folder,"contour_data"))
+                    @info "Data type $data_type Reading simulated contour data from $(datapath(filepath_gt,"sim_data",view_folder,"contour_data")) of $(length(ObsDataList)) time steps"
                 else
                     error("Unknown data type: $data_type")
                 end
@@ -1660,7 +2185,7 @@ function replot(filepath, filepath_gt)
 
                 conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
                 if noise_level == 0.0
-                    obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney, _ = _get_borders(data_type, filepath_gt, exp_path, num_exp_points; view_folder=view_folder)
+                    obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path, num_exp_points; view_folder=view_folder)
 
                     est_η = readdlm(datapath(exp_path,"η.csv"), ',', Float64)
                     est_β = readdlm(datapath(exp_path,"β.csv"), ',', Float64)
@@ -1671,7 +2196,7 @@ function replot(filepath, filepath_gt)
                     η = stats["η"]
                     β = stats["β"]
 
-                    d_est, pairs = closest_point(sim_border_pt_lst, obs_border_pt_lst)
+                    d_est, pairs = contour_cost(sim_border_pt_lst, obs_border_pt_lst)
 
                     if sim_time_exp == 5.0
                         cont_y_min = 350
@@ -1689,8 +2214,7 @@ function replot(filepath, filepath_gt)
                     Plots.yflip!(contour_plt, true)
                     Plots.xlims!(contour_plt, 480, 1520)
                     Plots.ylims!(contour_plt, cont_y_min, 1200)
-                    Plots.xlabel!(contour_plt, L"x\;\mathrm{[px]}")
-                    Plots.ylabel!(contour_plt, L"y\;\mathrm{[px]}")
+                    _label!(contour_plt, L"x\;\mathrm{[px]}", L"y\;\mathrm{[px]}")
                     Plots.savefig(contour_plt, plotpath(exp_path,"contour_comparison.pdf"))
 
                     contour_plt_zoom = set_plot(fs, sz=(1200, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin)
@@ -1700,8 +2224,7 @@ function replot(filepath, filepath_gt)
                     Plots.ylims!(contour_plt_zoom, cont_y_min, 1200)
                     Plots.xticks!(contour_plt_zoom, 1100:200:1520)
                     Plots.yflip!(contour_plt_zoom, true)
-                    Plots.xlabel!(contour_plt_zoom, L"x\;\mathrm{[px]}")
-                    Plots.ylabel!(contour_plt_zoom, L"y\;\mathrm{[px]}")
+                    _label!(contour_plt_zoom, L"x\;\mathrm{[px]}", L"y\;\mathrm{[px]}")
                     Plots.savefig(contour_plt_zoom, plotpath(exp_path,"contour_comparison_zoom.pdf"))
 
                     costList = stats["cost_list"]
@@ -1709,10 +2232,7 @@ function replot(filepath, filepath_gt)
 
                     plt_cnt_error = default_plot()
                     Plots.plot!(plt_cnt_error, time[1:(length(d_est)-1)], d_est[2:end], label="Closest point distance error", legend=:outerbottom, legend_column=2)
-                    Plots.xlabel!(plt_cnt_error, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(plt_cnt_error, L"\mathrm{Closest\;Point\;Distance\;[px]}")
-                    Plots.xlims!(plt_cnt_error, 0, end_obs_win)
-                    Plots.ylims!(plt_cnt_error, 0, max(maximum(d_est[2:end])*1.1, 0.5))
+                    _label!(plt_cnt_error, L"\mathrm{Time\;[s]}", L"\mathrm{Closest\;Point\;Distance\;[px]}"; xlims=(0, end_obs_win), ylims=(0, max(maximum(d_est[2:end])*1.1, 0.5)))
                     Plots.savefig(plt_cnt_error, plotpath(exp_path,"closest_point_distance_error.pdf"))
 
                     est_h = vec(Float64.(collect(est_h)))
@@ -1726,43 +2246,53 @@ function replot(filepath, filepath_gt)
                     h_plt = default_plot()
                     Plots.plot!(h_plt, time[1:n_time], est_h[1:n_time], label="Estimation", legend=:outerbottom, legend_column=2)
                     Plots.plot!(h_plt, time[1:n_time], gt_h[1:n_time], label="Ground truth", legend=:outerbottom, legend_column=2)
-                    Plots.xlabel!(h_plt, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(h_plt, L"\mathrm{Height\;[mm]}")
-                    Plots.xlims!(h_plt, 0, end_obs_win)
+                    _label!(h_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;[mm]}"; xlims=(0, end_obs_win))
                     Plots.savefig(h_plt, plotpath(exp_path,"h_est.pdf"))
 
                     error_plt = default_plot()
                     Plots.plot!(error_plt, time[1:n_time], abs.(est_h[1:n_time] .- gt_h[1:n_time]), label="Estimation error", legend=:outerbottom, legend_column=1)
-                    Plots.xlabel!(error_plt, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(error_plt, "Height Error [mm]")
-                    Plots.xlims!(error_plt, 0, end_obs_win)
+                    _label!(error_plt, L"\mathrm{Time\;[s]}", "Height Error [mm]"; xlims=(0, end_obs_win))
                     Plots.savefig(error_plt, plotpath(exp_path,"h_est_error.pdf"))
 
                     η_plt = default_plot()
                     Plots.plot!(η_plt, est_η, label=L"\eta_{\mathrm{est}}", marker=1, legend=:outerbottom, legend_column=2)
                     Plots.hline!([η_gt], label=L"\eta_{\mathrm{gt}}", legend=:outerbottom, legend_column=2)
-                    Plots.xlabel!(η_plt, L"\mathrm{Iterations}")
-                    Plots.ylabel!(η_plt, latexstring("\$\\eta\$ [kPa s]"))
+                    _label!(η_plt, L"\mathrm{Iterations}", latexstring("\$\\eta\$ [kPa s]"))
                     Plots.savefig(η_plt, plotpath(exp_path,"η.pdf"))
 
                     β_plt = default_plot()
                     Plots.plot!(β_plt, est_β, label=L"\beta_{\mathrm{est}}", marker=1, legend=:outerbottom, legend_column=2)
                     Plots.hline!(β_plt, [β_gt], label=L"\beta_{\mathrm{gt}}",legend=:outerbottom, legend_column=2)
-                    Plots.xlabel!(β_plt, L"\mathrm{Iterations}")
-                    Plots.ylabel!(β_plt, latexstring("\$\\beta\$ [MPa s m\$^{-1}\$]"))   
+                    _label!(β_plt, L"\mathrm{Iterations}", latexstring("\$\\beta\$ [MPa s m\$^{-1}\$]"))
                     Plots.savefig(β_plt, plotpath(exp_path,"β.pdf"))
 
                     cost_plt = default_plot()
                     Plots.plot!(cost_plt, iterList, costList, label="Cost", marker=1, yscale=:log10, xminorgrid = :false,legend=:outerbottom, legend_column=1)
-                    Plots.xlabel!(cost_plt, L"\mathrm{Iterations}")
-                    Plots.ylabel!(cost_plt, L"\mathrm{Cost\;[px]}")
+                    _label!(cost_plt, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
                     Plots.savefig(cost_plt, plotpath(exp_path,"cost_steps.pdf"))
 
                     cost_log_plt = default_plot()
                     Plots.plot!(cost_log_plt, iterList, costList, label="Cost", marker=1, yscale=:log10, xscale=:log10, legend=:outerbottom, legend_column=1)
-                    Plots.xlabel!(cost_log_plt, L"\mathrm{Iterations}")
-                    Plots.ylabel!(cost_log_plt, L"\mathrm{Cost\;[px]}")
+                    _label!(cost_log_plt, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
                     Plots.savefig(cost_log_plt, plotpath(exp_path,"cost_steps_log.pdf"))
+
+                    # Contour metrics per optimizer iterate, available only when the fit stored
+                    # its iterates (`store_border_pts=true`). `opt_data/` also holds the
+                    # noise-sweep series, so test for `iter_*` specifically; result directories
+                    # written before this existed are skipped rather than failing the replot.
+                    opt_root = datapath(exp_path, "opt_data")
+                    has_iterates = isdir(opt_root) &&
+                                   any(d -> occursin(r"^iter_[0-9]+$", d), readdir(opt_root))
+                    if has_iterates
+                        try
+                            iteration_contour_metrics(data_type, filepath_gt, exp_path;
+                                                      view_folder=view_folder)
+                        catch err
+                            @warn "Iteration contour metrics failed for $exp_path" exception=err
+                        end
+                    else
+                        @debug "No stored optimizer iterates under $opt_root — skipping iteration contour metrics"
+                    end
 
                     # Coerce contour parameters to concrete arrays (be defensive against scalar values)
                     function _to_vector(x)
@@ -1922,8 +2452,7 @@ function replot(filepath, filepath_gt)
                             Plots.plot!(plt_dirs, etas_flat,  betas_flat,  label = "Flattest dir",  lw=1, color=:magenta, legend=:outerbottom, legend_column=3)
                             Plots.scatter!(plt_dirs, [η0], [β0], label="Minimum Cost", ms=:5, m=:star5, color=:black, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
                             Plots.scatter!(plt_dirs, [η_gt], [β_gt], label="Ground truth", ms=:5, m=:star5, color=def_red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
-                            Plots.xlabel!(plt_dirs, L"\eta\;\mathrm{[kPa\, s]}")
-                            Plots.ylabel!(plt_dirs, L"\beta\;\mathrm{[Pa\, s \, m]}")
+                            _label!(plt_dirs, L"\eta\;\mathrm{[kPa\, s]}", L"\beta\;\mathrm{[Pa\, s \, m]}")
                             Plots.savefig(plt_dirs, plotpath(exp_path, "cost_surface_with_directions.pdf"))
 
                             plt_cont = default_plot()
@@ -1931,8 +2460,7 @@ function replot(filepath, filepath_gt)
                             Plots.plot!(plt_cont, est_η, est_β, label="Estimation", ms=:4, m=:x, color=:red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
                             Plots.scatter!(plt_cont, [η0], [β0], label="Minimum Cost", ms=:5, m=:star5, color=:black, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
                             Plots.scatter!(plt_cont, [η_gt], [β_gt], label="Ground truth", ms=:5, m=:star5, color=def_red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
-                            Plots.xlabel!(plt_cont, L"\eta\;\mathrm{[kPa\, s]}")
-                            Plots.ylabel!(plt_cont, L"\beta\;\mathrm{[Pa\, s \, m]}")
+                            _label!(plt_cont, L"\eta\;\mathrm{[kPa\, s]}", L"\beta\;\mathrm{[Pa\, s \, m]}")
                             Plots.savefig(plt_cont, plotpath(exp_path, "cost_surface.pdf"))
 
                             plt_cont = default_plot()
@@ -1940,8 +2468,7 @@ function replot(filepath, filepath_gt)
                             Plots.plot!(plt_cont, est_η, est_β, label="Estimation", ms=:4, m=:x, color=:red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
                             Plots.scatter!(plt_cont, [η0], [β0], label="Minimum Cost", ms=:5, m=:star5, color=:black, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
                             Plots.scatter!(plt_cont, [η_gt], [β_gt], label="Ground truth", ms=:5, m=:star5, color=def_red, legend=:outerbottom, legend_column=3, markerstrokewidth=0.1)
-                            Plots.xlabel!(plt_cont, L"\eta\;\mathrm{[kPa\, s]}")
-                            Plots.ylabel!(plt_cont, L"\beta\;\mathrm{[Pa\, s \, m]}")
+                            _label!(plt_cont, L"\eta\;\mathrm{[kPa\, s]}", L"\beta\;\mathrm{[Pa\, s \, m]}")
                             Plots.savefig(plt_cont, plotpath(exp_path, "cost_surface_iter.pdf"))
 
                             # 2D slices: cost vs distance along the two directions
@@ -1957,8 +2484,7 @@ function replot(filepath, filepath_gt)
                                 @warn "Skipping flat slice plot: empty or mismatched lengths: $(length(t_flat)) vs $(length(zs_flat))"
                             end
                             Plots.vline!(plt_slices, [0.0], color=:blue, linestyle=:dash, label="Minimum")
-                            Plots.xlabel!(plt_slices, L"\mathrm{Distance\;from\;minimum\;[px]}")
-                            Plots.ylabel!(plt_slices, L"\mathrm{Cost}")
+                            _label!(plt_slices, L"\mathrm{Distance\;from\;minimum\;[px]}", L"\mathrm{Cost}")
                             Plots.savefig(plt_slices, plotpath(exp_path, "cost_slices_along_directions.pdf"))
 
                             Plots.ylims!(plt_slices, 0, 10)
@@ -1988,8 +2514,7 @@ function replot(filepath, filepath_gt)
 
                         covarience_plt = default_plot()
                         plot_covariance!(covarience_plt, η_pred[:,1], β_pred[:,1])
-                        Plots.xlabel!(covarience_plt, latexstring("\$\\eta\$ [kPa s]"))
-                        Plots.ylabel!(covarience_plt, latexstring("\$\\beta\$ [MPa s m\$^{-1}\$]"))
+                        _label!(covarience_plt, latexstring("\$\\eta\$ [kPa s]"), latexstring("\$\\beta\$ [MPa s m\$^{-1}\$]"))
                         Plots.savefig(covarience_plt, plotpath(exp_path,"covariance.pdf"))
 
                         n_time = min(length(time), size(h_pred, 2), length(gt_h)) #, (end_obs_win/t_steps + 1))
@@ -1997,12 +2522,10 @@ function replot(filepath, filepath_gt)
                             @warn "Time and height vectors have mismatched lengths: time=$(length(time)), est_h=$(size(h_pred, 2)), gt_h=$(length(gt_h)). Truncating to $n_time samples for plotting."
                         end
 
-                        h_plot = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=2)
+                        h_plot = _fig(margins=:all, legend_column=2)
                         Plots.plot!(h_plot, time[1:n_time], gt_h[1:n_time], label="Ground truth")
                         StatsPlots.errorline!(h_plot, time[1:n_time], h_pred[:,1:n_time], label="Estimation")
-                        Plots.xlabel!(h_plot, L"\mathrm{Time\;[s]}")
-                        Plots.ylabel!(h_plot, L"\mathrm{Height\;[mm]}")
-                        Plots.xlims!(h_plot, 0, end_obs_win)
+                        _label!(h_plot, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;[mm]}"; xlims=(0, end_obs_win))
                         Plots.savefig(h_plot, plotpath(exp_path,"h_est_noisy.pdf"))
 
                         # Add inset subplot for zoomed region (10-20 seconds)
@@ -2052,17 +2575,13 @@ function replot(filepath, filepath_gt)
                         error = abs.(h_pred[:,1:n_time]' .- gt_h[1:n_time]) ./ gt_h[1:n_time]
                         h_error_plot = default_plot()
                         StatsPlots.errorline!(h_error_plot, time[1:n_time], error', label="Estimation error", legend=:outerbottom, legend_column=1)
-                        Plots.xlabel!(h_error_plot, L"\mathrm{Time\;[s]}")
-                        Plots.ylabel!(h_error_plot, L"\mathrm{Relative\;Height\;Error}")
-                        Plots.xlims!(h_error_plot, 0, end_obs_win)
+                        _label!(h_error_plot, L"\mathrm{Time\;[s]}", L"\mathrm{Relative\;Height\;Error}"; xlims=(0, end_obs_win))
                         Plots.savefig(h_error_plot, plotpath(exp_path,"h_rel_error_noisy.pdf"))
 
                         h_norm = h_pred[:,1:n_time]' ./ gt_h[1:n_time]
                         h_normalized_plot = default_plot()
                         StatsPlots.errorline!(h_normalized_plot, time[1:n_time], h_norm', label="Estimation error", legend=:outerbottom, legend_column=1)
-                        Plots.xlabel!(h_normalized_plot, L"\mathrm{Time\;[s]}")
-                        Plots.ylabel!(h_normalized_plot, L"h_{\mathrm{est}}/h_{\mathrm{gt}}")
-                        Plots.xlims!(h_normalized_plot, 0, end_obs_win)
+                        _label!(h_normalized_plot, L"\mathrm{Time\;[s]}", L"h_{\mathrm{est}}/h_{\mathrm{gt}}"; xlims=(0, end_obs_win))
                         Plots.savefig(h_normalized_plot, plotpath(exp_path,"h_normalized_rel_error_noisy.pdf"))
                 end
             elseif viscosity_type == "bulk_viscosity"
@@ -2122,7 +2641,6 @@ function replot(filepath, filepath_gt)
                     obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney = _get_borders(data_type, filepath_gt, win_exp_path, data_point_len+1; view_folder=view_folder)
                     pred_border_pt_lst, _, _ = read_csv(datapath(win_exp_path,"sim_data","view_1","2D_border_points_pred"))
 
-
                     if data_type != "physical"
                         η_gt = float.(sim_params["η"])
                         β_gt = float.(sim_params["β"])
@@ -2149,7 +2667,7 @@ function replot(filepath, filepath_gt)
                         mosd_est = get_surface_mosd(est_surface_pt_lst, obj_pose, h)
                         mosd_pred = get_surface_mosd(pred_surface_pt_lst, obj_pose, h)
                         mosd_gt = get_surface_mosd(gt_surface_pt_lst, obj_pose, h)
-                        plt_surface_mosd = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
+                        plt_surface_mosd = _fig(margins=:all, legend_column=2)
                         for ti::Int in 1:(size(data_ranges_, 1))
                             range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
                             range_pred = if ti === 1
@@ -2167,16 +2685,13 @@ function replot(filepath, filepath_gt)
                             pred_range_start = range_pred[end] + 1
                         end
                         Plots.plot!(plt_surface_mosd, t_full_h, mosd_est./mosd_gt, label="Estimation", color=def_red)
-                        Plots.xlabel!(plt_surface_mosd, L"\mathrm{Time\;[s]}")
-                        Plots.ylabel!(plt_surface_mosd, L"\mathrm{Relative\;MOSD}")
-                        Plots.xlims!(plt_surface_mosd, 0, end_obs_win)
-                        Plots.ylims!(plt_surface_mosd, y_lims_h_norm)
+                        _label!(plt_surface_mosd, L"\mathrm{Time\;[s]}", L"\mathrm{Relative\;MOSD}"; xlims=(0, end_obs_win), ylims=(y_lims_h_norm))
                         Plots.savefig(plt_surface_mosd, plotpath(win_exp_path,"surface_area_qoi.pdf"))
 
                         dc_surface_est, dh_surface_est, dcp_surface_est = compare_pt_clouds(est_surface_pt_lst, gt_surface_pt_lst)
-                        plt_surface_error_dc = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
-                        plt_surface_error_dh = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
-                        plt_surface_error_dcp = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
+                        plt_surface_error_dc = _fig(margins=:all, legend_column=2)
+                        plt_surface_error_dh = _fig(margins=:all, legend_column=2)
+                        plt_surface_error_dcp = _fig(margins=:all, legend_column=2)
                         pred_range_start = 0
                         for ti::Int in 1:(size(data_ranges_, 1))
                             range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
@@ -2202,27 +2717,21 @@ function replot(filepath, filepath_gt)
                             pred_range_start = range_pred[end] + 1
                         end
                         Plots.plot!(plt_surface_error_dc, t_full_h, dc_surface_est, label="Estimation error", color=def_red)
-                        Plots.xlabel!(plt_surface_error_dc, L"\mathrm{Time\;[s]}")
-                        Plots.ylabel!(plt_surface_error_dc, L"\mathrm{Hausdorff\;Distance\;[mm]}")
-                        Plots.xlims!(plt_surface_error_dc, 0, end_obs_win)
+                        _label!(plt_surface_error_dc, L"\mathrm{Time\;[s]}", L"\mathrm{Hausdorff\;Distance\;[mm]}"; xlims=(0, end_obs_win))
                         Plots.savefig(plt_surface_error_dc, plotpath(win_exp_path,"surface_point_distance_error_dh.pdf"))
 
                         Plots.plot!(plt_surface_error_dh, t_full_h, dh_surface_est, label="Estimation error", color=def_red)
-                        Plots.xlabel!(plt_surface_error_dh, L"\mathrm{Time\;[s]}")
-                        Plots.ylabel!(plt_surface_error_dh, L"\mathrm{Chamfer\;Distance\;[mm]}")
-                        Plots.xlims!(plt_surface_error_dh, 0, end_obs_win)
+                        _label!(plt_surface_error_dh, L"\mathrm{Time\;[s]}", L"\mathrm{Chamfer\;Distance\;[mm]}"; xlims=(0, end_obs_win))
                         Plots.savefig(plt_surface_error_dh, plotpath(win_exp_path,"surface_point_distance_error_dc.pdf"))
 
                         Plots.plot!(plt_surface_error_dcp, t_full_h, dcp_surface_est, label="Estimation error", color=def_red)
-                        Plots.xlabel!(plt_surface_error_dcp, L"\mathrm{Time\;[s]}")
-                        Plots.ylabel!(plt_surface_error_dcp, L"\mathrm{Closest\;Point\;Distance\;[mm]}")
-                        Plots.xlims!(plt_surface_error_dcp, 0, end_obs_win)
+                        _label!(plt_surface_error_dcp, L"\mathrm{Time\;[s]}", L"\mathrm{Closest\;Point\;Distance\;[mm]}"; xlims=(0, end_obs_win))
                         Plots.savefig(plt_surface_error_dcp, plotpath(win_exp_path,"surface_point_distance_error_dcp.pdf"))
                     end
 
-                    d_est, _ = closest_point(sim_border_pt_lst, obs_border_pt_lst)
+                    d_est, _ = contour_cost(sim_border_pt_lst, obs_border_pt_lst)
 
-                    plt_cnt_error = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
+                    plt_cnt_error = _fig(margins=:all, legend_column=2)
                     pred_range_start = 0
                     for ti::Int in 1:(size(data_ranges_, 1))
                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
@@ -2231,7 +2740,7 @@ function replot(filepath, filepath_gt)
                                     else
                                         collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
                                     end
-                        d_pred, _ = closest_point(pred_border_pt_lst[range_pred], obs_border_pt_lst[range_])
+                        d_pred, _ = contour_cost(pred_border_pt_lst[range_pred], obs_border_pt_lst[range_])
                         t = t_windows[ti]
                         Plots.vline!(plt_cnt_error, [t], color=:gray, linestyle=:dash, label=false)
                         if ti === 1
@@ -2242,10 +2751,7 @@ function replot(filepath, filepath_gt)
                         pred_range_start = range_pred[end] + 1
                     end
                     Plots.plot!(plt_cnt_error, t_full_h, d_est./cost_init, label="Estimation", color=def_red)
-                    Plots.xlabel!(plt_cnt_error, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(plt_cnt_error, "Relative Cost")
-                    Plots.xlims!(plt_cnt_error, 0, end_obs_win)
-                    Plots.ylims!(plt_cnt_error, 0, 3)
+                    _label!(plt_cnt_error, L"\mathrm{Time\;[s]}", "Relative Cost"; xlims=(0, end_obs_win), ylims=(0, 3))
                     Plots.savefig(plt_cnt_error, plotpath(win_exp_path,"closest_point_distance_error.pdf"))
 
                     t_full = collect(range(start=t_steps, stop=effective_sim_time, step=t_steps))
@@ -2275,9 +2781,7 @@ function replot(filepath, filepath_gt)
                     if data_type != "physical"
                         Plots.plot!(plt_η, t_full, η_gt, label=L"\eta_{\mathrm{gt}}(t)", color=def_green)
                     end
-                    Plots.xlabel!(plt_η, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(plt_η, latexstring("\$\\eta(t)\$ [kPa s]"))
-                    Plots.xlims!(plt_η, 0, end_obs_win)
+                    _label!(plt_η, L"\mathrm{Time\;[s]}", latexstring("\$\\eta(t)\$ [kPa s]"); xlims=(0, end_obs_win))
                     Plots.savefig(plt_η, plotpath(win_exp_path,"η.pdf"))
 
                     plt_β = set_plot(fs, sz=(eta_beta_plt_width, eta_beta_plt_height), legend_column=3, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
@@ -2301,12 +2805,10 @@ function replot(filepath, filepath_gt)
                     if data_type != "physical"
                         Plots.hline!(plt_β, β_gt, label=L"\beta_{\mathrm{gt}}", color=def_green)
                     end
-                    Plots.xlabel!(plt_β, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(plt_β, latexstring("\$\\beta(t)\$ [MPa s m\$^{-1}\$]"))
-                    Plots.xlims!(plt_β, 0, end_obs_win)
+                    _label!(plt_β, L"\mathrm{Time\;[s]}", latexstring("\$\\beta(t)\$ [MPa s m\$^{-1}\$]"); xlims=(0, end_obs_win))
                     Plots.savefig(plt_β, plotpath(win_exp_path,"β.pdf"))
 
-                    h_plt = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
+                    h_plt = _fig(margins=:all, legend_column=3)
                     Plots.plot!(h_plt, t_full_h, est_h_list, label="Estimation", color=def_red)
                     pred_range_start = 0
                     for ti::Int in 1:(size(data_ranges_, 1))
@@ -2330,13 +2832,10 @@ function replot(filepath, filepath_gt)
                     else
                         Plots.plot!(h_plt, t_full_h, gt_h, label="Ground truth", color=def_green)
                     end
-                    Plots.xlabel!(h_plt, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(h_plt, L"\mathrm{Height\;[mm]}")
-                    Plots.xlims!(h_plt, 0, end_obs_win)
-                    Plots.ylims!(h_plt, minimum(vcat(gt_h, est_h_list))*0.8, maximum(vcat(gt_h, est_h_list))*1.2)
+                    _label!(h_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;[mm]}"; xlims=(0, end_obs_win), ylims=(minimum(vcat(gt_h, est_h_list))*0.8, maximum(vcat(gt_h, est_h_list))*1.2))
                     Plots.savefig(plotpath(win_exp_path,"h.pdf"))
 
-                    h_normalized_plt = set_plot(fs, sz=(plt_width, plt_height), legend_column=2, left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin)
+                    h_normalized_plt = _fig(margins=:all, legend_column=2)
                     pred_range_start = 0
                     for ti::Int in 1:(size(data_ranges_, 1))
                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
@@ -2361,13 +2860,10 @@ function replot(filepath, filepath_gt)
                         Plots.vline!(h_normalized_plt, [t], color=:gray, linestyle=:dash, label=false)
                         pred_range_start = range_pred[end] + 1 
                     end
-                    Plots.xlabel!(h_normalized_plt, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(h_normalized_plt, L"h/h_{\mathrm{gt}}")
-                    Plots.xlims!(h_normalized_plt, 0, end_obs_win)
-                    Plots.ylims!(h_normalized_plt, y_lims_h_norm)
+                    _label!(h_normalized_plt, L"\mathrm{Time\;[s]}", L"h/h_{\mathrm{gt}}"; xlims=(0, end_obs_win), ylims=(y_lims_h_norm))
                     Plots.savefig(plotpath(win_exp_path,"h_normalized.pdf"))
 
-                    error_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
+                    error_plt = _fig(margins=:all, legend_column=2)
                     Plots.plot!(error_plt, t_full_h, abs.(est_h_list-gt_h), label="Estimation", color=def_red)
                     for ti::Int in 1:(size(data_ranges_, 1))
                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
@@ -2385,12 +2881,10 @@ function replot(filepath, filepath_gt)
                         Plots.vline!(error_plt, [t], color=:gray, linestyle=:dash, label=false)
                         pred_range_start = range_pred[end] + 1 
                     end
-                    Plots.xlabel!(error_plt, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(error_plt, L"\mathrm{Height\;Error\;[mm]}")
-                    Plots.xlims!(error_plt, 0, end_obs_win)
+                    _label!(error_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;Error\;[mm]}"; xlims=(0, end_obs_win))
                     Plots.savefig(plotpath(win_exp_path,"h_est_error.pdf"))
 
-                    rel_error_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin = plt_lft_margin, right_margin = plt_right_margin, top_margin = plt_top_margin, legend_column=2)
+                    rel_error_plt = _fig(margins=:all, legend_column=2)
                     Plots.plot!(rel_error_plt, t_full_h, abs.(est_h_list-gt_h)./gt_h*100, label="Estimation", color=def_red)
                     for ti::Int in 1:(size(data_ranges_, 1))
                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
@@ -2408,10 +2902,7 @@ function replot(filepath, filepath_gt)
                         Plots.vline!(rel_error_plt, [t], color=:gray, linestyle=:dash, label=false)
                         pred_range_start = range_pred[end] + 1 
                     end
-                    Plots.xlabel!(rel_error_plt, L"\mathrm{Time\;[s]}")
-                    Plots.ylabel!(rel_error_plt, latexstring("Relative Error [\$\\%\$]"))
-                    Plots.xlims!(rel_error_plt, 0, end_obs_win)
-                    Plots.ylims!(rel_error_plt, y_lims_rel_error)
+                    _label!(rel_error_plt, L"\mathrm{Time\;[s]}", latexstring("Relative Error [\$\\%\$]"); xlims=(0, end_obs_win), ylims=(y_lims_rel_error))
                     Plots.savefig(plotpath(win_exp_path,"rel_error.pdf"))
 
                 end
@@ -2434,11 +2925,14 @@ height, contours), and overlays them onto shared comparison figures at four
 nested levels:
 
 - **global** (across all top-level `dir`s): cost convergence, normalized
+  η/β, height/normalized-height/relative-error, and contour comparison,
   bucketed by simulation-time case (2/5/10/20/30 s).
 - **per-`dir`** (across element sizes): mesh-convergence plots of cost, η, β,
+  and height/relative-height-error.
 - **per-`elem_size_folder`** (across simulation-time windows): the same set
   of comparison plots, plus cost-surface slice-direction plots.
 - **per-`sim_time_folder`** (across noise levels): covariance ellipse and
+  noisy height/error distribution plots.
 
 # Arguments
 - `filepath_gt_::String`: ground-truth data root each experiment is compared against.
@@ -2449,246 +2943,166 @@ nested levels:
 None. All outputs are PDFs written under `plot_path_global`/`plot_path_elems`/
 `plot_path_sim_time`/`plot_path_noise`.
 """
-function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
+function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list; method::Union{Nothing,String}=nothing)
+
+    # Validation metrics, normalized per experiment so they are comparable across runs made
+    # at different ground-truth parameters.
+    norm_est_runs    = Vector{Vector{Float64}}()   # h_est / h_gt
+    rel_err_est_runs = Vector{Vector{Float64}}()   # |h_est - h_gt| / h_gt · 100
+    stat_time = Float64[]
     dir_list = readdir(filepath)
 
     # figure for legend
 
     # plot for convergence per slip case
-    plot_conv_2 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    plot_conv_2 = _fig(margins=:all, legend_column=3)
     Plots.plot!(plot_conv_2, [],  label=false)
-    Plots.xlabel!(plot_conv_2, L"\mathrm{Iterations}")
-    Plots.ylabel!(plot_conv_2, L"\mathrm{Cost\;[px]}")
+    _label!(plot_conv_2, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-    plot_conv_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    plot_conv_5 = _fig(margins=:all, legend_column=3)
     Plots.plot!(plot_conv_5, [],  label=false)
-    Plots.xlabel!(plot_conv_5, L"\mathrm{Iterations}")
-    Plots.ylabel!(plot_conv_5, L"\mathrm{Cost\;[px]}")
+    _label!(plot_conv_5, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-    plot_conv_10 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    plot_conv_10 = _fig(margins=:all, legend_column=3)
     Plots.plot!(plot_conv_10, [],  label=false)
-    Plots.xlabel!(plot_conv_10, L"\mathrm{Iterations}")
-    Plots.ylabel!(plot_conv_10, L"\mathrm{Cost\;[px]}")
+    _label!(plot_conv_10, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-    plot_conv_20 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    plot_conv_20 = _fig(margins=:all, legend_column=3)
     Plots.plot!(plot_conv_20, [],  label=false)
-    Plots.xlabel!(plot_conv_20, L"\mathrm{Iterations}")
-    Plots.ylabel!(plot_conv_20, L"\mathrm{Cost\;[px]}")
+    _label!(plot_conv_20, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-    plot_conv_30 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    plot_conv_30 = _fig(margins=:all, legend_column=3)
     Plots.plot!(plot_conv_30, [],  label=false)
-    Plots.xlabel!(plot_conv_30, L"\mathrm{Iterations}")
-    Plots.ylabel!(plot_conv_30, L"\mathrm{Cost\;[px]}")
+    _label!(plot_conv_30, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-    plot_conv_log_2 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    plot_conv_log_2 = _fig(margins=:all, legend_column=3)
     Plots.plot!(plot_conv_log_2, [],  label=false)
-    Plots.xlabel!(plot_conv_log_2, L"\mathrm{Iterations}")
-    Plots.ylabel!(plot_conv_log_2, L"\mathrm{Cost\;[px]}")
+    _label!(plot_conv_log_2, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-    plot_conv_log_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    plot_conv_log_5 = _fig(margins=:all, legend_column=3)
     Plots.plot!(plot_conv_log_5, [],  label=false)
-    Plots.xlabel!(plot_conv_log_5, L"\mathrm{Iterations}")
-    Plots.ylabel!(plot_conv_log_5, L"\mathrm{Cost\;[px]}")
+    _label!(plot_conv_log_5, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-    plot_conv_log_10 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    plot_conv_log_10 = _fig(margins=:all, legend_column=3)
     Plots.plot!(plot_conv_log_10, [],  label=false)
-    Plots.xlabel!(plot_conv_log_10, L"\mathrm{Iterations}")
-    Plots.ylabel!(plot_conv_log_10, L"\mathrm{Cost\;[px]}")
+    _label!(plot_conv_log_10, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-    plot_conv_log_20 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    plot_conv_log_20 = _fig(margins=:all, legend_column=3)
     Plots.plot!(plot_conv_log_20, [],  label=false)
-    Plots.xlabel!(plot_conv_log_20, L"\mathrm{Iterations}")
-    Plots.ylabel!(plot_conv_log_20, L"\mathrm{Cost\;[px]}")
+    _label!(plot_conv_log_20, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-    plot_conv_log_30 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    plot_conv_log_30 = _fig(margins=:all, legend_column=3)
     Plots.plot!(plot_conv_log_30, [],  label=false)
-    Plots.xlabel!(plot_conv_log_30, L"\mathrm{Iterations}")
-    Plots.ylabel!(plot_conv_log_30, L"\mathrm{Cost\;[px]}")
+    _label!(plot_conv_log_30, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-    η_norm_plot_2 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    η_norm_plot_2 = _fig(margins=:all, legend_column=3)
     Plots.hline!(η_norm_plot_2, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(η_norm_plot_2,L"\mathrm{Iterations}")
-    Plots.ylabel!(η_norm_plot_2,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
+    _label!(η_norm_plot_2, L"\mathrm{Iterations}", L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
-    β_norm_plot_2 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    β_norm_plot_2 = _fig(margins=:all, legend_column=3)
     Plots.hline!(β_norm_plot_2, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(β_norm_plot_2, L"\mathrm{Iterations}")
-    Plots.ylabel!(β_norm_plot_2, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
+    _label!(β_norm_plot_2, L"\mathrm{Iterations}", L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
 
-    η_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    η_norm_plot_5 = _fig(margins=:all, legend_column=3)
     Plots.hline!(η_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(η_norm_plot_5,L"\mathrm{Iterations}")
-    Plots.ylabel!(η_norm_plot_5,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
+    _label!(η_norm_plot_5, L"\mathrm{Iterations}", L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
-    β_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    β_norm_plot_5 = _fig(margins=:all, legend_column=3)
     Plots.hline!(β_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black, yscale=:log10)
-    Plots.xlabel!(β_norm_plot_5, L"\mathrm{Iterations}")
-    Plots.ylabel!(β_norm_plot_5, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
+    _label!(β_norm_plot_5, L"\mathrm{Iterations}", L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
 
-    η_norm_plot_10 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-    Plots.hline!(η_norm_plot_10, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(η_norm_plot_10,L"\mathrm{Iterations}")
-    Plots.ylabel!(η_norm_plot_10,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
-
-    β_norm_plot_10 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-    Plots.hline!(β_norm_plot_10, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(β_norm_plot_10, L"\mathrm{Iterations}")
-    Plots.ylabel!(β_norm_plot_10, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
-
-    η_norm_plot_20 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    η_norm_plot_20 = _fig(margins=:all, legend_column=3)
     Plots.hline!(η_norm_plot_20, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(η_norm_plot_20,L"\mathrm{Iterations}")
-    Plots.ylabel!(η_norm_plot_20,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
+    _label!(η_norm_plot_20, L"\mathrm{Iterations}", L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
-    β_norm_plot_20 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    β_norm_plot_20 = _fig(margins=:all, legend_column=3)
     Plots.hline!(β_norm_plot_20, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(β_norm_plot_20, L"\mathrm{Iterations}")
-    Plots.ylabel!(β_norm_plot_20, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
+    _label!(β_norm_plot_20, L"\mathrm{Iterations}", L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
 
-    η_norm_plot_30 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    η_norm_plot_30 = _fig(margins=:all, legend_column=3)
     Plots.hline!(η_norm_plot_30, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(η_norm_plot_30,L"\mathrm{Iterations}")
-    Plots.ylabel!(η_norm_plot_30,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
+    _label!(η_norm_plot_30, L"\mathrm{Iterations}", L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
-    β_norm_plot_30 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    β_norm_plot_30 = _fig(margins=:all, legend_column=3)
     Plots.hline!(β_norm_plot_30, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(β_norm_plot_30, L"\mathrm{Iterations}")
-    Plots.ylabel!(β_norm_plot_30, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
+    _label!(β_norm_plot_30, L"\mathrm{Iterations}", L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
 
-
-
-
-
-
-    h_glob_plot_2 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    h_glob_plot_2 = _fig(margins=:all, legend_column=3)
     Plots.plot([5,end_obs_win],[0.998,0.998], arrow=arrow(:closed, :both), color=:black, label=false)
     Plots.annotate!(h_glob_plot_2, 15, 0.997, ("Prediction",:black, :center,10,"computer modern"))
-    Plots.xlabel!(h_glob_plot_2,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_glob_plot_2,L"h_{\mathrm{est}}\;\mathrm{[mm]}")
-    Plots.xlims!(h_glob_plot_2, 0, end_obs_win)
+    _label!(h_glob_plot_2, L"\mathrm{Time\;[s]}", L"h_{\mathrm{est}}\;\mathrm{[mm]}"; xlims=(0, end_obs_win))
 
-    h_glob_plot_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-    Plots.xlabel!(h_glob_plot_5,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_glob_plot_5,L"h_{\mathrm{est}}\;\mathrm{[mm]}")  
-    Plots.xlims!(h_glob_plot_5, 0, end_obs_win) 
+    h_glob_plot_5 = _fig(margins=:all, legend_column=3)
+    _label!(h_glob_plot_5, L"\mathrm{Time\;[s]}", L"h_{\mathrm{est}}\;\mathrm{[mm]}"; xlims=(0, end_obs_win))
 
-    h_glob_plot_10 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-    Plots.xlabel!(h_glob_plot_10,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_glob_plot_10,L"h_{\mathrm{est}}\;\mathrm{[mm]}") 
-    Plots.xlims!(h_glob_plot_10, 0, end_obs_win)
-
-    h_norm_plot_2 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    h_norm_plot_2 = _fig(margins=:all, legend_column=3)
     Plots.hline!(h_norm_plot_2, [1.0],  left_margin=plt_lft_margin, linestyle=:dash, label=false, color=:black)
     Plots.plot!(h_norm_plot_2,[5,end_obs_win],[0.998,0.998], arrow=arrow(:closed, :both), color=:black, label=false)
     Plots.annotate!(h_norm_plot_2, 15, 0.997, ("Prediction",:black, :center,10,"computer modern"))
-    Plots.xlabel!(h_norm_plot_2,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_norm_plot_2,L"h_{\mathrm{est}}/h_{\mathrm{gt}}")
-    Plots.xlims!(h_norm_plot_2, 0, end_obs_win)
-    Plots.ylims!(h_norm_plot_2, y_lims_h_norm)
+    _label!(h_norm_plot_2, L"\mathrm{Time\;[s]}", L"h_{\mathrm{est}}/h_{\mathrm{gt}}"; xlims=(0, end_obs_win), ylims=(y_lims_h_norm))
 
-    h_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    h_norm_plot_5 = _fig(margins=:all, legend_column=3)
     Plots.hline!(h_norm_plot_5, [1.0],  left_margin=plt_lft_margin, linestyle=:dash, label=false, color=:black)
 
     Plots.plot!(h_norm_plot_5,[5,end_obs_win],[1.01,1.01], arrow=arrow(:closed, :both), color=:black, label=false)
     Plots.annotate!(h_norm_plot_5, 15, 1.0125, ("Prediction",:black, :center, 8,"computer modern"))
     Plots.vline!(h_norm_plot_5, [5.0], color=:black, linestyle=:dash, label=false)
-    Plots.xlabel!(h_norm_plot_5,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_norm_plot_5,L"h_{\mathrm{est}}/h_{\mathrm{gt}}")  
-    Plots.xlims!(h_norm_plot_5, 0, end_obs_win)
-    Plots.ylims!(h_norm_plot_5, y_lims_h_norm)
+    _label!(h_norm_plot_5, L"\mathrm{Time\;[s]}", L"h_{\mathrm{est}}/h_{\mathrm{gt}}"; xlims=(0, end_obs_win), ylims=(y_lims_h_norm))
 
-    h_norm_plot_10 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-    Plots.hline!(h_norm_plot_10, [1.0],  left_margin=plt_lft_margin, linestyle=:dash, label=false, color=:black)
-    Plots.vline!(h_norm_plot_10, [10.0], color=:black, linestyle=:dash, label=false)
-    Plots.xlabel!(h_norm_plot_10,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_norm_plot_10,L"h_{\mathrm{est}}/h_{\mathrm{gt}}") 
-    Plots.xlims!(h_norm_plot_10, 0, end_obs_win)
-    Plots.ylims!(h_norm_plot_10, y_lims_h_norm)
+    rel_height_error_glob_plot_2 = _fig(margins=:all, legend_column=3)
+    _label!(rel_height_error_glob_plot_2, L"\mathrm{Time\;[s]}", latexstring("Relative Height Error [\$\\%\$]"); xlims=(0, end_obs_win), ylims=(y_lims_rel_error))
 
-    rel_height_error_glob_plot_2 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-    Plots.xlabel!(rel_height_error_glob_plot_2, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(rel_height_error_glob_plot_2, latexstring("Relative Height Error [\$\\%\$]"))
-    Plots.xlims!(rel_height_error_glob_plot_2, 0, end_obs_win)
-    Plots.ylims!(rel_height_error_glob_plot_2, y_lims_rel_error)
-
-    rel_height_error_glob_plot_5 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    rel_height_error_glob_plot_5 = _fig(margins=:all, legend_column=3)
     Plots.vline!(rel_height_error_glob_plot_5, [5.0], color=:black, linestyle=:dash, label=false)
 
     Plots.plot!(rel_height_error_glob_plot_5,[5,end_obs_win],[1.01,1.01], arrow=arrow(:closed, :both), color=:black, label=false)
     Plots.annotate!(rel_height_error_glob_plot_5, 15, 1.0175, ("Prediction",:black, :center, 8,"computer modern"))
-    Plots.xlabel!(rel_height_error_glob_plot_5, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(rel_height_error_glob_plot_5, latexstring("Relative Height Error [\$\\%\$]"))
-    Plots.xlims!(rel_height_error_glob_plot_5, 0, end_obs_win)
-    Plots.ylims!(rel_height_error_glob_plot_5, y_lims_rel_error)
+    _label!(rel_height_error_glob_plot_5, L"\mathrm{Time\;[s]}", latexstring("Relative Height Error [\$\\%\$]"); xlims=(0, end_obs_win), ylims=(y_lims_rel_error))
 
-    rel_height_error_glob_plot_10 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-    Plots.vline!(rel_height_error_glob_plot_10, [10.0], color=:black, linestyle=:dash, label=false)
-    Plots.xlabel!(rel_height_error_glob_plot_10, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(rel_height_error_glob_plot_10, latexstring("Relative Height Error [\$\\%\$]"))
-    Plots.xlims!(rel_height_error_glob_plot_10, 0, end_obs_win)
-    Plots.ylims!(rel_height_error_glob_plot_10, y_lims_rel_error)
-
-    rel_height_error_glob_plot_20 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+    rel_height_error_glob_plot_20 = _fig(margins=:all, legend_column=3)
     Plots.vline!(rel_height_error_glob_plot_20, [20.0], color=:black, linestyle=:dash, label=false)
-    Plots.xlabel!(rel_height_error_glob_plot_20, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(rel_height_error_glob_plot_20, latexstring("Relative Height Error [\$\\%\$]"))
-    Plots.xlims!(rel_height_error_glob_plot_20, 0, end_obs_win)
-    Plots.ylims!(rel_height_error_glob_plot_20, y_lims_rel_error)
+    _label!(rel_height_error_glob_plot_20, L"\mathrm{Time\;[s]}", latexstring("Relative Height Error [\$\\%\$]"); xlims=(0, end_obs_win), ylims=(y_lims_rel_error))
 
-    rel_height_error_glob_plot_30 = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-    Plots.xlabel!(rel_height_error_glob_plot_30, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(rel_height_error_glob_plot_30, latexstring("Relative Height Error [\$\\%\$]"))
-    Plots.xlims!(rel_height_error_glob_plot_30, 0, end_obs_win)
-    Plots.ylims!(rel_height_error_glob_plot_30, y_lims_rel_error)
-
-
-
-
-
+    rel_height_error_glob_plot_30 = _fig(margins=:all, legend_column=3)
+    _label!(rel_height_error_glob_plot_30, L"\mathrm{Time\;[s]}", latexstring("Relative Height Error [\$\\%\$]"); xlims=(0, end_obs_win), ylims=(y_lims_rel_error))
 
     cont_y_lims = [400, 1200] 
     cont_x_lims = [1380, 1430]
     contour_plt = set_plot(fs, sz=(round(Int,plt_width*1.5), plt_height), legend_column=3)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt, 480, 1520)
-    Plots.xlabel!(contour_plt, L"x\;\mathrm{[px]}")
-    Plots.ylabel!(contour_plt, L"y\;\mathrm{[px]}")
+    _label!(contour_plt, L"x\;\mathrm{[px]}", L"y\;\mathrm{[px]}")
 
     cnt_plt_width = 179
     contour_plt_zoom = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
     Plots.xticks!(contour_plt_zoom, 1100:200:1520)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt_zoom, cont_x_lims[1], cont_x_lims[2])
-    Plots.xlabel!(contour_plt_zoom, L"x\;\mathrm{[px]}")
-    Plots.ylabel!(contour_plt_zoom, L"y\;\mathrm{[px]}")
+    _label!(contour_plt_zoom, L"x\;\mathrm{[px]}", L"y\;\mathrm{[px]}")
 
     contour_plt_zoom_05 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
     Plots.xticks!(contour_plt_zoom_05, 1100:200:1520)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt_zoom_05, cont_x_lims[1], cont_x_lims[2])
-    Plots.xlabel!(contour_plt_zoom_05, L"x\;\mathrm{[px]}")
-    Plots.ylabel!(contour_plt_zoom_05, L"y\;\mathrm{[px]}")
+    _label!(contour_plt_zoom_05, L"x\;\mathrm{[px]}", L"y\;\mathrm{[px]}")
 
     contour_plt_zoom_10 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
     Plots.xticks!(contour_plt_zoom_10, 1100:200:1520)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt_zoom_10, cont_x_lims[1], cont_x_lims[2])
-    Plots.xlabel!(contour_plt_zoom_10, L"x\;\mathrm{[px]}")
-    Plots.ylabel!(contour_plt_zoom_10, L"y\;\mathrm{[px]}")
+    _label!(contour_plt_zoom_10, L"x\;\mathrm{[px]}", L"y\;\mathrm{[px]}")
 
     contour_plt_zoom_15 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
     Plots.xticks!(contour_plt_zoom_15, 1100:200:1520)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt_zoom_15, cont_x_lims[1], cont_x_lims[2])
-    Plots.xlabel!(contour_plt_zoom_15, L"x\;\mathrm{[px]}")
-    Plots.ylabel!(contour_plt_zoom_15, L"y\;\mathrm{[px]}")
+    _label!(contour_plt_zoom_15, L"x\;\mathrm{[px]}", L"y\;\mathrm{[px]}")
 
     contour_plt_zoom_20 = set_plot(fs, sz=(cnt_plt_width, plt_height), legend_column=3)
     Plots.xticks!(contour_plt_zoom_20, 1100:200:1520)
     Plots.yflip!(true)
     Plots.xlims!(contour_plt_zoom_20, cont_x_lims[1], cont_x_lims[2])
-    Plots.xlabel!(contour_plt_zoom_20, L"x\;\mathrm{[px]}")
-    Plots.ylabel!(contour_plt_zoom_20, L"y\;\mathrm{[px]}")
+    _label!(contour_plt_zoom_20, L"x\;\mathrm{[px]}", L"y\;\mathrm{[px]}")
 
     cont_plt_legend = set_plot(fs, sz=(cnt_plt_width, plt_height), legend=:outertopright)
 
@@ -2722,52 +3136,40 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
         @debug "Ground truth η: $(η_gt[1])"
 
-        Plots.plot!(slip_case_legend, [0, 0.2], [0, 0], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linewidth=2, markerstrokewidth=0)
+        Plots.plot!(slip_case_legend, [0, 0.2], [0, 0], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir), linewidth=2, markerstrokewidth=0)
 
-        groups = collect_experiment_groups(filepath_dir)
+        groups = collect_experiment_groups(filepath_dir; method=method)
         elem_size_folders = _elem_size_folders(groups)
 
-        elem_conv_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-        Plots.xlabel!(elem_conv_plt, L"\mathrm{Iterations}")
-        Plots.ylabel!(elem_conv_plt, L"\mathrm{Cost\;[px]}")
+        elem_conv_plt = _fig(margins=:all, legend_column=3)
+        _label!(elem_conv_plt, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-        elem_conv_plt_log = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
-        Plots.xlabel!(elem_conv_plt_log, L"\mathrm{Iterations}")
-        Plots.ylabel!(elem_conv_plt_log, L"\mathrm{Cost\;[px]}")
+        elem_conv_plt_log = _fig(margins=:all, legend_column=3)
+        _label!(elem_conv_plt_log, L"\mathrm{Iterations}", L"\mathrm{Cost\;[px]}")
 
-        elem_η_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+        elem_η_plt = _fig(margins=:all, legend_column=3)
         Plots.hline!(elem_η_plt, [η_gt[1]], label="Ground truth η",  left_margin=plt_lft_margin)
-        Plots.xlabel!(elem_η_plt,L"\mathrm{Iterations}")
-        Plots.ylabel!(elem_η_plt,L"\eta\;\mathrm{[kPa\, s]}")
+        _label!(elem_η_plt, L"\mathrm{Iterations}", L"\eta\;\mathrm{[kPa\, s]}")
 
-        elem_β_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+        elem_β_plt = _fig(margins=:all, legend_column=3)
         Plots.hline!(elem_β_plt, [β_gt[1]], label="Ground truth β",  left_margin=plt_lft_margin)
-        Plots.xlabel!(elem_β_plt, L"\mathrm{Iterations}")
-        Plots.ylabel!(elem_β_plt, L"\beta\;\mathrm{[Pa\, s \, m]}")
+        _label!(elem_β_plt, L"\mathrm{Iterations}", L"\beta\;\mathrm{[Pa\, s \, m]}")
 
-
-        elem_η_norm_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+        elem_η_norm_plt = _fig(margins=:all, legend_column=3)
         Plots.hline!(elem_η_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash, color=:black)
-        Plots.xlabel!(elem_η_norm_plt,L"\mathrm{Iterations}")
-        Plots.ylabel!(elem_η_norm_plt,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
+        _label!(elem_η_norm_plt, L"\mathrm{Iterations}", L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
-        elem_β_norm_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+        elem_β_norm_plt = _fig(margins=:all, legend_column=3)
         Plots.hline!(elem_β_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash, color=:black)
-        Plots.xlabel!(elem_β_norm_plt, L"\mathrm{Iterations}")
-        Plots.ylabel!(elem_β_norm_plt, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
+        _label!(elem_β_norm_plt, L"\mathrm{Iterations}", L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
 
-
-        elem_rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+        elem_rel_height_error_plt = _fig(margins=:all, legend_column=3)
         Plots.plot!(elem_rel_height_error_plt, [], left_margin=plt_lft_margin, label=false)
-        Plots.xlabel!(elem_rel_height_error_plt, L"\mathrm{Time\;[s]}")
-        Plots.ylabel!(elem_rel_height_error_plt, latexstring("Relative Height Error [\$\\%\$]"))
-        Plots.xlims!(elem_rel_height_error_plt, 0, end_obs_win)
+        _label!(elem_rel_height_error_plt, L"\mathrm{Time\;[s]}", latexstring("Relative Height Error [\$\\%\$]"); xlims=(0, end_obs_win))
 
-        elem_height_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=3)
+        elem_height_plt = _fig(margins=:all, legend_column=3)
         Plots.plot!(elem_height_plt, [], left_margin=plt_lft_margin, label=false)
-        Plots.xlabel!(elem_height_plt, L"\mathrm{Time\;[s]}")
-        Plots.ylabel!(elem_height_plt, L"\mathrm{Height\;[mm]}")
-        Plots.xlims!(elem_height_plt, 0, end_obs_win)
+        _label!(elem_height_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;[mm]}"; xlims=(0, end_obs_win))
 
         for elem_size_folder_ in elem_size_folders
             if elem_size_folder_ == "post_analysis" || elem_size_folder_ == "Q2_16"
@@ -2778,45 +3180,33 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
             printstyled("Processing element size folder: $(elem_size_folder)\n", color=:blue)  
             sim_time_folders = _sim_time_folders(groups, elem_size_folder_)
 
-            sim_window_η_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_η_plt = _fig(margins=:none)
             Plots.hline!(sim_window_η_plt, [η_gt[1]], label="Ground truth η")
-            Plots.xlabel!(sim_window_η_plt,L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_η_plt,L"\eta\;\mathrm{[kPa\, s]}")
+            _label!(sim_window_η_plt, L"\mathrm{Iterations}", L"\eta\;\mathrm{[kPa\, s]}")
 
-            sim_window_β_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_β_plt = _fig(margins=:none)
             Plots.hline!(sim_window_β_plt, [β_gt[1]], label="Ground truth β")
-            Plots.xlabel!(sim_window_β_plt, L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_β_plt, L"\beta\;\mathrm{[Pa\, s \, m]}")
+            _label!(sim_window_β_plt, L"\mathrm{Iterations}", L"\beta\;\mathrm{[Pa\, s \, m]}")
 
-
-            sim_window_η_norm_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_η_norm_plt = _fig(margins=:none)
             Plots.hline!(sim_window_η_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash, color=:black)
-            Plots.xlabel!(sim_window_η_norm_plt,L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_η_norm_plt,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
+            _label!(sim_window_η_norm_plt, L"\mathrm{Iterations}", L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
-            sim_window_β_norm_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_β_norm_plt = _fig(margins=:none)
             Plots.hline!(sim_window_β_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash, color=:black)
-            Plots.xlabel!(sim_window_β_norm_plt, L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_β_norm_plt, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
+            _label!(sim_window_β_norm_plt, L"\mathrm{Iterations}", L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
 
-
-            sim_window_rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_rel_height_error_plt = _fig(margins=:none)
             Plots.plot!(sim_window_rel_height_error_plt, [], left_margin=plt_lft_margin, label=false)
-            Plots.xlabel!(sim_window_rel_height_error_plt, L"\mathrm{Time\;[s]}")
-            Plots.ylabel!(sim_window_rel_height_error_plt, latexstring("Relative Height Error [\$\\%\$]"))
-            Plots.xlims!(sim_window_rel_height_error_plt, 0, end_obs_win)
+            _label!(sim_window_rel_height_error_plt, L"\mathrm{Time\;[s]}", latexstring("Relative Height Error [\$\\%\$]"); xlims=(0, end_obs_win))
 
-            sim_window_height_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_height_plt = _fig(margins=:none)
             Plots.plot!(sim_window_height_plt, [], left_margin=plt_lft_margin, label=false)
-            Plots.xlabel!(sim_window_height_plt, L"\mathrm{Time\;[s]}")
-            Plots.ylabel!(sim_window_height_plt, L"\mathrm{Height\;[mm]}")
-            Plots.xlims!(sim_window_height_plt, 0, end_obs_win)
+            _label!(sim_window_height_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;[mm]}"; xlims=(0, end_obs_win))
 
             plt_slices = set_plot(fs, sz=(350, 750))
             Plots.vline!(plt_slices, [0.0], color=:blue, linestyle=:dash, label="Minimum",  lw=1)
-            Plots.xlabel!(plt_slices, L"\mathrm{Distance\;from\;minimum\;[px]}")
-            Plots.ylabel!(plt_slices, L"\mathrm{Cost}")
-            Plots.ylims!(plt_slices, 0, 50)
+            _label!(plt_slices, L"\mathrm{Distance\;from\;minimum\;[px]}", L"\mathrm{Cost}"; ylims=(0, 50))
 
             for sim_time_folder_ in reverse(sort(sim_time_folders))
 
@@ -2824,56 +3214,39 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                     continue
                 end
 
-                height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+                height_error_plt = _fig(margins=:none)
                 Plots.plot!(height_error_plt, [], label=false)
-                Plots.xlabel!(height_error_plt, L"\mathrm{Time\;[s]}")
-                Plots.ylabel!(height_error_plt, L"\mathrm{Height\;Error\;[mm]}")
-                Plots.xlims!(height_error_plt, 0, end_obs_win)
+                _label!(height_error_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;Error\;[mm]}"; xlims=(0, end_obs_win))
 
-                rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+                rel_height_error_plt = _fig(margins=:none)
                 Plots.plot!(rel_height_error_plt, [], label=false)
-                Plots.xlabel!(rel_height_error_plt, L"\mathrm{Time\;[s]}")
-                Plots.ylabel!(rel_height_error_plt, latexstring("Relative Height Error [\$\\%\$]"))
-                Plots.xlims!(rel_height_error_plt, 0, end_obs_win)
-
+                _label!(rel_height_error_plt, L"\mathrm{Time\;[s]}", latexstring("Relative Height Error [\$\\%\$]"); xlims=(0, end_obs_win))
 
                 noise_cols::Int = 2
-                covarience_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=noise_cols)
-                Plots.xlabel!(covarience_plt, L"\eta/\eta_{\mathrm{gt}}")
-                Plots.ylabel!(covarience_plt, L"\beta/\beta_{\mathrm{gt}}")
-                Plots.xlims!(covarience_plt, 0.95, 1.05)
-                Plots.ylims!(covarience_plt, 0.0, 1.75)
+                covarience_plt = _fig(margins=:all, legend_column=noise_cols)
+                _label!(covarience_plt, L"\eta/\eta_{\mathrm{gt}}", L"\beta/\beta_{\mathrm{gt}}"; xlims=(0.95, 1.05), ylims=(0.0, 1.75))
 
+                height_noise_plt = _fig(margins=:all, legend_column=noise_cols)
+                _label!(height_noise_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;[mm]}"; xlims=(0, end_obs_win))
 
-                height_noise_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=noise_cols)
-                Plots.xlabel!(height_noise_plt, L"\mathrm{Time\;[s]}")
-                Plots.ylabel!(height_noise_plt, L"\mathrm{Height\;[mm]}")
-                Plots.xlims!(height_noise_plt, 0, end_obs_win)
-
-                height_error_noise_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=noise_cols)
+                height_error_noise_plt = _fig(margins=:all, legend_column=noise_cols)
                 Plots.vline!(height_error_noise_plt, [5.0], color=:black, linestyle=:dash, label=false)
-                Plots.xlabel!(height_error_noise_plt, L"\mathrm{Time\;[s]}")
-                Plots.ylabel!(height_error_noise_plt, L"\mathrm{Height\;Error\;[mm]}")
-                Plots.xlims!(height_error_noise_plt, 0, end_obs_win)
+                _label!(height_error_noise_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;Error\;[mm]}"; xlims=(0, end_obs_win))
 
-                rel_height_error_noise_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=noise_cols)
+                rel_height_error_noise_plt = _fig(margins=:all, legend_column=noise_cols)
                 Plots.vline!(rel_height_error_noise_plt, [5.0], color=:black, linestyle=:dash, label=false)
-                Plots.xlabel!(rel_height_error_noise_plt, L"\mathrm{Time\;[s]}")
-                Plots.ylabel!(rel_height_error_noise_plt, latexstring("Relative Height Error [\$\\%\$]"))
-                Plots.xlims!(rel_height_error_noise_plt, 0, end_obs_win)
+                _label!(rel_height_error_noise_plt, L"\mathrm{Time\;[s]}", latexstring("Relative Height Error [\$\\%\$]"); xlims=(0, end_obs_win))
 
-                normalized_height_noise_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=noise_cols)
+                normalized_height_noise_plt = _fig(margins=:all, legend_column=noise_cols)
                 Plots.vline!(normalized_height_noise_plt, [5.0], color=:black, linestyle=:dash, label=false)
                 Plots.hline!(normalized_height_noise_plt, [1.0], linestyle=:dash, color=:black, label=false)
                 Plots.ylabel!(normalized_height_noise_plt, L"h_{\mathrm{est}}/h_{\mathrm{gt}}")
                 Plots.xlabel!(normalized_height_noise_plt, L"\mathrm{Time\;[s]}")
                 Plots.xlims!(normalized_height_noise_plt, 0, end_obs_win)
 
-
-                η_noise_norm_plt = set_plot(fs, sz=(plt_width, plt_height), left_margin=plt_lft_margin, right_margin=plt_right_margin, top_margin=plt_top_margin, legend_column=noise_cols)
+                η_noise_norm_plt = _fig(margins=:all, legend_column=noise_cols)
                 Plots.hline!(η_noise_norm_plt, [1.0], linestyle=:dash, color=:black, label=false)
-                Plots.xlabel!(η_noise_norm_plt, L"\mathrm{Time\;[s]}")
-                Plots.ylabel!(η_noise_norm_plt, L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
+                _label!(η_noise_norm_plt, L"\mathrm{Time\;[s]}", L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
                 sim_time_folder = joinpath(elem_size_folder, sim_time_folder_)
                 noise_folders = _noise_folders(groups, elem_size_folder_, sim_time_folder_)
@@ -2894,6 +3267,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                     leaf === nothing && continue
 
                     exp_path = leaf.exp_path
+                    _skip_incomplete(exp_path) && continue
                     printstyled("Processing experiment folder: $(exp_path)\n", color=:magenta)
                     exp_params = read_json(datapath(exp_path,"experiment_parameters"))
 
@@ -2905,7 +3279,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                     num_exp_points::Int = round(Int,sim_time/t_steps)
 
                     printstyled("Processing for noise level: $(noise_level): $(exp_path)\n", color=:yellow)
-                    obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney, _ = _get_borders(data_type, filepath_gt, exp_path_n0, num_exp_points; view_folder=leaf.view_folder)
+                    obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path_n0, num_exp_points; view_folder=leaf.view_folder)
                     if noise_level == 0.0
 
                         est_η = readdlm(datapath(exp_path,"η.csv"), ',', Float64)
@@ -2929,7 +3303,6 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                         est_η_norm = est_η./η_gt
                         est_β_norm = est_β./β_gt
                         h_norm = est_h ./ gt_h
-
 
                         cost_list = readdlm(datapath(exp_path,"cost_iter.csv"), ',', Float64)
 
@@ -2978,51 +3351,51 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
                         if sim_time == 2.0
                             if ne == 6
-                                Plots.plot!(η_norm_plot_2, iter, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(η_norm_plot_2, iter, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=_exp_color(dir))
                                 Plots.xticks!(η_norm_plot_2, 0:2:(max_iter+1))
 
-                                Plots.plot!(β_norm_plot_2, iter, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(β_norm_plot_2, iter, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=_exp_color(dir))
                                 Plots.xticks!(β_norm_plot_2, 0:2:(max_iter+1))
 
-                                Plots.plot!(plot_conv_2, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(plot_conv_2, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=_exp_color(dir))
                                 Plots.xticks!(plot_conv_2, 0:2:(max_iter+1))
 
-                                Plots.plot!(plot_conv_log_2, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], yscale=:log10)
+                                Plots.plot!(plot_conv_log_2, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=_exp_color(dir), yscale=:log10)
                                 Plots.xticks!(plot_conv_log_2, 1:10:max_iter)
 
-
-
-                                Plots.plot!(rel_height_error_glob_plot_2, time_h, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                                Plots.plot!(h_norm_plot_2, h_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(rel_height_error_glob_plot_2, time_h, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                Plots.plot!(h_norm_plot_2, h_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                             end
                         elseif sim_time == 5.0
                             if ne == 6
-                                Plots.plot!(η_norm_plot_5, iter, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(η_norm_plot_5, iter, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=_exp_color(dir))
                                 Plots.xticks!(η_norm_plot_5, 0:2:(max_iter+1))
 
-                                Plots.plot!(β_norm_plot_5, iter, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(β_norm_plot_5, iter, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=_exp_color(dir))
                                 Plots.xticks!(β_norm_plot_5, 0:2:(max_iter+1))
 
-                                Plots.plot!(plot_conv_5, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(plot_conv_5, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=_exp_color(dir))
                                 Plots.xticks!(plot_conv_5, 0:2:(max_iter+1))
 
-                                Plots.plot!(plot_conv_log_5, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], yscale=:log10)
+                                Plots.plot!(plot_conv_log_5, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=_exp_color(dir), yscale=:log10)
                                 Plots.xticks!(plot_conv_log_5, 1:2:max_iter)
 
+                                Plots.plot!(rel_height_error_glob_plot_5, time_h[1:51], rel_height_error[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                Plots.plot!(rel_height_error_glob_plot_5, time_h, rel_height_error, label=false, color=_exp_color(dir), linestyle=:dash)
 
+                                Plots.plot!(h_norm_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                Plots.plot!(h_norm_plot_5, time_h, h_norm[1:n_time], label=false, color=_exp_color(dir), linestyle=:dash)
 
-                                Plots.plot!(rel_height_error_glob_plot_5, time_h[1:51], rel_height_error[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                                Plots.plot!(rel_height_error_glob_plot_5, time_h, rel_height_error, label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linestyle=:dash)
+                                push!(norm_est_runs, vec(h_norm[1:n_time]))
+                                push!(rel_err_est_runs, vec(rel_height_error[1:min(n_time, length(rel_height_error))]))
+                                isempty(stat_time) && (stat_time = collect(time_h))
 
-                                Plots.plot!(h_norm_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                                Plots.plot!(h_norm_plot_5, time_h, h_norm[1:n_time], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linestyle=:dash)
+                                Plots.plot!(h_glob_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                Plots.plot!(h_glob_plot_5, time_h, h_norm[1:n_time], label=false, color=_exp_color(dir), linestyle=:dash)
+                                Plots.plot!(h_glob_plot_5, time_h, gt_h[1:n_time], label=false, style=:dash, color=_exp_color(dir))
 
-                                Plots.plot!(h_glob_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                                Plots.plot!(h_glob_plot_5, time_h, h_norm[1:n_time], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linestyle=:dash)
-                                Plots.plot!(h_glob_plot_5, time_h, gt_h[1:n_time], label=false, style=:dash, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-
-                                Plots.plot!(contour_plt, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                                Plots.plot!(contour_plt_zoom, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                Plots.plot!(contour_plt, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                Plots.plot!(contour_plt_zoom, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                             end
                             @debug "Size mismatch: $(size(height_error, 1)) vs $(size(gt_h)) vs $(size(time_h)) vs $(length(rel_height_error))"
                             Plots.plot!(height_error_plt, time_h, height_error[1:n_time], label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
@@ -3057,7 +3430,6 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
                         n_obs_border_pt_lst, n_gt_Splinex, n_gt_Spliney = add_noise(obs_border_pt_lst, nFactor=noise_level)
 
-
                         η_norm = η_pred[:,1] ./ η_gt
                         β_norm = β_pred[:,1] ./ β_gt
 
@@ -3074,17 +3446,17 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                             max_β_norm = maximum(β_norm)
                         end
 
-                        plot_covariance!(covarience_plt, η_pred[:,1]./η_gt, β_pred[:,1]./β_gt, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), legend_column=noise_cols, color_ellipse=color_palette[(noise_iter) % length(color_palette)+1])
+                        plot_covariance!(covarience_plt, η_pred[:,1]./η_gt, β_pred[:,1]./β_gt, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), legend_column=noise_cols, color_ellipse=_palette(noise_iter + 1))
 
                         if noise_level == 0.5
-                            Plots.plot!(contour_plt_zoom_05, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                            Plots.plot!(cont_plt_legend, [], [], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(contour_plt_zoom_05, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                            Plots.plot!(cont_plt_legend, [], [], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                         elseif noise_level == 1.0
-                            Plots.plot!(contour_plt_zoom_10, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(contour_plt_zoom_10, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                         elseif noise_level == 1.5
-                            Plots.plot!(contour_plt_zoom_15, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(contour_plt_zoom_15, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                         elseif noise_level == 2.0
-                            Plots.plot!(contour_plt_zoom_20, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(contour_plt_zoom_20, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                         end
 
                         n_time = min(length(time), size(h_pred, 2), length(gt_h))
@@ -3104,17 +3476,17 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                             gt_h = gt_h[1:min_length]
                         end
                         Plots.plot!(height_noise_plt, time_h[1:n_time], gt_h[1:n_time], style=:dash, label=false)
-                        StatsPlots.errorline!(height_noise_plt, time_h[1:n_time], h_pred[:,1:n_time]', label=false, groupcolor=color_palette[(noise_iter) % length(color_palette)+1], linestyle=:dash)
-                        StatsPlots.errorline!(height_noise_plt, time_h[1:51], h_pred'[1:51,:], label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=color_palette[(noise_iter) % length(color_palette)+1])
+                        StatsPlots.errorline!(height_noise_plt, time_h[1:n_time], h_pred[:,1:n_time]', label=false, groupcolor=_palette(noise_iter + 1), linestyle=:dash)
+                        StatsPlots.errorline!(height_noise_plt, time_h[1:51], h_pred'[1:51,:], label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=_palette(noise_iter + 1))
 
-                        StatsPlots.errorline!(height_error_noise_plt, time_h, height_error', label=false, groupcolor=color_palette[(noise_iter) % length(color_palette)+1], linestyle=:dash)
-                        StatsPlots.errorline!(height_error_noise_plt, time_h[1:51], height_error[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), color=color_palette[(noise_iter) % length(color_palette)+1])
+                        StatsPlots.errorline!(height_error_noise_plt, time_h, height_error', label=false, groupcolor=_palette(noise_iter + 1), linestyle=:dash)
+                        StatsPlots.errorline!(height_error_noise_plt, time_h[1:51], height_error[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), color=_palette(noise_iter + 1))
 
-                        StatsPlots.errorline!(rel_height_error_noise_plt, time_h, rel_height_error', label=false, groupcolor=color_palette[(noise_iter) % length(color_palette)+1], linestyle=:dash)
-                        StatsPlots.errorline!(rel_height_error_noise_plt, time_h[1:51], rel_height_error[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=color_palette[(noise_iter) % length(color_palette)+1])
+                        StatsPlots.errorline!(rel_height_error_noise_plt, time_h, rel_height_error', label=false, groupcolor=_palette(noise_iter + 1), linestyle=:dash)
+                        StatsPlots.errorline!(rel_height_error_noise_plt, time_h[1:51], rel_height_error[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=_palette(noise_iter + 1))
 
-                        StatsPlots.errorline!(normalized_height_noise_plt, time_h, normalized_height', label=false, groupcolor=color_palette[(noise_iter) % length(color_palette)+1], linestyle=:dash)
-                        StatsPlots.errorline!(normalized_height_noise_plt, time_h[1:51], normalized_height[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=color_palette[(noise_iter) % length(color_palette)+1])
+                        StatsPlots.errorline!(normalized_height_noise_plt, time_h, normalized_height', label=false, groupcolor=_palette(noise_iter + 1), linestyle=:dash)
+                        StatsPlots.errorline!(normalized_height_noise_plt, time_h[1:51], normalized_height[1:51,:]', label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), groupcolor=_palette(noise_iter + 1))
 
                         noise_iter += 1
                     end
@@ -3125,7 +3497,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
                 Plots.vline!(covarience_plt, [1], linestyle=:dash, label=false, color=:black)
                 Plots.plot!(covarience_plt, bottom_margin=-20mm)
 
-                plot_path_noise = joinpath(sim_time_folder,"post_analysis_noise","plots")
+                plot_path_noise = _method_dir(joinpath(sim_time_folder,"post_analysis_noise","plots"), method)
                 set_file(plot_path_noise)
                 Plots.savefig(covarience_plt, joinpath(plot_path_noise,"covariance_$dir.pdf"))
                 Plots.savefig(height_noise_plt, joinpath(plot_path_noise,"height_$dir.pdf"))
@@ -3136,7 +3508,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
 
                 @info "Saved plots to $plot_path_noise"
             end
-            plot_path_sim_time = joinpath(elem_size_folder,"post_analysis_time","plots")
+            plot_path_sim_time = _method_dir(joinpath(elem_size_folder,"post_analysis_time","plots"), method)
             set_file(plot_path_sim_time)
 
             Plots.savefig(sim_window_η_plt, joinpath(plot_path_sim_time,"η_$dir.pdf"))
@@ -3149,7 +3521,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
             @info "Saved plots to $plot_path_sim_time"
         end
 
-        plot_path_elems = joinpath(filepath_dir,"post_analysis","plots")
+        plot_path_elems = _method_dir(joinpath(filepath_dir,"post_analysis","plots"), method)
         set_file(plot_path_elems)
         Plots.savefig(elem_conv_plt, joinpath(plot_path_elems,"conv_$dir.pdf"))
         Plots.savefig(elem_conv_plt_log, joinpath(plot_path_elems,"conv_log_$dir.pdf"))
@@ -3162,7 +3534,7 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
         @info "Saved plots to $plot_path_elems"
     end
 
-    plot_path_global = joinpath(filepath,"post_analysis_global","plots")
+    plot_path_global = _method_dir(joinpath(filepath,"post_analysis_global","plots"), method)
     set_file(plot_path_global)
 
     @info "Saving plots to $plot_path_global"
@@ -3174,6 +3546,25 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list)
     Plots.savefig(rel_height_error_glob_plot_5, joinpath(plot_path_global,"relative_height_error_5.pdf"))
     Plots.savefig(h_norm_plot_5, joinpath(plot_path_global,"h_normalized_5.pdf"))
     Plots.savefig(h_glob_plot_5, joinpath(plot_path_global,"height_comparison_5.pdf"))
+
+    height_stats = filter(!isnothing, [
+        normalized_replicate_stats(norm_est_runs,    "h_est/h_gt";         reference=1.0),
+        normalized_replicate_stats(rel_err_est_runs, "rel. error est [%]"; reference=0.0, signed=false),
+    ])
+    if replicate_report(height_stats, "EXPERIMENT STATISTICS — normalized height",
+                        joinpath(plot_path_global, "height_replicate_statistics.csv"))
+        by_label = Dict(st.label => st for st in height_stats)
+        _stat_fig(((norm_est_runs, by_label["h_est/h_gt"], def_red, :solid, "Estimation"),),
+                  stat_time, joinpath(plot_path_global, "h_normalized_5_ci.pdf");
+                  xlabel=L"\mathrm{Time\;[s]}", ylabel=L"h_{\mathrm{est}}/h_{\mathrm{gt}}",
+                  xlims=(0, end_obs_win), hline=1.0)
+        _stat_fig(((rel_err_est_runs, by_label["rel. error est [%]"], def_red, :solid, "Estimation"),),
+                  stat_time, joinpath(plot_path_global, "relative_height_error_5_ci.pdf");
+                  xlabel=L"\mathrm{Time\;[s]}",
+                  ylabel=latexstring("Relative Height Error [\$\\%\$]"),
+                  xlims=(0, end_obs_win))
+    end
+
     Plots.savefig(contour_plt, joinpath(plot_path_global,"contour_comparison_5.pdf"))
     Plots.savefig(contour_plt_zoom, joinpath(plot_path_global,"contour_comparison_5_zoomed.pdf"))
     Plots.savefig(contour_plt_zoom_05, joinpath(plot_path_global,"contour_comparison_zoom_05.pdf"))
@@ -3193,12 +3584,15 @@ Cross-experiment post-analysis and figure generation for `viscosity_type ==
 `post_analysis_const`. Walks the same nested `dir/elem_size_folder/
 simtime_folder/window` result tree under `filepath` (skipping entries in
 `avoid_list`, `"post_analysis_global"`, and a few hardcoded element-size
-folders), and overlays each leaf's time-windowed η/β estimates, their
-in `filepath_gt_`, at three nested levels:
+folders), and overlays each leaf's time-windowed η/β estimates and
+height/relative-height-error against the ground truth in `filepath_gt_`, at
+three nested levels:
 
-  sum, and height/normalized-height/relative-error, bucketed by
-  simulation-time case (5/10 s).
-- **per-`dir`** (across element sizes): mesh-convergence plots of η, β, their
+- **global** (across all top-level `dir`s): normalized η/β and
+  height/normalized-height/relative-error, bucketed by simulation-time case
+  (5/10 s).
+- **per-`dir`** (across element sizes): mesh-convergence plots of η, β, and
+  height/relative-height-error.
 - **per-`elem_size_folder`** (across simulation-time windows): the same
   comparison plots, plus cost-surface slice-direction plots and (per
   simulation-time folder) height-error plots aggregated across windows.
@@ -3212,70 +3606,47 @@ in `filepath_gt_`, at three nested levels:
 None. All outputs are PDFs written under `plot_path_global`/
 `plot_path_elems`/`plot_path_sim_time`/`plot_path_noise`.
 """
-function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
+function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list; method::Union{Nothing,String}=nothing)
+
+    # Relative MOSD (Max/Mean Of Surface Depth), one series per experiment, for the
+    # cross-experiment statistics at the end. Synthetic/simulated ground truth only: the
+    # physical data has no ground-truth mesh, so there is no surface to normalize against
+    # and `post_analysis_real` does not compute this.
+    mosd_est_runs  = Vector{Vector{Float64}}()   # MOSD_est  / MOSD_gt
+    mosd_pred_runs = Vector{Vector{Float64}}()   # MOSD_pred / MOSD_gt
+    mosd_pred_segs = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()  # per-window, for drawing
+    mosd_time = Float64[]
+
+    # Validation metrics, normalized per experiment so they are comparable across runs made
+    # at different η/β.
+    norm_est_runs    = Vector{Vector{Float64}}()   # h_est / h_gt
+    rel_err_est_runs = Vector{Vector{Float64}}()   # |h_est - h_gt| / h_gt · 100
+    norm_pred_runs    = Vector{Vector{Float64}}()   # h_pred / h_gt
+    rel_err_pred_runs = Vector{Vector{Float64}}()
+    norm_pred_segs    = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
+    rel_err_pred_segs = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
+    stat_time = Float64[]
+    stat_windows = Float64[]                        # window boundaries, for the vlines
+
     dir_list = readdir(filepath)
 
-    η_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
+    η_norm_plot_5 = _fig(legend_column=3)
     Plots.hline!(η_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(η_norm_plot_5,L"\mathrm{Iterations}")
-    Plots.ylabel!(η_norm_plot_5,L"\eta_{\mathrm{est}}/\eta^{\mathrm{avg}}_{\mathrm{gt}}(t)")
+    _label!(η_norm_plot_5, L"\mathrm{Iterations}", L"\eta_{\mathrm{est}}/\eta^{\mathrm{avg}}_{\mathrm{gt}}(t)")
 
-    β_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
+    β_norm_plot_5 = _fig(legend_column=3)
     Plots.hline!(β_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(β_norm_plot_5, L"\mathrm{Iterations}")
-    Plots.ylabel!(β_norm_plot_5, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
+    _label!(β_norm_plot_5, L"\mathrm{Iterations}", L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
 
-    η_norm_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.hline!(η_norm_plot_10, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(η_norm_plot_10,L"\mathrm{Iterations}")
-    Plots.ylabel!(η_norm_plot_10,L"\eta_{\mathrm{est}}/\eta^{\mathrm{avg}}_{\mathrm{gt}}(t)")
+    h_plot_5 = _fig(legend_column=3)
+    _label!(h_plot_5, L"\mathrm{Time\;[s]}", L"h_{\mathrm{est}}\;\mathrm{[mm]}"; xlims=(0, end_obs_win))
 
-    β_norm_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.hline!(β_norm_plot_10, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(β_norm_plot_10, L"\mathrm{Iterations}")
-    Plots.ylabel!(β_norm_plot_10, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
-
-    h_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(h_plot_5,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_plot_5,L"h_{\mathrm{est}}\;\mathrm{[mm]}")  
-    Plots.xlims!(h_plot_5, 0, end_obs_win)
-
-    h_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(h_plot_10,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_plot_10,L"h_{\mathrm{est}}\;\mathrm{[mm]}") 
-    Plots.xlims!(h_plot_10, 0, end_obs_win)
-
-    h_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
+    h_norm_plot_5 = _fig(legend_column=3)
     Plots.hline!(h_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(h_norm_plot_5,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_norm_plot_5,L"h_{\mathrm{est}}/h_{\mathrm{gt}}")  
-    Plots.xlims!(h_norm_plot_5, 0, end_obs_win)
-    Plots.ylims!(h_norm_plot_5, y_lims_h_norm)
+    _label!(h_norm_plot_5, L"\mathrm{Time\;[s]}", L"h_{\mathrm{est}}/h_{\mathrm{gt}}"; xlims=(0, end_obs_win), ylims=(y_lims_h_norm))
 
-    h_norm_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.hline!(h_norm_plot_10, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(h_norm_plot_10,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_norm_plot_10,L"h_{\mathrm{est}}/h_{\mathrm{gt}}") 
-    Plots.xlims!(h_norm_plot_10, 0, end_obs_win)
-    Plots.ylims!(h_norm_plot_10, y_lims_h_norm)
-
-    rel_height_error_glob_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(rel_height_error_glob_plot_5, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(rel_height_error_glob_plot_5, latexstring("Relative Height Error [\$\\%\$]"))
-    Plots.xlims!(rel_height_error_glob_plot_5, 0, end_obs_win)
-    Plots.ylims!(rel_height_error_glob_plot_5, y_lims_rel_error)
-
-    rel_height_error_glob_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(rel_height_error_glob_plot_10, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(rel_height_error_glob_plot_10, latexstring("Relative Height Error [\$\\%\$]"))
-    Plots.xlims!(rel_height_error_glob_plot_10, 0, end_obs_win)
-    Plots.ylims!(rel_height_error_glob_plot_10, y_lims_rel_error)
-
-
-
-
-
-
+    rel_height_error_glob_plot_5 = _fig(legend_column=3)
+    _label!(rel_height_error_glob_plot_5, L"\mathrm{Time\;[s]}", latexstring("Relative Height Error [\$\\%\$]"); xlims=(0, end_obs_win), ylims=(y_lims_rel_error))
 
     η_y_max = 0
     β_y_max = 0
@@ -3299,42 +3670,32 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
 
         time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
 
-        groups = collect_experiment_groups(filepath_dir)
+        groups = collect_experiment_groups(filepath_dir; method=method)
         elem_size_folders = _elem_size_folders(groups)
 
-        elem_η_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_η_plt = _fig(margins=:none)
         Plots.hline!(elem_η_plt, [η_gt[1]], label="Ground truth η",  left_margin=plt_lft_margin)
-        Plots.xlabel!(elem_η_plt,L"\mathrm{Iterations}")
-        Plots.ylabel!(elem_η_plt,L"\eta\;\mathrm{[kPa\, s]}")
+        _label!(elem_η_plt, L"\mathrm{Iterations}", L"\eta\;\mathrm{[kPa\, s]}")
 
-        elem_β_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_β_plt = _fig(margins=:none)
         Plots.hline!(elem_β_plt, [β_gt[1]], label="Ground truth β",  left_margin=plt_lft_margin)
-        Plots.xlabel!(elem_β_plt, L"\mathrm{Iterations}")
-        Plots.ylabel!(elem_β_plt, L"\beta\;\mathrm{[Pa\, s \, m]}")
+        _label!(elem_β_plt, L"\mathrm{Iterations}", L"\beta\;\mathrm{[Pa\, s \, m]}")
 
-
-        elem_η_norm_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_η_norm_plt = _fig(margins=:none)
         Plots.hline!(elem_η_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash)
-        Plots.xlabel!(elem_η_norm_plt,L"\mathrm{Iterations}")
-        Plots.ylabel!(elem_η_norm_plt,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
+        _label!(elem_η_norm_plt, L"\mathrm{Iterations}", L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
-        elem_β_norm_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_β_norm_plt = _fig(margins=:none)
         Plots.hline!(elem_β_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash)
-        Plots.xlabel!(elem_β_norm_plt, L"\mathrm{Iterations}")
-        Plots.ylabel!(elem_β_norm_plt, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
+        _label!(elem_β_norm_plt, L"\mathrm{Iterations}", L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
 
-
-        elem_rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_rel_height_error_plt = _fig(margins=:none)
         Plots.plot!(elem_rel_height_error_plt, [], left_margin=plt_lft_margin, label=false)
-        Plots.xlabel!(elem_rel_height_error_plt, L"\mathrm{Time\;[s]}")
-        Plots.ylabel!(elem_rel_height_error_plt, L"\mathrm{Relative\;Height\;Error}")
-        Plots.xlims!(elem_rel_height_error_plt, 0, end_obs_win)
+        _label!(elem_rel_height_error_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Relative\;Height\;Error}"; xlims=(0, end_obs_win))
 
-        elem_height_plt = set_plot(fs, sz=(plt_width, plt_height))
+        elem_height_plt = _fig(margins=:none)
         Plots.plot!(elem_height_plt, [], left_margin=plt_lft_margin, label=false)
-        Plots.xlabel!(elem_height_plt, L"\mathrm{Time\;[s]}")
-        Plots.ylabel!(elem_height_plt, L"\mathrm{Height\;[mm]}")
-        Plots.xlims!(elem_height_plt, 0, end_obs_win)
+        _label!(elem_height_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;[mm]}"; xlims=(0, end_obs_win))
 
         for elem_size_folder_ in elem_size_folders
             if elem_size_folder_ == "post_analysis" || elem_size_folder_ == "Q2_2" || elem_size_folder_ == "Q2_4" || elem_size_folder_ == "Q2_8"
@@ -3345,45 +3706,33 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
             printstyled("Processing element size folder: $(elem_size_folder)\n", color=:blue)  
             sim_time_folders = _sim_time_folders(groups, elem_size_folder_)
 
-            sim_window_η_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_η_plt = _fig(margins=:none)
             Plots.hline!(sim_window_η_plt, [η_gt[1]], label="Ground truth η")
-            Plots.xlabel!(sim_window_η_plt,L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_η_plt,latexstring("\$\\eta\$ [kPa s]"))
+            _label!(sim_window_η_plt, L"\mathrm{Iterations}", latexstring("\$\\eta\$ [kPa s]"))
 
-            sim_window_β_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_β_plt = _fig(margins=:none)
             Plots.hline!(sim_window_β_plt, [β_gt[1]], label="Ground truth β")
-            Plots.xlabel!(sim_window_β_plt, L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_β_plt, latexstring("\$\\beta\$ [MPa s m\$^{-1}\$]"))
+            _label!(sim_window_β_plt, L"\mathrm{Iterations}", latexstring("\$\\beta\$ [MPa s m\$^{-1}\$]"))
 
-
-            sim_window_η_norm_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_η_norm_plt = _fig(margins=:none)
             Plots.hline!(sim_window_η_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash)
-            Plots.xlabel!(sim_window_η_norm_plt,L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_η_norm_plt,L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
+            _label!(sim_window_η_norm_plt, L"\mathrm{Iterations}", L"\eta_{\mathrm{est}}/\eta_{\mathrm{gt}}")
 
-            sim_window_β_norm_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_β_norm_plt = _fig(margins=:none)
             Plots.hline!(sim_window_β_norm_plt, [1.0], label=false,  left_margin=plt_lft_margin, linestyle=:dash)
-            Plots.xlabel!(sim_window_β_norm_plt, L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_β_norm_plt, L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
+            _label!(sim_window_β_norm_plt, L"\mathrm{Iterations}", L"\beta_{\mathrm{est}}/\beta_{\mathrm{gt}}")
 
-
-            sim_window_rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_rel_height_error_plt = _fig(margins=:none)
             Plots.plot!(sim_window_rel_height_error_plt, [], left_margin=plt_lft_margin, label=false)
-            Plots.xlabel!(sim_window_rel_height_error_plt, L"\mathrm{Time\;[s]}")
-            Plots.ylabel!(sim_window_rel_height_error_plt, L"\mathrm{Relative\;Height\;Error}")
-            Plots.xlims!(sim_window_rel_height_error_plt, 0, end_obs_win)
+            _label!(sim_window_rel_height_error_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Relative\;Height\;Error}"; xlims=(0, end_obs_win))
 
-            sim_window_height_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_height_plt = _fig(margins=:none)
             Plots.plot!(sim_window_height_plt, [], left_margin=plt_lft_margin, label=false)
-            Plots.xlabel!(sim_window_height_plt, L"\mathrm{Time\;[s]}")
-            Plots.ylabel!(sim_window_height_plt, L"\mathrm{Height\;[mm]}")
-            Plots.xlims!(sim_window_height_plt, 0, end_obs_win)
+            _label!(sim_window_height_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;[mm]}"; xlims=(0, end_obs_win))
 
             plt_slices = set_plot(fs, sz=(350, 750))
             Plots.vline!(plt_slices, [0.0], color=:blue, linestyle=:dash, label="Minimum",  lw=1)
-            Plots.xlabel!(plt_slices, L"\mathrm{Distance\;from\;minimum\;[px]}")
-            Plots.ylabel!(plt_slices, L"\mathrm{Cost}")
-            Plots.ylims!(plt_slices, 0, 50)
+            _label!(plt_slices, L"\mathrm{Distance\;from\;minimum\;[px]}", L"\mathrm{Cost}"; ylims=(0, 50))
 
             for sim_time_folder_ in sim_time_folders
 
@@ -3391,17 +3740,13 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                     continue
                 end
 
-                height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+                height_error_plt = _fig(margins=:none)
                 Plots.plot!(height_error_plt, [], label=false)
-                Plots.xlabel!(height_error_plt, L"\mathrm{Time\;[s]}")
-                Plots.ylabel!(height_error_plt, L"\mathrm{Height\;Error\;[mm]}")
-                Plots.xlims!(height_error_plt, 0, end_obs_win)
+                _label!(height_error_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;Error\;[mm]}"; xlims=(0, end_obs_win))
 
-                rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+                rel_height_error_plt = _fig(margins=:none)
                 Plots.plot!(rel_height_error_plt, [], label=false)
-                Plots.xlabel!(rel_height_error_plt, L"\mathrm{Time\;[s]}")
-                Plots.ylabel!(rel_height_error_plt, L"\mathrm{Height\;Error\;[mm]}")
-                Plots.xlims!(rel_height_error_plt, 0, end_obs_win)
+                _label!(rel_height_error_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;Error\;[mm]}"; xlims=(0, end_obs_win))
 
                 group = _find_group(groups, elem_size_folder_, sim_time_folder_, "noise_0.0")
                 if group === nothing
@@ -3422,6 +3767,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                         continue
                     end
                     win_exp_path = joinpath(leaf.exp_path, window_dir)
+                    _skip_incomplete(win_exp_path) && continue
 
                     @debug "Processing window: $win_exp_path"
                     exp_params = read_json(datapath(win_exp_path,"experiment_parameters"))
@@ -3449,12 +3795,14 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                     est_βpList = readdlm(datapath(win_exp_path,"est_β.csv"), ',', Float64)
                     avg_ηList = readdlm(datapath(win_exp_path,"avg_η.csv"), ',', Float64)
                     est_h_list = readdlm(datapath(win_exp_path,"est_h.csv"), ',', Float64)
+                    pred_h_list = isfile(datapath(win_exp_path,"pred_h.csv")) ?
+                                  readdlm(datapath(win_exp_path,"pred_h.csv"), ',', Float64) : nothing
 
                     data_ranges_ = get_time_windows(datapath(win_exp_path,"window_data","data_ranges.csv"))
                     t_windows = readdlm(datapath(win_exp_path,"window_data","t_windows.csv"),',',Float64)
                     time_windows = readdlm(datapath(win_exp_path,"window_data","time_windows.csv"),',',Float64)
 
-                    sim_border_pt_lst, splinex, spliney = read_csv(datapath(win_exp_path,"sim_data",leaf.view_folder,"2D_border_points_est"))
+                    sim_border_pt_lst, splinex, spliney = read_csv(datapath(win_exp_path,"sim_data","view_1","2D_border_points_est"))
 
                     @debug "Time windows: $(time_windows)"
                     obs_time = sum(time_windows)
@@ -3477,14 +3825,45 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                     sim_border_pt_lst = sim_border_pt_lst[1:data_point_len+1, :]
                     obs_border_pt_lst = obs_border_pt_lst[1:data_point_len+1, :]
                     est_h = est_h_list[1:data_point_len+1, :]
+                    # The ground truth can run longer than the fitted window — the Carreau runs do —
+                    # so the time axis has to be cut to the data, not to the ground truth's duration.
+                    time = time[1:min(length(time), length(gt_h))]
 
                     height_error = abs.(est_h - gt_h)
                     rel_height_error = height_error ./ gt_h * 100.0
 
+                    # Relative MOSD, computed the same way `replot` plots it. Guarded on the
+                    # ground-truth surface existing, so a partially written experiment is
+                    # skipped rather than aborting the whole post-analysis.
+                    if data_type != "physical" && isdir(datapath(filepath_gt,"sim_data","surface_nodes"))
+                        gt_surf, _, _   = read_csv(datapath(filepath_gt,"sim_data","surface_nodes"))
+                        est_surf, _, _  = read_csv(datapath(win_exp_path,"sim_data","3D_surface_points_est"))
+                        pred_surf, _, _ = read_csv(datapath(win_exp_path,"sim_data","3D_surface_points_pred"))
+
+                        # Carreau ground truth stores h as an Int; get_surface_mosd wants Float64.
+                        h_gt      = float(sim_params["h"])
+                        pose_gt   = _read_obj_pose(sim_params)
+                        gt_surf   = gt_surf[1:(data_point_len+1)]
+                        mosd_gt   = get_surface_mosd(gt_surf, pose_gt, h_gt)
+                        mosd_est  = get_surface_mosd(est_surf, pose_gt, h_gt)
+                        mosd_pred = get_surface_mosd(pred_surf, pose_gt, h_gt)
+
+                        # `mosd_est` is a time series, but `mosd_pred` is the per-window
+                        # predictions concatenated — one sample longer per window boundary —
+                        # so it has to be mapped onto the time axis before dividing by a
+                        # time-indexed ground truth.
+                        ne_ = min(length(mosd_est), length(mosd_gt))
+                        push!(mosd_est_runs, mosd_est[1:ne_] ./ mosd_gt[1:ne_])
+                        push!(mosd_pred_runs,
+                              _align_windowed(mosd_pred, data_ranges_, ne_) ./ mosd_gt[1:ne_])
+                        push!(mosd_pred_segs,
+                              [(r, v ./ mosd_gt[r]) for (r, v) in _windowed_series(mosd_pred, data_ranges_, ne_)])
+                        isempty(mosd_time) && (mosd_time = collect(time[1:min(ne_, length(time))]))
+                    end
+
                     # normalize by ground-truth                      
                     est_η_norm = est_ηpList./avg_ηList
                     est_β_norm = est_βpList./β_gt
-
 
                     Plots.plot!(sim_window_η_plt, est_ηpList, label=string("Window - $(sim_time)s"), marker=1, legend=:outerbottom, legend_column=2)
                     Plots.plot!(sim_window_β_plt, est_βpList, label=string("Window - $(sim_time)s"), marker=1, legend=:outerbottom, legend_column=2)
@@ -3510,54 +3889,59 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
                                 Plots.vline!(β_norm_plot_5, [t], color=:gray, linestyle=:dash, label=false)
 
                                 if ti == 1
-                                    Plots.plot!(η_norm_plot_5, t_win, est_η_norm[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                                    Plots.plot!(β_norm_plot_5, t_win, est_β_norm[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(η_norm_plot_5, t_win, est_η_norm[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                    Plots.plot!(β_norm_plot_5, t_win, est_β_norm[data_range_], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                                 else
-                                    Plots.plot!(η_norm_plot_5, t_win, est_η_norm[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                                    Plots.plot!(β_norm_plot_5, t_win, est_β_norm[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(η_norm_plot_5, t_win, est_η_norm[data_range_], label=false, color=_exp_color(dir))
+                                    Plots.plot!(β_norm_plot_5, t_win, est_β_norm[data_range_], label=false, color=_exp_color(dir))
                                 end
                                 t_prev = t+t_steps
                             end
                             Plots.ylims!(η_norm_plot_5, 0, max(η_y_max*1.1, 2))
                             Plots.ylims!(β_norm_plot_5, 0, max(β_y_max*1.1, 2))
 
-                            Plots.plot!(h_plot_5, time, est_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                            Plots.plot!(h_plot_5, time, gt_h, label=false, linestyle=:dash, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(h_plot_5, time, est_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                            Plots.plot!(h_plot_5, time, gt_h, label=false, linestyle=:dash, color=_exp_color(dir))
 
                             t = collect(range(start=0, stop=sim_time, step=t_steps))
-                            Plots.plot!(rel_height_error_glob_plot_5, t, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                            Plots.plot!(h_norm_plot_5, t, est_h./gt_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(rel_height_error_glob_plot_5, t, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                            Plots.plot!(h_norm_plot_5, t, est_h./gt_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+
+                            push!(norm_est_runs, vec(est_h ./ gt_h))
+                            push!(rel_err_est_runs, vec(rel_height_error))
+                            if !isnothing(pred_h_list)
+                                gtp = vec(gt_h)
+                                ph  = _align_windowed(vec(pred_h_list), data_ranges_, length(gtp))
+                                push!(norm_pred_runs, ph ./ gtp)
+                                push!(rel_err_pred_runs, abs.(ph .- gtp) ./ gtp .* 100.0)
+                                segs = _windowed_series(vec(pred_h_list), data_ranges_, length(gtp))
+                                push!(norm_pred_segs, [(r, v ./ gtp[r]) for (r, v) in segs])
+                                push!(rel_err_pred_segs, [(r, abs.(v .- gtp[r]) ./ gtp[r] .* 100.0) for (r, v) in segs])
+                            end
+                            isempty(stat_time) && (stat_time = collect(t))
+                            isempty(stat_windows) && (stat_windows = vec(Float64.(t_windows)))
                             if dir == "1"
                                 for ti::Int in 1:(size(data_ranges_, 1)-1)
                                     t_win = t_windows[ti]
                                     data_range_ = data_ranges_[ti]
 
                                     Plots.vline!(h_norm_plot_5, [t_win], color=:gray, linestyle=:dash, label=false)
+                                    Plots.vline!(rel_height_error_glob_plot_5, [t_win], color=:gray, linestyle=:dash, label=false)
                                 end
                             end
 
                         end
 
-                    elseif sim_time == 10.0
-                        if ne == 6
-                            Plots.plot!(η_norm_plot_10, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                            Plots.plot!(β_norm_plot_10, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-
-
-                            Plots.plot!(h_plot_10, time, est_h, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                            Plots.plot!(h_plot_10, time, gt_h, label=false, linestyle=:dash, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                            Plots.plot!(rel_height_error_glob_plot_10, time, rel_height_error, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                        end
                     end
                 end
-                plot_path_noise = joinpath(sim_time_folder,"post_analysis_noise","plots")
+                plot_path_noise = _method_dir(joinpath(sim_time_folder,"post_analysis_noise","plots"), method)
                 set_file(plot_path_noise)
                 @info "Saving plots to $plot_path_noise"
                 Plots.savefig(height_error_plt, joinpath(plot_path_noise,"height_error.pdf"))
                 Plots.savefig(rel_height_error_plt, joinpath(plot_path_noise,"relative_height_error.pdf"))
                 @info "Saved plots to $plot_path_noise"
             end
-            plot_path_sim_time = joinpath(elem_size_folder,"post_analysis_time","plots")
+            plot_path_sim_time = _method_dir(joinpath(elem_size_folder,"post_analysis_time","plots"), method)
             set_file(plot_path_sim_time)
 
             Plots.savefig(sim_window_η_plt, joinpath(plot_path_sim_time,"η.pdf"))
@@ -3570,7 +3954,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
             @info "Saved plots to $plot_path_sim_time"
         end
 
-        plot_path_elems = joinpath(filepath_dir,"post_analysis","plots")
+        plot_path_elems = _method_dir(joinpath(filepath_dir,"post_analysis","plots"), method)
         set_file(plot_path_elems)
 
         Plots.savefig(elem_η_plt, joinpath(plot_path_elems,"η.pdf"))
@@ -3581,7 +3965,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
         Plots.savefig(elem_height_plt, joinpath(plot_path_elems,"height.pdf"))
         @info "Saved plots to $plot_path_elems"
     end
-    plot_path_global = joinpath(filepath,"post_analysis_global","plots")
+    plot_path_global = _method_dir(joinpath(filepath,"post_analysis_global","plots"), method)
     set_file(plot_path_global)
 
     Plots.savefig(η_norm_plot_5, joinpath(plot_path_global,"η_normalized_5.pdf"))
@@ -3590,11 +3974,52 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list)
     Plots.savefig(h_plot_5, joinpath(plot_path_global,"height_comparison_5.pdf"))
     Plots.savefig(h_norm_plot_5, joinpath(plot_path_global,"height_normalized_5.pdf"))
 
-    Plots.savefig(η_norm_plot_10, joinpath(plot_path_global,"η_normalized_10.pdf"))
-    Plots.savefig(β_norm_plot_10, joinpath(plot_path_global,"β_normalized_10.pdf"))
-    Plots.savefig(rel_height_error_glob_plot_10, joinpath(plot_path_global,"relative_height_error_10.pdf"))
-    Plots.savefig(h_norm_plot_10, joinpath(plot_path_global,"height_normalized_10.pdf"))
     @info "Saved plots to $plot_path_global"
+
+    # ---- cross-experiment statistics on the relative MOSD --------------------------------
+    # Relative MOSD is normalized per experiment against its own ground truth, so it is
+    # comparable across experiments that were run at different η/β — the spread describes how
+    # well the surface depth is recovered, not how the ground truths differ.
+    height_stats = filter(!isnothing, [
+        normalized_replicate_stats(norm_pred_runs,    "h_pred/h_gt";         reference=1.0),
+        normalized_replicate_stats(norm_est_runs,    "h_est/h_gt";          reference=1.0),
+        normalized_replicate_stats(rel_err_est_runs, "rel. error est [%]";  reference=0.0, signed=false),
+        normalized_replicate_stats(rel_err_pred_runs, "rel. error pred [%]"; reference=0.0, signed=false),
+    ])
+    if replicate_report(height_stats, "EXPERIMENT STATISTICS — normalized height",
+                        joinpath(plot_path_global, "height_replicate_statistics.csv"))
+        by_label = Dict(st.label => st for st in height_stats)
+        _stat_fig(((norm_est_runs, by_label["h_est/h_gt"], def_red, :solid, "Estimation"),
+                   (norm_pred_segs, get(by_label, "h_pred/h_gt", nothing), def_blue, :dash, "Prediction")),
+                  stat_time, joinpath(plot_path_global, "height_normalized_5_ci.pdf");
+                  xlabel=L"\mathrm{Time\;[s]}", ylabel=L"h_{\mathrm{est}}/h_{\mathrm{gt}}",
+                  xlims=(0, end_obs_win), hline=1.0, vlines=stat_windows)
+        _stat_fig(((rel_err_est_runs, by_label["rel. error est [%]"], def_red, :solid, "Estimation"),
+                   (rel_err_pred_segs, get(by_label, "rel. error pred [%]", nothing), def_blue, :dash, "Prediction")),
+                  stat_time, joinpath(plot_path_global, "relative_height_error_5_ci.pdf");
+                  xlabel=L"\mathrm{Time\;[s]}",
+                  ylabel=latexstring("Relative Height Error [\$\\%\$]"),
+                  xlims=(0, end_obs_win), vlines=stat_windows)
+    end
+
+    mosd_stats = filter(!isnothing, [
+        normalized_replicate_stats(mosd_est_runs,  "MOSD_est/MOSD_gt";  reference=1.0),
+        normalized_replicate_stats(mosd_pred_runs, "MOSD_pred/MOSD_gt"; reference=1.0),
+    ])
+
+    if !replicate_report(mosd_stats, "EXPERIMENT STATISTICS — relative MOSD",
+                         joinpath(plot_path_global, "mosd_statistics.csv"))
+        @info "No ground-truth surface found — skipping MOSD statistics"
+    else
+        # Same combined figure as the height metrics: estimation solid red, prediction
+        # dashed blue, both with their runs underneath.
+        _stat_fig(((mosd_est_runs,  mosd_stats[1], def_red,  :solid, "Estimation"),
+                   (mosd_pred_segs, length(mosd_stats) > 1 ? mosd_stats[2] : nothing,
+                    def_blue, :dash, "Prediction")),
+                  mosd_time, joinpath(plot_path_global, "mosd_relative_ci.pdf");
+                  xlabel=L"\mathrm{Time\;[s]}", ylabel=L"\mathrm{Relative\;MOSD}",
+                  hline=1.0, vlines=stat_windows)
+    end
 end
 
 """
@@ -3607,6 +4032,7 @@ measured height `h_m(t)`. Walks the same nested `dir/elem_size_folder/
 simtime_folder/window` result tree under `filepath` (skipping entries in
 `avoid_list`, `"post_analysis_global"`, a few hardcoded element-size folders,
 and `simtime_2.0`), and overlays each leaf's time-windowed η(t)/β(t)
+estimates and height/relative-height-error against
 the measured height in `filepath_gt_`, at three nested levels: global (across
 all top-level `dir`s, bucketed by simulation-time case), per-`dir` (across
 element sizes), and per-`elem_size_folder` (across simulation-time windows,
@@ -3622,74 +4048,43 @@ plus per-window height-error plots).
 None. All outputs are PDFs written under `plot_path_global`/
 `plot_path_elems`/`plot_path_sim_time`.
 """
-function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
+function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list; method::Union{Nothing,String}=nothing)
     dir_list = readdir(filepath)
 
-    η_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(η_plot_5,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(η_plot_5,latexstring("\$\\eta_{\\mathrm{est}}(t)\$ [kPa s]"))
+    # Normalized height series, one entry per replicate, collected for the cross-run
+    # statistics at the end. Normalized exactly as the overlay plots below are, so the
+    # numbers and the figures describe the same quantity.
+    norm_est_runs  = Vector{Vector{Float64}}()   # h_est  / h_m
+    norm_pred_runs = Vector{Vector{Float64}}()   # h_pred / h_m
+    rel_err_est_runs  = Vector{Vector{Float64}}()   # |h_est  - h_m| / h_m · 100
+    rel_err_pred_runs = Vector{Vector{Float64}}()
+    cpd_runs = Vector{Vector{Float64}}()            # closest-point distance error [px]
+    stat_time = Float64[]                           # shared time grid for the CI bands
+    stat_windows = Float64[]                        # window boundaries, for the vlines
+    norm_pred_segs    = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
+    rel_err_pred_segs = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
 
-    β_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(β_plot_5, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(β_plot_5, latexstring("\$\\beta_{\\mathrm{est}}(t)\$ [MPa s m\$^{-1}\$]"))
+    η_plot_5 = _fig(legend_column=3)
+    _label!(η_plot_5, L"\mathrm{Time\;[s]}", latexstring("\$\\eta_{\\mathrm{est}}(t)\$ [kPa s]"))
 
-    η_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(η_plot_10,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(η_plot_10,latexstring("\$\\eta_{\\mathrm{est}}(t)\$ [kPa s]"))
+    β_plot_5 = _fig(legend_column=3)
+    _label!(β_plot_5, L"\mathrm{Time\;[s]}", latexstring("\$\\beta_{\\mathrm{est}}(t)\$ [MPa s m\$^{-1}\$]"))
 
-    β_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(β_plot_10, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(β_plot_10, latexstring("\$\\beta_{\\mathrm{est}}(t)\$ [MPa s m\$^{-1}\$]"))
+    gt_h_plot = _fig(legend_column=3)
+    _label!(gt_h_plot, L"\mathrm{Time\;[s]}", L"h_{\mathrm{m}}\;\mathrm{[mm]}"; xlims=(0, end_obs_win))
 
-    gt_h_plot = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(gt_h_plot,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(gt_h_plot,L"h_{\mathrm{m}}\;\mathrm{[mm]}")  
-    Plots.xlims!(gt_h_plot, 0, end_obs_win)
+    h_plot_5 = _fig(legend_column=3)
+    _label!(h_plot_5, L"\mathrm{Time\;[s]}", L"h\;\mathrm{[mm]}"; xlims=(0, end_obs_win))
 
-    h_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(h_plot_5,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_plot_5,L"h\;\mathrm{[mm]}")  
-    Plots.xlims!(h_plot_5, 0, end_obs_win)
+    h_plot_est_5 = _fig(legend_column=3)
+    _label!(h_plot_est_5, L"\mathrm{Time\;[s]}", L"h_{\mathrm{est}}\;\mathrm{[mm]}"; xlims=(0, end_obs_win))
 
-    h_plot_est_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(h_plot_est_5,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_plot_est_5,L"h_{\mathrm{est}}\;\mathrm{[mm]}")  
-    Plots.xlims!(h_plot_est_5, 0, end_obs_win)
-
-    h_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(h_plot_10,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_plot_10,L"h_{\mathrm{est}}\;\mathrm{[mm]}") 
-    Plots.xlims!(h_plot_10, 0, end_obs_win) 
-
-    h_norm_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
+    h_norm_plot_5 = _fig(legend_column=3)
     Plots.hline!(h_norm_plot_5, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(h_norm_plot_5,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_norm_plot_5,L"h_{\mathrm{est}}/h_{\mathrm{m}}")  
-    Plots.xlims!(h_norm_plot_5, 0, end_obs_win)
-    Plots.ylims!(h_norm_plot_5, y_lims_h_norm)
+    _label!(h_norm_plot_5, L"\mathrm{Time\;[s]}", L"h_{\mathrm{est}}/h_{\mathrm{m}}"; xlims=(0, end_obs_win), ylims=(y_lims_h_norm))
 
-    h_norm_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.hline!(h_norm_plot_10, [1.0],  linestyle=:dash, label=false, color=:black)
-    Plots.xlabel!(h_norm_plot_10,L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(h_norm_plot_10,L"h_{\mathrm{est}}/h_{\mathrm{m}}") 
-    Plots.xlims!(h_norm_plot_10, 0, end_obs_win)
-    Plots.ylims!(h_norm_plot_10, y_lims_h_norm)
-
-
-
-
-
-
-
-    rel_height_error_glob_plot_5 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(rel_height_error_glob_plot_5, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(rel_height_error_glob_plot_5, latexstring("Relative Height Error [\$\\%\$]"))
-    Plots.ylims!(rel_height_error_glob_plot_5, y_lims_rel_error)
-
-    rel_height_error_glob_plot_10 = set_plot(fs, sz=(plt_width, plt_height), legend_column=3, right_margin=plt_right_margin, left_margin=plt_lft_margin)
-    Plots.xlabel!(rel_height_error_glob_plot_10, L"\mathrm{Time\;[s]}")
-    Plots.ylabel!(rel_height_error_glob_plot_10, latexstring("Relative Height Error [\$\\%\$]"))
-    Plots.ylims!(rel_height_error_glob_plot_10, y_lims_rel_error)
+    rel_height_error_glob_plot_5 = _fig(legend_column=3)
+    _label!(rel_height_error_glob_plot_5, L"\mathrm{Time\;[s]}", latexstring("Relative Height Error [\$\\%\$]"); ylims=(y_lims_rel_error))
 
     for dir in dir_list
         if dir in avoid_list || dir == "post_analysis_global"
@@ -3706,7 +4101,7 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
         gt_h_ = readdlm(datapath(filepath_gt,"h.csv"), ',', Float64)
         time = collect(Float64, range(start=0, stop=sim_time, step=t_steps))
 
-        groups = collect_experiment_groups(filepath_dir)
+        groups = collect_experiment_groups(filepath_dir; method=method)
         elem_size_folders = _elem_size_folders(groups)
 
         for elem_size_folder_ in elem_size_folders
@@ -3718,26 +4113,19 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
             printstyled("Processing element size folder: $(elem_size_folder)\n", color=:blue)  
             sim_time_folders = _sim_time_folders(groups, elem_size_folder_)
 
-            sim_window_η_plt = set_plot(fs, sz=(plt_width, plt_height))
-            Plots.xlabel!(sim_window_η_plt,L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_η_plt,L"\eta\;\mathrm{[kPa\, s]}")
+            sim_window_η_plt = _fig(margins=:none)
+            _label!(sim_window_η_plt, L"\mathrm{Iterations}", L"\eta\;\mathrm{[kPa\, s]}")
 
-            sim_window_β_plt = set_plot(fs, sz=(plt_width, plt_height))
-            Plots.xlabel!(sim_window_β_plt, L"\mathrm{Iterations}")
-            Plots.ylabel!(sim_window_β_plt, L"\beta\;\mathrm{[Pa\, s \, m]}")
+            sim_window_β_plt = _fig(margins=:none)
+            _label!(sim_window_β_plt, L"\mathrm{Iterations}", L"\beta\;\mathrm{[Pa\, s \, m]}")
 
-
-            sim_window_rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_rel_height_error_plt = _fig(margins=:none)
             Plots.plot!(sim_window_rel_height_error_plt, [], left_margin=plt_lft_margin, label=false)
-            Plots.xlabel!(sim_window_rel_height_error_plt, L"\mathrm{Time\;[s]}")
-            Plots.ylabel!(sim_window_rel_height_error_plt, L"\mathrm{Relative\;Height\;Error}")
-            Plots.xlims!(sim_window_rel_height_error_plt, 0, end_obs_win)
+            _label!(sim_window_rel_height_error_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Relative\;Height\;Error}"; xlims=(0, end_obs_win))
 
-            sim_window_height_plt = set_plot(fs, sz=(plt_width, plt_height))
+            sim_window_height_plt = _fig(margins=:none)
             Plots.plot!(sim_window_height_plt, [], left_margin=plt_lft_margin, label=false)
-            Plots.xlabel!(sim_window_height_plt, L"\mathrm{Time\;[s]}")
-            Plots.ylabel!(sim_window_height_plt, L"\mathrm{Height\;[mm]}")
-            Plots.xlims!(sim_window_height_plt, 0, end_obs_win)
+            _label!(sim_window_height_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;[mm]}"; xlims=(0, end_obs_win))
 
             for sim_time_folder_ in sim_time_folders
 
@@ -3745,17 +4133,13 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                     continue
                 end
 
-                height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+                height_error_plt = _fig(margins=:none)
                 Plots.plot!(height_error_plt, [], label=false)
-                Plots.xlabel!(height_error_plt, L"\mathrm{Time\;[s]}")
-                Plots.ylabel!(height_error_plt, L"\mathrm{Height\;Error\;[mm]}")
-                Plots.xlims!(height_error_plt, 0, end_obs_win)
+                _label!(height_error_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;Error\;[mm]}"; xlims=(0, end_obs_win))
 
-                rel_height_error_plt = set_plot(fs, sz=(plt_width, plt_height))
+                rel_height_error_plt = _fig(margins=:none)
                 Plots.plot!(rel_height_error_plt, [], label=false)
-                Plots.xlabel!(rel_height_error_plt, L"\mathrm{Time\;[s]}")
-                Plots.ylabel!(rel_height_error_plt, L"\mathrm{Height\;Error\;[mm]}")
-                Plots.xlims!(rel_height_error_plt, 0, end_obs_win)
+                _label!(rel_height_error_plt, L"\mathrm{Time\;[s]}", L"\mathrm{Height\;Error\;[mm]}"; xlims=(0, end_obs_win))
 
                 group = _find_group(groups, elem_size_folder_, sim_time_folder_, "noise_0.0")
                 if group === nothing
@@ -3776,6 +4160,7 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                         continue
                     end
                     win_exp_path = joinpath(leaf.exp_path, window_dir)
+                    _skip_incomplete(win_exp_path) && continue
 
                     @debug "Processing window: $win_exp_path"
                     exp_params = read_json(datapath(win_exp_path,"experiment_parameters"))
@@ -3783,18 +4168,26 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                     data_type = exp_params["data_type"]
                     ne = exp_params["ne_exp"]
 
-                    ObsDataList, splinexObs, splineyObs = read_csv(datapath(filepath_gt,"img_data","contour_data"))  
+                    ObsDataList, splinexObs, splineyObs = read_csv(datapath(filepath_gt,"img_data","contour_data"))
+                    # The video starts before the press engages, so the contour series has to be
+                    # indexed by `compressed_frames` exactly as `optimize` does it. Taking raw
+                    # frame k against simulation step k lands ~100 frames early and scores a fit
+                    # that never happened.
+                    _meta = read_json(datapath(filepath_gt,"video_metadata"))
+                    ObsDataList = ObsDataList[_meta["compressed_frames"]]
                     obs_border_pt_lst, nSplinex, nSpliney, pd = add_noise(ObsDataList, nFactor=0.0)
 
                     est_ηpList = readdlm(datapath(win_exp_path,"est_η.csv"), ',', Float64)
                     est_βpList = readdlm(datapath(win_exp_path,"est_β.csv"), ',', Float64)
                     est_h_list = readdlm(datapath(win_exp_path,"est_h.csv"), ',', Float64)
+                    pred_h_list = isfile(datapath(win_exp_path,"pred_h.csv")) ?
+                                  readdlm(datapath(win_exp_path,"pred_h.csv"), ',', Float64) : nothing
 
                     data_ranges_ = get_time_windows(datapath(win_exp_path,"window_data","data_ranges.csv"))
                     t_windows = readdlm(datapath(win_exp_path,"window_data","t_windows.csv"),',',Float64)
                     time_windows = readdlm(datapath(win_exp_path,"window_data","time_windows.csv"),',',Float64)
 
-                    sim_border_pt_lst, splinex, spliney = read_csv(datapath(win_exp_path,"sim_data",leaf.view_folder,"2D_border_points_est"))
+                    sim_border_pt_lst, splinex, spliney = read_csv(datapath(win_exp_path,"sim_data","view_1","2D_border_points_est"))
 
                     @debug "Time windows: $(time_windows)"
                     obs_time = sum(time_windows)
@@ -3821,7 +4214,6 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                     height_error = abs.(est_h - gt_h)
                     rel_height_error = height_error ./ gt_h * 100.0
 
-
                     Plots.plot!(sim_window_η_plt, est_ηpList, label=string("Window - $(sim_time)s"), marker=1, legend=:outerbottom, legend_column=2)
                     Plots.plot!(sim_window_β_plt, est_βpList, label=string("Window - $(sim_time)s"), marker=1, legend=:outerbottom, legend_column=2)
 
@@ -3841,26 +4233,49 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                                 Plots.vline!(β_plot_5, [t], color=:gray, linestyle=:dash, label=false)
 
                                 if ti == 1
-                                    Plots.plot!(η_plot_5, t_win, est_ηpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                                    Plots.plot!(β_plot_5, t_win, est_βpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(η_plot_5, t_win, est_ηpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=_exp_color(dir))
+                                    Plots.plot!(β_plot_5, t_win, est_βpList[data_range_], label=string(L"\mathrm{Exp}:\;",dir), color=_exp_color(dir))
                                 else
-                                    Plots.plot!(η_plot_5, t_win, est_ηpList[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                                    Plots.plot!(β_plot_5, t_win, est_βpList[data_range_], label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                                    Plots.plot!(η_plot_5, t_win, est_ηpList[data_range_], label=false, color=_exp_color(dir))
+                                    Plots.plot!(β_plot_5, t_win, est_βpList[data_range_], label=false, color=_exp_color(dir))
                                 end
                                 t_prev = t+t_steps
                             end
 
-                            Plots.plot!(rel_height_error_glob_plot_5, time, rel_height_error, label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                            Plots.plot!(h_norm_plot_5, time, est_h./gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                            Plots.plot!(h_plot_est_5, time, est_h, label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                            Plots.plot!(gt_h_plot, time, gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
-                            Plots.plot!(h_plot_5, time, gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1], linestyle=:dash)
-                            Plots.plot!(h_plot_5, time, est_h, label=false, color=color_palette[(parse(Int, dir)-1) % length(color_palette)+1])
+                            Plots.plot!(rel_height_error_glob_plot_5, time, rel_height_error, label=string(L"\mathrm{Exp}:\;",dir), color=_exp_color(dir))
+                            Plots.plot!(h_norm_plot_5, time, est_h./gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=_exp_color(dir))
+
+                            # Same normalization as the two plots above, kept for the
+                            # cross-replicate statistics written at the end of this function.
+                            push!(norm_est_runs, vec(est_h ./ gt_h))
+                            push!(rel_err_est_runs, vec(rel_height_error))
+                            push!(cpd_runs, vec(contour_cost(sim_border_pt_lst, obs_border_pt_lst)[1]))
+                            isempty(stat_time) && (stat_time = collect(time))
+                            isempty(stat_windows) && (stat_windows = vec(Float64.(t_windows)))
+                            if !isnothing(pred_h_list)
+                                # Per-window segments, so map them onto the time axis before
+                                # dividing by a time-indexed height.
+                                gtp = vec(gt_h)
+                                ph  = _align_windowed(vec(pred_h_list), data_ranges_, length(gtp))
+                                push!(norm_pred_runs, ph ./ gtp)
+                                push!(rel_err_pred_runs, abs.(ph .- gtp) ./ gtp .* 100.0)
+                                # Per-window values for drawing; the aligned vectors above
+                                # remain what the statistics are computed from.
+                                segs = _windowed_series(vec(pred_h_list), data_ranges_, length(gtp))
+                                push!(norm_pred_segs, [(r, v ./ gtp[r]) for (r, v) in segs])
+                                push!(rel_err_pred_segs,
+                                      [(r, abs.(v .- gtp[r]) ./ gtp[r] .* 100.0) for (r, v) in segs])
+                            end
+                            Plots.plot!(h_plot_est_5, time, est_h, label=string(L"\mathrm{Exp}:\;",dir), color=_exp_color(dir))
+                            Plots.plot!(gt_h_plot, time, gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=_exp_color(dir))
+                            Plots.plot!(h_plot_5, time, gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=_exp_color(dir), linestyle=:dash)
+                            Plots.plot!(h_plot_5, time, est_h, label=false, color=_exp_color(dir))
                             if dir == "1"
                                 for ti::Int in 1:(size(data_ranges_, 1))
                                     t_win = t_windows[ti]
                                     data_range_ = data_ranges_[ti]
                                     Plots.vline!(h_norm_plot_5, [t_win], color=:gray, linestyle=:dash, label=false)
+                                    Plots.vline!(rel_height_error_glob_plot_5, [t_win], color=:gray, linestyle=:dash, label=false)
                                     Plots.vline!(h_plot_est_5, [t_win], color=:gray, linestyle=:dash, label=false)
                                     Plots.vline!(h_plot_5, [t_win], color=:gray, linestyle=:dash, label=false)
                                 end
@@ -3871,18 +4286,10 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
                         Plots.plot!(height_error_plt, time, height_error, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
                         Plots.plot!(rel_height_error_plt, time, rel_height_error, label=string("Number of elements: ",ne), marker=1, legend=:outerbottom, legend_column=2)
 
-                    elseif sim_time == 10.0
-                        if ne == 6
-                            Plots.plot!(η_norm_plot_10, est_η_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
-                            Plots.plot!(β_norm_plot_10, est_β_norm, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, legend=:outerbottom, legend_column=3)
-
-
-                            Plots.plot!(rel_height_error_glob_plot_10, time, rel_height_error, label=string("Window - $(sim_time)s"," - ne: ",ne), legend=:outerbottom, legend_column=2)
-                        end
                     end
                 end
             end
-            plot_path_sim_time = joinpath(elem_size_folder,"post_analysis_time","plots")
+            plot_path_sim_time = _method_dir(joinpath(elem_size_folder,"post_analysis_time","plots"), method)
             set_file(plot_path_sim_time)
 
             Plots.savefig(sim_window_η_plt, joinpath(plot_path_sim_time,"η.pdf"))
@@ -3891,7 +4298,7 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
             @info "Saved plots to $plot_path_sim_time"
         end
     end
-    plot_path_global = joinpath(filepath,"post_analysis_global","plots")
+    plot_path_global = _method_dir(joinpath(filepath,"post_analysis_global","plots"), method)
     set_file(plot_path_global)
 
     Plots.savefig(η_plot_5, joinpath(plot_path_global,"η_plot_5.pdf"))
@@ -3902,9 +4309,53 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list)
     Plots.savefig(h_norm_plot_5, joinpath(plot_path_global,"height_normalized_5.pdf"))
     Plots.savefig(gt_h_plot, joinpath(plot_path_global,"gt_height.pdf"))
     @info "Saved plots to $plot_path_global"
-end
 
-# ===== Batch drivers =====
+    # ---- cross-replicate statistics on the normalized heights ---------------------------
+    # Height is the only quantity these replicates share. η and β belong to the individual
+    # specimen and legitimately differ from run to run, so their spread would describe the
+    # specimens rather than the method; normalizing by each run's own h_m removes the
+    # specimen-to-specimen difference and leaves the agreement between model and measurement.
+    stats = filter(!isnothing, [
+        normalized_replicate_stats(norm_est_runs,     "h_est/h_m";           reference=1.0),
+        normalized_replicate_stats(norm_pred_runs,    "h_pred/h_m";          reference=1.0),
+        normalized_replicate_stats(rel_err_est_runs,  "rel. error est [%]";  reference=0.0, signed=false),
+        normalized_replicate_stats(rel_err_pred_runs, "rel. error pred [%]"; reference=0.0, signed=false),
+        normalized_replicate_stats(cpd_runs,          "closest-pt dist [px]"; reference=0.0, signed=false),
+    ])
+
+    if !replicate_report(stats, "REPLICATE STATISTICS — normalized height",
+                         joinpath(plot_path_global, "height_replicate_statistics.csv"))
+        @warn "No normalized height series collected — skipping replicate statistics"
+    else
+        by_label = Dict(st.label => st for st in stats)
+        out(name) = joinpath(plot_path_global, name)
+
+        # Estimation and prediction share a figure, as they do per experiment.
+        _stat_fig(((norm_est_runs,  by_label["h_est/h_m"],  def_red,  :solid, "Estimation"),
+                   (norm_pred_segs, get(by_label, "h_pred/h_m", nothing), def_blue, :dash,
+                    "Prediction")),
+                  stat_time, out("height_normalized_5_ci.pdf");
+                  xlabel=L"\mathrm{Time\;[s]}", ylabel=L"h/h_{\mathrm{m}}",
+                  xlims=(0, end_obs_win), hline=1.0, vlines=stat_windows)
+
+        _stat_fig(((rel_err_est_runs,  by_label["rel. error est [%]"],  def_red,  :solid, "Estimation"),
+                   (rel_err_pred_segs, get(by_label, "rel. error pred [%]", nothing), def_blue, :dash,
+                    "Prediction")),
+                  stat_time, out("relative_height_error_5_ci.pdf");
+                  xlabel=L"\mathrm{Time\;[s]}",
+                  ylabel=latexstring("Relative Height Error [\$\\%\$]"),
+                  xlims=(0, end_obs_win), vlines=stat_windows)
+
+        if !isempty(cpd_runs)
+            _stat_fig(((cpd_runs, by_label["closest-pt dist [px]"], def_red, :solid, "Estimation"),),
+                      stat_time, out("closest_point_distance_error_ci.pdf");
+                      xlabel=L"\mathrm{Time\;[s]}",
+                      ylabel=L"\mathrm{Closest\;Point\;Distance\;[px]}",
+                      xlims=(0, end_obs_win), vlines=stat_windows)
+        end
+
+    end
+end
 
 """
     optimize_sim(use_parallel=true)
@@ -3935,7 +4386,8 @@ function optimize_sim(use_parallel::Bool=true)
     element_shape_x::Symbol = :Hex
     basis_order_x::Int = 2
     nz_list = Union{Int,Float64}[6]
-    mode::Symbol = :conv_exp_mesh  # :exp
+    mode::Symbol = :exp  # :exp or :conv_exp_mesh
+    cost_function_list = [:closest_point] # :chamfer or :closest_point
 
     if mode == :conv_exp_mesh
         nz_list = Union{Int,Float64}[6]
@@ -3949,9 +4401,17 @@ function optimize_sim(use_parallel::Bool=true)
     param_list = Vector{Dict}(undef, 0)
     geometry::Symbol = :cylinder # :cylinder or :cube
 
-    avoid_dirs = ["post_analysis_global", "1", "2", "6", "4", "5" , "7", "8"]
+    # Optimization method and its `fit_model` keyword arguments. `opt_method` also
+    # becomes a path segment under `dt_*`, so runs with different methods never
+    # overwrite each other. Keys in `opt_kwargs` are passed straight through to
+    # `fit_model`, so anything it accepts works here (see `_opt_kwargs`).
+    opt_method::Symbol = :gn_tikhonov                # :gn, :lm or :gn_tikhonov
+    opt_kwargs = Dict{String,Any}()         # e.g. "λ_scale" => 0.01, "line_search_method" => :armijo
+    opt_kwargs["λ_scale"] = [0.0001, 0.00002]
+
+    avoid_dirs = ["post_analysis_global","1","2"]
     for viscosity_type in viscosity_type_list
-        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_16.0", string(geometry))
+        _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_16", string(geometry))
         if !isdir(_filepath_gt)
             @warn "Ground truth directory not found, skipping: $_filepath_gt"
             continue
@@ -3959,11 +4419,11 @@ function optimize_sim(use_parallel::Bool=true)
         dir_list = filter(d -> !startswith(d, ".") && isdir(joinpath(_filepath_gt, d)), readdir(_filepath_gt))
         for dir in dir_list
             if dir in avoid_dirs
-                continue
                 @debug "Skipping dir $dir"
+                continue
             end
             filepath_gt = if mode === :conv_exp_mesh
-                            joinpath(resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex_2/convergence_analysis/experiment_mesh_convergence_analysis/"))
+                            joinpath(resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Hex2_16/cylinder/4/"))
                           else    
                             joinpath(_filepath_gt, dir)
                           end
@@ -3974,8 +4434,8 @@ function optimize_sim(use_parallel::Bool=true)
                 else
                     dt_list = [0.1]
                 end
-                if nz == 6.5 && viscosity_type == "constant"
-                    noise_level_list = [0.5, 1.0, 1.5, 2.0]
+                if nz == 6 && viscosity_type == "constant"
+                    noise_level_list = [0.0, 0.5, 1.0, 1.5, 2.0]
                 else
                     noise_level_list = [0.0]
                 end
@@ -3987,28 +4447,31 @@ function optimize_sim(use_parallel::Bool=true)
                             window = ""
                         end
                         @info "Running optimization with ne = $nz and simulation time = $sim_time_exp with noise level = $noise_level"
-                        for dt in dt_list
-                            filepath_res = if mode === :conv_exp_mesh
-                                                # `window` (empty for constant viscosity) must stay the last
-                                                # component: `optimize` splices `view_$i` between dirname and
-                                                # basename, so dropping it here yields view_*/dt_* instead of dt_*/view_*.
-                                                joinpath(resolve_data_path(joinpath("experiments","sim_data","convergence_analysis","stokes_convergence")), "experiment_mesh_conv", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(nz)", "dt_$(dt)", window)
-                                            else
-                                                joinpath(resolve_data_path(joinpath("experiments","sim_data","optimization","Stokes")), control, viscosity_type, "Hex2_16.0", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(nz)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", "dt_$(dt)", window)
-                                            end
+                        for cost_function in cost_function_list
+                            for dt in dt_list
+                                filepath_res = if mode === :conv_exp_mesh
+                                                    # `window` must stay last: optimize splices view_$i before the basename.
+                                                    joinpath(resolve_data_path(joinpath("experiments","sim_data","convergence_analysis","stokes_convergence")), "experiment_mesh_conv", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(nz)", "dt_$(dt)", _run_dir(opt_method, cost_function), window)
+                                                else
+                                                    joinpath(resolve_data_path(joinpath("experiments","sim_data","optimization","Stokes")), control, viscosity_type, "Hex2_16", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(nz)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", "dt_$(dt)", _run_dir(opt_method, cost_function), window)
+                                                end
+                    
                                                 @info "Running optimization with element_shape_x = $element_shape_x, basis_order_x = $basis_order_x, ne = $nz, dt = $dt"
 
-                            exp_params = Dict(
-                                "element_shape_u" => element_shape_u, "basis_order_u" => basis_order_u,
-                                "element_shape_p" => element_shape_p, "basis_order_p" => basis_order_p,
-                                "element_shape_x" => element_shape_x, "basis_order_x" => basis_order_x,
-                                "ne_exp" => nz, "sim_time_exp" => sim_time_exp, "dt" => dt,
-                                "filepath_res" => filepath_res, "filepath_gt" => filepath_gt,
-                                "control" => control, "data_type" => "simulated",
-                                "camera_matrix" => camera_matrix, "WRITE_GT" => false,
-                                "noise_level" => noise_level, "mode" => window)
+                                exp_params = Dict(
+                                    "element_shape_u" => element_shape_u, "basis_order_u" => basis_order_u,
+                                    "element_shape_p" => element_shape_p, "basis_order_p" => basis_order_p,
+                                    "element_shape_x" => element_shape_x, "basis_order_x" => basis_order_x,
+                                    "ne_exp" => nz, "sim_time_exp" => sim_time_exp, "dt" => dt,
+                                    "filepath_res" => filepath_res, "filepath_gt" => filepath_gt,
+                                    "control" => control, "data_type" => "simulated",
+                                    "camera_matrix" => camera_matrix, "WRITE_GT" => false,
+                                    "noise_level" => noise_level, "mode" => window,
+                                    "opt_method" => opt_method, "opt_kwargs" => opt_kwargs,
+                                    "cost_function" => cost_function)
 
-                            push!(param_list, exp_params)
+                                push!(param_list, exp_params)
+                            end
                         end
                     end
                 end
@@ -4068,13 +4531,21 @@ function optimize_syn(use_parallel::Bool=true)
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
+
+    # Optimization method and its `fit_model` keyword arguments. `opt_method` also
+    # becomes a path segment under `dt_*`, so runs with different methods never
+    # overwrite each other. Keys in `opt_kwargs` are passed straight through to
+    # `fit_model`, so anything it accepts works here (see `_opt_kwargs`).
+    cost_function_list = [:closest_point]   # :chamfer or :closest_point
+    opt_method::Symbol = :gn                # :gn, :lm or :gn_tikhonov
+    opt_kwargs = Dict{String,Any}()         # e.g. "λ_scale" => 0.01, "line_search_method" => :armijo
     geometry_list::Vector{Symbol} = [:cylinder, :cube]
     avoid_dirs = ["post_analysis_global"]
     dt_list = [0.1]
 
     for geometry::Symbol in geometry_list
         for viscosity_type in viscosity_type_list
-            _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_16.0", string(geometry))
+            _filepath_gt = joinpath(resolve_data_path("ground_truth/sim_data/Stokes"), control, viscosity_type, "Hex2_16", string(geometry))
             if !isdir(_filepath_gt)
                 @warn "Ground truth directory not found, skipping: $_filepath_gt"
                 continue
@@ -4082,8 +4553,8 @@ function optimize_syn(use_parallel::Bool=true)
             dir_list = filter(d -> !startswith(d, ".") && isdir(joinpath(_filepath_gt, d)), readdir(_filepath_gt))
             for dir in dir_list
                 if dir in avoid_dirs
-                    continue
                     @debug "Skipping dir $dir"
+                    continue
                 end
                 filepath_gt = joinpath(_filepath_gt, dir)
                 for ne in ne_list
@@ -4095,20 +4566,24 @@ function optimize_syn(use_parallel::Bool=true)
                                 window = ""
                             end
                             @info "Running optimization with ne = $ne and simulation time = $sim_time_exp with noise level = $noise_level"
-                            for dt in dt_list
-                                filepath_res = joinpath(resolve_data_path(joinpath("experiments","syn_data","optimization","Stokes")), control, viscosity_type, "Hex2_16.0", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", "dt_$(dt)", window)
-                                @info "Running optimization with element_shape_x = $element_shape_x, basis_order_x = $basis_order_x with $ne elements"
-
-                                exp_params = Dict(
-                                    "element_shape_u" => element_shape_u, "basis_order_u" => basis_order_u,
-                                    "element_shape_p" => element_shape_p, "basis_order_p" => basis_order_p,
-                                    "element_shape_x" => element_shape_x, "basis_order_x" => basis_order_x,
-                                    "ne_exp" => ne, "sim_time_exp" => sim_time_exp,
-                                    "dt" => dt,
-                                    "filepath_res" => filepath_res, "filepath_gt" => filepath_gt, "control" => control, "data_type" => "synthetic", "camera_matrix" => camera_matrix, "WRITE_GT" => false,
-                                    "noise_level"=>noise_level, "mode"=>window)
-
-                                push!(param_list, exp_params)
+                            for cost_function in cost_function_list
+                                for dt in dt_list
+                                    filepath_res = joinpath(resolve_data_path(joinpath("experiments","syn_data","optimization","Stokes")), control, viscosity_type, "Hex2_16", string(geometry), dir, "$(element_shape_x)$(basis_order_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_$(noise_level)", "dt_$(dt)", _run_dir(opt_method, cost_function), window)
+                                    @info "Running optimization with element_shape_x = $element_shape_x, basis_order_x = $basis_order_x with $ne elements"
+    
+                                    exp_params = Dict(
+                                        "element_shape_u" => element_shape_u, "basis_order_u" => basis_order_u,
+                                        "element_shape_p" => element_shape_p, "basis_order_p" => basis_order_p,
+                                        "element_shape_x" => element_shape_x, "basis_order_x" => basis_order_x,
+                                        "ne_exp" => ne, "sim_time_exp" => sim_time_exp,
+                                        "dt" => dt,
+                                        "filepath_res" => filepath_res, "filepath_gt" => filepath_gt, "control" => control, "data_type" => "synthetic", "camera_matrix" => camera_matrix, "WRITE_GT" => false,
+                                        "noise_level"=>noise_level, "mode"=>window,
+                                        "opt_method" => opt_method, "opt_kwargs" => opt_kwargs,
+                                        "cost_function" => cost_function)
+    
+                                    push!(param_list, exp_params)
+                                end
                             end
                         end
                     end
@@ -4166,19 +4641,27 @@ function optimize_real(use_parallel::Bool=true)
 
     ne_list = [6]
     control = "force" # "force" or "velocity"
-    η_start = 1.0
-    β_start = 1.0
+    η_start = 50.0
+    β_start = 50.0
     viscosity_type = "bulk_viscosity"
 
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
 
-    model_type = "Stokes" # "carreau" or "Stokes"
+    model_type = "carreau" # "carreau" or "Stokes"
     window = "multi_window" # "multi_window" or "single_window"
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    avoid_dirs = ["post_analysis_global"] 
+    avoid_dirs = ["post_analysis_global","1","2","3","5","4","7","8","9"] 
+
+    # Optimization method and its `fit_model` keyword arguments. `opt_method` also
+    # becomes a path segment under `dt_*`, so runs with different methods never
+    # overwrite each other. Keys in `opt_kwargs` are passed straight through to
+    # `fit_model`, so anything it accepts works here (see `_opt_kwargs`).
+    cost_function_list = [:closest_point]   # :chamfer or :closest_point
+    opt_method::Symbol = :gn                # :gn, :lm or :gn_tikhonov
+    opt_kwargs = Dict{String,Any}()         # e.g. "λ_scale" => 0.01, "line_search_method" => :armijo
 
     dt_carreau::Float64 = 0.1 # must match `time_steps` in the Carreau ground-truth sim_params
     dt_physical::Float64 = 0.1 # must match `time_steps` in the physical ground-truth sim_params
@@ -4205,8 +4688,8 @@ function optimize_real(use_parallel::Bool=true)
     dir_list = filter(d -> !startswith(d, ".") && isdir(joinpath(_filepath_gt, d)), readdir(_filepath_gt))
     for dir in dir_list
         if dir in avoid_dirs
-            continue
             @debug "Skipping dir $dir"
+            continue
         end
         @info "Processing ground truth directory: $dir for $viscosity_type viscosity ..."
         filepath_gt = joinpath(_filepath_gt, dir)
@@ -4214,36 +4697,42 @@ function optimize_real(use_parallel::Bool=true)
             @debug "Simulation time experiments to run: $sim_time_exp_list"
             for sim_time_exp in sim_time_exp_list
                 @debug "Simulation time: $sim_time_exp seconds"
-                for ne in ne_list
-                    if model_type == "carreau" && viscosity_type == "bulk_viscosity"
-                        filepath_res = joinpath(base_experiments_path, "syn_data", "optimization", "Carreau", dir, "$(element_shape_x)$(basis_order_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_0.0", "dt_$(dt_carreau)", window)
-                        exp_params = Dict(
-                            "element_shape_u" => element_shape_u, "basis_order_u" => basis_order_u,
-                            "element_shape_p" => element_shape_p, "basis_order_p" => basis_order_p,
-                            "element_shape_x" => element_shape_x, "basis_order_x" => basis_order_x,
-                            "ne_exp" => ne, "sim_time_exp" => sim_time_exp,
-                            "dt" => dt_carreau,
-                            "η_start" => η_start, "β_start" => β_start,
-                            "filepath_res" => filepath_res, "filepath_gt" => filepath_gt,
-                            "control" => control, "data_type" => "synthetic",
-                            "camera_matrix" => camera_matrix, "WRITE_GT" => false, "noise_level" => 0.0, "mode" => window)
-                    else
-                        filepath_res = joinpath(base_experiments_path, "physical_data", "optimization", dir, "$(element_shape_x)$(basis_order_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_0.0", "dt_$(dt_physical)", window)
-                        exp_params = Dict(
-                            "element_shape_u" => element_shape_u, "basis_order_u" => basis_order_u,
-                            "element_shape_p" => element_shape_p, "basis_order_p" => basis_order_p,
-                            "element_shape_x" => element_shape_x, "basis_order_x" => basis_order_x,
-                            "ne_exp" => ne, "sim_time_exp" => sim_time_exp,
-                            "dt" => dt_physical,
-                            "η_start" => η_start, "β_start" => β_start,
-                            "filepath_res" => filepath_res, "filepath_gt" => filepath_gt,
-                            "control" => control, "viscosity_type" => viscosity_type,
-                            "data_type" => "physical", "r" => r, "h" => h,
-                            "camera_matrix" => camera_matrix, "F_ext" => F_ext, "mode" => window)
+                for cost_function in cost_function_list
+                    for ne in ne_list
+                        if model_type == "carreau" && viscosity_type == "bulk_viscosity"
+                            filepath_res = joinpath(base_experiments_path, "syn_data", "optimization", "Carreau", dir, "$(element_shape_x)$(basis_order_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_0.0", "dt_$(dt_carreau)", _run_dir(opt_method, cost_function), window)
+                            exp_params = Dict(
+                                "element_shape_u" => element_shape_u, "basis_order_u" => basis_order_u,
+                                "element_shape_p" => element_shape_p, "basis_order_p" => basis_order_p,
+                                "element_shape_x" => element_shape_x, "basis_order_x" => basis_order_x,
+                                "ne_exp" => ne, "sim_time_exp" => sim_time_exp,
+                                "dt" => dt_carreau,
+                                "η_start" => η_start, "β_start" => β_start,
+                                "filepath_res" => filepath_res, "filepath_gt" => filepath_gt,
+                                "control" => control, "data_type" => "synthetic",
+                                "camera_matrix" => camera_matrix, "WRITE_GT" => false, "noise_level" => 0.0, "mode" => window,
+                                "opt_method" => opt_method, "opt_kwargs" => opt_kwargs,
+                                "cost_function" => cost_function)
+                        else
+                            filepath_res = joinpath(base_experiments_path, "physical_data", "optimization", dir, "$(element_shape_x)$(basis_order_x)_$(ne)", "simtime_$(sim_time_exp)", "noise_0.0", "dt_$(dt_physical)", _run_dir(opt_method, cost_function), window)
+                            exp_params = Dict(
+                                "element_shape_u" => element_shape_u, "basis_order_u" => basis_order_u,
+                                "element_shape_p" => element_shape_p, "basis_order_p" => basis_order_p,
+                                "element_shape_x" => element_shape_x, "basis_order_x" => basis_order_x,
+                                "ne_exp" => ne, "sim_time_exp" => sim_time_exp,
+                                "dt" => dt_physical,
+                                "η_start" => η_start, "β_start" => β_start,
+                                "filepath_res" => filepath_res, "filepath_gt" => filepath_gt,
+                                "control" => control, "viscosity_type" => viscosity_type,
+                                "data_type" => "physical", "r" => r, "h" => h,
+                                "camera_matrix" => camera_matrix, "F_ext" => F_ext, "mode" => window,
+                                "opt_method" => opt_method, "opt_kwargs" => opt_kwargs,
+                                "cost_function" => cost_function)
+                        end
+                        @info "Running optimization with element_shape_x = $element_shape_x, basis_order_x = $basis_order_x with $ne elements"
+    
+                        push!(param_list, exp_params)
                     end
-                    @info "Running optimization with element_shape_x = $element_shape_x, basis_order_x = $basis_order_x with $ne elements"
-
-                    push!(param_list, exp_params)
                 end
             end
         end
@@ -4264,20 +4753,17 @@ function optimize_real(use_parallel::Bool=true)
     end
 end
 
-# ===== Entry point =====
-
 """
     plot_results()
 
 Top-level driver that regenerates plots for every result tree under
-`~/SMEAR-PhD/SMEAR-DataFiles/Data/experiments`, across the configured
-`data_type_list` (`"simulated"`/`"synthetic"`/`"physical"`) and their
-applicable `model_type` (`"Stokes"`/`"carreau"`) and `viscosity_type`
+`experiments/` in the configured data directory (see `resolve_data_path`),
+across the configured `data_type_list` (`"simulated"`/`"synthetic"`/`"physical"`)
+and their applicable `model_type` (`"Stokes"`/`"carreau"`) and `viscosity_type`
 combinations. For each ground-truth directory (skipping `avoid_dirs`), applies
-`set_plot_config` for that data/viscosity type and calls
-`replot` on the matching experiment directory (`predict` and
-the `post_analysis_*` cross-experiment summaries are wired in but currently
-commented out below).
+`set_plot_config` for that data/viscosity type and calls `replot` on the matching
+experiment directory, then runs the `post_analysis_*` cross-experiment summary
+matching the viscosity/data type.
 
 # Returns
 None. All outputs are the side effects of `replot`.
@@ -4287,12 +4773,12 @@ function plot_results()
     viscosity_type_list = [] # "constant" or "bulk_viscosity"
     model_type = [] # "carreau" or "Stokes"
     avoid_dirs = ["post_analysis_global"] # directories to skip in post-analysis and plotting
-    data_type_list = ["synthetic","physical"] # ["simulated", "synthetic", "physical"]
+    data_type_list = ["simulated","synthetic","physical"] # ["simulated", "synthetic", "physical"]
     base_path = ""
     geometry::Symbol = :cylinder # :cylinder or :cube
 
     for data_type in data_type_list
-        avoid_dirs = data_type == "physical" ? ["post_analysis_global"] : ["post_analysis_global","2","3"]
+        avoid_dirs = data_type == "physical" ? ["post_analysis_global"] : ["post_analysis_global", "5"]
         if data_type == "physical"
             model_type = ["Stokes"] # for physical data, we only have Stokes model results for now
         elseif data_type == "synthetic"
@@ -4329,8 +4815,8 @@ function plot_results()
                         filepath_gt = joinpath(base_gt_path, "sim_data", "Carreau")
                         filepath_res = base_path
                     else
-                        filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Hex2_16.0" , string(geometry))
-                        filepath_res = joinpath(base_path, control, viscosity_type, "Hex2_16.0" , string(geometry))
+                        filepath_gt = joinpath(base_gt_path, "sim_data", "Stokes", control, viscosity_type, "Hex2_16" , string(geometry))
+                        filepath_res = joinpath(base_path, control, viscosity_type, "Hex2_16" , string(geometry))
                     end
                 end
 
@@ -4339,22 +4825,31 @@ function plot_results()
                     continue
                 end
                 dirs = filter(d -> !startswith(d, ".") && isdir(joinpath(filepath_gt, d)), readdir(filepath_gt))
-                for dir::String in dirs
-                    if dir in avoid_dirs
-                        continue
-                        @debug "Skipping dir $dir"
+
+                # One pass per optimizer, so `gn` and `gn_tikhonov` results are never mixed
+                # into the same figures or overwritten by each other. Trees written before
+                # the method level existed have `view_*` straight under `dt_*`; those yield
+                # no method folder and are processed once with `nothing`, keeping the flat
+                # output layout they already have.
+                for opt_method in _result_methods(filepath_res, dirs, avoid_dirs)
+                    @info "Post-processing" data_type model_type viscosity_type method=something(opt_method, "(none)")
+                    for dir::String in dirs
+                        if dir in avoid_dirs
+                            @debug "Skipping dir $dir"
+                            continue
+                        end
+                        filepath_gt_dir = joinpath(filepath_gt, dir)
+                        filepath_res_dir = joinpath(filepath_res, dir)
+                        @debug "Processing ground truth directory: $filepath_gt_dir for $viscosity_type viscosity ..."
+                        replot(filepath_res_dir, filepath_gt_dir; method=opt_method)
                     end
-                    filepath_gt_dir = joinpath(filepath_gt, dir)
-                    filepath_res_dir = joinpath(filepath_res, dir)
-                    @debug "Processing ground truth directory: $filepath_gt_dir for $viscosity_type viscosity ..."
-                    replot(filepath_res_dir, filepath_gt_dir)
-                end
-                if viscosity_type == "constant"
-                    post_analysis_const(filepath_gt, filepath_res, avoid_dirs)
-                elseif viscosity_type == "bulk_viscosity" && model_type != "carreau" && data_type != "physical"
-                    post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs)
-                elseif data_type == "physical"
-                    post_analysis_real(filepath_gt, filepath_res, avoid_dirs)
+                    if viscosity_type == "constant"
+                        post_analysis_const(filepath_gt, filepath_res, avoid_dirs; method=opt_method)
+                    elseif viscosity_type == "bulk_viscosity" && data_type != "physical"
+                        post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs; method=opt_method)
+                    elseif data_type == "physical"
+                        post_analysis_real(filepath_gt, filepath_res, avoid_dirs; method=opt_method)
+                    end
                 end
             end
         end
@@ -4370,10 +4865,10 @@ run as a script (`julia test_opt_stokes.jl`), but not when it is `include`d
 from the REPL or another script.
 """
 function main()
-    # optimize_sim(false)
+    optimize_sim(false)
     # optimize_syn(false)
-    optimize_real(false)
-    plot_results()
+    # optimize_real(false)
+    # plot_results()
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

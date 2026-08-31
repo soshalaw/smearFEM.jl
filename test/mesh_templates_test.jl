@@ -1,7 +1,6 @@
 using Test
 using smearFEM
 
-# ── nodes-per-element for each (element_shape, basis_order) combo ────────────
 function _npe(es::Symbol, bo::Int)
     return Dict(
         (:Hex,  1) => 8,  (:Hex,  2) => 27,
@@ -12,24 +11,22 @@ function _npe(es::Symbol, bo::Int)
     )[(es, bo)]
 end
 
-# ── common checks that apply to every Gmsh mesh ──────────────────────────────
 function check_mesh_basics(mesh, es::Symbol, bo::Int)
     npe = _npe(es, bo)
-    @test mesh.ne > 0                        "ne must be positive"
-    @test mesh.nNodes > 0                    "nNodes must be positive"
-    @test size(mesh.IEN, 1) == npe           "IEN rows must equal nodes-per-element"
-    @test size(mesh.IEN, 2) == mesh.ne       "IEN cols must equal ne"
-    @test size(mesh.NodeList, 2) == mesh.nNodes  "NodeList cols must equal nNodes"
+    @test mesh.ne > 0
+    @test mesh.nNodes > 0
+    @test size(mesh.IEN, 1) == npe
+    @test size(mesh.IEN, 2) == mesh.ne
+    @test size(mesh.NodeList, 2) == mesh.nNodes
     # Gmsh always returns 3-row NodeList (x, y, z) even for 2-D/1-D meshes
-    @test size(mesh.NodeList, 1) == 3        "NodeList must be 3×nNodes"
-    @test all(1 .<= mesh.IEN .<= mesh.nNodes)  "IEN must reference valid node indices"
+    @test size(mesh.NodeList, 1) == 3
+    @test all(1 .<= mesh.IEN .<= mesh.nNodes)
 end
 
 @testset "Gmsh mesh templates" begin
 
     mesh_dir = mktempdir()  # fresh dir for each test run; no cache contamination
 
-    # ── 3-D cylinder ─────────────────────────────────────────────────────────
     @testset "cylinder_hex Q1" begin
         r, h = 25.0, 40.0
         m = meshgrid_cylinder(r, h;
@@ -83,7 +80,6 @@ end
         check_mesh_basics(m, :Tet, 2)
     end
 
-    # ── 3-D cuboid (hex, sharp corners) ──────────────────────────────────────
     @testset "cuboid_hex_sharp Q1" begin
         lx, ly, lz = 10.0, 10.0, 10.0
         m = meshgrid_cuboid(lx, ly, lz;
@@ -104,7 +100,6 @@ end
         @test m_fine.ne > m.ne
     end
 
-    # ── 3-D cuboid (hex, rounded corners) ────────────────────────────────────
     @testset "cuboid_hex_rounded Q1" begin
         lx, ly, lz = 10.0, 10.0, 10.0
         er = 1.0  # edge radius; must be < min(lx,ly)/2 = 5
@@ -117,7 +112,6 @@ end
         @test !isempty(m.side_nodes)
     end
 
-    # ── 3-D cuboid (tet, sharp corners) ──────────────────────────────────────
     @testset "cuboid_tet_sharp Q1" begin
         lx, ly, lz = 10.0, 10.0, 10.0
         m = meshgrid_cuboid(lx, ly, lz;
@@ -134,7 +128,6 @@ end
         @test m_fine.ne > m.ne
     end
 
-    # ── 3-D cuboid (tet, rounded corners) ────────────────────────────────────
     @testset "cuboid_tet_rounded Q1" begin
         lx, ly, lz = 10.0, 10.0, 10.0
         er = 1.0
@@ -147,7 +140,6 @@ end
         @test !isempty(m.side_nodes)
     end
 
-    # ── 2-D disk ──────────────────────────────────────────────────────────────
     @testset "disk_quad Q1" begin
         r = 25.0
         m = meshgrid_disk(r;
@@ -172,7 +164,6 @@ end
         @test !isempty(m.boundary_nodes)
     end
 
-    # ── 2-D square ────────────────────────────────────────────────────────────
     @testset "square_quad Q1" begin
         lx, ly = 50.0, 50.0
         m = meshgrid_square(lx, ly;
@@ -203,7 +194,6 @@ end
         @test !isempty(m.bottom_nodes)
     end
 
-    # ── 1-D line ──────────────────────────────────────────────────────────────
     @testset "line Q1" begin
         l = 40.0
         m = meshgrid_line(l;

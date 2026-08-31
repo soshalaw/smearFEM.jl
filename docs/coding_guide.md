@@ -264,7 +264,8 @@ inflate_cylinder(r, h, ne; ...)                               # → MeshgridCyli
 Three-tier fallback for all data paths:
 
 1. **Environment variable** (`SMEAR_DATA_DIR`, `SMEAR_MESH_DIR`, `SMEAR_SCRATCH_DIR`)
-2. **`config.toml`** in the project root
+2. **`config.toml`**, searched for from the project root upwards — it sits in the shared
+   `smear-modules` directory, so smearPerception's `src/config.py` reads the same file
 3. **Hard default** (`~/SMEAR-Data`, `~/SMEAR-Data/meshes`, `/tmp/smear`)
 
 Use the resolution functions rather than hardcoding paths:

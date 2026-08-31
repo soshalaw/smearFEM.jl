@@ -1,170 +1,10 @@
 using LinearAlgebra
 using Plots
 using ArgCheck
-using NearestNeighbors
 
-"""
-    match_points(p_sim::AbstractMatrix{Float64}, p_obs::AbstractMatrix{Float64})
+# Contour cost functions (`match_points`, `contour_cost`, the `ContourCost` types and their
+# residuals) live in `optimization/cost_functions.jl`, included before this file.
 
-Match simulation points to observation points using KDTree spatial indexing.
-
-# Arguments:
-- `p_sim::AbstractMatrix{Float64}` : Simulation points matrix of size [2 × n_sim]
-- `p_obs::AbstractMatrix{Float64}` : Observation points matrix of size [2 × n_obs]
-
-# Returns:
-- `pairs::Matrix{Int64}` : Point pairs array of size [n_sim × 2] where pairs[i,:] = [i, j] matches sim point i to obs point j
-"""
-function match_points(p_sim::AbstractMatrix{Float64}, p_obs::AbstractMatrix{Float64})::Matrix{Int64}
-    simSize = size(p_sim, 2)
-    pairs = zeros(Int64, simSize, 2)
-    tree = KDTree(p_obs; leafsize=10)
-    for sim_counter in 1:simSize
-        idx, _ = knn(tree, p_sim[:, sim_counter], 1)
-        pairs[sim_counter, :] = [sim_counter, idx[1]]
-    end
-    return pairs
-end
-
-"""
-    closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; outliers::AbstractArray=[])
-
-Compute point-wise distance between simulation and observation frames without gradient information.
-
-For each frame pair, matches simulation points to observation points and computes the mean squared error.
-
-# Arguments:
-- `sim_frames::AbstractArray` : Vector of simulation point coordinates [2 × n_points for each frame]
-- `obs_frames::AbstractArray` : Vector of observation point coordinates [2 × n_points for each frame]
-- `outliers::AbstractArray` : Frame indices to skip
-
-# Returns:
-- `cost_list::Vector{Float64}` : Mean squared error for each frame
-- `[pairsList, norm_cost_list]` : Tuple containing point pairs and normalized costs for each frame
-"""
-function _as_2xN(x)
-    raw = x isa AbstractVector ? x[1] : x   # unwrap Vector{Matrix} wrapper if present
-    m = Matrix{Float64}(collect(raw))
-    return size(m, 1) == 2 ? m : Matrix{Float64}(m')
-end
-
-_as_dudθ(x) = Array{Float64}(x isa AbstractVector ? x[1] : x)
-
-function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray; outliers::AbstractArray=[])
-    # Define the cost function
-    cost_list = Float64[]
-    norm_cost_list = Float64[]
-    pairsList = []
-
-    # frame_counter = 1
-    @argcheck length(sim_frames) == length(obs_frames) "Size of the simulation and observation scenes should be the same"
-    for (frame_idx, (obs_t, _sim_t)) in enumerate(zip(obs_frames, sim_frames)) # iterate over the scenes
-
-        if frame_idx in outliers
-            @info "Skipping frame $frame_idx as it is marked as an outlier."
-            continue
-        end
-
-        sim_t = _as_2xN(_sim_t)
-        obs_t = _as_2xN(obs_t)
-        
-        pairs = match_points(sim_t, obs_t) # match the points using the first border
-        
-        pSim, qSim = sim_t[1, :], sim_t[2, :]
-        pObs, qObs = obs_t[1, :], obs_t[2, :]
-        
-        u = [(pSim[pairs[:, 1]] - pObs[pairs[:, 2]]); (qSim[pairs[:, 1]] - qObs[pairs[:, 2]])]
-        cost = u' * u
-
-        u_ = [(pObs[pairs[:, 2]]); (qObs[pairs[:, 2]])]
-        denom = u_' * u_
-        
-        mean_cost = cost / (2 * length(pairs))
-        norm_cost = cost / denom
-        push!(cost_list, mean_cost)
-        push!(pairsList, pairs)
-        push!(norm_cost_list, norm_cost)
-    end
-    return cost_list, [pairsList, norm_cost_list]
-end
-
-"""
-    closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dudθ::AbstractArray; outliers::AbstractArray=[])
-
-Compute point-wise distance with first and second derivatives for gradient-based optimization.
-
-For each frame pair, matches simulation points to observation points and computes the mean squared error
-along with its first and second derivatives with respect to optimization parameters.
-
-# Arguments:
-- `sim_frames::AbstractArray` : Vector of simulation point coordinates
-- `obs_frames::AbstractArray` : Vector of observation point coordinates
-- `dudθ::AbstractArray` : Gradient of simulation points w.r.t. parameters [2 × n_points × n_params per frame]
-- `outliers::AbstractArray` : Frame indices to skip
-
-# Returns:
-- `cost_list::Vector{Float64}` : Mean squared error for each frame
-- `dcost_list::Vector{Matrix}` : First derivative (gradient) w.r.t. parameters for each frame
-- `dcost2List::Vector{Matrix}` : Second derivative (Hessian) w.r.t. parameters for each frame
-- `pairsList` : Point correspondence pairs for each frame
-"""
-function closest_point(sim_frames::AbstractArray, obs_frames::AbstractArray, dudθ::AbstractArray; outliers::AbstractArray=[])::Tuple{Vector{Float64}, Vector, Vector, Vector}
-    cost_list::Vector{Float64} = Float64[]
-    dcost_list::Vector = []
-    dcost2List::Vector = []
-    pairsList::Vector = []
-    
-    @argcheck length(sim_frames) == length(obs_frames) "Size of the simulation and observation scenes should be the same"
-    @argcheck length(sim_frames) == length(dudθ) "Size of the simulation and observation scenes should be the same"
-
-    for (frame_idx, (obs_t, _sim_t, _du_tdθ)) in enumerate(zip(obs_frames, sim_frames, dudθ)) # iterate over the scenes
-
-        if frame_idx in outliers
-            @info "Skipping frame $frame_idx as it is marked as an outlier."
-            continue
-        end
-
-        sim_t  = _as_2xN(_sim_t)
-        obs_t  = _as_2xN(obs_t)
-        du_tdθ = _as_dudθ(_du_tdθ)
-
-        @argcheck size(sim_t,2) == size(du_tdθ,2) "Number of the border points and the gradient points should be the same"
-
-        mat_nan_inf_check(du_tdθ[:,:,1])
-        mat_nan_inf_check(du_tdθ[:,:,2])
-
-        nθ::Int = size(du_tdθ, 3)
-        tcost::Float64 = 0.0
-        dtcost::Vector{Float64} = zeros(Float64, nθ)
-        dt2cost::Matrix{Float64} = zeros(Float64, nθ, nθ)
-        
-        pairs::Matrix{Int64} = match_points(sim_t, obs_t)
-        
-        pSim::Vector{Float64} = sim_t[1, :]
-        qSim::Vector{Float64} = sim_t[2, :]
-        dpSim::Matrix{Float64} = du_tdθ[1, :, :]
-        dqSim::Matrix{Float64} = du_tdθ[2, :, :]
-        pObs::Vector{Float64} = obs_t[1, :]
-        qObs::Vector{Float64} = obs_t[2, :]
-
-        u = [(pSim[pairs[:,1]] - pObs[pairs[:,2]]); (qSim[pairs[:,1]] - qObs[pairs[:,2]])]
-        Jmat = [dpSim[pairs[:,1],:]; dqSim[pairs[:,1],:]]
-
-        tcost = u'*u
-        dtcost = Jmat'*u
-        dt2cost = Jmat'*Jmat
-
-        mCost = tcost/(2*length(pairs)) # 1/2m(Σ(√(xi-x_obs)^2+(yi-y_obs)^2))^2 (mean error)
-        dmcost = dtcost/length(pairs)   # 1/m(Σ(xi-x_obs)∂x/∂θ_i +(yi-y_obs)∂y/∂θ_i))
-        dm2cost = dt2cost/length(pairs) # 1/m(Σ(∂x2/∂2θ_i + ∂y2/∂2θ_i))
-
-        push!(cost_list, mCost)
-        push!(dcost_list,dmcost)
-        push!(dcost2List,dm2cost)
-        push!(pairsList,pairs)
-    end
-    return cost_list, dcost_list, dcost2List, pairsList
-end
 
 """
     init_cylinder()
@@ -200,7 +40,7 @@ function init_cylinder()::Nothing
     NodeListCyl, ∇NodeListCyl = _inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
     simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, )
 
-    d, ∂d, ∂2d, _ = closest_point([simBorderPts], [obsBorderPts], [∇BorderPts2D])
+    d, ∂d, ∂2d, _ = contour_cost([simBorderPts], [obsBorderPts], [∇BorderPts2D])
     totdinit = sum(d) / length(d)
     θ = vcat(r, h)
     iter = 1
@@ -230,7 +70,7 @@ function init_cylinder()::Nothing
         NodeListCyl, ∇NodeListCyl = _inflate_cylinder(NodeList, -0.5, 0.5, -0.5, 0.5, r, h, GRAD=true)
         simBorderPts, ∇BorderPts2D = extract_borders(NodeListCyl, camera_matrix, camera_pose, nNodes, BorderNodesList=side_nodes, GRAD=true, dqdθ=∇NodeListCyl, )
 
-        d, ∂d, ∂2d, _ = closest_point([simBorderPts],[obsBorderPts],[∇BorderPts2D])
+        d, ∂d, ∂2d, _ = contour_cost([simBorderPts],[obsBorderPts],[∇BorderPts2D])
 
         totd = sum(d)/length(d)
         c_grad = abs(totdinit - totd)
@@ -254,7 +94,7 @@ function init_cylinder()::Nothing
 end
 
 """
-    armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, ∂d_prev, cost_prev; c=1e-4, max_backtracks=10, outliers=Int[])
+    armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, ∂d_prev, cost_prev; c=1e-4, max_backtracks=10, outliers=Int[], penalty, ∇penalty)
 
 Armijo line search with sufficient descent condition for optimization.
 
@@ -273,23 +113,33 @@ cost(θ - α·p) ≤ cost_prev - c·α·∇cost·p
 - `c::Float64` : Sufficient decrease parameter (default 1e-4, range [1e-4, 0.1])
 - `max_backtracks::Int` : Maximum backtracking iterations (default 10)
 - `outliers::Vector{Int}` : Frame indices to skip
+- `penalty::Function` : Regularization term `R(θ)` added to the data misfit (default: zero)
+- `∇penalty::Function` : Gradient `∇R(θ)` of the regularization term (default: zero)
 
 # Returns:
 - `θ_trial::Vector{Float64}` : New parameter values
 - `d_trial::Vector{Float64}` : Cost values at new point
 - `∂d::Vector` : Gradient of cost at new point
 - `∂2d::Vector` : Hessian of cost at new point
-- `cost_trial::Float64` : Cost value at trial point
-- `accepted::Bool` : Whether step was accepted by Armijo condition
+- `cost_trial::Float64` : Cost value at trial point (data misfit + `penalty`)
+- `accepted::Bool` : Whether step was accepted
+- `simBorderPts` : Simulated border points at the returned parameters by Armijo condition
+- `simBorderPts` : Simulated border points at the returned parameters
+
+The Armijo test uses the same objective that produced `p_damped`: pass the same
+`penalty`/`∇penalty` here that were used to build the regularized gradient and Hessian.
 """
 function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray},
                             θ_prev::Vector{Float64}, p_damped::Vector{Float64}, ∂d_prev::Vector, cost_prev::Float64;
-                            c::Float64=1e-4, max_backtracks::Int=10, outliers::Vector{Int}=Int[])
+                            c::Float64=1e-4, max_backtracks::Int=10, outliers::Vector{Int}=Int[],
+                            penalty::Function = _ -> 0.0, ∇penalty::Function = θ -> zero(θ),
+                            cost::ContourCost=ClosestPointCost())
     # Armijo line search with sufficient descent condition.
     # Accepts step if: cost(θ - α·p) ≤ cost_prev - c·α·∇f·p
+    # f is the regularized objective: mean data misfit + penalty(θ).
     len_d = length(∂d_prev)
     α = 1.0
-    t_grad = sum(∂d_prev)                 # total gradient ∇f = Σ ∂d[j]
+    t_grad = sum(∂d_prev) / len_d + ∇penalty(θ_prev)   # ∇f of the same objective that produced p
     grad_prod = dot(t_grad, p_damped)     # directional derivative ∇fᵀ·p
     
     # Initialize variables for scope after loop
@@ -299,7 +149,6 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
     ∂2d = zeros(0)  # Will be overwritten
     cost_trial = cost_prev
     simBorderPts_accepted = nothing
-    gradList_accepted = nothing
     
     for backtrack_iter in 1:max_backtracks
         θ_trial = θ_prev - α * p_damped
@@ -310,8 +159,10 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
         μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
         
         # Use cost-only version during line search (fast)
-        d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
-        cost_trial = sum(d_trial_costs) / len_d
+        simBorderPts_accepted = simBorderPts
+
+        d_trial_costs, _ = contour_cost(simBorderPts, obsBorderPts, outliers=outliers, cost=cost)
+        cost_trial = sum(d_trial_costs) / len_d + penalty(θ_trial)
         
         # Armijo condition: cost_trial ≤ cost_prev - c·α·∇f·p
         Δcost = cost_prev - cost_trial
@@ -324,10 +175,10 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
         
         if cost_trial ≤ cost_prev - sufficient_decrease
             # Compute full gradients/Hessians only for accepted step
-            d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
+            d_trial, ∂d, ∂2d, pairs = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
             @debug "      $("-"^73)"
             printstyled("      [ACCEPT] Step accepted: α = $(round(α, sigdigits=5)), cost = $(round(cost_trial, sigdigits=4))\n", color=:green)
-            return θ_trial, d_trial, ∂d, ∂2d, cost_trial, true
+            return θ_trial, d_trial, ∂d, ∂2d, cost_trial, true, simBorderPts_accepted
         end
         
         α *= 0.5  # Halve step size and retry
@@ -337,15 +188,16 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
-    d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
+    d_trial, ∂d, ∂2d, pairs = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
+    simBorderPts_accepted = simBorderPts
     
     @debug "      $("-"^73)"
     printstyled("      [WARNING] Max backtracks reached. Accepting last trial (α=$(round(α, sigdigits=5)), cost=$(round(cost_trial, sigdigits=4)))\n", color=:yellow)
-    return θ_trial, d_trial, ∂d, ∂2d, cost_trial, false
+    return θ_trial, d_trial, ∂d, ∂2d, cost_trial, false, simBorderPts_accepted
 end
 
 """
-    backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, cost_prev; outliers=Int[])
+    backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, cost_prev; outliers=Int[], penalty)
 
 Simple backtracking line search that tries full step, then half steps.
 
@@ -361,6 +213,7 @@ No principled descent guarantee like Armijo condition.
 - `p_damped::Vector{Float64}` : Damped Newton step direction
 - `cost_prev::Float64` : Previous cost value
 - `outliers::Vector{Int}` : Frame indices to skip
+- `penalty::Function` : Regularization term `R(θ)` added to the data misfit (default: zero)
 
 # Returns:
 - `θ_trial::Vector{Float64}` : New parameter values
@@ -369,9 +222,11 @@ No principled descent guarantee like Armijo condition.
 - `∂2d::Vector` : Hessian of cost at new point
 - `cost_trial::Float64` : Cost value at trial point
 - `accepted::Bool` : Whether step was accepted
+- `simBorderPts` : Simulated border points at the returned parameters
 """
 function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray},
-                               θ_prev::Vector{Float64}, p_damped::Vector{Float64}, cost_prev::Float64; outliers::Vector{Int}=Int[])
+                               θ_prev::Vector{Float64}, p_damped::Vector{Float64}, cost_prev::Float64; outliers::Vector{Int}=Int[],
+                               penalty::Function = _ -> 0.0, cost::ContourCost=ClosestPointCost())
     # Simple backtracking line search (original method - kept for reference/comparison).
     # Takes full step, then half step if needed. No principled descent guarantee.
     len_d_calc = 0
@@ -387,17 +242,17 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     
     # Use cost-only version first (fast)
-    d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
+    d_trial_costs, _ = contour_cost(simBorderPts, obsBorderPts, outliers=outliers, cost=cost)
     len_d_calc = length(d_trial_costs)
-    cost_trial = sum(d_trial_costs) / len_d_calc
+    cost_trial = sum(d_trial_costs) / len_d_calc + penalty(θ_trial)
     Δcost_full = cost_prev - cost_trial
     @debug "        cost = $(round(cost_trial, sigdigits=4)), Δcost = $(round(Δcost_full, sigdigits=4))"
     
     if cost_trial < cost_prev
         # Compute full gradients/Hessians only for accepted step
-        d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
+        d_trial, ∂d, ∂2d, pairs = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
         printstyled("        [ACCEPT] Cost decreased, accepting\n", color=:green)
-        return θ_trial, d_trial, ∂d, ∂2d, cost_trial, true
+        return θ_trial, d_trial, ∂d, ∂2d, cost_trial, true, simBorderPts
     end
     
     # Try half step
@@ -409,20 +264,20 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     
     # Use cost-only version first (fast)
-    d_trial_costs, _ = closest_point(simBorderPts, obsBorderPts, outliers=outliers)
-    cost_trial_half = sum(d_trial_costs) / len_d_calc
+    d_trial_costs, _ = contour_cost(simBorderPts, obsBorderPts, outliers=outliers, cost=cost)
+    cost_trial_half = sum(d_trial_costs) / len_d_calc + penalty(θ_trial)
     Δcost_half = cost_prev - cost_trial_half
     @debug "        cost = $(round(cost_trial_half, sigdigits=4)), Δcost = $(round(Δcost_half, sigdigits=4))"
     
     # Compute full gradients/Hessians for final result (accepted or rejected)
-    d_trial, ∂d, ∂2d, pairs = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
+    d_trial, ∂d, ∂2d, pairs = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
     
     if cost_trial_half < cost_prev
         printstyled("        [ACCEPT] Cost decreased, accepting\n", color=:green)
-        return θ_trial, d_trial, ∂d, ∂2d, cost_trial_half, true
+        return θ_trial, d_trial, ∂d, ∂2d, cost_trial_half, true, simBorderPts
     else
         printstyled("        [WARNING] Neither step decreased cost. Accepting half step anyway.\n", color=:yellow)
-        return θ_trial, d_trial, ∂d, ∂2d, cost_trial_half, false
+        return θ_trial, d_trial, ∂d, ∂2d, cost_trial_half, false, simBorderPts
     end
 end
 
@@ -454,7 +309,8 @@ and `scene.β` in-place and returns per-iteration histories.
 - `iterList::Vector{Float64}`: iteration indices.
 """
 function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64};
-                   outliers::Vector{Int}=Int[], line_search_method::Symbol=:armijo)
+                   outliers::Vector{Int}=Int[], line_search_method::Symbol=:armijo,
+                   store_border_pts::Bool=false, cost::ContourCost=ClosestPointCost())
     reset_model!(model)
     model.η = [θ[1]]
     scene.β = [θ[2]]
@@ -463,6 +319,9 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     βpList::Vector{Float64} = Float64[]
     cost_list::Vector{Float64} = Float64[]
     iterList::Vector{Float64} = Float64[]
+    # Simulated contours at each accepted iterate; index-aligned with ηpList/cost_list.
+    # Opt-in: one full contour set per iteration is large (frames × 2 × border points).
+    simBorderPtsList::Vector{Any} = Any[]
     
     printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
@@ -473,13 +332,14 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         "Saved optimization animation to $path"
     end
 
-    d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
+    d, ∂d, ∂2d, _ = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
     totdinit::Float64 = sum(d)/length(d)
 
     push!(ηpList,θ[1])
     push!(βpList,θ[2])
     push!(cost_list,totdinit)
     push!(iterList,1)
+    store_border_pts && push!(simBorderPtsList, simBorderPts)
 
     iter::Int = 1
     c_grad::Float64 = 1.0
@@ -524,9 +384,9 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         cost_prev::Float64 = totdinit
         
         if line_search_method == :armijo
-            θ, d, ∂d, ∂2d, totd, _ = armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, ∂d, cost_prev, outliers=outliers)
+            θ, d, ∂d, ∂2d, totd, _, simBorderPts = armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, ∂d, cost_prev, outliers=outliers, cost=cost)
         else
-            θ, d, ∂d, ∂2d, totd, _ = backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, cost_prev, outliers=outliers)
+            θ, d, ∂d, ∂2d, totd, _, simBorderPts = backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, cost_prev, outliers=outliers, cost=cost)
         end
         
         c_grad = abs(cost_prev - totd)
@@ -541,6 +401,7 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         push!(βpList, θ[2])
         push!(cost_list, totd)
         push!(iterList, iter)
+        store_border_pts && push!(simBorderPtsList, simBorderPts)
         @debug "Result: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))"
         @debug "Deltas: Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))"
 
@@ -565,6 +426,236 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         "βList" => βpList,
         "cost_list" => cost_list,
         "iterList" => iterList,
+        "simBorderPtsList" => simBorderPtsList,
+    )
+    return stats
+end
+
+"""
+    _fit_model_GN_tikhonov(model, scene, conditions, obsBorderPts, θ; outliers, λ_scale, θ_p, Γ, line_search_method)
+
+Gauss-Newton parameter identification with Tikhonov regularization toward a prior `θ_p`.
+
+Minimizes `mean_data_misfit(θ) + R(θ)` with
+`R(θ) = ½·(θ - θ_p)ᵀ ΓᵀΛΓ (θ - θ_p)`, where `Λ = Diagonal(λ)`.
+
+`λ` holds **one entry per parameter**, so η and β can be regularized at different
+strengths — useful when one of them is far better constrained by the data than the other.
+A scalar `λ_scale` is broadcast to every parameter, which recovers the usual single-weight
+Tikhonov penalty. It is fixed before the first iteration and held there for the whole fit:
+recomputing it per iteration would make the objective move under the line search, and the
+convergence test would stop meaning anything.
+
+`λ` is an **absolute** weight, not a multiple of the data misfit, so it does not transfer
+between experiments with different units, noise levels or window lengths on its own — the
+first-iteration prior/data precision diagnostic is the thing to read when choosing it.
+
+The default is L2 shrinkage toward the origin — `θ_p = 0` with `Γ = diag(1 ./ |θ₀|)`, the
+initial parameters — so `R(θ) = ½·[λ₁·(η/η₀)² + λ₂·(β/β₀)²]`. η and β are assumed
+correlated, which leaves the data misfit near-flat along one direction; the penalty
+resolves that degeneracy by selecting the smallest-magnitude point along the valley
+instead of letting the fit drift.
+
+Normalizing by the initial guess is what makes the two shrink comparably: an identity `Γ`
+measures magnitude in raw units, so with η and β carrying different units and differing by
+orders of magnitude it would crush the numerically larger one and leave the other
+essentially free. It also makes `λ` dimensionless and directly comparable between the two
+parameters, since `‖Γθ₀‖² = length(θ)`. Pass `Γ = Matrix{Float64}(I, 2, 2)` for literal
+identity weighting, or a non-zero `θ_p` to regularize toward a prior estimate (e.g. the
+previous time window) rather than toward zero.
+
+# Arguments
+- `model::Stokes` : mutable Stokes FEM model (reset each iteration).
+- `scene::SqueezeFlow` : squeeze-flow scenario holding boundary conditions and timing.
+- `conditions::Conditions` : observation conditions (camera matrix and object pose).
+- `obsBorderPts::Vector{AbstractArray}` : observed 2D contour points per time step.
+- `θ::Vector{Float64}` : initial parameter vector `[η, β]`.
+
+# Keyword Arguments
+- `outliers::Vector{Int}` : frame indices excluded from the cost (default: `Int[]`).
+- `λ_scale::Union{Real,AbstractVector{<:Real}}` : prior strength, either one entry per
+  parameter or a scalar broadcast to all of them (default: `1.0`). Entries must be finite
+  and non-negative; all-zero disables regularization and recovers plain Gauss-Newton, and a
+  single zero entry leaves that one parameter unregularized.
+- `θ_p::Vector{Float64}` : prior mean (default: `zeros(length(θ))` — shrinkage toward the
+  origin, i.e. prefer the smallest parameters that still fit the data).
+- `Γ::Matrix{Float64}` : penalty shaping matrix (default: `diag(1 ./ |θ₀|)`, i.e. L2 on the
+  parameters relative to their initial values). Must be finite and square.
+- `line_search_method::Symbol` : `:armijo` or `:backtrack` (default: `:armijo`).
+
+# Returns
+- `stats::Dict` with keys `"η"`, `"β"`, `"ηList"`, `"βList"`, `"cost_list"`, `"iterList"`,
+  plus `"H"` (converged regularized Gauss-Newton Hessian) and `"λ"` (the frozen
+  per-parameter weight vector used).
+  `"cost_list"` holds the regularized objective, so values are not comparable across fits
+  with different `λ`.
+"""
+function _fit_model_GN_tikhonov(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64};
+                              outliers::Vector{Int}=Int[], λ_scale::Union{Real,AbstractVector{<:Real}}=1.0,
+                              θ_p::Vector{Float64}=zeros(length(θ)),
+                              Γ::Matrix{Float64}=Matrix{Float64}(I, length(θ), length(θ)) ./ abs.(θ),
+                              line_search_method::Symbol=:armijo, store_border_pts::Bool=false,
+                              cost::ContourCost=ClosestPointCost())
+    @argcheck length(θ_p) == length(θ) "Prior mean θ_p must match the length of θ"
+    @argcheck all(isfinite, θ_p) "Prior mean θ_p must be finite"
+    @argcheck size(Γ) == (length(θ), length(θ)) "Penalty matrix Γ must be square of side length(θ)"
+    @argcheck all(isfinite, Γ) "Penalty matrix Γ must be finite (the default scaling needs all(θ .!= 0))"
+    @argcheck λ_scale isa Real || length(λ_scale) == length(θ) "λ_scale must be a scalar or one entry per parameter"
+    @argcheck all(≥(0), λ_scale) "λ_scale entries must be non-negative"
+    @argcheck all(isfinite, λ_scale) "λ_scale entries must be finite"
+
+    reset_model!(model)
+    model.η = [θ[1]]
+    scene.β = [θ[2]]
+
+    ηpList::Vector{Float64} = Float64[]
+    βpList::Vector{Float64} = Float64[]
+    cost_list::Vector{Float64} = Float64[]
+    iterList::Vector{Float64} = Float64[]
+    # Simulated contours at each accepted iterate; index-aligned with ηpList/cost_list.
+    # Opt-in: one full contour set per iteration is large (frames × 2 × border points).
+    simBorderPtsList::Vector{Any} = Any[]
+    
+    printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
+    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+
+    @debug begin
+        path = joinpath(get_scratch_dir(), "optimization_animation")
+        animate_fields(filepath=path, sim_border_nodes_2d=simBorderPts, obs_border_nodes_2d=obsBorderPts)
+        "Saved optimization animation to $path"
+    end
+
+    d, ∂d, ∂2d, _ = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
+    data_cost_init::Float64 = sum(d)/length(d)
+
+    # One λ per parameter, so η and β can be regularized at different strengths. A scalar
+    # λ_scale means "the same strength for all of them". Held fixed for the whole fit:
+    # recomputing it per iteration would make the objective move under the line search and
+    # the convergence test would stop meaning anything.
+    λ::Vector{Float64} = λ_scale isa Real ? fill(float(λ_scale), length(θ)) :
+                                            Vector{Float64}(λ_scale)
+
+    # Tikhonov penalty R(θ) = ½·(θ - θ_p)ᵀ ΓᵀΛΓ (θ - θ_p) with Λ = Diagonal(λ), i.e.
+    # ½·Σᵢ λᵢ·[Γ(θ - θ_p)]ᵢ². Defined once so that the cost, the Newton step and the line
+    # search all refer to the same objective. Λ sits between Γᵀ and Γ rather than
+    # multiplying through, so a per-parameter λ weights the penalty in the basis Γ maps
+    # into — with the default diagonal Γ that is exactly λᵢ·((θᵢ - θ_pᵢ)/θ₀ᵢ)².
+    ΓᵀΛΓ::Matrix{Float64} = Γ' * Diagonal(λ) * Γ
+    R(v::Vector{Float64})  = 0.5 * dot(v - θ_p, ΓᵀΛΓ * (v - θ_p))
+    ∇R(v::Vector{Float64}) = ΓᵀΛΓ * (v - θ_p)
+    ∇²R::Matrix{Float64}   = ΓᵀΛΓ
+
+    printstyled("Prior: θ_p = $(round.(θ_p, sigdigits=4)), λ = $(round.(λ, sigdigits=4)) " *
+                "(initial data misfit $(round(data_cost_init, sigdigits=4)))\n", color=:cyan)
+
+    totdinit::Float64 = data_cost_init + R(θ)
+
+    push!(ηpList,θ[1])
+    push!(βpList,θ[2])
+    push!(cost_list,totdinit)
+    push!(iterList,1)
+    store_border_pts && push!(simBorderPtsList, simBorderPts)
+
+    iter::Int = 1
+    c_grad::Float64 = 1.0
+    len_d::Int = length(d)
+    t∂2d::Matrix{Float64} = zeros(size(∂2d[1]))
+    t∂d::Vector{Float64} = zeros(size(∂d[1]))
+    t∂2d_reg::Matrix{Float64} = zeros(size(∂2d[1]))
+    printstyled("Initial error = $totdinit\n", color=:yellow)
+    while true
+        printstyled("\n==================== Iteration $iter ===================\n", color=:blue)
+
+        reset_model!(model)
+        t∂2d .= 0.0
+        t∂d .= 0.0
+
+        @debug "Current parameters: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totdinit, sigdigits=4))"
+        for i::Int in 1:len_d
+            t∂2d = t∂2d + ∂2d[i]
+            t∂d = t∂d + ∂d[i]
+        end
+
+        # Hessian diagnostics and damping
+        condition_number::Float64 = cond(t∂2d)
+        H_η::Float64 = abs(t∂2d[1, 1])
+        H_β::Float64 = abs(t∂2d[2, 2])
+        H_ratio::Float64 = H_η / (H_β + 1e-12)
+          
+        if condition_number > 1e2 || H_ratio > 1e2
+            printstyled("  [WARNING] Hessian: κ=$(round(condition_number, sigdigits=3)), H_β=$H_β, H_η=$H_η, ratio=$(round(H_ratio, sigdigits=3))\n", color=:yellow)
+        end
+
+        t∂d_reg = t∂d/len_d + ∇R(θ)
+        t∂2d_reg = t∂2d/len_d + ∇²R
+
+        if iter == 1 && any(>(0), λ)
+            # How hard the prior pulls relative to what the data actually constrains.
+            # A flat direction (tiny data curvature) is dominated by even a small penalty,
+            # which the cost-vs-penalty comparison alone does not reveal.
+            prior_ratio = diag(∇²R) ./ max.(abs.(diag(t∂2d/len_d)), 1e-300)
+            dom = maximum(prior_ratio) > 1 ? "  [prior dominates]" : ""
+            printstyled("  Prior/data precision: η = $(round(prior_ratio[1], sigdigits=3)), " *
+                        "β = $(round(prior_ratio[2], sigdigits=3))$dom\n", color=:cyan)
+        end
+
+        p = t∂2d_reg \ t∂d_reg
+
+        # Compute Newton step
+        @debug "Newton step (damped): [$(round(p[1], sigdigits=4)), $(round(p[2], sigdigits=4))]"
+
+        θ_prev::Vector{Float64} = copy(θ)
+        cost_prev::Float64 = totdinit
+        
+        if line_search_method == :armijo
+            θ, d, ∂d, ∂2d, totd, _, simBorderPts = armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, ∂d, cost_prev,
+                                                        outliers=outliers, penalty=R, ∇penalty=∇R, cost=cost)
+        else
+            θ, d, ∂d, ∂2d, totd, _, simBorderPts = backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, cost_prev,
+                                                           outliers=outliers, penalty=R, cost=cost)
+        end
+        
+        # totd already includes R(θ): the line search minimizes the regularized objective.
+        c_grad = abs(cost_prev - totd)
+        c_grad_rel = c_grad / (abs(cost_prev) + 1e-12)
+        totdinit = totd
+        
+        Δη_rel = abs(θ[1] - θ_prev[1]) / (abs(θ_prev[1]) + 1e-12)
+        Δβ_rel = abs(θ[2] - θ_prev[2]) / (abs(θ_prev[2]) + 1e-12)
+
+        iter = iter + 1
+        push!(ηpList, θ[1])
+        push!(βpList, θ[2])
+        push!(cost_list, totd)
+        push!(iterList, iter)
+        store_border_pts && push!(simBorderPtsList, simBorderPts)
+        @debug "Result: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))"
+        @debug "Deltas: Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))"
+
+        if c_grad_rel < 1e-3 && c_grad < 1e-3
+            printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n 
+                        η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4))", color=:green)
+            break
+        end
+        
+        if iter ≥ 100
+            printstyled("[WARNING] MAX ITERATIONS (100) REACHED\n", color=:yellow)
+            break
+        end
+    end
+    
+    printstyled("\n========= Optimization Complete =========\n", color=:blue)
+
+    stats = Dict(
+        "η" => θ[1],
+        "β" => θ[2],
+        "ηList" => ηpList,
+        "βList" => βpList,
+        "cost_list" => cost_list,
+        "iterList" => iterList,
+        "simBorderPtsList" => simBorderPtsList,
+        "H" => t∂2d_reg,
+        "λ" => λ,
     )
     return stats
 end
@@ -594,7 +685,7 @@ Decreases λ on accepted steps (→Newton), increases λ on rejected steps (→g
 Stops on convergence (relative cost change < 1e-4) or max iterations (100).
 """
 function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64};
-                      outliers::Vector{Int}=Int[], λ::Float64=1e-3)
+                      outliers::Vector{Int}=Int[], λ::Float64=1e-3, cost::ContourCost=ClosestPointCost())
                       
     reset_model!(model)
     model.η = [θ[1]]
@@ -607,7 +698,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     
     printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
-    d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
+    d, ∂d, ∂2d, _ = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
     cost_prev::Float64 = sum(d)/length(d)
 
     push!(ηpList, θ[1])
@@ -647,7 +738,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         model.η = [θ[1]]
         scene.β = [θ[2]]
         _, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
-        d, ∂d, ∂2d, _ = closest_point(simBorderPts, obsBorderPts, gradList, outliers=outliers)
+        d, ∂d, ∂2d, _ = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
         totd::Float64 = sum(d) / len_d
         
         c_grad::Float64 = abs(cost_prev - totd)
@@ -726,16 +817,26 @@ Dispatches to appropriate optimization method based on `method` parameter.
 - `outliers::Vector{Int}` : Frame indices to skip (default: [])
 - `method::Symbol` : Optimization algorithm (default: `:gn`)
   - `:gn` - Gauss-Newton with damping and line search
+  - `:gn_tikhonov` - Gauss-Newton regularized toward a prior `θ_p`
   - `:lm` - Levenberg-Marquardt with adaptive damping
-- `line_search_method::Symbol` : Line search strategy for `:gn` method (default: `:armijo`)
-  - `:armijo` - Armijo backtracking with sufficient descent condition
-  - `:backtrack` - Simple backtracking (full step, then half step)
+- `kwargs...` : forwarded verbatim to the chosen implementation, which owns their defaults.
+  Passing one the method does not accept raises a `MethodError` rather than being ignored,
+  so a stray `λ_scale` alongside `method=:lm` fails loudly. The accepted keywords are:
+  - all methods — `outliers::Vector{Int}` (frame indices to skip).
+  - `:gn`, `:gn_tikhonov` — `line_search_method::Symbol` (`:armijo`, the default, applies
+    the sufficient-descent condition; `:backtrack` tries the full step then halves it) and
+    `store_border_pts::Bool` (collect the simulated contours at every accepted iterate into
+    `stats["simBorderPtsList"]`; `false` by default because each entry holds a full
+    frames × 2 × border-points contour set).
+  - `:gn_tikhonov` — `λ_scale`, `θ_p` and `Γ`; see [`_fit_model_GN_tikhonov`](@ref) for
+    what they mean and what they default to.
+  - `:lm` — `λ::Float64`, the initial Levenberg-Marquardt damping.
 
 # Returns
 - `stats::Dict` : Optimization results with keys "η", "β", "ηList", "βList", "cost_list", "iterList"
 
 # Throws
-- `ArgumentError` : If `method` is not `:gn` or `:lm`
+- `ArgumentError` : If `method` is not `:gn`, `:gn_tikhonov` or `:lm`
 
 # Example
 ```julia
@@ -745,26 +846,40 @@ result_gn = fit_model(model, scene, conditions, obs_pts, θ_init)
 # Using Levenberg-Marquardt
 result_lm = fit_model(model, scene, conditions, obs_pts, θ_init; method=:lm)
 
+# Regularized toward a prior (e.g. the previous time window's estimate)
+result_tk = fit_model(model, scene, conditions, obs_pts, θ_init;
+                      method=:gn_tikhonov, θ_p=θ_prev_window, λ_scale=0.1)
+
 # Using Gauss-Newton with backtracking
 result_bt = fit_model(model, scene, conditions, obs_pts, θ_init; 
                       method=:gn, line_search_method=:backtrack)
 ```
 """
 function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64};
-                   outliers::Vector{Int}=Int[], method::Symbol=:gn, line_search_method::Symbol=:armijo)
-    
+                   outliers::Vector{Int}=Int[], method::Symbol=:gn, kwargs...)
+
     # Validate method parameter
-    @assert method in [:gn, :lm] "Invalid optimization method: $method. Must be :gn (Gauss-Newton) or :lm (Levenberg-Marquardt)"
-    
+    @assert method in [:gn, :lm, :gn_tikhonov] "Invalid optimization method: $method. Must be :gn (Gauss-Newton), :gn_tikhonov (regularized Gauss-Newton) or :lm (Levenberg-Marquardt)"
+
     # Validate line_search_method
-    if method == :gn
+    if method in (:gn, :gn_tikhonov)
+        line_search_method = get(kwargs, :line_search_method, :armijo)
         @assert line_search_method in [:armijo, :backtrack] "Invalid line search method: $line_search_method. Must be :armijo or :backtrack for Gauss-Newton"
     end
-    
+
+    # Everything except `method` and `outliers` is forwarded untouched to the chosen
+    # implementation, which owns the defaults. Two consequences worth knowing:
+    #
+    #   * an argument left out here is not defaulted here either, so `θ_p`/`Γ` fall back to
+    #     `_fit_model_GN_tikhonov`'s own defaults — no `nothing` sentinel needed; and
+    #   * a keyword the chosen method does not accept is a MethodError rather than a silent
+    #     no-op, so `method=:lm, λ_scale=…` fails loudly instead of quietly ignoring λ_scale.
     if method == :lm
-        return _fit_model_LM(model, scene, conditions, obsBorderPts, θ; outliers=outliers)
+        return _fit_model_LM(model, scene, conditions, obsBorderPts, θ; outliers=outliers, kwargs...)
     elseif method == :gn
-        return _fit_model_GN(model, scene, conditions, obsBorderPts, θ; outliers=outliers, line_search_method=line_search_method)
+        return _fit_model_GN(model, scene, conditions, obsBorderPts, θ; outliers=outliers, kwargs...)
+    elseif method == :gn_tikhonov
+        return _fit_model_GN_tikhonov(model, scene, conditions, obsBorderPts, θ; outliers=outliers, kwargs...)
     end
 end
 

@@ -28,7 +28,7 @@ parameter gradients through the projection.
 # Returns (GRAD=true)
 `border_pts_sorted, ∇border_pts_sorted, surface_pts_2d, ∇surface_pts_2d`
 """
-function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractArray{Float64}, height::Float64, rot_angle::Float64=[0.0]; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2))
+function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractArray{Float64}, height::Float64, rot_angle::Float64=0.0; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2))
 
     if length(BorderNodesList) != 0
         surface_nodes = NodeList[:,BorderNodesList]

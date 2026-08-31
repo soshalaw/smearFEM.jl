@@ -10,12 +10,16 @@ cd smearFEM.jl
 julia --project -e "using Pkg; Pkg.instantiate()"
 ```
 
-Create a local `config.toml` (gitignored) pointing to your data directory:
+Create a local `config.toml` pointing to your data directory. It lives one level up, in the
+`smear-modules` directory that holds both smearFEM.jl and smearPerception, so both packages
+share it — copy `smear-modules/config.toml.example` to `smear-modules/config.toml`:
 
 ```toml
-data_dir    = "/path/to/your/SMEAR-DataFiles/Data"
+data_dir    = "../SMEAR-DataFiles/Data"
 scratch_dir = "/path/to/tmp"
 ```
+
+Relative paths are resolved against the directory holding `config.toml`.
 
 ## Running Tests
 

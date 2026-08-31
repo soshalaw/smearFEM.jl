@@ -468,15 +468,21 @@ function plot_convergence_time(file_path::String)
         selected_dt = 0.1 # time step size used in the experiment
 
         plot_path = joinpath(file_path, "plots")
+        set_file(plot_path)
+        # returns nothing when fewer than two valid points survive filtering
         plt1 = plot_convergence_generic(dt_sizes, relative_error, "Time step size (dt)", "\\Delta t")
-        Plots.vline!(plt1, [selected_dt], label=L"\Delta t_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
-        Plots.xlims!(plt1, 10^(-3), 5)
-        Plots.ylims!(plt1, 1e-6, 10^(-2.2))
+        if plt1 === nothing
+            @warn "Skipping time_convergence.pdf: not enough valid data points" file_path
+        else
+            Plots.vline!(plt1, [selected_dt], label=L"\Delta t_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
+            Plots.xlims!(plt1, 10^(-3), 5)
+            Plots.ylims!(plt1, 1e-6, 10^(-2.2))
+            Plots.savefig(plt1, joinpath(plot_path, "time_convergence.pdf"))
+        end
 
         plt2 = set_plot_from_config(PLOT_CONFIG)
         Plots.plot(plt2, dt_list, h_end_list, label="Final height", xlabel="Time step size (dt)", ylabel="Final height", yscale=:log10, xscale=:log10, marker=:circle)
 
-        Plots.savefig(plt1, joinpath(plot_path, "time_convergence.pdf"))
         Plots.savefig(plt2, joinpath(plot_path, "final_height_vs_dt.pdf"))
 end
 

@@ -62,8 +62,14 @@ end
 """
     chamfer_distance_kdtree(pred_pts, gt_pts) -> Float64
 
-KDTree-accelerated Chamfer distance: the sum of the two directional mean
+KDTree-accelerated Chamfer distance: the mean of the two directional mean
 nearest-neighbor distances between `pred_pts` and `gt_pts`.
+
+Distances are Euclidean (not squared), so the result is in the same units as the
+input coordinates and is directly comparable to `hausdorff_distance_kdtree` and
+`closest_point_distance_kdtree`. Note that some of the literature defines the
+Chamfer distance as the *sum* of the two directional means (twice this value),
+or over squared distances; this is the averaged, unsquared form.
 
 # Arguments
 - `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
@@ -74,7 +80,31 @@ nearest-neighbor distances between `pred_pts` and `gt_pts`.
 function chamfer_distance_kdtree(pred_pts::AbstractArray, gt_pts::AbstractArray)
     d_pred_to_gt = _nn_min_dists(pred_pts, gt_pts)
     d_gt_to_pred = _nn_min_dists(gt_pts, pred_pts)
-    return mean(d_pred_to_gt) + mean(d_gt_to_pred)
+    return 0.5 * (mean(d_pred_to_gt) + mean(d_gt_to_pred))
+end
+
+"""
+    chamfer_sq_distance_kdtree(pred_pts, gt_pts) -> Float64
+
+KDTree-accelerated **squared** Chamfer distance: the mean of the two directional mean
+*squared* nearest-neighbor distances between `pred_pts` and `gt_pts`.
+
+This is the reporting counterpart of the optimizer's `ChamferCost`, which is likewise
+built from squared residuals — use it when a validation number has to be compared against
+an optimization cost. `chamfer_distance_kdtree` is the unsquared form, in the same units
+as the coordinates and comparable to `hausdorff_distance_kdtree`; the two differ by more
+than a square root, since the mean of squares is not the square of the mean.
+
+# Arguments
+- `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
+
+# Returns
+- `Float64`: the squared Chamfer distance, in squared coordinate units.
+"""
+function chamfer_sq_distance_kdtree(pred_pts::AbstractArray, gt_pts::AbstractArray)
+    d_pred_to_gt = _nn_min_dists(pred_pts, gt_pts)
+    d_gt_to_pred = _nn_min_dists(gt_pts, pred_pts)
+    return 0.5 * (mean(d_pred_to_gt.^2) + mean(d_gt_to_pred.^2))
 end
 
 """
@@ -117,9 +147,10 @@ end
 """
     chamfer_distance(pred_pts, gt_pts) -> Float64
 
-Brute-force (O(N·M)) Chamfer distance between two point clouds: the sum of
+Brute-force (O(N·M)) Chamfer distance between two point clouds: the mean of
 the two directional mean-min distances between `pred_pts` and `gt_pts`.
-Superseded by `chamfer_distance_kdtree`; kept for reference/benchmarking.
+Superseded by `chamfer_distance_kdtree`; kept for reference/benchmarking, and
+must stay numerically identical to it.
 
 # Arguments
 - `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
@@ -130,12 +161,12 @@ Superseded by `chamfer_distance_kdtree`; kept for reference/benchmarking.
 function chamfer_distance(pred_pts::AbstractArray, gt_pts::AbstractArray)
     mean_pred = mean([minimum(sqrt.(sum((gt_pts .- permutedims(pred_pt)).^2, dims=2))) for pred_pt in eachrow(pred_pts)])
     mean_gt = mean([minimum(sqrt.(sum((pred_pts .- permutedims(gt_pt)).^2, dims=2))) for gt_pt in eachrow(gt_pts)])
-    chamfer_dist = mean_pred + mean_gt
+    chamfer_dist = 0.5 * (mean_pred + mean_gt)
     return chamfer_dist
 end
 
 """
-    compare_pt_clouds(pred_pts, gt_pts) -> (hausdorff_distances, chamfer_distances, closest_pt_distances)
+    compare_pt_clouds(pred_pts, gt_pts; squared_chamfer=true) -> (hausdorff_distances, chamfer_distances, closest_pt_distances)
 
 Compute, frame by frame, the KD-tree-based Hausdorff, Chamfer, and
 (one-directional) closest-point RMSE distances between matching pairs of
@@ -145,17 +176,26 @@ predicted and ground-truth point clouds.
 - `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: matching iterables of
   point-cloud arrays, one pair per frame.
 
+# Keyword Arguments
+- `squared_chamfer::Bool`: report the **squared** Chamfer distance (default: `true`), so
+  the validation number is on the same footing as the optimizer's `ChamferCost`. Set
+  `false` for the unsquared form. Note this affects the Chamfer entry only: Hausdorff and
+  closest-point stay in coordinate units, so with the default the three returns no longer
+  share units and should not be read against each other on a common axis without
+  normalizing each series first.
+
 # Returns
 - `hausdorff_distances::Vector{Float64}`, `chamfer_distances::Vector{Float64}`,
   `closest_pt_distances::Vector{Float64}`: one distance per frame.
 """
-function compare_pt_clouds(pred_pts::AbstractArray, gt_pts::AbstractArray)
+function compare_pt_clouds(pred_pts::AbstractArray, gt_pts::AbstractArray; squared_chamfer::Bool=true)
     hausdorff_distances = Float64[]
     chamfer_distances = Float64[]
     closest_pt_distances = Float64[]
+    _chamfer = squared_chamfer ? chamfer_sq_distance_kdtree : chamfer_distance_kdtree
     for (sim_pts, gt_pts) in zip(pred_pts, gt_pts)
         hausdorff_dist = hausdorff_distance_kdtree(sim_pts, gt_pts)
-        chamfer_dist = chamfer_distance_kdtree(sim_pts, gt_pts)
+        chamfer_dist = _chamfer(sim_pts, gt_pts)
         closest_pt_dist = closest_point_distance_kdtree(sim_pts, gt_pts)
         push!(hausdorff_distances, hausdorff_dist)
         push!(chamfer_distances, chamfer_dist)

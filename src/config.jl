@@ -5,8 +5,12 @@ Centralized configuration and path resolution for smearFEM.jl.
 
 Supports three-tier fallback:
 1. Environment variables (SMEAR_DATA_DIR, SMEAR_MESH_DIR, SMEAR_SCRATCH_DIR)
-2. Configuration file (config.toml in project root)
+2. Configuration file (config.toml, searched from the project root upwards)
 3. Relative paths from project root
+
+The config file lives outside this repository (in the smear-modules directory
+that holds both smearFEM.jl and smearPerception) so the Julia and Python
+packages resolve the same paths. See src/config.py on the Python side.
 """
 
 using TOML
@@ -16,32 +20,67 @@ expand_env_vars(path::String) = replace(path, r"\$\{(\w+)\}" => m -> get(ENV, m[
 
 # Configuration Loading
 """
-    load_config(config_path::String = "config.toml") -> Dict
+    find_config(config_name::String = "config.toml") -> Union{String, Nothing}
 
-Load configuration from TOML file. Returns empty dict if file not found.
-
-# Arguments
-- `config_path`: Path to config.toml (default: project root)
+Locate the config file by walking up from the project root. Honours
+SMEAR_CONFIG_FILE if set.
 
 # Returns
-- `Dict`: Configuration parameters, or empty dict if not found
+- `String`: Absolute path to the config file, or `nothing` if not found
 """
-function load_config(config_path::String = "config.toml")
-    # Try to find config in project root
-    project_root = dirname(@__DIR__)
-    full_path = joinpath(project_root, config_path)
+function find_config(config_name::String = "config.toml")
+    if haskey(ENV, "SMEAR_CONFIG_FILE")
+        path = ENV["SMEAR_CONFIG_FILE"]
+        isfile(path) && return abspath(path)
+        @warn "SMEAR_CONFIG_FILE=$path does not exist; searching for $config_name instead"
+    end
 
-    if isfile(full_path)
+    dir = dirname(@__DIR__)
+    while true
+        candidate = joinpath(dir, config_name)
+        isfile(candidate) && return candidate
+        parent = dirname(dir)
+        parent == dir && return nothing  # reached the filesystem root
+        dir = parent
+    end
+end
+
+"""
+    load_config(config_path::Union{String, Nothing} = nothing) -> Tuple{Dict, String}
+
+Load configuration from TOML file. Returns an empty dict if no file is found.
+
+# Arguments
+- `config_path`: Explicit path to config.toml (default: search from project root upwards)
+
+# Returns
+- `Tuple{Dict, String}`: Configuration parameters and the directory holding the
+  config file. Relative paths in the config are resolved against that directory.
+"""
+function load_config(config_path::Union{String, Nothing} = nothing)
+    full_path = config_path === nothing ? find_config() : config_path
+
+    if full_path !== nothing && isfile(full_path)
         try
-            config = TOML.parsefile(full_path)
-            return config
+            return TOML.parsefile(full_path), dirname(abspath(full_path))
         catch e
             @warn "Failed to parse config file at $full_path: $(e.msg)"
-            return Dict()
         end
     end
-    
-    return Dict()
+
+    return Dict(), dirname(@__DIR__)
+end
+
+"""
+    config_path_value(config::Dict, base_dir::String, key::String) -> Union{String, Nothing}
+
+Expand environment variables in `config[key]` and resolve it against `base_dir`
+when it is relative. Returns `nothing` when the key is absent.
+"""
+function config_path_value(config::Dict, base_dir::String, key::String)
+    haskey(config, key) || return nothing
+    path = expand_env_vars(config[key])
+    return isabspath(path) ? path : joinpath(base_dir, path)
 end
 
 # Path Resolution Functions
@@ -67,9 +106,9 @@ function get_data_dir()::String
     end
     
     # Try config file
-    config = load_config()
-    if haskey(config, "data_dir")
-        path = expand_env_vars(config["data_dir"])
+    config, base_dir = load_config()
+    path = config_path_value(config, base_dir, "data_dir")
+    if path !== nothing
         isdir(path) && return abspath(path)
         @warn "data_dir=$path from config does not exist; using fallback"
     end
@@ -101,9 +140,9 @@ function get_mesh_dir()::String
     end
     
     # Try config file
-    config = load_config()
-    if haskey(config, "mesh_dir")
-        path = expand_env_vars(config["mesh_dir"])
+    config, base_dir = load_config()
+    path = config_path_value(config, base_dir, "mesh_dir")
+    if path !== nothing
         isdir(path) && return abspath(path)
         @warn "mesh_dir=$path from config does not exist; using fallback"
     end
@@ -135,9 +174,9 @@ function get_scratch_dir()::String
     end
     
     # Try config file
-    config = load_config()
-    if haskey(config, "scratch_dir")
-        path = expand_env_vars(config["scratch_dir"])
+    config, base_dir = load_config()
+    path = config_path_value(config, base_dir, "scratch_dir")
+    if path !== nothing
         isdir(path) && return abspath(path)
         @warn "scratch_dir=$path from config does not exist; using fallback"
     end
@@ -223,9 +262,6 @@ function create_output_dir(experiment_name::String; ensure_dir::Bool=true)::Stri
     return out_dir
 end
 
-# ============================================================================
-# Configuration Display
-# ============================================================================
 
 """
     show_config()

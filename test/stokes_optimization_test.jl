@@ -49,17 +49,13 @@ rel_error_tol = 1e-4
 
 filePath = joinpath(@__DIR__, "..", "cylindergen")
 
-mesh_x = meshgrid_cylinder(r, h; mesh_type=:structured, ne=ne, element_shape=element_shape_x, basis_order=basis_order_x)
-mesh_u = meshgrid_cylinder(r, h; mesh_type=:structured, ne=ne, element_shape=element_shape_u, basis_order=basis_order_u, ndof=nDof_u)
-mesh_p = meshgrid_cylinder(r, h; mesh_type=:structured, ne=ne, element_shape=element_shape_p, basis_order=basis_order_p, ndof=nDof_p)
-
-mdl = Stokes(ndim=ndim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=[η])
-
-T = Matrix{Float64}(I, size(mesh_u.NodeList,2), size(mesh_u.NodeList,2))
-T_ = T'*inv(T*T')
-
 p_, dp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
 μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x, GRAD=true)
+
+# simulate_single_tstep_stokes meshes internally; size T from the mesh it built.
+T = Matrix{Float64}(I, size(model.mesh_x.NodeList,2), size(model.mesh_x.NodeList,2))
+T_ = T'*inv(T*T')
+
 p = p_*T_
 dp = similar(dp_)
 dp[:,:,1] = dp_[:,:,1]*T_
@@ -111,14 +107,14 @@ for i in 1:iIter
 end
 
 ## Testing ∇u(θ)
-BorderPts2D, dudη, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, camera_matrix, obj_pose, BorderNodesList = mdl.mesh_u.side_nodes, GRAD=true, dqdθ=dp)
+BorderPts2D, dudη, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, camera_matrix, obj_pose, h, BorderNodesList = model.mesh_u.side_nodes, GRAD=true, dqdθ=dp)
 
 # estimate dudη with finite (central) difference
-ΔBorderPts2Dηp, ΔSurfacePts2Dηp = extract_borders(ΔNodesηp, camera_matrix, obj_pose, BorderNodesList=mdl.mesh_u.side_nodes, GRAD=false)
-ΔBorderPts2Dηm, ΔSurfacePts2Dηm = extract_borders(ΔNodesηm, camera_matrix, obj_pose, BorderNodesList=mdl.mesh_u.side_nodes, GRAD=false)
+ΔBorderPts2Dηp, ΔSurfacePts2Dηp = extract_borders(ΔNodesηp, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
+ΔBorderPts2Dηm, ΔSurfacePts2Dηm = extract_borders(ΔNodesηm, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
 
-ΔBorderPts2Dβp, ΔSurfacePts2Dβp = extract_borders(ΔNodesβp, camera_matrix, obj_pose, BorderNodesList=mdl.mesh_u.side_nodes, GRAD=false)
-ΔBorderPts2Dβm, ΔSurfacePts2Dβm = extract_borders(ΔNodesβm, camera_matrix, obj_pose, BorderNodesList=mdl.mesh_u.side_nodes, GRAD=false)
+ΔBorderPts2Dβp, ΔSurfacePts2Dβp = extract_borders(ΔNodesβp, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
+ΔBorderPts2Dβm, ΔSurfacePts2Dβm = extract_borders(ΔNodesβm, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
 
 ∇SurfacePts2dη_approx = (ΔSurfacePts2Dηp - ΔSurfacePts2Dηm)/(2*Δη)
 ∇SurfacePts2Dβ_approx = (ΔSurfacePts2Dβp - ΔSurfacePts2Dβm)/(2*Δβ)
@@ -159,15 +155,15 @@ p_gt = p_gt_*T_
 Nodes_gt_ = model.mesh_x.NodeList + p_gt
 Nodes_gt = Nodes_gt_*T
 
-BorderPts2D_gt = back_project(Nodes_gt, camera_matrix, obj_pose)
+BorderPts2D_gt = back_project(Nodes_gt, camera_matrix, obj_pose, h)
 
-costList, ∇d, ∇2d, pairsList = closest_point([BorderPts2D],[BorderPts2D_gt],[dudη])
+costList, ∇d, ∇2d, pairsList = contour_cost([BorderPts2D],[BorderPts2D_gt],[dudη])
 
-ΔcostList_ηp, pairsList_ηp = closest_point([ΔBorderPts2Dηp],[BorderPts2D_gt])
-ΔcostList_ηm, pairsList_ηm = closest_point([ΔBorderPts2Dηm],[BorderPts2D_gt])
+ΔcostList_ηp, pairsList_ηp = contour_cost([ΔBorderPts2Dηp],[BorderPts2D_gt])
+ΔcostList_ηm, pairsList_ηm = contour_cost([ΔBorderPts2Dηm],[BorderPts2D_gt])
 
-ΔcostList_βp, pairsList_βp = closest_point([ΔBorderPts2Dβp],[BorderPts2D_gt])
-ΔcostList_βm, pairsList_βm = closest_point([ΔBorderPts2Dβm],[BorderPts2D_gt])
+ΔcostList_βp, pairsList_βp = contour_cost([ΔBorderPts2Dβp],[BorderPts2D_gt])
+ΔcostList_βm, pairsList_βm = contour_cost([ΔBorderPts2Dβm],[BorderPts2D_gt])
 
 ∇dη_approx = (ΔcostList_ηp - ΔcostList_ηm)/(2*Δη)
 ∇dβ_approx = (ΔcostList_βp - ΔcostList_βm)/(2*Δβ)
@@ -178,22 +174,22 @@ iIter = size(∇d[1])
 @test ∇d[1][2] ≈ ∇dβ_approx[1] atol=error_tol rtol=rel_error_tol
 
 conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
-model, scene = def_problem(r, h, ne, η, ndim, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β, F, control, viscosity_type,
+model, scene = def_problem(Cylinder(r, h), ne, η, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β, F, control, viscosity_type,
                         sim_time, t_steps, GMESH_MESH=false)
 ## testing Σ∇p(θ)
-μ_list, gradList, simBorderPts, _, _, _, Δpos3D_, _, _, _, _, gradList_3d = simulate(model, scene, conditions)
+μ_list, gradList, simBorderPts, _, _, _, Δpos3D_, _, _, gradList_3d = simulate(model, scene, conditions)
 reset_model!(model)
 model.η = [η+Δη]
-μ_list, simBorderPts, ΔsimBorderPts_pL, _, _, _, Δpos3D_pL, _, _, _, _, _= simulate(model, scene, conditions)
+μ_list, simBorderPts, ΔsimBorderPts_pL, _, _, _, Δpos3D_pL, _, _, _= simulate(model, scene, conditions)
 reset_model!(model)
 model.η = [η-Δη]
-μ_list, simBorderPts, ΔsimBorderPts_mL, _, _, _, Δpos3D_mL, _, _, _, _, _ = simulate(model, scene, conditions)
+μ_list, simBorderPts, ΔsimBorderPts_mL, _, _, _, Δpos3D_mL, _, _, _ = simulate(model, scene, conditions)
 reset_model!(model)
 scene.β = [β+Δβ]
-μ_list, simBorderPts, ΔsimBorderPts_pβ, _, _, _, Δpos3D_pβ, _, _, _, _, _ = simulate(model, scene, conditions)
+μ_list, simBorderPts, ΔsimBorderPts_pβ, _, _, _, Δpos3D_pβ, _, _, _ = simulate(model, scene, conditions)
 reset_model!(model)
 scene.β = [β-Δβ]
-μ_list, simBorderPts, ΔsimBorderPts_mβ, _, _, _, Δpos3D_mβ, _, _, _, _, _ = simulate(model, scene, conditions)
+μ_list, simBorderPts, ΔsimBorderPts_mβ, _, _, _, Δpos3D_mβ, _, _, _ = simulate(model, scene, conditions)
                                                                                     
 titer = 1:length(Δpos3D_)
 
@@ -228,9 +224,10 @@ end
 
 for t in titer
     println("time: ", t)
-    grad = gradList[t]
+    # simulate returns per-view lists; this test uses a single view
+    grad = gradList[t][1]
 
-    grad_approx_η = (ΔsimBorderPts_pL[t]- ΔsimBorderPts_mL[t])/(2*Δη)
+    grad_approx_η = (ΔsimBorderPts_pL[t][1] - ΔsimBorderPts_mL[t][1])/(2*Δη)
 
     # println("dudη: ")
     # display(grad[:,:,1])
@@ -238,7 +235,7 @@ for t in titer
     # println("dudη approx: ")
     # display(grad_approx_η)
 
-    grad_approx_β = (ΔsimBorderPts_pβ[t]- ΔsimBorderPts_mβ[t])/(2*Δβ)
+    grad_approx_β = (ΔsimBorderPts_pβ[t][1] - ΔsimBorderPts_mβ[t][1])/(2*Δβ)
 
     # println("dudβ : ")
     # display(grad[:,:,2])

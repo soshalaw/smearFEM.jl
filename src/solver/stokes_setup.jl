@@ -16,10 +16,6 @@ function get_η_power_law(t::T, F::U, R_0::V, H_0::W, η_0::X) where {T<:Number,
     return η(t)
 end
 
-# ─────────────────────────────────────────────────────────────────────────────
-# set_model — one method per geometry type
-# ─────────────────────────────────────────────────────────────────────────────
-
 function set_model(geom::Cylinder, ne::Float64, η::Vector{Float64},
                    element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64,
                    element_shape_p::Symbol, basis_order_p::Int, nDof_p::Int64,
@@ -94,7 +90,6 @@ function set_model(geom::Segment, ne::Float64, η::Vector{Float64},
     mesh_x = _make_mesh(element_shape_x, basis_order_x, 1)
     return Stokes(ndim=_dim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 end
-
 
 function def_problem(geom::Cylinder, ne::Z, η_0::V,
                     element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64,
