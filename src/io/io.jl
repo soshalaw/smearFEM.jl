@@ -279,6 +279,7 @@ function write_stokes_scene(
         paraview_collection(string(filepath, "/vtkFiles/geometry")) do pvd
             @showprogress "Writing out geometry to VTK..." for i in fieldIter
                 vtk_grid(string(filepath, "/vtkFiles/geometry_$i"), pos3D[i], cells_u) do vtk
+                    vtk[velocity_name] = velocities[i]
                     time = (i - 1)
                     pvd[time] = vtk
                 end

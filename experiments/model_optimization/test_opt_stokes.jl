@@ -28,7 +28,7 @@ global def_orange = RGB(245/255,118/255,0)
 global def_blue = RGB(5/255,79/255,185/255)
 global def_red = RGB(196/255,70/255,1/255)
 global def_green = RGB(2/255,147/255,86/255)
-global end_obs_win = 20.1
+global end_obs_win = 40.1
 
 # PLOT_CONFIG: default geometry seeding the globals below at load time.
 # PLOT_PRESETS: per-(data_type[, viscosity_type]) overrides applied by
@@ -80,7 +80,7 @@ const PLOT_PRESETS = Dict(
     ("synthetic", "bulk_viscosity") => Dict(
         :font_size => 12, :plot_height => 360, :plot_width => 330,
         :left_margin => -2pt, :right_margin => 1pt, :top_margin => 0pt,
-        :y_lims_h_norm => (0.97, 1.031), :y_lims_rel_error => (-0.1, 3.0),
+        :y_lims_h_norm => (0.96, 1.04), :y_lims_rel_error => (-0.1, 3.0),
     ),
     "simulated" => Dict(
         :font_size => 12, :plot_height => 350, :plot_width => 477,
@@ -500,11 +500,18 @@ Score every optimizer iterate against the observed contours.
 Reads the per-iteration simulated contours written by `optimize` under
 `<exp_path>/data/opt_data/iter_<n>/<sim_view>/2D_border_points` (produced when
 `fit_model` is called with `store_border_pts=true`) and compares each against the
-ground-truth contours with `compare_pt_clouds`, giving Hausdorff and squared-Chamfer
-distances per frame, per iteration. The Chamfer figure is squared so it is directly
-comparable to the optimizer's `ChamferCost`; Hausdorff and closest-point stay in pixel
-units, so the three series only share an axis because each is normalized by its own first
-iterate before plotting.
+ground-truth contours, giving Chamfer and closest-point distances per frame, per iteration.
+
+The Chamfer is reported twice: `chamfer` against the simulated contour as the optimizer
+produced it, and `chamfer_up` against that contour resampled onto the observation's point
+count. The gap between them is the sampling artefact — the two differ in nothing else — which is worth seeing rather than
+silently correcting. Hausdorff distances are deliberately not reported: they are extremal,
+so on this data they measure the interpolation choice as much as the fit.
+
+Every metric is reported **squared**, in px², matching the optimizer's `ChamferCost` and
+`ClosestPointCost` — which are squared for the same reason, Gauss-Newton needing `uᵀu`. So
+the four share units outright and may be read against each other directly, unlike the
+rooted forms `compare_pt_clouds` returns for three of them.
 
 Iterate `n` is index-aligned with `stats["iterList"]`/`ηList`/`βList`, so `iter_1`
 is the initial guess and `iter_2` the first accepted step. Frames are truncated to
@@ -522,24 +529,35 @@ the shorter of the observed and simulated sequences.
   (default: `"view_1"`).
 - `sim_view::String`: camera-view subdirectory for the simulated contours
   (default: `"view_1"`).
+- `upsample_method::Symbol`: how the simulated contour is resampled for the upsampled
+  Chamfer arm — `:spline` (default, the construction `fit_curve` uses for the observed
+  contour) or `:linear`. See [`upsample_contour`](@ref); on real contours the two differ by
+  up to ~1.2 px, so the choice is not cosmetic.
 - `write_results::Bool`: also write the per-iteration series to
   `<exp_path>/data/opt_data/metrics/` (default: `true`).
-- `plot_results::Bool`: also plot the time-averaged (frame-averaged) Chamfer,
-  Hausdorff and closest-point distances against iteration, together on
+- `plot_results::Bool`: also plot the time-averaged (frame-averaged) Chamfer (both arms)
+  and closest-point distances against iteration, together on
   `<exp_path>/plots/contour_metrics_iter.pdf` (default: `true`). Each curve is
-  normalized by its own value at the first iterate, so all three start at 1 and the
-  axis reads as the fraction of the initial cost remaining; this affects the plot
-  only, and the returned `Dict` and the written CSVs keep the raw px distances.
+  normalized by its own value at the first iterate, so all three start at 1 and the axis
+  reads as the fraction of the initial cost remaining; this affects the plot only, and the
+  returned `Dict` and the written CSVs keep the raw px² distances. Squaring steepens every
+  curve equally — a ratio of squares is the square of the ratio — so the ranking between
+  metrics is unchanged and only the decay rate reads twice as fast on the log axis.
   Uses a log y-axis when every value is positive, falling back to linear otherwise.
 
 # Returns
-- `Dict` with `"iters"` (iteration indices) and, per iteration,
-  `"hausdorff_mean"`, `"hausdorff_max"`, `"chamfer_mean"`, `"chamfer_max"` (squared),
-  `"closest_pt_mean"`, plus the per-frame series `"hausdorff_frames"` and
-  `"chamfer_frames"` (one vector per iteration).
+- `Dict` with `"iters"` (iteration indices) and, per iteration, `"chamfer_mean"`,
+  `"chamfer_max"`, `"chamfer_up_mean"`, `"chamfer_up_max"` and `"closest_pt_mean"`, plus the
+  per-frame series `"chamfer_frames"` and `"chamfer_up_frames"` (one vector per iteration).
+  All in px². The `_up` entries are the upsampled arm; `closest_pt` is computed on the
+  upsampled contour.
 """
+# Point count of one contour frame, whichever way round it is stored.
+_npts(p) = max(size(p, 1), size(p, 2))
+
 function iteration_contour_metrics(data_type::String, filepath_gt::String, exp_path::String;
                                    view_folder::String="view_1", sim_view::String="view_1",
+                                   upsample_method::Symbol=:spline,
                                    write_results::Bool=true, plot_results::Bool=true)
 
     if data_type == "synthetic"
@@ -563,45 +581,61 @@ function iteration_contour_metrics(data_type::String, filepath_gt::String, exp_p
         "No iter_* directories under $opt_root — was the fit run with store_border_pts=true?"))
     iters = sort(parse.(Int, replace.(iter_dirs, "iter_" => "")))
 
-    hausdorff_mean = Float64[]; hausdorff_max = Float64[]
-    chamfer_mean   = Float64[]; chamfer_max   = Float64[]
+    chamfer_mean    = Float64[]; chamfer_max    = Float64[]
+    chamfer_up_mean = Float64[]; chamfer_up_max = Float64[]
     closest_pt_mean = Float64[]
-    hausdorff_frames = Vector{Vector{Float64}}()
-    chamfer_frames   = Vector{Vector{Float64}}()
+    chamfer_frames    = Vector{Vector{Float64}}()
+    chamfer_up_frames = Vector{Vector{Float64}}()
 
     for n in iters
         sim_pts, _, _ = read_csv(datapath(exp_path,"opt_data","iter_$n",sim_view,"2D_border_points"))
         nf = min(length(sim_pts), length(ObsDataList))
         nf > 0 || throw(ArgumentError("No overlapping frames for iteration $n"))
-        h, c, cp = compare_pt_clouds(sim_pts[1:nf], ObsDataList[1:nf])
+        obs = ObsDataList[1:nf]
+        raw = sim_pts[1:nf]
+        # The simulated contour carries ~160 mesh nodes against ~1300 observed points, and a
+        # nearest-neighbour distance to those nodes overstates the distance to the contour
+        # itself by an amount set purely by that sampling. `chamfer_up` resamples the coarse
+        # side onto the observation's count and `chamfer` does not, so the gap between them is
+        # that artefact alone. Metrics only — the optimizer's cost is untouched.
+        up = [upsample_contour(s, _npts(o); method=upsample_method) for (s, o) in zip(raw, obs)]
 
-        push!(hausdorff_frames, h);      push!(chamfer_frames, c)
-        push!(hausdorff_mean, mean(h));  push!(hausdorff_max, maximum(h))
-        push!(chamfer_mean, mean(c));    push!(chamfer_max, maximum(c))
+        c    = [chamfer_sq_distance_kdtree(s, o) for (s, o) in zip(raw, obs)]
+        c_up = [chamfer_sq_distance_kdtree(s, o) for (s, o) in zip(up, obs)]
+        # `closest_point_distance_kdtree` is an RMSE; square it so every series is px² and
+        # comparable with the Chamfer and with the optimizer's cost. RMSE² == mean(d²), so
+        # this is the squared metric itself, not an approximation of it.
+        cp  = [closest_point_distance_kdtree(s, o)^2 for (s, o) in zip(up, obs)]
+
+        push!(chamfer_frames, c);             push!(chamfer_up_frames, c_up)
+        push!(chamfer_mean, mean(c));         push!(chamfer_max, maximum(c))
+        push!(chamfer_up_mean, mean(c_up));   push!(chamfer_up_max, maximum(c_up))
         push!(closest_pt_mean, mean(cp))
-        @info "iter $n ($nf frames): chamfer(mean)=$(round(mean(c), sigdigits=4)), " *
-              "hausdorff(mean)=$(round(mean(h), sigdigits=4)), hausdorff(max)=$(round(maximum(h), sigdigits=4))"
+        @info "iter $n ($nf frames) [px²]: chamfer(mean)=$(round(mean(c), sigdigits=4)), " *
+              "chamfer+upsampling(mean)=$(round(mean(c_up), sigdigits=4)), " *
+              "closest_pt(mean)=$(round(mean(cp), sigdigits=4))"
     end
 
     metrics = Dict{String,Any}(
-        "iters"            => iters,
-        "hausdorff_mean"   => hausdorff_mean,
-        "hausdorff_max"    => hausdorff_max,
-        "chamfer_mean"     => chamfer_mean,
-        "chamfer_max"      => chamfer_max,
-        "closest_pt_mean"  => closest_pt_mean,
-        "hausdorff_frames" => hausdorff_frames,
-        "chamfer_frames"   => chamfer_frames,
+        "iters"              => iters,
+        "chamfer_mean"      => chamfer_mean,
+        "chamfer_max"       => chamfer_max,
+        "chamfer_up_mean"   => chamfer_up_mean,
+        "chamfer_up_max"    => chamfer_up_max,
+        "closest_pt_mean"   => closest_pt_mean,
+        "chamfer_frames"    => chamfer_frames,
+        "chamfer_up_frames" => chamfer_up_frames,
     )
 
     if write_results
-        for k in ("iters","hausdorff_mean","hausdorff_max","chamfer_mean","chamfer_max","closest_pt_mean")
+        for k in ("iters","chamfer_mean","chamfer_max","chamfer_up_mean","chamfer_up_max",
+                  "closest_pt_mean")
             write_csv(datapath(exp_path,"opt_data","metrics",k), metrics[k])
         end
         # per-frame series: one file per iteration
         for (i, n) in enumerate(iters)
-            write_csv(datapath(exp_path,"opt_data","metrics","hausdorff_frames","iter_$n"), hausdorff_frames[i])
             write_csv(datapath(exp_path,"opt_data","metrics","chamfer_frames","iter_$n"), chamfer_frames[i])
+            write_csv(datapath(exp_path,"opt_data","metrics","chamfer_up_frames","iter_$n"), chamfer_up_frames[i])
         end
         @info "Wrote iteration contour metrics to $(datapath(exp_path,"opt_data","metrics"))"
     end
@@ -622,27 +656,34 @@ function iteration_contour_metrics(data_type::String, filepath_gt::String, exp_p
             end
             return v ./ ref
         end
-        chamfer_rel     = normalize_to_initial(chamfer_mean, "Chamfer")
-        hausdorff_rel   = normalize_to_initial(hausdorff_mean, "Hausdorff")
-        closest_pt_rel  = normalize_to_initial(closest_pt_mean, "closest-point")
+        chamfer_rel    = normalize_to_initial(chamfer_mean, "Chamfer")
+        chamfer_up_rel = normalize_to_initial(chamfer_up_mean, "Chamfer + upsampling")
+        closest_pt_rel = normalize_to_initial(closest_pt_mean, "closest-point")
 
         # Metrics decay over several decades as the fit converges, so prefer a log axis;
         # an exact zero (or a single iterate) would make that invalid.
-        use_log = all(>(0), chamfer_rel) && all(>(0), hausdorff_rel) && all(>(0), closest_pt_rel)
+        use_log = all(>(0), chamfer_rel) && all(>(0), chamfer_up_rel) && all(>(0), closest_pt_rel)
         yscale = use_log ? :log10 : :identity
 
         # The three metrics can sit almost on top of each other (a near-uniform contour
         # offset makes mean and max nearest-neighbour distance nearly equal), so vary the
         # line style as well as the colour to keep them separable.
+        # No `²` on the individual labels: it is a property of all of them, so it belongs on
+        # the axis, and on the Chamfer it would be a lie — the squared Chamfer is a mean of
+        # squared distances, not the square of the Chamfer distance (see
+        # `chamfer_sq_distance_kdtree`). The other two are genuine squares of their metrics.
         metric_plt = default_plot()
-        Plots.plot!(metric_plt, iters, chamfer_rel, label=L"\mathrm{Chamfer}^2", marker=1,
+        Plots.plot!(metric_plt, iters, chamfer_rel, label=L"\mathrm{Chamfer}", marker=1,
                     linestyle=:solid, yscale=yscale, xminorgrid=:false,
-                    legend=:outerbottom, legend_column=3)
-        Plots.plot!(metric_plt, iters, hausdorff_rel, label=L"\mathrm{Hausdorff}", marker=1,
-                    linestyle=:dash, yscale=yscale, legend=:outerbottom, legend_column=3)
+                    legend=:outerbottom, legend_column=2)
+        # The same metric with the simulated contour resampled onto the observation's point
+        # count: the gap between these two curves is the sampling artefact, nothing else
+        # about the fit differs between them.
+        Plots.plot!(metric_plt, iters, chamfer_up_rel, label=L"\mathrm{Chamfer + upsampling}",
+                    marker=1, linestyle=:dash, yscale=yscale, legend=:outerbottom, legend_column=2)
         Plots.plot!(metric_plt, iters, closest_pt_rel, label=L"\mathrm{Closest\;point}", marker=1,
-                    linestyle=:dot, yscale=yscale, legend=:outerbottom, legend_column=3)
-        _label!(metric_plt, L"\mathrm{Iterations}", L"d^{[\imath]}/d^{[1]}")
+                    linestyle=:dot, yscale=yscale, legend=:outerbottom, legend_column=2)
+        _label!(metric_plt, L"\mathrm{Iterations}", L"d^{\imath}/d^{0}")
         Plots.savefig(metric_plt, plotpath(exp_path,"contour_metrics_iter.pdf"))
         @info "Wrote $(plotpath(exp_path,"contour_metrics_iter.pdf"))"
     end
@@ -933,6 +974,10 @@ function optimize(exp_params::Dict)
                 else
                     error("Unknown Γ spec :$spec — use :relative, :identity, or a matrix")
                 end
+            elseif spec isa AbstractMatrix
+                # A Matrix is what a caller writing Julia would pass; iterating one yields
+                # scalars, so it must be handled before the row-wise branch below.
+                kw[:Γ] = Matrix{Float64}(spec)
             else
                 kw[:Γ] = permutedims(reduce(hcat, [Vector{Float64}(r) for r in spec]))
             end
@@ -1395,8 +1440,20 @@ function optimize(exp_params::Dict)
             cost_list = AbstractArray[]
             pred_h_list = AbstractArray[]
 
+            # Separate constant-viscosity model for the predictions, advanced without
+            # disturbing the fitting `model`. Shared by both modes: multi-window advances it
+            # window by window, single-window runs it once over the whole record.
+            pred_model, pred_scene = def_problem(geom_exp, ne_exp, η_gt[1], _fem..., β_gt[1], F, control, "constant", sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
+            _h_pred = h
+            h_pred_list = AbstractArray[]
+            borderPts_pred_list = AbstractArray[]
+            fields_list_pred_list = AbstractArray[]
+            pos2D_pred_list = AbstractArray[]
+            pos3D_pred_list = AbstractArray[]
+            surface_pts_3D_pred_list = AbstractArray[]
+
             if mode == "single_window"
-                @info "Optimizing over a single time window"
+                @info "Static calibration with a single time window of size $(time_windows[1]) seconds"
                 ti = 1
                 data_range_ = data_ranges_[ti]
                 scene.sim_time = time_windows[ti]
@@ -1422,7 +1479,7 @@ function optimize(exp_params::Dict)
                 @debug "Time frame : $data_range_"
                 printstyled("Time window: $(ti)\n"; color = :green)
 
-                if data_type != "physical"
+                if data_type != "physical" && viscosity_model != "carreau"
                     η_gt_ = model_gt.η[data_range_]
                     av_η = mean(η_gt_)
                     avg_ηList[data_range_] .= av_η
@@ -1432,40 +1489,43 @@ function optimize(exp_params::Dict)
                 stats = fit_model(model, scene, conditions, obs_border_pt_lst_t, θ; outliers=outlier_frames,
                                   method=opt_method, opt_kw...)
 
-                est_ηpList[data_range_] .= stats["η"]
-                est_βpList[data_range_] .= stats["β"]
+                # Static calibration: the window's parameters are taken to hold for the
+                # whole record, so they fill every step rather than just the fitted window.
+                # `est_ηpList`/`est_βpList` are `undef` on construction, so leaving the tail
+                # unwritten would hand uninitialised memory to the reconstruction below.
+                est_ηpList .= stats["η"]
+                est_βpList .= stats["β"]
+                push!(cost_list, stats["cost_list"])
 
                 θ[1] = stats["η"]
                 θ[2] = stats["β"]
 
                 update_model!(model)
 
-                iterList = stats["iterList"]
-                costList = stats["cost_list"]
-                ηpList = stats["ηList"]
-                βpList = stats["βList"]
+                # Free-running prediction: the parameters estimated on this one window,
+                # held fixed, integrated over the *whole* observation horizon. Nothing is
+                # re-estimated afterwards, so this is a genuine forecast beyond the data the
+                # fit saw. `η` and `β` are vector-valued fields, hence the wrapping.
+                @info "Predicting the full $(obs_time) s record from the $(time_windows[1]) s calibration window..."
+                reset_model!(pred_model)
+                pred_scene.sim_time = obs_time
+                pred_scene.cParam = data_type == "physical" ?
+                    -F_ext * ones(Float64, round(Int, obs_time * frame_rate)) :
+                    F[1:min(length(F), round(Int, obs_time / t_steps_exp))]
+                pred_model.η = [stats["η"]]
+                pred_scene.β = [stats["β"]]
+                pred_μ_list, _, pred_simBorderPts, fields_pred, surface_pts_3D_pred, pos2D_pred, pos3D_pred, _, _, _ = simulate(pred_model, pred_scene, conditions)
 
-                viscosity_type = "bulk_viscosity"
-                est_model, est_scene = def_problem(geom_exp, ne_exp, η_gt[1], _fem..., β_gt[1], F[data_range_], control, viscosity_type, sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
-                est_model.η = est_ηpList[data_range_] 
-                est_scene.β = est_βpList[data_range_]
-                est_μ_list, gradList, borderPts2DList, fields_est, _, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
-                est_h_list = get_height(est_μ_list, h)
+                push!(h_pred_list, get_height(pred_μ_list, h))
+                push!(borderPts_pred_list, pred_simBorderPts)
+                push!(fields_list_pred_list, fields_pred)
+                push!(pos2D_pred_list, pos2D_pred)
+                push!(pos3D_pred_list, pos3D_pred)
+                push!(surface_pts_3D_pred_list, surface_pts_3D_pred)
+                update_model!(pred_model)
 
             else
                 @debug "Number of time windows: $(length(windows))"
-
-                # Separate constant-viscosity model for the k -> k+1 prediction,
-                # advanced in lockstep so `_h` carries height across windows without
-                # disturbing the fitting `model`.
-                pred_model, pred_scene = def_problem(geom_exp, ne_exp, η_gt[1], _fem..., β_gt[1], F, control, "constant", sim_time_exp, t_steps_exp; _mesh_path_kw(exp_params)...)
-                _h_pred = h
-                h_pred_list = AbstractArray[]
-                borderPts_pred_list = AbstractArray[]
-                fields_list_pred_list = AbstractArray[]
-                pos2D_pred_list = AbstractArray[]
-                pos3D_pred_list = AbstractArray[]
-                surface_pts_3D_pred_list = AbstractArray[]
 
                 for ti::Int in 1:length(windows)
                     data_range_ = data_ranges_[ti]
@@ -1552,49 +1612,48 @@ function optimize(exp_params::Dict)
 
                 @info "Completed all time windows."
 
-                viscosity_type = "bulk_viscosity"
-                est_model, est_scene = def_problem(geom_exp, ne_exp, η_start, _fem..., β_start, F, control, viscosity_type, sim_time_gt, t_steps_gt; viscosity_model=viscosity_model, _mesh_path_kw(exp_params)...)
-                est_model.η = est_ηpList
-                est_scene.β = est_βpList
-
-                write_csv(datapath(exp_path, "est_η"), est_ηpList)
-                write_csv(datapath(exp_path, "est_β"), est_βpList)
-
-                write_csv(datapath(exp_path, "avg_η"), avg_ηList)
-                write_csv(datapath(exp_path, "window_data","time_windows"), time_windows)
-                write_csv(datapath(exp_path, "window_data","t_windows"), t_windows)
-                write_csv(datapath(exp_path, "window_data","data_ranges"), data_ranges_)
-                write_csv(datapath(exp_path, "window_data","windows_sizes"), windows)
-                write_csv(datapath(exp_path, "window_data","cost_windows"), cost_list)
-
-                est_μ_list, gradList, simBorderPts, fields_est, surface_pts_3D_est, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
-                est_h_list = get_height(est_μ_list, h)
-
-                # Write the per-window predictions accumulated in the loop above.
-                write_window_predictions(datapath(exp_path),
-                    reduce(vcat, h_pred_list),
-                    reduce(vcat, pos3D_pred_list),
-                    reduce(vcat, surface_pts_3D_pred_list),
-                    reduce(vcat, fields_list_pred_list),
-                    reduce(vcat, pos2D_pred_list),
-                    reduce(vcat, borderPts_pred_list))
-
-                if data_type != "physical" && viscosity_model != "carreau"
-                    gt_μ_list, gradList, borderPts2DList_gt, fields_gt, surface_pts_3D_gt, pos2D_gt, pos3D_gt, _, _, _ = simulate(model_gt, scene_exp, conditions)
-                    gt_h_list = get_height(gt_μ_list, h)
-                    write_csv(datapath(exp_path, "η_gt"), model_gt.η)
-                    write_csv(datapath(exp_path, "β_gt"), β_gt)
-                    write_csv(datapath(exp_path, "gt_h"), gt_h_list)
-
-                    write_2d_data(datapath(exp_path, "sim_data","2D_surface_points_gt"), pos2D_gt)
-                    write_2d_data(datapath(exp_path, "sim_data","2D_border_points_gt"), borderPts2DList_gt)
-
-                    write_data(datapath(exp_path, "sim_data","3D_points_gt"), pos3D_gt)
-                    write_data(datapath(exp_path, "sim_data","motion_fields_gt "), fields_gt)
-                    write_data(datapath(exp_path, "sim_data","3D_surface_points_gt"), surface_pts_3D_gt)
-                end
             end
 
+            viscosity_type = "bulk_viscosity"
+            est_model, est_scene = def_problem(geom_exp, ne_exp, η_start, _fem..., β_start, F, control, viscosity_type, sim_time_gt, t_steps_gt; viscosity_model=viscosity_model, _mesh_path_kw(exp_params)...)
+            est_model.η = est_ηpList
+            est_scene.β = est_βpList
+
+            write_csv(datapath(exp_path, "est_η"), est_ηpList)
+            write_csv(datapath(exp_path, "est_β"), est_βpList)
+
+            write_csv(datapath(exp_path, "avg_η"), avg_ηList)
+            write_csv(datapath(exp_path, "window_data","time_windows"), time_windows)
+            write_csv(datapath(exp_path, "window_data","t_windows"), t_windows)
+            write_csv(datapath(exp_path, "window_data","data_ranges"), data_ranges_)
+            write_csv(datapath(exp_path, "window_data","windows_sizes"), windows)
+            write_csv(datapath(exp_path, "window_data","cost_windows"), cost_list)
+
+            est_μ_list, gradList, simBorderPts, fields_est, surface_pts_3D_est, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
+            est_h_list = get_height(est_μ_list, h)
+
+            write_window_predictions(datapath(exp_path),
+                reduce(vcat, h_pred_list),
+                reduce(vcat, pos3D_pred_list),
+                reduce(vcat, surface_pts_3D_pred_list),
+                reduce(vcat, fields_list_pred_list),
+                reduce(vcat, pos2D_pred_list),
+                reduce(vcat, borderPts_pred_list))
+
+            if data_type != "physical" && viscosity_model != "carreau"
+                gt_μ_list, gradList, borderPts2DList_gt, fields_gt, surface_pts_3D_gt, pos2D_gt, pos3D_gt, _, _, _ = simulate(model_gt, scene_exp, conditions)
+                gt_h_list = get_height(gt_μ_list, h)
+                write_csv(datapath(exp_path, "η_gt"), model_gt.η)
+                write_csv(datapath(exp_path, "β_gt"), β_gt)
+                write_csv(datapath(exp_path, "gt_h"), gt_h_list)
+
+                write_2d_data(datapath(exp_path, "sim_data","2D_surface_points_gt"), pos2D_gt)
+                write_2d_data(datapath(exp_path, "sim_data","2D_border_points_gt"), borderPts2DList_gt)
+
+                write_data(datapath(exp_path, "sim_data","3D_points_gt"), pos3D_gt)
+                write_data(datapath(exp_path, "sim_data","motion_fields_gt "), fields_gt)
+                write_data(datapath(exp_path, "sim_data","3D_surface_points_gt"), surface_pts_3D_gt)
+            end
             write_csv(datapath(exp_path, "est_h"), est_h_list)
 
             write_data(datapath(exp_path, "sim_data","3D_points_est"), pos3D_est)
@@ -1806,6 +1865,25 @@ function _label!(p, xlabel, ylabel; xlims=nothing, ylims=nothing)
 end
 
 """
+    _pred_range(ti, data_ranges_, pred_range_start, range_, windowed) -> Vector{Int}
+
+Indices into a prediction array for window `ti`.
+
+Predictions come in one of two layouts. A moving-window fit concatenates its per-window
+predictions, so each window occupies its own contiguous block and carries one sample beyond
+the window it was launched from — the array is longer than the record. A single-window fit
+predicts the whole record in one pass, so its array is already indexed by time and the
+observation indices apply unchanged. Both layouts live under `gn/view_1`, side by side, so
+`windowed` has to be decided from the array length rather than the directory name.
+"""
+function _pred_range(ti::Int, data_ranges_, pred_range_start::Int,
+                     range_::AbstractVector{<:Integer}, windowed::Bool)
+    windowed || return collect(range_)
+    ti === 1 && return collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
+    return collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
+end
+
+"""
     _align_windowed(series, data_ranges, n) -> Vector{Float64}
 
 Map a per-window prediction series onto the `n`-step time axis.
@@ -1864,22 +1942,79 @@ function _windowed_series(series::AbstractVector, data_ranges, n::Int)
 end
 
 """
+    _windowed_contour_cost(pred_frames, obs_frames, data_ranges, n) -> (aligned, segments)
+
+Score the windowed prediction contours against the observations, on the `n`-step time axis.
+
+`pred_frames` is the per-window predictions concatenated, so it carries one frame *more* per
+window than the window itself spans and has to be indexed by the same `range_pred`
+bookkeeping as [`_align_windowed`](@ref) — indexing it against time drifts by one step per
+window boundary. Windows overlap by that step and the later window wins.
+
+# Arguments
+- `pred_frames::AbstractArray`, `obs_frames::AbstractArray`: predicted and observed
+  contours, one entry per frame.
+- `data_ranges`: the per-window index ranges, as read from `window_data/data_ranges.csv`.
+- `n::Int`: length of the time axis.
+
+# Returns
+- `aligned::Vector{Float64}`: cost per time step, `NaN` where no window predicted.
+- `segments::Vector{Tuple{UnitRange{Int},Vector{Float64}}}`: the same values per window, for
+  drawing each window as its own series.
+"""
+# `obs_frames` reaches here as an n×1 matrix (`_get_borders` truncates with `[1:n, :]`), so
+# both are typed loosely and indexed linearly, exactly as `replot` does.
+function _windowed_contour_cost(pred_frames::AbstractArray, obs_frames::AbstractArray,
+                                data_ranges, n::Int)
+    aligned = fill(NaN, n)
+    segments = Tuple{UnitRange{Int},Vector{Float64}}[]
+    pred_start = 1
+    for ti in 1:size(data_ranges, 1)
+        w = data_ranges[ti]
+        rng      = w[1]:min(w[end] + 1, n)
+        rng_pred = ti == 1 ? (w[1]:(w[end] + 1)) : (pred_start:(pred_start + length(w)))
+        pred_start = rng_pred[end] + 1
+        k = min(length(rng), length(rng_pred),
+                max(0, length(pred_frames) - rng_pred[1] + 1),
+                max(0, length(obs_frames) - rng[1] + 1))
+        k > 0 || continue
+        d, _ = contour_cost(pred_frames[rng_pred[1:k]], obs_frames[rng[1:k]])
+        r = rng[1]:rng[k]
+        aligned[r] = d
+        push!(segments, (r, Float64.(d)))
+    end
+    return aligned, segments
+end
+
+"""
     _stat_fig(groups, tgrid, outpath; xlabel, ylabel, kwargs...) -> plt
 
-A statistical figure: for each group, every run drawn thin and its replicate mean ± 95% CI
-on top.
+A statistical figure: for each group, every run drawn thin, its pointwise replicate mean ± 95%
+CI ribbon on top (from [`_band!`](@ref)), and the single reported scalar — `st.mean`, with
+whichever of ± SD / ± 95% CI `scalar_bands` selects — as flat bands via [`_scalar_band!`](@ref),
+so the collapsed number can be checked against the time-resolved curves it was computed from.
 
 `groups` is an iterable of `(runs, stats, colour, linestyle, label)`. Estimation and
 prediction go on one figure — solid red and dashed blue, as the per-experiment figures draw
 them — because the two are read against each other, and separate axes make that comparison
 by eye impossible.
 
+`ribbon=false` drops the pointwise mean ± CI ribbon entirely, leaving only the raw runs and the
+`scalar_bands` overlay — useful when the ribbon (correct by construction, since it's computed
+fresh per time step) would otherwise mask a problem in the collapsed scalar, e.g. a `NaN` from a
+`per_run_mean` that swallowed a gap value. `scalar_bands` (`:sd`, `:ci`, or `:both`) is passed
+straight through to [`_scalar_band!`](@ref).
+
+`approach` (`:A`/`:B`/`:C`) selects which cross-replicate spread approach's scalar gets plotted
+— see [`approach_stats`](@ref) and the module's replicate-statistics docs for what each means.
+
 Runs are drawn at their final width rather than thinned afterwards the way [`_band!`](@ref)
 does for shared plots: this figure exists only for the band, so there is no plain version
 whose widths need preserving.
 """
 function _stat_fig(groups, tgrid, outpath; xlabel, ylabel, xlims=nothing, ylims=nothing,
-                   hline=nothing, vlines=nothing, legend_column::Int=3, run_lw=0.6)
+                   hline=nothing, vlines=nothing, legend_column::Int=3, run_lw=0.6,
+                   ribbon::Bool=true, scalar_bands::Symbol=:both, approach::Symbol=:C)
     plt = _fig(legend_column=legend_column)
     isnothing(hline) || Plots.hline!(plt, [hline], linestyle=:dash, label=false, color=:black)
     # Window boundaries: a windowed fit restarts at each one, so a step in the curves there
@@ -1893,7 +2028,9 @@ function _stat_fig(groups, tgrid, outpath; xlabel, ylabel, xlims=nothing, ylims=
     for (gi, (runs, st, col, ls, lbl)) in enumerate(groups)
         (isnothing(st) || isempty(runs)) && continue
         last_group = gi == length(groups)
-        band_label = string(lbl, L"\;\mathrm{mean}\pm95\%\;\mathrm{CI}")
+        # Just "Estimation"/"Prediction", as `replot` labels the same curves — that the band
+        # is a 95% CI belongs in the figure caption, not in every legend entry.
+        band_label = lbl
 
         if eltype(runs) <: AbstractVector{<:Tuple}
             # Per-window segments: each window is its own series, and its band is computed
@@ -1906,27 +2043,73 @@ function _stat_fig(groups, tgrid, outpath; xlabel, ylabel, xlims=nothing, ylims=
                 M = hcat((c[1:m] for c in cols)...)
                 rng = runs[1][wi][1]
                 rr = rng[1]:rng[m]
-                for c in cols
+                for (ci, c) in enumerate(cols)
+                    # With no ribbon, the raw runs are the only series left to carry the
+                    # group's legend entry — label the very first one instead.
+                    run_label = (!ribbon && wi == 1 && ci == 1) ? band_label : false
                     Plots.plot!(plt, tgrid[rr], c[1:m]; lw=run_lw, color=col, linestyle=ls,
-                                linealpha=0.45, label=false)
+                                linealpha=0.45, label=run_label)
                 end
-                Plots.plot!(plt, tgrid[rr], vec(mean(M; dims=2));
+                ribbon && Plots.plot!(plt, tgrid[rr], vec(mean(M; dims=2));
                             ribbon=replicate_ci(vec(std(M; dims=2)), size(M, 2)),
                             lw=1, color=col, linestyle=ls,
                             label=(wi == 1 ? band_label : false))
             end
+            _scalar_band!(plt, approach_stats(st, approach); color=col, bands=scalar_bands)
             last_group && Plots.savefig(plt, outpath)
         else
-            for v in runs
+            for (vi, v) in enumerate(runs)
                 k = min(length(v), length(tgrid))
+                run_label = (!ribbon && vi == 1) ? band_label : false
                 Plots.plot!(plt, tgrid[1:k], v[1:k]; lw=run_lw, color=col, linestyle=ls,
-                            linealpha=0.45, label=false)
+                            linealpha=0.45, label=run_label)
             end
-            _band!(plt, st, tgrid, outpath; color=col, linestyle=ls, thin_runs=false,
-                   save=last_group, label=band_label)
+            ribbon && _band!(plt, st, tgrid, outpath; color=col, linestyle=ls, thin_runs=false,
+                   save=false, label=band_label)
+            _scalar_band!(plt, approach_stats(st, approach); color=col, bands=scalar_bands)
+            last_group && Plots.savefig(plt, outpath)
         end
     end
     return plt
+end
+
+"""
+    _stat_fig_approaches(groups, tgrid, dir, basename; kwargs...)
+
+Write both a `<basename>_ci.pdf` (ribbon + nested SD/CI bands) and a
+`<basename>_scalar_only.pdf` (runs + SD band only) for each of the three cross-replicate spread
+approaches `:A`/`:B`/`:C` (see [`approach_stats`](@ref)), one set per `dir/approach_<A|B|C>/`
+subfolder — so the three are easy to tell apart on disk rather than only by filename suffix.
+`kwargs` (`xlabel`, `ylabel`, `hline`, `vlines`, …) are forwarded to [`_stat_fig`](@ref)
+unchanged; `ribbon`/`scalar_bands`/`approach` are set here and must not be passed in `kwargs`.
+"""
+function _stat_fig_approaches(groups, tgrid, dir, basename; kwargs...)
+    for approach in (:A, :B, :C)
+        adir = joinpath(dir, "approach_$approach")
+        set_file(adir)
+        _stat_fig(groups, tgrid, joinpath(adir, "$(basename)_ci.pdf"); approach=approach, kwargs...)
+        _stat_fig(groups, tgrid, joinpath(adir, "$(basename)_scalar_only.pdf");
+                  approach=approach, ribbon=false, scalar_bands=:sd, kwargs...)
+    end
+    return nothing
+end
+
+"""
+    _write_approach_reports(stats, dir, filename) -> Bool
+
+Write mean/SD/95% CI ([`write_approach_stats`](@ref)) for each of the three cross-replicate
+spread approaches into its own `dir/approach_<A|B|C>/filename` — the CSV counterpart of
+[`_stat_fig_approaches`](@ref)'s per-approach plot folders. Returns `false` without writing when
+`stats` is empty, matching [`replicate_report`](@ref).
+"""
+function _write_approach_reports(stats::AbstractVector, dir::String, filename::String)
+    isempty(stats) && return false
+    for approach in (:A, :B, :C)
+        adir = joinpath(dir, "approach_$approach")
+        set_file(adir)
+        write_approach_stats(joinpath(adir, filename), stats, approach)
+    end
+    return true
 end
 
 """
@@ -1961,7 +2144,8 @@ Experiments are configured with symbols so they survive the JSON round-trip thro
 function _contour_cost(name::Symbol)
     name === :closest_point && return ClosestPointCost()
     name === :chamfer       && return ChamferCost()
-    error("Unknown cost function :$name — use :closest_point or :chamfer")
+    name === :signed_distance && return SignedDistanceCost()
+    error("Unknown cost function :$name — use :closest_point, :chamfer or :signed_distance")
 end
 
 """
@@ -1984,6 +2168,20 @@ the same experiment, so writing their plots to one directory would silently over
 with the other. `nothing` keeps the flat layout for a tree that has only ever seen one.
 """
 _method_dir(base::String, method) = isnothing(method) ? base : joinpath(base, method)
+
+"""
+    _is_window_dir(p) -> Bool
+
+Whether `p` is a fitting window rather than some other directory sitting beside one.
+
+`replot` enumerates windows with a bare `readdir`, so anything written next to them — a
+`plots/` folder, a stray export — would otherwise be opened as a window and fail on its
+missing `data/experiment_parameters`. A window is defined by having one.
+"""
+function _is_window_dir(p::String)
+    isdir(datapath(p)) || return false
+    return any(f -> startswith(f, "experiment_parameters"), readdir(datapath(p)))
+end
 
 """
     _skip_incomplete(exp_path) -> Bool
@@ -2048,6 +2246,53 @@ function _band!(plt, st, tgrid, outpath; color=def_orange, lw=1, save::Bool=true
         end
     end
     save && Plots.savefig(plt, outpath)
+    return plt
+end
+
+"""
+    _scalar_band!(plt, m; color, sd_alpha, ci_alpha, label) -> plt
+
+Overlay a reported cross-replicate scalar `m` — a [`replicate_stats`](@ref)-shaped NamedTuple,
+typically `approach_stats(st, approach)` for one of the three approaches (`:A`/`:B`/`:C`; see
+[`normalized_replicate_stats`](@ref)) — with its ± SD and ± 95% CI half-widths, as two nested
+flat bands spanning the whole time axis already on `plt`: the wider of the two drawn pale
+underneath, the narrower drawn darker on top.
+
+Distinct from [`_band!`](@ref)'s ribbon: that one varies with time (spread across replicates
+at a given instant). These bands are constant in time — so plotting them alongside the runs and
+the pointwise ribbon is a direct check that the reported scalar is representative of what the
+curves underneath actually show.
+
+Which band is wider is not assumed when both are drawn: CI half-width is `t_{n-1,0.975}·sd/√n`,
+so at small `n` (e.g. `n=5`, `t₄/√5 ≈ 1.24`) the CI is actually *wider* than ±1 SD, not
+narrower — the small-sample `t` correction outgrows the `√n` averaging benefit; only once `n`
+is large enough (`t_{n-1,0.975} < √n`, around `n ≥ 7`) does CI become the tighter of the two.
+Ordering by the actual computed half-widths, rather than by which is "SD" and which is "CI",
+keeps the nesting visually correct in both regimes.
+
+`bands` selects which to draw: `:sd` (replicate spread only), `:ci` (precision of the mean
+only), or `:both` (nested, as above).
+
+No legend entry by default, as with the ribbon's own CI (see [`_stat_fig`](@ref)): a flat
+full-width band reads as distinct from the sloped ribbon by shape alone, and what each band
+means belongs in the figure caption, not spelled out in the legend.
+"""
+function _scalar_band!(plt, m; color=:black, sd_alpha=0.28, ci_alpha=0.38, label=false,
+                       bands::Symbol=:both)
+    sd_span = (m.mean - m.sd, m.mean + m.sd)
+    ci_span = (m.lo, m.hi)
+    if bands === :both
+        wide, narrow = m.ci >= m.sd ? (ci_span, sd_span) : (sd_span, ci_span)
+        Plots.hspan!(plt, [wide...];   color=color, alpha=sd_alpha, linewidth=0, label=label)
+        Plots.hspan!(plt, [narrow...]; color=color, alpha=ci_alpha, linewidth=0, label=label)
+    elseif bands === :sd
+        Plots.hspan!(plt, [sd_span...]; color=color, alpha=sd_alpha, linewidth=0, label=label)
+    elseif bands === :ci
+        Plots.hspan!(plt, [ci_span...]; color=color, alpha=ci_alpha, linewidth=0, label=label)
+    else
+        error("_scalar_band!: unknown bands=:$bands — use :sd, :ci or :both")
+    end
+    Plots.hline!(plt, [m.mean]; color=color, linestyle=:dot, label=false)
     return plt
 end
 
@@ -2185,6 +2430,13 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
 
                 conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
                 if noise_level == 0.0
+                    # A fit can leave η/β/stats behind and no contours (an aborted run, or one
+                    # written before `store_border_pts`), which `_skip_incomplete` counts as
+                    # complete because `data/` is non-empty. Only this branch reads them.
+                    if !isdir(datapath(exp_path, "sim_data", view_folder, "2D_border_points_est"))
+                        @warn "No simulated contours, skipping" exp_path
+                        continue
+                    end
                     obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path, num_exp_points; view_folder=view_folder)
 
                     est_η = readdlm(datapath(exp_path,"η.csv"), ',', Float64)
@@ -2230,9 +2482,12 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                     costList = stats["cost_list"]
                     iterList = stats["iterList"]
 
+                    # Single-window fit, so the initial cost is this fit's first iterate rather
+                    # than the first window's; the same reference as the windowed branch.
+                    d_est_rel = d_est[2:end] ./ Float64(costList[1])
                     plt_cnt_error = default_plot()
-                    Plots.plot!(plt_cnt_error, time[1:(length(d_est)-1)], d_est[2:end], label="Closest point distance error", legend=:outerbottom, legend_column=2)
-                    _label!(plt_cnt_error, L"\mathrm{Time\;[s]}", L"\mathrm{Closest\;Point\;Distance\;[px]}"; xlims=(0, end_obs_win), ylims=(0, max(maximum(d_est[2:end])*1.1, 0.5)))
+                    Plots.plot!(plt_cnt_error, time[1:(length(d_est)-1)], d_est_rel, label="Closest point distance error", legend=:outerbottom, legend_column=2)
+                    _label!(plt_cnt_error, L"\mathrm{Time\;[s]}", L"\mathrm{Relative\;Cost}"; xlims=(0, end_obs_win), ylims=(0, max(maximum(d_est_rel)*1.1, 0.5)))
                     Plots.savefig(plt_cnt_error, plotpath(exp_path,"closest_point_distance_error.pdf"))
 
                     est_h = vec(Float64.(collect(est_h)))
@@ -2590,11 +2845,23 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
 
                 window_dirs = readdir(exp_path)
                 for window_dir in window_dirs
-                    if window_dir == "Results" || window_dir == "post_analysis_window" || window_dir == "single_window" || window_dir == "post_analysis_noise"
+                    # `single_window` is a separate experimental condition (one global
+                    # static fit evaluated against the same window grid, for comparison), not
+                    # another window of the multi-window re-fit -- sharing
+                    # `data_ranges.csv`/`t_windows.csv` with `multi_window` let it slip through
+                    # this filter before: same window grid, different fit. Mixing it in doubled
+                    # `n` (replicates x 2 conditions) and broke `_align_windowed` (differently
+                    # shaped `pred_h.csv`), producing the `h_pred/h_gt` NaN.
+                    if window_dir == "Results" || window_dir == "post_analysis_window" ||
+                       window_dir == "post_analysis_noise" || window_dir == "single_window"
                         @debug "Skipping directory: $window_dir"
                         continue
                     end
                     win_exp_path = joinpath(exp_path, window_dir)
+                    if !_is_window_dir(win_exp_path)
+                        @debug "Not a fitting window, skipping: $win_exp_path"
+                        continue
+                    end
 
                     @debug "Processing window: $win_exp_path"
                     exp_params = read_json(datapath(win_exp_path,"experiment_parameters"))
@@ -2640,6 +2907,9 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                     data_point_len = round(Int, obs_time/t_steps)
                     obs_border_pt_lst, sim_border_pt_lst, nSplinex, nSpliney, splinex, spliney = _get_borders(data_type, filepath_gt, win_exp_path, data_point_len+1; view_folder=view_folder)
                     pred_border_pt_lst, _, _ = read_csv(datapath(win_exp_path,"sim_data","view_1","2D_border_points_pred"))
+                    # Height, surface and contour predictions all follow whichever layout
+                    # the fit used, so one flag covers them. See `_pred_range`.
+                    pred_is_windowed = length(pred_border_pt_lst) > data_point_len + 1
 
                     if data_type != "physical"
                         η_gt = float.(sim_params["η"])
@@ -2668,13 +2938,10 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                         mosd_pred = get_surface_mosd(pred_surface_pt_lst, obj_pose, h)
                         mosd_gt = get_surface_mosd(gt_surface_pt_lst, obj_pose, h)
                         plt_surface_mosd = _fig(margins=:all, legend_column=2)
+                        pred_range_start = 0
                         for ti::Int in 1:(size(data_ranges_, 1))
                             range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                            range_pred = if ti === 1
-                                collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                            else
-                                collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
-                            end
+                            range_pred = _pred_range(ti, data_ranges_, pred_range_start, range_, pred_is_windowed)
                             t = t_windows[ti]
                             Plots.vline!(plt_surface_mosd, [t], color=:gray, linestyle=:dash, label=false)
                             if ti === 1
@@ -2684,7 +2951,12 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                             end
                             pred_range_start = range_pred[end] + 1
                         end
-                        Plots.plot!(plt_surface_mosd, t_full_h, mosd_est./mosd_gt, label="Estimation", color=def_red)
+                        if window_dir == "single_window"
+                            win_1_range = collect(range(start=data_ranges_[1][1], stop=(data_ranges_[1][end]+1), step=1))
+                            Plots.plot!(plt_surface_mosd, t_full_h[win_1_range], mosd_est[win_1_range]./mosd_gt[win_1_range], label="Estimation", color=def_red)
+                        else
+                            Plots.plot!(plt_surface_mosd, t_full_h, mosd_est./mosd_gt, label="Estimation", color=def_red)
+                        end
                         _label!(plt_surface_mosd, L"\mathrm{Time\;[s]}", L"\mathrm{Relative\;MOSD}"; xlims=(0, end_obs_win), ylims=(y_lims_h_norm))
                         Plots.savefig(plt_surface_mosd, plotpath(win_exp_path,"surface_area_qoi.pdf"))
 
@@ -2695,11 +2967,7 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                         pred_range_start = 0
                         for ti::Int in 1:(size(data_ranges_, 1))
                             range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                            range_pred = if ti === 1
-                                            collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                                        else
-                                            collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
-                                        end
+                            range_pred = _pred_range(ti, data_ranges_, pred_range_start, range_, pred_is_windowed)
                             dc_surface_pred, dh_surface_pred, dcp_surface_pred = compare_pt_clouds(pred_surface_pt_lst[range_pred], gt_surface_pt_lst[range_])
                             t = t_windows[ti]
                             Plots.vline!(plt_surface_error_dc, [t], color=:gray, linestyle=:dash, label=false)
@@ -2729,17 +2997,30 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                         Plots.savefig(plt_surface_error_dcp, plotpath(win_exp_path,"surface_point_distance_error_dcp.pdf"))
                     end
 
+                    # Applied load history. `cParam` is the control parameter for
+                    # control == "force", one value per step, and lives in the ground truth's
+                    # sim_params.jld2 — `experiment_parameters` records `F_ext` for the
+                    # physical fits only. Stored negative because the load is compressive, so
+                    # the magnitude is plotted. Redrawn per window; the load is the same for
+                    # each, and a run with `variable_force` is the case worth seeing.
+                    # Scaled to newtons: the solver works in mm, so `cParam` carries
+                    # kg·mm/s², of which 1 N is 1e3 (the 9.812e3 in `optimize_real` is a
+                    # 9.812 N dead weight, not a tonne).
+                    F_in = vec(Array(float.(sim_params["cParam"]))) ./ 1e3
+                    t_F = collect(0:(length(F_in) - 1)) .* t_steps
+                    plt_force = _fig(margins=:all)
+                    Plots.plot!(plt_force, t_F, abs.(F_in), label=false, color=def_red)
+                    _label!(plt_force, L"\mathrm{Time\;[s]}", L"|F|\;\mathrm{[N]}";
+                            xlims=(0, end_obs_win), ylims=(0, 1.1 * maximum(abs.(F_in))))
+                    Plots.savefig(plt_force, plotpath(win_exp_path, "input_force.pdf"))
+
                     d_est, _ = contour_cost(sim_border_pt_lst, obs_border_pt_lst)
 
                     plt_cnt_error = _fig(margins=:all, legend_column=2)
                     pred_range_start = 0
                     for ti::Int in 1:(size(data_ranges_, 1))
                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                        range_pred = if ti === 1
-                                        collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                                    else
-                                        collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
-                                    end
+                        range_pred = _pred_range(ti, data_ranges_, pred_range_start, range_, pred_is_windowed)
                         d_pred, _ = contour_cost(pred_border_pt_lst[range_pred], obs_border_pt_lst[range_])
                         t = t_windows[ti]
                         Plots.vline!(plt_cnt_error, [t], color=:gray, linestyle=:dash, label=false)
@@ -2751,7 +3032,7 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                         pred_range_start = range_pred[end] + 1
                     end
                     Plots.plot!(plt_cnt_error, t_full_h, d_est./cost_init, label="Estimation", color=def_red)
-                    _label!(plt_cnt_error, L"\mathrm{Time\;[s]}", "Relative Cost"; xlims=(0, end_obs_win), ylims=(0, 3))
+                    _label!(plt_cnt_error, L"\mathrm{Time\;[s]}", L"\mathrm{Relative\;Cost}"; xlims=(0, end_obs_win), ylims=(0, 2))
                     Plots.savefig(plt_cnt_error, plotpath(win_exp_path,"closest_point_distance_error.pdf"))
 
                     t_full = collect(range(start=t_steps, stop=effective_sim_time, step=t_steps))
@@ -2813,11 +3094,7 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                     pred_range_start = 0
                     for ti::Int in 1:(size(data_ranges_, 1))
                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                        range_pred = if ti === 1
-                                        collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                                    else
-                                        collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
-                                    end
+                        range_pred = _pred_range(ti, data_ranges_, pred_range_start, range_, pred_is_windowed)
                         t = t_windows[ti]
                         if ti == 1
                             Plots.plot!(h_plt, [], label="Prediction", linestyle=:dash, color=def_blue)
@@ -2839,11 +3116,7 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                     pred_range_start = 0
                     for ti::Int in 1:(size(data_ranges_, 1))
                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                        range_pred = if ti === 1
-                                        collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                                    else
-                                        collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
-                                    end
+                        range_pred = _pred_range(ti, data_ranges_, pred_range_start, range_, pred_is_windowed)
                         t = t_windows[ti]
                         if ti == 1
                             if data_type != "physical"
@@ -2855,7 +3128,9 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                             end
                         else
                             Plots.plot!(h_normalized_plt, t_full_h[range_], pred_h_list[range_pred]./gt_h[range_], linestyle=:dash, color=def_blue, label=false)
-                            Plots.plot!(h_normalized_plt, t_full_h[range_], est_h_list[range_]./gt_h[range_], color=def_red, label=false)
+                            if window_dir != "single_window"
+                                Plots.plot!(h_normalized_plt, t_full_h[range_], est_h_list[range_]./gt_h[range_], color=def_red, label=false)
+                            end
                         end
                         Plots.vline!(h_normalized_plt, [t], color=:gray, linestyle=:dash, label=false)
                         pred_range_start = range_pred[end] + 1 
@@ -2867,11 +3142,7 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                     Plots.plot!(error_plt, t_full_h, abs.(est_h_list-gt_h), label="Estimation", color=def_red)
                     for ti::Int in 1:(size(data_ranges_, 1))
                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                        range_pred = if ti === 1
-                                        collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                                    else
-                                        collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
-                                    end
+                        range_pred = _pred_range(ti, data_ranges_, pred_range_start, range_, pred_is_windowed)
                         t = t_windows[ti]
                         if ti == 1
                             Plots.plot!(error_plt, [], label="Prediction", linestyle=:dash, color=def_blue)
@@ -2888,11 +3159,7 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                     Plots.plot!(rel_error_plt, t_full_h, abs.(est_h_list-gt_h)./gt_h*100, label="Estimation", color=def_red)
                     for ti::Int in 1:(size(data_ranges_, 1))
                         range_ = collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                        range_pred = if ti === 1
-                                        collect(range(start=data_ranges_[ti][1], stop=(data_ranges_[ti][end]+1), step=1))
-                                    else
-                                        collect(range(start=pred_range_start, stop=(pred_range_start+size(data_ranges_[ti], 1)), step=1))
-                                    end
+                        range_pred = _pred_range(ti, data_ranges_, pred_range_start, range_, pred_is_windowed)
                         t = t_windows[ti]
                         if ti == 1
                             Plots.plot!(rel_error_plt, [], label="Prediction", linestyle=:dash, color=def_blue)
@@ -2949,7 +3216,16 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list;
     # at different ground-truth parameters.
     norm_est_runs    = Vector{Vector{Float64}}()   # h_est / h_gt
     rel_err_est_runs = Vector{Vector{Float64}}()   # |h_est - h_gt| / h_gt · 100
+    # `optimize` only ever fits against the first `sim_time_exp` seconds of observations
+    # (see optimize's `gt_viscosity_type == "constant"` branch); est_h keeps running past that
+    # with fixed, converged (η, β) — genuine out-of-sample prediction, not estimation. Kept
+    # separate so replicate stats don't conflate in-sample agreement with forward drift.
+    norm_pred_runs    = Vector{Vector{Float64}}()   # h_pred / h_gt
+    rel_err_pred_runs = Vector{Vector{Float64}}()
+    norm_pred_segs    = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
+    rel_err_pred_segs = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
     stat_time = Float64[]
+    stat_windows = Float64[]   # single Estimation|Prediction boundary, at sim_time_exp
     dir_list = readdir(filepath)
 
     # figure for legend
@@ -3279,7 +3555,20 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list;
                     num_exp_points::Int = round(Int,sim_time/t_steps)
 
                     printstyled("Processing for noise level: $(noise_level): $(exp_path)\n", color=:yellow)
-                    obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path_n0, num_exp_points; view_folder=leaf.view_folder)
+                    # As in `replot`: a run can leave η/β/stats behind and no contours (e.g. a
+                    # pre-multi-view result tree, which stores its border points under a
+                    # differently-shaped legacy path `_get_borders` doesn't know how to read).
+                    # Height/rel-error stats come from est_h/gt_h alone and never touch borders
+                    # — only the contour_plt* diagnostic plots below need them — so a run
+                    # missing contours still contributes its height stats; `have_borders` just
+                    # skips the plots that would otherwise error on undefined border data.
+                    have_borders = isdir(datapath(exp_path_n0, "sim_data", leaf.view_folder, "2D_border_points_est"))
+                    if have_borders
+                        obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney = _get_borders(data_type, filepath_gt, exp_path_n0, num_exp_points; view_folder=leaf.view_folder)
+                    else
+                        @warn "No simulated contours — collecting height stats, skipping contour plots" exp_path_n0
+                        obs_border_pt_lst = sim_border_pt_lst = gt_Splinex = gt_Spliney = splinex = spliney = nothing
+                    end
                     if noise_level == 0.0
 
                         est_η = readdlm(datapath(exp_path,"η.csv"), ',', Float64)
@@ -3380,22 +3669,38 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list;
                                 Plots.plot!(plot_conv_log_5, iter, cost_list, label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), marker=1, color=_exp_color(dir), yscale=:log10)
                                 Plots.xticks!(plot_conv_log_5, 1:2:max_iter)
 
-                                Plots.plot!(rel_height_error_glob_plot_5, time_h[1:51], rel_height_error[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
-                                Plots.plot!(rel_height_error_glob_plot_5, time_h, rel_height_error, label=false, color=_exp_color(dir), linestyle=:dash)
+                                # `optimize` only fit against the first `sim_time` seconds; the
+                                # rest of est_h/h_norm is forward-simulated with fixed, converged
+                                # (η, β) — genuine prediction, split out rather than pushed
+                                # into the Estimation series.
+                                n_est = min(round(Int, sim_time / t_steps) + 1, n_time)
 
-                                Plots.plot!(h_norm_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
-                                Plots.plot!(h_norm_plot_5, time_h, h_norm[1:n_time], label=false, color=_exp_color(dir), linestyle=:dash)
+                                Plots.plot!(rel_height_error_glob_plot_5, time_h[1:n_est], rel_height_error[1:n_est], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                Plots.plot!(rel_height_error_glob_plot_5, time_h[n_est:n_time], rel_height_error[n_est:n_time], label=false, color=_exp_color(dir), linestyle=:dash)
 
-                                push!(norm_est_runs, vec(h_norm[1:n_time]))
-                                push!(rel_err_est_runs, vec(rel_height_error[1:min(n_time, length(rel_height_error))]))
+                                Plots.plot!(h_norm_plot_5, time_h[1:n_est], h_norm[1:n_est], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                Plots.plot!(h_norm_plot_5, time_h[n_est:n_time], h_norm[n_est:n_time], label=false, color=_exp_color(dir), linestyle=:dash)
+
+                                push!(norm_est_runs, vec(h_norm[1:n_est]))
+                                push!(rel_err_est_runs, vec(rel_height_error[1:min(n_est, length(rel_height_error))]))
+                                if n_est < n_time
+                                    rel_err_pred_hi = min(n_time, length(rel_height_error))
+                                    push!(norm_pred_runs, vec(h_norm[n_est:n_time]))
+                                    push!(rel_err_pred_runs, vec(rel_height_error[n_est:rel_err_pred_hi]))
+                                    push!(norm_pred_segs, [(n_est:n_time, vec(h_norm[n_est:n_time]))])
+                                    push!(rel_err_pred_segs, [(n_est:rel_err_pred_hi, vec(rel_height_error[n_est:rel_err_pred_hi]))])
+                                end
                                 isempty(stat_time) && (stat_time = collect(time_h))
+                                isempty(stat_windows) && (stat_windows = [sim_time])
 
-                                Plots.plot!(h_glob_plot_5, time_h[1:51], h_norm[1:51], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
-                                Plots.plot!(h_glob_plot_5, time_h, h_norm[1:n_time], label=false, color=_exp_color(dir), linestyle=:dash)
+                                Plots.plot!(h_glob_plot_5, time_h[1:n_est], h_norm[1:n_est], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                Plots.plot!(h_glob_plot_5, time_h[n_est:n_time], h_norm[n_est:n_time], label=false, color=_exp_color(dir), linestyle=:dash)
                                 Plots.plot!(h_glob_plot_5, time_h, gt_h[1:n_time], label=false, style=:dash, color=_exp_color(dir))
 
-                                Plots.plot!(contour_plt, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
-                                Plots.plot!(contour_plt_zoom, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                if have_borders
+                                    Plots.plot!(contour_plt, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                    Plots.plot!(contour_plt_zoom, gt_Splinex[end], gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                                end
                             end
                             @debug "Size mismatch: $(size(height_error, 1)) vs $(size(gt_h)) vs $(size(time_h)) vs $(length(rel_height_error))"
                             Plots.plot!(height_error_plt, time_h, height_error[1:n_time], label=latexstring("\$$(ne)\\times$(ne)\\times$(ne)\$"), marker=1, legend=:outerbottom)
@@ -3428,7 +3733,9 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list;
                         β_pred = readdlm(datapath(exp_path,"beta_est.csv"), ',', Float64) # estimated β values per sample
                         h_pred = readdlm(datapath(exp_path,"h_est.csv"), ',', Float64) # estimated height values per sample
 
-                        n_obs_border_pt_lst, n_gt_Splinex, n_gt_Spliney = add_noise(obs_border_pt_lst, nFactor=noise_level)
+                        if have_borders
+                            n_obs_border_pt_lst, n_gt_Splinex, n_gt_Spliney = add_noise(obs_border_pt_lst, nFactor=noise_level)
+                        end
 
                         η_norm = η_pred[:,1] ./ η_gt
                         β_norm = β_pred[:,1] ./ β_gt
@@ -3449,14 +3756,14 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list;
                         plot_covariance!(covarience_plt, η_pred[:,1]./η_gt, β_pred[:,1]./β_gt, label=string(L"\sigma:\;",(round(noise_level,digits=2))," px  "), legend_column=noise_cols, color_ellipse=_palette(noise_iter + 1))
 
                         if noise_level == 0.5
-                            Plots.plot!(contour_plt_zoom_05, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                            have_borders && Plots.plot!(contour_plt_zoom_05, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                             Plots.plot!(cont_plt_legend, [], [], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                         elseif noise_level == 1.0
-                            Plots.plot!(contour_plt_zoom_10, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                            have_borders && Plots.plot!(contour_plt_zoom_10, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                         elseif noise_level == 1.5
-                            Plots.plot!(contour_plt_zoom_15, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                            have_borders && Plots.plot!(contour_plt_zoom_15, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                         elseif noise_level == 2.0
-                            Plots.plot!(contour_plt_zoom_20, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
+                            have_borders && Plots.plot!(contour_plt_zoom_20, n_gt_Splinex[end], n_gt_Spliney[end], label=latexstring("\$\\beta_{\\mathrm{gt}}:$(β_gt[1])\\,\\mathrm{MPa\\,s\\,\\mathrm{m^{-1}}}\$"), color=_exp_color(dir))
                         end
 
                         n_time = min(length(time), size(h_pred, 2), length(gt_h))
@@ -3548,21 +3855,26 @@ function post_analysis_const(filepath_gt_::String, filepath::String, avoid_list;
     Plots.savefig(h_glob_plot_5, joinpath(plot_path_global,"height_comparison_5.pdf"))
 
     height_stats = filter(!isnothing, [
-        normalized_replicate_stats(norm_est_runs,    "h_est/h_gt";         reference=1.0),
-        normalized_replicate_stats(rel_err_est_runs, "rel. error est [%]"; reference=0.0, signed=false),
+        normalized_replicate_stats(norm_est_runs,     "h_est/h_gt";          reference=1.0),
+        normalized_replicate_stats(norm_pred_runs,    "h_pred/h_gt";         reference=1.0),
+        normalized_replicate_stats(rel_err_est_runs,  "rel. error est [%]";  reference=0.0, signed=false),
+        normalized_replicate_stats(rel_err_pred_runs, "rel. error pred [%]"; reference=0.0, signed=false),
     ])
     if replicate_report(height_stats, "EXPERIMENT STATISTICS — normalized height",
                         joinpath(plot_path_global, "height_replicate_statistics.csv"))
         by_label = Dict(st.label => st for st in height_stats)
-        _stat_fig(((norm_est_runs, by_label["h_est/h_gt"], def_red, :solid, "Estimation"),),
-                  stat_time, joinpath(plot_path_global, "h_normalized_5_ci.pdf");
+        _write_approach_reports(height_stats, plot_path_global, "height_replicate_statistics.csv")
+        _stat_fig_approaches(((norm_est_runs, by_label["h_est/h_gt"], def_red, :solid, "Estimation"),
+                   (norm_pred_segs, get(by_label, "h_pred/h_gt", nothing), def_blue, :dash, "Prediction")),
+                  stat_time, plot_path_global, "h_normalized_5";
                   xlabel=L"\mathrm{Time\;[s]}", ylabel=L"h_{\mathrm{est}}/h_{\mathrm{gt}}",
-                  xlims=(0, end_obs_win), hline=1.0)
-        _stat_fig(((rel_err_est_runs, by_label["rel. error est [%]"], def_red, :solid, "Estimation"),),
-                  stat_time, joinpath(plot_path_global, "relative_height_error_5_ci.pdf");
+                  xlims=(0, end_obs_win), hline=1.0, vlines=stat_windows)
+        _stat_fig_approaches(((rel_err_est_runs, by_label["rel. error est [%]"], def_red, :solid, "Estimation"),
+                   (rel_err_pred_segs, get(by_label, "rel. error pred [%]", nothing), def_blue, :dash, "Prediction")),
+                  stat_time, plot_path_global, "relative_height_error_5";
                   xlabel=L"\mathrm{Time\;[s]}",
                   ylabel=latexstring("Relative Height Error [\$\\%\$]"),
-                  xlims=(0, end_obs_win))
+                  xlims=(0, end_obs_win), vlines=stat_windows)
     end
 
     Plots.savefig(contour_plt, joinpath(plot_path_global,"contour_comparison_5.pdf"))
@@ -3762,7 +4074,15 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list; 
 
                 window_dirs = readdir(leaf.exp_path)
                 for window_dir in window_dirs
-                    if window_dir == "Results" || window_dir == "post_analysis_window" || window_dir == "single_window" || window_dir == "post_analysis_noise"
+                    # `single_window` is a separate experimental condition (one global
+                    # static fit evaluated against the same window grid, for comparison), not
+                    # another window of the multi-window re-fit -- sharing
+                    # `data_ranges.csv`/`t_windows.csv` with `multi_window` let it slip through
+                    # this filter before: same window grid, different fit. Mixing it in doubled
+                    # `n` (replicates x 2 conditions) and broke `_align_windowed` (differently
+                    # shaped `pred_h.csv`), producing the `h_pred/h_gt` NaN.
+                    if window_dir == "Results" || window_dir == "post_analysis_window" ||
+                       window_dir == "post_analysis_noise" || window_dir == "single_window"
                         @debug "Skipping directory: $window_dir"
                         continue
                     end
@@ -3989,14 +4309,15 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list; 
     if replicate_report(height_stats, "EXPERIMENT STATISTICS — normalized height",
                         joinpath(plot_path_global, "height_replicate_statistics.csv"))
         by_label = Dict(st.label => st for st in height_stats)
-        _stat_fig(((norm_est_runs, by_label["h_est/h_gt"], def_red, :solid, "Estimation"),
+        _write_approach_reports(height_stats, plot_path_global, "height_replicate_statistics.csv")
+        _stat_fig_approaches(((norm_est_runs, by_label["h_est/h_gt"], def_red, :solid, "Estimation"),
                    (norm_pred_segs, get(by_label, "h_pred/h_gt", nothing), def_blue, :dash, "Prediction")),
-                  stat_time, joinpath(plot_path_global, "height_normalized_5_ci.pdf");
+                  stat_time, plot_path_global, "height_normalized_5";
                   xlabel=L"\mathrm{Time\;[s]}", ylabel=L"h_{\mathrm{est}}/h_{\mathrm{gt}}",
                   xlims=(0, end_obs_win), hline=1.0, vlines=stat_windows)
-        _stat_fig(((rel_err_est_runs, by_label["rel. error est [%]"], def_red, :solid, "Estimation"),
+        _stat_fig_approaches(((rel_err_est_runs, by_label["rel. error est [%]"], def_red, :solid, "Estimation"),
                    (rel_err_pred_segs, get(by_label, "rel. error pred [%]", nothing), def_blue, :dash, "Prediction")),
-                  stat_time, joinpath(plot_path_global, "relative_height_error_5_ci.pdf");
+                  stat_time, plot_path_global, "relative_height_error_5";
                   xlabel=L"\mathrm{Time\;[s]}",
                   ylabel=latexstring("Relative Height Error [\$\\%\$]"),
                   xlims=(0, end_obs_win), vlines=stat_windows)
@@ -4011,12 +4332,13 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list; 
                          joinpath(plot_path_global, "mosd_statistics.csv"))
         @info "No ground-truth surface found — skipping MOSD statistics"
     else
+        _write_approach_reports(mosd_stats, plot_path_global, "mosd_statistics.csv")
         # Same combined figure as the height metrics: estimation solid red, prediction
         # dashed blue, both with their runs underneath.
-        _stat_fig(((mosd_est_runs,  mosd_stats[1], def_red,  :solid, "Estimation"),
+        _stat_fig_approaches(((mosd_est_runs,  mosd_stats[1], def_red,  :solid, "Estimation"),
                    (mosd_pred_segs, length(mosd_stats) > 1 ? mosd_stats[2] : nothing,
                     def_blue, :dash, "Prediction")),
-                  mosd_time, joinpath(plot_path_global, "mosd_relative_ci.pdf");
+                  mosd_time, plot_path_global, "mosd_relative";
                   xlabel=L"\mathrm{Time\;[s]}", ylabel=L"\mathrm{Relative\;MOSD}",
                   hline=1.0, vlines=stat_windows)
     end
@@ -4058,11 +4380,13 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list; 
     norm_pred_runs = Vector{Vector{Float64}}()   # h_pred / h_m
     rel_err_est_runs  = Vector{Vector{Float64}}()   # |h_est  - h_m| / h_m · 100
     rel_err_pred_runs = Vector{Vector{Float64}}()
-    cpd_runs = Vector{Vector{Float64}}()            # closest-point distance error [px]
+    cpd_runs      = Vector{Vector{Float64}}()       # contour cost of the estimate / initial
+    cpd_pred_runs = Vector{Vector{Float64}}()       # same for the windowed predictions
     stat_time = Float64[]                           # shared time grid for the CI bands
     stat_windows = Float64[]                        # window boundaries, for the vlines
     norm_pred_segs    = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
     rel_err_pred_segs = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
+    cpd_pred_segs     = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
 
     η_plot_5 = _fig(legend_column=3)
     _label!(η_plot_5, L"\mathrm{Time\;[s]}", latexstring("\$\\eta_{\\mathrm{est}}(t)\$ [kPa s]"))
@@ -4155,7 +4479,15 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list; 
 
                 window_dirs = readdir(leaf.exp_path)
                 for window_dir in window_dirs
-                    if window_dir == "Results" || window_dir == "post_analysis_window" || window_dir == "single_window" || window_dir == "post_analysis_noise"
+                    # `single_window` is a separate experimental condition (one global
+                    # static fit evaluated against the same window grid, for comparison), not
+                    # another window of the multi-window re-fit -- sharing
+                    # `data_ranges.csv`/`t_windows.csv` with `multi_window` let it slip through
+                    # this filter before: same window grid, different fit. Mixing it in doubled
+                    # `n` (replicates x 2 conditions) and broke `_align_windowed` (differently
+                    # shaped `pred_h.csv`), producing the `h_pred/h_gt` NaN.
+                    if window_dir == "Results" || window_dir == "post_analysis_window" ||
+                       window_dir == "post_analysis_noise" || window_dir == "single_window"
                         @debug "Skipping directory: $window_dir"
                         continue
                     end
@@ -4186,8 +4518,17 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list; 
                     data_ranges_ = get_time_windows(datapath(win_exp_path,"window_data","data_ranges.csv"))
                     t_windows = readdlm(datapath(win_exp_path,"window_data","t_windows.csv"),',',Float64)
                     time_windows = readdlm(datapath(win_exp_path,"window_data","time_windows.csv"),',',Float64)
+                    # Cost at the initial guess of the first window — the same reference `replot`
+                    # divides its contour cost by. `cost_windows` holds one row of per-iteration
+                    # costs per window, and each entry is already a frame average
+                    # (`sum(d)/length(d)` in `fit_model`), so the ratio is dimensionless.
+                    cost_init = readdlm(datapath(win_exp_path,"window_data","cost_windows.csv"), ',', '\n')[1,1]
 
                     sim_border_pt_lst, splinex, spliney = read_csv(datapath(win_exp_path,"sim_data","view_1","2D_border_points_est"))
+                    # Written only when the fit ran short-horizon predictions, so treat them as
+                    # optional exactly like `pred_h`.
+                    _pred_border_dir = datapath(win_exp_path,"sim_data","view_1","2D_border_points_pred")
+                    pred_border_pt_lst = isdir(_pred_border_dir) ? read_csv(_pred_border_dir)[1] : nothing
 
                     @debug "Time windows: $(time_windows)"
                     obs_time = sum(time_windows)
@@ -4249,7 +4590,10 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list; 
                             # cross-replicate statistics written at the end of this function.
                             push!(norm_est_runs, vec(est_h ./ gt_h))
                             push!(rel_err_est_runs, vec(rel_height_error))
-                            push!(cpd_runs, vec(contour_cost(sim_border_pt_lst, obs_border_pt_lst)[1]))
+                            # Against this run's own initial cost, like every other series pooled
+                            # here: the absolute contour cost carries the specimen's scale in
+                            # frame, so its spread across runs would describe the specimens.
+                            push!(cpd_runs, vec(contour_cost(sim_border_pt_lst, obs_border_pt_lst)[1]) ./ cost_init)
                             isempty(stat_time) && (stat_time = collect(time))
                             isempty(stat_windows) && (stat_windows = vec(Float64.(t_windows)))
                             if !isnothing(pred_h_list)
@@ -4265,6 +4609,15 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list; 
                                 push!(norm_pred_segs, [(r, v ./ gtp[r]) for (r, v) in segs])
                                 push!(rel_err_pred_segs,
                                       [(r, abs.(v .- gtp[r]) ./ gtp[r] .* 100.0) for (r, v) in segs])
+                                if !isnothing(pred_border_pt_lst)
+                                    # Predicted contours scored against the same observations and
+                                    # normalized by the same initial cost as the estimated ones,
+                                    # so the two are read on one axis.
+                                    cpd_p, cpd_p_segs = _windowed_contour_cost(
+                                        pred_border_pt_lst, obs_border_pt_lst, data_ranges_, length(gtp))
+                                    push!(cpd_pred_runs, cpd_p ./ cost_init)
+                                    push!(cpd_pred_segs, [(r, v ./ cost_init) for (r, v) in cpd_p_segs])
+                                end
                             end
                             Plots.plot!(h_plot_est_5, time, est_h, label=string(L"\mathrm{Exp}:\;",dir), color=_exp_color(dir))
                             Plots.plot!(gt_h_plot, time, gt_h, label=string(L"\mathrm{Exp}:\;",dir), color=_exp_color(dir))
@@ -4320,7 +4673,8 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list; 
         normalized_replicate_stats(norm_pred_runs,    "h_pred/h_m";          reference=1.0),
         normalized_replicate_stats(rel_err_est_runs,  "rel. error est [%]";  reference=0.0, signed=false),
         normalized_replicate_stats(rel_err_pred_runs, "rel. error pred [%]"; reference=0.0, signed=false),
-        normalized_replicate_stats(cpd_runs,          "closest-pt dist [px]"; reference=0.0, signed=false),
+        normalized_replicate_stats(cpd_runs,          "contour cost est / initial";  reference=0.0, signed=false),
+        normalized_replicate_stats(cpd_pred_runs,     "contour cost pred / initial"; reference=0.0, signed=false),
     ])
 
     if !replicate_report(stats, "REPLICATE STATISTICS — normalized height",
@@ -4328,30 +4682,35 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list; 
         @warn "No normalized height series collected — skipping replicate statistics"
     else
         by_label = Dict(st.label => st for st in stats)
-        out(name) = joinpath(plot_path_global, name)
+        _write_approach_reports(stats, plot_path_global, "height_replicate_statistics.csv")
 
         # Estimation and prediction share a figure, as they do per experiment.
-        _stat_fig(((norm_est_runs,  by_label["h_est/h_m"],  def_red,  :solid, "Estimation"),
+        _stat_fig_approaches(((norm_est_runs,  by_label["h_est/h_m"],  def_red,  :solid, "Estimation"),
                    (norm_pred_segs, get(by_label, "h_pred/h_m", nothing), def_blue, :dash,
                     "Prediction")),
-                  stat_time, out("height_normalized_5_ci.pdf");
+                  stat_time, plot_path_global, "height_normalized_5";
                   xlabel=L"\mathrm{Time\;[s]}", ylabel=L"h/h_{\mathrm{m}}",
                   xlims=(0, end_obs_win), hline=1.0, vlines=stat_windows)
 
-        _stat_fig(((rel_err_est_runs,  by_label["rel. error est [%]"],  def_red,  :solid, "Estimation"),
+        _stat_fig_approaches(((rel_err_est_runs,  by_label["rel. error est [%]"],  def_red,  :solid, "Estimation"),
                    (rel_err_pred_segs, get(by_label, "rel. error pred [%]", nothing), def_blue, :dash,
                     "Prediction")),
-                  stat_time, out("relative_height_error_5_ci.pdf");
+                  stat_time, plot_path_global, "relative_height_error_5";
                   xlabel=L"\mathrm{Time\;[s]}",
                   ylabel=latexstring("Relative Height Error [\$\\%\$]"),
                   xlims=(0, end_obs_win), vlines=stat_windows)
 
         if !isempty(cpd_runs)
-            _stat_fig(((cpd_runs, by_label["closest-pt dist [px]"], def_red, :solid, "Estimation"),),
-                      stat_time, out("closest_point_distance_error_ci.pdf");
+            _stat_fig_approaches(((cpd_runs, by_label["contour cost est / initial"], def_red, :solid, "Estimation"),
+                       (cpd_pred_segs, get(by_label, "contour cost pred / initial", nothing), def_blue,
+                        :dash, "Prediction")),
+                      stat_time, plot_path_global, "closest_point_distance_error";
                       xlabel=L"\mathrm{Time\;[s]}",
-                      ylabel=L"\mathrm{Closest\;Point\;Distance\;[px]}",
-                      xlims=(0, end_obs_win), vlines=stat_windows)
+                      ylabel=L"\mathrm{Relative\;Cost}",
+                      # Same window as `replot`'s per-experiment version: the first window's
+                      # prediction starts from the initial guess and overshoots to ~7, which
+                      # would flatten every later window to a line.
+                      xlims=(0, end_obs_win), ylims=(0, 3), vlines=stat_windows)
         end
 
     end
@@ -4387,7 +4746,7 @@ function optimize_sim(use_parallel::Bool=true)
     basis_order_x::Int = 2
     nz_list = Union{Int,Float64}[6]
     mode::Symbol = :exp  # :exp or :conv_exp_mesh
-    cost_function_list = [:closest_point] # :chamfer or :closest_point
+    cost_function_list = [:chamfer] # :chamfer or :closest_point
 
     if mode == :conv_exp_mesh
         nz_list = Union{Int,Float64}[6]
@@ -4650,10 +5009,10 @@ function optimize_real(use_parallel::Bool=true)
     camera_matrix::AbstractArray = [[2.39642674e+03, 0.0, 1.00429248e+03] [0.0, 2.40565353e+03, 7.57028161e+02] [0.0, 0.0, 1.0]]'
 
     model_type = "carreau" # "carreau" or "Stokes"
-    window = "multi_window" # "multi_window" or "single_window"
+    window = "single_window" # "multi_window" or "single_window"
     filepath_res::String = ""
     param_list = Vector{Dict}(undef, 0)
-    avoid_dirs = ["post_analysis_global","1","2","3","5","4","7","8","9"] 
+    avoid_dirs = ["post_analysis_global","5"] 
 
     # Optimization method and its `fit_model` keyword arguments. `opt_method` also
     # becomes a path segment under `dt_*`, so runs with different methods never
@@ -4662,7 +5021,8 @@ function optimize_real(use_parallel::Bool=true)
     cost_function_list = [:closest_point]   # :chamfer or :closest_point
     opt_method::Symbol = :gn                # :gn, :lm or :gn_tikhonov
     opt_kwargs = Dict{String,Any}()         # e.g. "λ_scale" => 0.01, "line_search_method" => :armijo
-
+    opt_kwargs["λ_scale"] = [0.0, 0.002]
+    
     dt_carreau::Float64 = 0.1 # must match `time_steps` in the Carreau ground-truth sim_params
     dt_physical::Float64 = 0.1 # must match `time_steps` in the physical ground-truth sim_params
 
@@ -4765,24 +5125,32 @@ combinations. For each ground-truth directory (skipping `avoid_dirs`), applies
 experiment directory, then runs the `post_analysis_*` cross-experiment summary
 matching the viscosity/data type.
 
+# Keyword Arguments
+- `data_types::Vector{String}`: which data types to post-process, any of `"simulated"`,
+  `"synthetic"`, `"physical"` (default: `["synthetic"]`).
+- `synthetic_models::Vector{String}`: forward models to cover for `"synthetic"`, any of
+  `"carreau"`, `"Stokes"` (default: `["carreau"]`). Ignored for the other data types,
+  which have one model each.
+
 # Returns
 None. All outputs are the side effects of `replot`.
 """
-function plot_results()
+function plot_results(;data_types::Vector{String}=["synthetic"],
+                        synthetic_models::Vector{String}=["carreau"])
     control::String = "force"
     viscosity_type_list = [] # "constant" or "bulk_viscosity"
     model_type = [] # "carreau" or "Stokes"
     avoid_dirs = ["post_analysis_global"] # directories to skip in post-analysis and plotting
-    data_type_list = ["simulated","synthetic","physical"] # ["simulated", "synthetic", "physical"]
+    data_type_list = data_types # any of "simulated", "synthetic", "physical"
     base_path = ""
     geometry::Symbol = :cylinder # :cylinder or :cube
 
     for data_type in data_type_list
-        avoid_dirs = data_type == "physical" ? ["post_analysis_global"] : ["post_analysis_global", "5"]
+        avoid_dirs = data_type == "physical" ? ["post_analysis_global"] : ["post_analysis_global"]
         if data_type == "physical"
             model_type = ["Stokes"] # for physical data, we only have Stokes model results for now
         elseif data_type == "synthetic"
-            model_type = ["carreau", "Stokes"]
+            model_type = synthetic_models
         elseif data_type == "simulated"
             model_type = ["Stokes"]
         end
@@ -4843,13 +5211,13 @@ function plot_results()
                         @debug "Processing ground truth directory: $filepath_gt_dir for $viscosity_type viscosity ..."
                         replot(filepath_res_dir, filepath_gt_dir; method=opt_method)
                     end
-                    if viscosity_type == "constant"
-                        post_analysis_const(filepath_gt, filepath_res, avoid_dirs; method=opt_method)
-                    elseif viscosity_type == "bulk_viscosity" && data_type != "physical"
-                        post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs; method=opt_method)
-                    elseif data_type == "physical"
-                        post_analysis_real(filepath_gt, filepath_res, avoid_dirs; method=opt_method)
-                    end
+                    # if viscosity_type == "constant"
+                    #     post_analysis_const(filepath_gt, filepath_res, avoid_dirs; method=opt_method)
+                    # elseif viscosity_type == "bulk_viscosity" && data_type != "physical"
+                    #     post_analysis_bulk(filepath_gt, filepath_res, avoid_dirs; method=opt_method)
+                    # elseif data_type == "physical"
+                    #     post_analysis_real(filepath_gt, filepath_res, avoid_dirs; method=opt_method)
+                    # end
                 end
             end
         end
@@ -4865,10 +5233,12 @@ run as a script (`julia test_opt_stokes.jl`), but not when it is `include`d
 from the REPL or another script.
 """
 function main()
-    optimize_sim(false)
+    data_types = ["synthetic"] # ["simulated", "synthetic", "physical"]
+    avoid_dirs = [] # directories to skip in post-analysis and plotting
+    # optimize_sim(false)
     # optimize_syn(false)
     # optimize_real(false)
-    # plot_results()
+    plot_results()
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
