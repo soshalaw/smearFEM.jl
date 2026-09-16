@@ -8,6 +8,7 @@ images
 PUBLICATION_READINESS.md
 docs/paper_1.tex
 CLAUDE.md
+claud_docs/
 .claude/settings.local.json
 
 /mesh_files/box/
