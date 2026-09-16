@@ -429,26 +429,6 @@ function truncate_colormap(minval=0.0, maxval=1.0, n=100)
     return new_cmap
 end
 
-function plot_covariance!(plt::Plots.Plot, η_list::Vector{Float64}, β_list::Vector{Float64}, label::String)
-
-    mean_η = mean(η_list)
-    mean_β = mean(β_list)
-
-    cov_η = cov(η_list)
-    cov_β = cov(β_list)
-    cov_ηβ = cov(η_list, β_list)
-
-    cov_mat = [cov_η cov_ηβ; cov_ηβ cov_β]
-    mean_vec = [mean_η; mean_β]
-
-    # Plot the covariance matrix
-    StatsPlots.covellipse!(plt, mean_vec, cov_mat, label=label, color=:red, alpha=0.5, bottom_margin = -15mm, legend=:outerbottom, legend_column=legend_column)
-    StatsPlots.scatter!(plt, η_list, β_list, label="Data points", dpi=:400, ms=:2, markerstrokewidth=0.1)
-    xlabel!(plt, L"\eta")
-    ylabel!(plt, L"\beta")    
-
-end
-
 function plot_covariance!(plt::Plots.Plot, η_list::Vector{Float64}, β_list::Vector{Float64}; label::String="Covariance", legend_column::Int=1, color_ellipse=nothing, color_scatter=nothing)
 
     mean_η = mean(η_list)
