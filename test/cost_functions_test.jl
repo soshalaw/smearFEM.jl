@@ -66,6 +66,63 @@ using smearFEM, LinearAlgebra, Random, Test
         @test !isapprox(o1, o2; rtol=1e-6)
     end
 
+    @testset "ChamferCost normalizes each direction by its own point count" begin
+        # Same curve, three samplings. The observed contour is the one that varies in
+        # practice — a segmentation returns every boundary pixel, a projected mesh returns
+        # its nodes — so the cost must not move when only that sampling does.
+        circle(n, r, dx=0.0) = permutedims(hcat([dx + r*cos(t) for t in range(0, 2π, length=n+1)[1:n]],
+                                                [r*sin(t) for t in range(0, 2π, length=n+1)[1:n]]))
+        # Resolved finely enough that the polygon discretization is not what is being
+        # measured; only the observed sampling changes, by a factor of eight.
+        ring = circle(400, 100.0)
+        c_sparse, _ = contour_cost([ring], [circle(800,  102.0)]; cost=ChamferCost())
+        c_dense,  _ = contour_cost([ring], [circle(6400, 102.0)]; cost=ChamferCost())
+        # Not exact: the reverse term measures to the simulated *vertices*, not to the edges
+        # between them, so a percent of sampling dependence survives the normalization. What
+        # it no longer does is drift with the reverse term's share of the residual vector,
+        # which over this 8× change would have moved the pooled cost by tens of percent.
+        @test isapprox(c_sparse[1], c_dense[1]; rtol=2e-2)
+
+        # With both directions weighted equally and the sampling matched, the symmetric cost
+        # collapses onto the one-directional one — which is what lets a `λ` calibrated on
+        # ClosestPointCost carry over to a Chamfer fit.
+        shifted = circle(400, 100.0, 3.0)
+        ch, _ = contour_cost([shifted], [ring]; cost=ChamferCost())
+        cp, _ = contour_cost([shifted], [ring]; cost=ClosestPointCost())
+        @test isapprox(ch[1], cp[1]; rtol=1e-12)
+    end
+
+    @testset "gradients match finite differences" begin
+        # The sim contour is an explicit function of θ = (radius, x-offset), so `dudθ` is
+        # exact and the FEM solve is out of the picture: what is under test is only the
+        # residual/Jacobian algebra. It has teeth for `ChamferCost` in particular, whose
+        # per-direction weights multiply `u` and `J` — apply them to one and not the other
+        # and `Jᵀu` stops being the gradient of `uᵀu`, which no cost-value test would catch.
+        circle(n, r, dx) = permutedims(hcat([dx + r*cos(t) for t in range(0, 2π, length=n+1)[1:n]],
+                                            [     r*sin(t) for t in range(0, 2π, length=n+1)[1:n]]))
+        function sens(n)
+            φ = range(0, 2π, length=n+1)[1:n]
+            d = zeros(2, n, 2)
+            d[1, :, 1] = cos.(φ); d[2, :, 1] = sin.(φ)   # ∂p/∂radius
+            d[1, :, 2] .= 1.0                            # ∂p/∂x-offset
+            return d
+        end
+
+        θ, hstep = [97.0, 3.0], 1e-5
+        for c in (ClosestPointCost(), ChamferCost()),
+            (nsim, nobs) in ((400, 2000), (60, 2900))    # the second: ~48 obs per sim point
+            ref = circle(nobs, 100.0, 0.0)
+            C(p) = contour_cost([circle(nsim, p[1], p[2])], [ref]; cost=c)[1][1]
+            _, dc, _, _ = contour_cost([circle(nsim, θ[1], θ[2])], [ref], [sens(nsim)]; cost=c)
+
+            g_fd = map(eachindex(θ)) do i
+                e = zeros(length(θ)); e[i] = hstep * abs(θ[i])
+                (C(θ .+ e) - C(θ .- e)) / (2e[i])
+            end
+            @test isapprox(vec(dc[1]), g_fd; rtol=1e-5)
+        end
+    end
+
     @testset "both costs vanish on identical clouds" begin
         z = [rand(2, 30)]
         for c in (ClosestPointCost(), ChamferCost())

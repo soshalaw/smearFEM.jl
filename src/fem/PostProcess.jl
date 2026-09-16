@@ -624,6 +624,89 @@ function fit_curve(;border=nothing, borderx=nothing, bordery=nothing, samples=no
 end
 
 """
+    upsample_contour(border, n_target; method=:spline) -> Matrix{Float64}
+
+Resample a closed contour to `n_target` points.
+
+A nearest-*vertex* distance overstates the distance to the contour by an amount set by the
+sampling, and matching a coarse simulated contour (~130 nodes, ~18 px apart) against a
+finely sampled observation (~1300 points) makes that bias most of what the reverse
+direction measures. Upsampling the coarse side removes it.
+
+`method` picks how:
+
+- `:spline` (default) — a `CubicSpline` over the point index, closed by repeating the first
+  point, sampled at `n_target` parameter values. This is the same construction
+  [`fit_curve`](@ref) uses to build the observed `contour_data` from border points, which
+  is why it is the default: scoring a linearly-interpolated simulated contour against a
+  spline-interpolated observation compares a chord polygon to a smooth curve, and the
+  chords sit systematically *inside* a convex contour.
+- `:linear` — piecewise-linear along the segments, spaced uniformly in arclength. Invents
+  no geometry, at the cost of that inward chord bias (~0.03 px on a 130-point circle of
+  radius 100). Kept so the choice can be shown to matter, or not.
+
+Both share `fit_curve`'s seam behaviour: the spline is closed by repeating the first point
+rather than by a periodic boundary condition, so the curve is continuous there but its
+curvature need not be.
+
+Returns the input unchanged when it already has at least `n_target` points; the caller
+decides whether that is a problem.
+
+# Arguments
+- `border::AbstractMatrix`: contour points, `2 × n` or `n × 2`; the loop is closed
+  internally, so the first point must not be repeated at the end.
+- `n_target::Int`: number of points to return.
+
+# Keyword Arguments
+- `method::Symbol`: `:spline` (default) or `:linear`.
+
+# Returns
+- `Matrix{Float64}`: the resampled contour, in the same orientation as the input.
+"""
+function upsample_contour(border::AbstractMatrix, n_target::Int; method::Symbol=:spline)
+    by_rows = size(border, 1) < size(border, 2)          # 2 × n on input?
+    P = by_rows ? border : permutedims(border)           # work as 2 × n
+    n = size(P, 2)
+    (n_target <= n || n < 2) && return Matrix{Float64}(border)
+    method in (:spline, :linear) || throw(ArgumentError("Unknown method :$method — use :spline or :linear"))
+
+    # Close the loop, then walk cumulative arclength.
+    x = vcat(P[1, :], P[1, 1])
+    y = vcat(P[2, :], P[2, 1])
+
+    if method === :spline
+        # Index parametrization and a repeated first point, exactly as `fit_curve` builds
+        # the observed contour, so the two curves are constructed the same way.
+        seq = collect(1.0:length(x))
+        px, py = CubicSpline(x, seq), CubicSpline(y, seq)
+        ts = range(seq[1], seq[end]; length=n_target + 1)[1:n_target]
+        out = Matrix{Float64}(undef, 2, n_target)
+        for (k, t) in enumerate(ts)
+            out[1, k] = px(t); out[2, k] = py(t)
+        end
+        return by_rows ? out : permutedims(out)
+    end
+
+    seg = hypot.(diff(x), diff(y))
+    s = vcat(0.0, cumsum(seg))
+    total = s[end]
+    total > 0 || return Matrix{Float64}(border)
+
+    out = Matrix{Float64}(undef, 2, n_target)
+    j = 1
+    for (k, target) in enumerate(range(0.0, total; length=n_target + 1)[1:n_target])
+        while j < length(s) - 1 && s[j + 1] < target
+            j += 1
+        end
+        # Degenerate (zero-length) segments would divide by zero; they contribute no span.
+        w = seg[j] > 0 ? (target - s[j]) / seg[j] : 0.0
+        out[1, k] = x[j] + w * (x[j + 1] - x[j])
+        out[2, k] = y[j] + w * (y[j + 1] - y[j])
+    end
+    return by_rows ? out : permutedims(out)
+end
+
+"""
     fit_curve_2D(x,y, n)
 
 Fit a curve to the border nodes of the 2D mesh

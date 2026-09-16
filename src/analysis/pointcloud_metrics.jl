@@ -60,6 +60,28 @@ function hausdorff_distance_kdtree(pred_pts::AbstractArray, gt_pts::AbstractArra
 end
 
 """
+    directed_hausdorff_kdtree(pred_pts, gt_pts) -> Float64
+
+KDTree-accelerated *directed* Hausdorff distance: the largest nearest-neighbour distance
+from `pred_pts` to `gt_pts`, with no reverse term.
+
+Read against [`hausdorff_distance_kdtree`](@ref), it says which cloud the worst mismatch
+lives on. Equal to the symmetric value, the outlier is a predicted point with nothing
+observed near it — the contour strays. Well below it, the outlier is an observed point that
+nothing predicted — the contour is missing a piece, which this direction cannot see. The
+symmetric distance reports the larger of the two and so hides which happened.
+
+# Arguments
+- `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
+
+# Returns
+- `Float64`: the directed Hausdorff distance from `pred_pts` to `gt_pts`.
+"""
+function directed_hausdorff_kdtree(pred_pts::AbstractArray, gt_pts::AbstractArray)
+    return maximum(_nn_min_dists(pred_pts, gt_pts))
+end
+
+"""
     chamfer_distance_kdtree(pred_pts, gt_pts) -> Float64
 
 KDTree-accelerated Chamfer distance: the mean of the two directional mean
@@ -166,11 +188,13 @@ function chamfer_distance(pred_pts::AbstractArray, gt_pts::AbstractArray)
 end
 
 """
-    compare_pt_clouds(pred_pts, gt_pts; squared_chamfer=true) -> (hausdorff_distances, chamfer_distances, closest_pt_distances)
+    compare_pt_clouds(pred_pts, gt_pts; squared_chamfer=true) -> (hausdorff_distances, chamfer_distances, closest_pt_distances, directed_hausdorff_distances)
 
-Compute, frame by frame, the KD-tree-based Hausdorff, Chamfer, and
-(one-directional) closest-point RMSE distances between matching pairs of
+Compute, frame by frame, the KD-tree-based Hausdorff, Chamfer, (one-directional)
+closest-point RMSE and directed (`pred → gt`) Hausdorff distances between matching pairs of
 predicted and ground-truth point clouds.
+
+The directed Hausdorff comes last so that callers destructuring three values keep working.
 
 # Arguments
 - `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: matching iterables of
@@ -186,20 +210,23 @@ predicted and ground-truth point clouds.
 
 # Returns
 - `hausdorff_distances::Vector{Float64}`, `chamfer_distances::Vector{Float64}`,
-  `closest_pt_distances::Vector{Float64}`: one distance per frame.
+  `closest_pt_distances::Vector{Float64}`, `directed_hausdorff_distances::Vector{Float64}`:
+  one distance per frame.
 """
 function compare_pt_clouds(pred_pts::AbstractArray, gt_pts::AbstractArray; squared_chamfer::Bool=true)
     hausdorff_distances = Float64[]
     chamfer_distances = Float64[]
     closest_pt_distances = Float64[]
+    directed_hausdorff_distances = Float64[]
     _chamfer = squared_chamfer ? chamfer_sq_distance_kdtree : chamfer_distance_kdtree
     for (sim_pts, gt_pts) in zip(pred_pts, gt_pts)
         hausdorff_dist = hausdorff_distance_kdtree(sim_pts, gt_pts)
         chamfer_dist = _chamfer(sim_pts, gt_pts)
         closest_pt_dist = closest_point_distance_kdtree(sim_pts, gt_pts)
+        push!(directed_hausdorff_distances, directed_hausdorff_kdtree(sim_pts, gt_pts))
         push!(hausdorff_distances, hausdorff_dist)
         push!(chamfer_distances, chamfer_dist)
         push!(closest_pt_distances, closest_pt_dist)
     end
-    return  hausdorff_distances, chamfer_distances, closest_pt_distances
+    return  hausdorff_distances, chamfer_distances, closest_pt_distances, directed_hausdorff_distances
 end

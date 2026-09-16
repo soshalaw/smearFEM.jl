@@ -41,11 +41,72 @@ Symmetric squared-Chamfer cost: the [`ClosestPointCost`](@ref) term plus its rev
 every *observed* point is matched to its nearest simulated point. Penalizes an incomplete
 simulated contour, which the one-directional cost cannot see.
 
+Each direction is normalized by its own point count, so the two contribute equally however
+the contours are sampled; see [`_residuals`](@ref) for why pooling them does not.
+
 The reverse term reuses simulated points — several observed points may share a nearest
 simulated neighbour, so those rows of `∂u/∂θ` repeat. Correct, but it reweights `JᵀJ`, so
 Hessian conditioning differs from `ClosestPointCost` on the same data.
 """
 struct ChamferCost <: ContourCost end
+
+"""
+    SignedDistanceCost()
+
+Point-to-*curve* cost: every simulated point contributes its distance to the observed
+contour itself, not to the nearest observed sample.
+
+This is the signed-distance-function loss. `ClosestPointCost` measures to a vertex of the
+observed polyline, which overestimates the true distance by an amount set by the observed
+sampling — a bias that is positive by construction and never averages out. The two agree
+exactly in the limit of infinitely dense observations, so the gap between them *is* that
+bias.
+
+The residual is the scalar `n̂ᵀ(p_sim − foot)`, with the foot point and unit normal of the
+matched segment held fixed while differentiating, exactly as the nearest-neighbour
+correspondence already is (the standard point-to-plane ICP linearization). Its square is the
+squared point-to-curve distance whenever the foot lies inside the segment, so the cost is on
+the same scale as `ClosestPointCost` and the two are directly comparable; where the foot
+clamps to an endpoint — only at high curvature relative to the sampling — the normal
+component slightly understates the distance.
+
+# Limitations
+The sign is carried by the residual's direction and cancels under `uᵀu`, so the cost value
+matches an unsigned point-to-curve loss; it is the gradient that keeps the orientation.
+"""
+struct SignedDistanceCost <: ContourCost end
+
+"""
+    _nearest_segment(obs_t, i, qx, qy) -> (foot_x, foot_y, n_x, n_y)
+
+Foot point and unit normal of the observed polyline segment nearest to `(qx, qy)`, searched
+among the two segments adjacent to vertex `i`.
+
+Restricting the search to the neighbours of the nearest *vertex* is exact for a polyline
+sampled finely relative to its curvature, which is the regime these contours are in (≈1.8 px
+samples on features of tens of px), and keeps the cost a KDTree lookup rather than a scan
+over every segment.
+"""
+function _nearest_segment(obs_t::AbstractMatrix{Float64}, i::Int, qx::Float64, qy::Float64)
+    n = size(obs_t, 2)
+    best = (0.0, 0.0, 0.0, 0.0, Inf)
+    for j in (i == 1 ? n : i - 1, i)
+        k = j == n ? 1 : j + 1
+        ax, ay = obs_t[1, j], obs_t[2, j]
+        bx, by = obs_t[1, k], obs_t[2, k]
+        vx, vy = bx - ax, by - ay
+        L2 = vx * vx + vy * vy
+        L2 == 0 && continue
+        t = clamp(((qx - ax) * vx + (qy - ay) * vy) / L2, 0.0, 1.0)
+        fx, fy = ax + t * vx, ay + t * vy
+        d2 = (qx - fx)^2 + (qy - fy)^2
+        if d2 < best[5]
+            L = sqrt(L2)
+            best = (fx, fy, -vy / L, vx / L, d2)   # unit normal of the segment
+        end
+    end
+    return best[1], best[2], best[3], best[4]
+end
 
 """
     match_points(p_sim::AbstractMatrix{Float64}, p_obs::AbstractMatrix{Float64})
@@ -100,9 +161,12 @@ denominator `ndiv`, and the raw correspondence(s) `pairs`.
 `du_tdθ` is 2 × n_sim × n_params, or `nothing` when only the cost is wanted, in which case
 `J` is `nothing` too.
 
-`ndiv` counts residual *components*, not pairs — `length(pairs) == 2·n_pairs`. That
-doubling is inherited and kept deliberately: changing it would move every recorded cost
-value and every `λ` calibrated against one.
+`ndiv` is whatever divisor completes the cost, applied as `uᵀu/(2·ndiv)`. For
+[`ClosestPointCost`](@ref) that is the number of residual *components*, not pairs —
+`length(pairs) == 2·n_pairs`, a doubling inherited and kept deliberately, since changing it
+would move every recorded cost value and every `λ` calibrated against one. A cost whose
+directions carry different weights folds those into `u` instead and returns the small
+constant that is left.
 """
 function _residuals(::ClosestPointCost, sim_t::AbstractMatrix{Float64}, obs_t::AbstractMatrix{Float64}, du_tdθ)
     pairs = match_points(sim_t, obs_t)
@@ -115,19 +179,54 @@ function _residuals(::ClosestPointCost, sim_t::AbstractMatrix{Float64}, obs_t::A
     return u, J, u_ref, length(pairs), pairs
 end
 
+function _residuals(::SignedDistanceCost, sim_t::AbstractMatrix{Float64}, obs_t::AbstractMatrix{Float64}, du_tdθ)
+    pairs = match_points(sim_t, obs_t)
+    s, o = pairs[:, 1], pairs[:, 2]
+
+    u     = Vector{Float64}(undef, length(s))
+    u_ref = Vector{Float64}(undef, length(s))
+    J     = isnothing(du_tdθ) ? nothing : Matrix{Float64}(undef, length(s), size(du_tdθ, 3))
+    for (row, (si, oi)) in enumerate(zip(s, o))
+        qx, qy = sim_t[1, si], sim_t[2, si]
+        fx, fy, nx, ny = _nearest_segment(obs_t, oi, qx, qy)
+        u[row]     = nx * (qx - fx) + ny * (qy - fy)
+        u_ref[row] = nx * fx + ny * fy
+        isnothing(J) || (J[row, :] = nx .* du_tdθ[1, si, :] .+ ny .* du_tdθ[2, si, :])
+    end
+
+    # `length(pairs)` == 2·n_pairs, the same divisor `ClosestPointCost` uses. One scalar
+    # residual per point here against its two components there, so `uᵀu/(2·ndiv)` lands on
+    # the identical scale and the two costs can be read against each other directly.
+    return u, J, u_ref, length(pairs), pairs
+end
+
 function _residuals(::ChamferCost, sim_t::AbstractMatrix{Float64}, obs_t::AbstractMatrix{Float64}, du_tdθ)
     fwd = match_points(sim_t, obs_t)   # fwd[:,1] sim index, fwd[:,2] obs index
     rev = match_points(obs_t, sim_t)   # rev[:,1] obs index, rev[:,2] sim index
     fs, fo = fwd[:, 1], fwd[:, 2]
     ro, rs = rev[:, 1], rev[:, 2]
 
-    u = [(sim_t[1, fs] - obs_t[1, fo]); (sim_t[2, fs] - obs_t[2, fo]);
-         (sim_t[1, rs] - obs_t[1, ro]); (sim_t[2, rs] - obs_t[2, ro])]
-    u_ref = [obs_t[1, fo]; obs_t[2, fo]; obs_t[1, ro]; obs_t[2, ro]]
-    J = isnothing(du_tdθ) ? nothing :
-        [du_tdθ[1, fs, :]; du_tdθ[2, fs, :]; du_tdθ[1, rs, :]; du_tdθ[2, rs, :]]
+    # Each direction is a mean over *its own* points. Pooling the two blocks under one
+    # denominator instead weights each by its share of the residuals, and a segmented
+    # observation carries an order of magnitude more points than a simulated contour
+    # (~2900 vs ~130 here) — that pooling hands the reverse term >0.9 of the cost and all
+    # but ignores the forward one. The weights ride on the residuals as √w so that `uᵀu`,
+    # `Jᵀu` and `JᵀJ` all inherit them and stay each other's derivatives.
+    wf = 1 / sqrt(size(sim_t, 2))
+    wr = 1 / sqrt(size(obs_t, 2))
 
-    return u, J, u_ref, length(fwd) + length(rev), (fwd, rev)
+    u = [wf .* (sim_t[1, fs] - obs_t[1, fo]); wf .* (sim_t[2, fs] - obs_t[2, fo]);
+         wr .* (sim_t[1, rs] - obs_t[1, ro]); wr .* (sim_t[2, rs] - obs_t[2, ro])]
+    u_ref = [wf .* obs_t[1, fo]; wf .* obs_t[2, fo]; wr .* obs_t[1, ro]; wr .* obs_t[2, ro]]
+    J = isnothing(du_tdθ) ? nothing :
+        [wf .* du_tdθ[1, fs, :]; wf .* du_tdθ[2, fs, :];
+         wr .* du_tdθ[1, rs, :]; wr .* du_tdθ[2, rs, :]]
+
+    # The means are already in `u`, so what is left is the ½ of the symmetric Chamfer and
+    # the component doubling `ClosestPointCost` divides by: `tcost/(2·4)` puts an identical
+    # pair of contours on exactly the cost the one-directional term would give, which is
+    # what keeps a `λ` calibrated on one usable on the other.
+    return u, J, u_ref, 4, (fwd, rev)
 end
 
 """
