@@ -17,9 +17,9 @@ export EnvConditions, Conditions # types.jl
 export meshgrid_cylinder, meshgrid_cuboid, meshgrid_square, meshgrid_disk, meshgrid_line # Meshes.jl
 export reset_mesh!, update_initial_state! # Meshes.jl
 export gaussian_quadrature, basis_function, get_quadrature, BasisFunctionCache, get_surface_basis_functions # fem.jl
-export fit_curve, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, eval_on_cylinder, get_lagrange_proj, get_lagrange_pts, get_nurbs_2_lagrange_proj, detect_outlier_observations, get_pose, project_to_camera_frame # PostProcess.jl
+export fit_curve, upsample_contour, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, eval_on_cylinder, get_lagrange_proj, get_lagrange_pts, get_nurbs_2_lagrange_proj, detect_outlier_observations, get_pose, project_to_camera_frame # PostProcess.jl
 export fit_model # smearOptimize.jl
-export ContourCost, ClosestPointCost, ChamferCost, contour_cost, match_points # optimization/cost_functions.jl
+export ContourCost, ClosestPointCost, ChamferCost, SignedDistanceCost, contour_cost, match_points # optimization/cost_functions.jl
 export closest_point # deprecated alias for contour_cost
 export reset_model!, update_model! # models.jl
 
@@ -35,9 +35,9 @@ export mat_nan_inf_check, write_time_log, dataframe_2_vec, get_cMat, get_camera_
 
 export get_data_dir, get_mesh_dir, get_scratch_dir, resolve_data_path, resolve_mesh_path, create_output_dir, show_config # config.jl
 
-export hausdorff_distance, chamfer_distance, hausdorff_distance_kdtree, chamfer_distance_kdtree, chamfer_sq_distance_kdtree, closest_point_distance_kdtree, compare_pt_clouds # analysis/pointcloud_metrics.jl
+export hausdorff_distance, chamfer_distance, hausdorff_distance_kdtree, directed_hausdorff_kdtree, chamfer_distance_kdtree, chamfer_sq_distance_kdtree, closest_point_distance_kdtree, compare_pt_clouds # analysis/pointcloud_metrics.jl
 export ExpLeaf, ExpGroup, collect_experiment_groups # analysis/experiment_tree.jl
-export replicate_stats, bias_vs_reference, replicate_ci, normalized_replicate_stats, print_replicate_table, write_replicate_stats, replicate_report # analysis/statistical_analysis.jl
+export replicate_stats, pooled_stats, pointwise_pooled_stats, approach_stats, bias_vs_reference, replicate_ci, normalized_replicate_stats, print_replicate_table, write_replicate_stats, write_approach_stats, replicate_report # analysis/statistical_analysis.jl
 
 include("fem/models.jl")
 include("fem/fem.jl")
