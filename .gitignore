@@ -6,6 +6,9 @@ Notebooks
 vtkFiles
 images
 PUBLICATION_READINESS.md
+docs/paper_1.tex
+CLAUDE.md
+.claude/settings.local.json
 
 /mesh_files/box/
 /mesh_files/cylinder/
