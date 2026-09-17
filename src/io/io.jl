@@ -359,6 +359,20 @@ function write_data(filepath::String, data_array::AbstractArray)
     end
 end
 
+"""
+    write_2d_data(filepath, data_array)
+
+Write per-timestep 2D contour data to one CSV per timestep, split by camera view. Each view `a`
+gets its own `view_<a>/<basename(filepath)>/` directory alongside `filepath`, with files named
+by zero-padded timestep index starting at `000`.
+
+# Arguments
+- `filepath::String`: Target directory; its parent receives the `view_*` directories.
+- `data_array::AbstractArray`: Outer index timestep, inner index camera view.
+
+# Returns
+- `nothing`
+"""
 function write_2d_data(filepath::String, data_array::AbstractArray)
     @info "Writing contour files..."
     root_folder = dirname(filepath)
@@ -554,6 +568,20 @@ function read_h5(filename::String, mode::String="sim")
     return CPointList, W, C_new, IEN, IEN_cp, IEN_top, C_top_new, IEN_btm, C_btm_new, IEN_vis, C_vis_new
 end
 
+"""
+    read_perception_data(filepath)
+
+Read object and plate poses from a perception HDF5 file, transposing each to row-major node
+ordering.
+
+# Arguments
+- `filepath::String`: Path to the HDF5 file.
+
+# Returns
+- `pose_new`: Object poses over time.
+- `pose_top_plt_new`: Top plate poses over time.
+- `pose_btm_plt_new`: Bottom plate poses over time.
+"""
 function read_perception_data(filepath::String)
     if !isfile(filepath)
         throw(SystemError("File not found: $filepath"))
@@ -572,6 +600,18 @@ function read_perception_data(filepath::String)
     return pose_new, pose_top_plt_new, pose_btm_plt_new
 end
 
+"""
+    get_time_windows(file_path)
+
+Read a headerless CSV of time windows into one vector per row. Rows may have different lengths,
+which `dataframe_2_vec` preserves.
+
+# Arguments
+- `file_path::String`: Path to the CSV file.
+
+# Returns
+- `windows::Vector{AbstractArray}`: One time window per row.
+"""
 function get_time_windows(file_path::String)
     df = CSV.read(file_path,DataFrame,header=false)
     windows = dataframe_2_vec(df)

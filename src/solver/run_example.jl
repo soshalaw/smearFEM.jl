@@ -119,6 +119,28 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     end
 end
 
+"""
+    stokes_single_step_force(mdl, scene, conditions)
+
+Advance a force-controlled squeeze flow by a single time step. Used where the full `simulate`
+loop is unwanted — convergence studies and one-off diagnostics — and unlike `simulate` it also
+reports its own wall-clock cost.
+
+# Arguments
+- `mdl::Stokes`: Model holding the velocity, pressure and geometry meshes.
+- `scene::SqueezeFlow`: Scenario supplying `β`, the force history and the time grid.
+- `conditions::Conditions`: Camera model and output flags.
+
+# Returns
+- `output`: Top-surface displacement increment for the step.
+- `gradList`: Contour sensitivities in 2D.
+- `borderPts2DList`: Projected border points.
+- `displacement`: Nodal displacements.
+- `surface_pts_3D`: Side-surface node positions.
+- `pos2D`: Projected surface points.
+- `splinep`, `splineq`: Fitted contour coordinates.
+- `elapsed_time`: Wall-clock time for the step.
+"""
 function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     start_time = Dates.now()
@@ -457,18 +479,19 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     elapsed_time = end_time - start_time
     return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, splinep, splineq, elapsed_time
 end
-                                    """
-write_data(exp_params::Dict)
+"""
+    write_gt_data(exp_params)
 
-    Writes simulation data to files based on the provided experiment parameters.
+Run a ground-truth simulation from a parameter dictionary and write its results to disk.
 
 # Arguments
-- `exp_params::Dict`: A dictionary containing experiment parameters such as mesh size, material properties, file paths, and simulation settings.
+- `exp_params::Dict`: Experiment parameters — mesh shapes and basis orders, geometry, control
+  and viscosity type, camera model and viewing angles, output paths, and the ground-truth
+  `η_gt`, `β_gt`, `ne_gt` and time grid.
 
 # Returns
-None.
+- `nothing`: Results are written under `exp_params["filepath_gt"]`.
 """
-
 function write_gt_data(exp_params::Dict)
 
     element_shape_u::Symbol = exp_params["element_shape_u"]
@@ -766,6 +789,21 @@ function plot_rad_norm_vel_vs_slip(file_path::String)
 
 end
 
+"""
+    plot_rad_norm_vel_vs_visc(file_path)
+
+Plot mean radial and normal surface velocity against inverse viscosity across a viscosity sweep,
+writing both figures to `<file_path>/analysis/`. Each experiment directory contributes one point,
+time-averaged over its velocity fields; the initial step `000.csv` is skipped as it holds the
+undeformed state.
+
+# Arguments
+- `file_path::String`: Root of the sweep, one subdirectory per experiment. `analysis` and
+  `Results` are skipped.
+
+# Returns
+- `nothing`: Figures are written to disk.
+"""
 function plot_rad_norm_vel_vs_visc(file_path::String)
     dirs = readdir(file_path)
     v_rad_slip_list = zeros(Float64, (length(dirs)-1))

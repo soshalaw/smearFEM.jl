@@ -639,6 +639,41 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
     return q_upper, q_side, q_lower, C_uc
 end
 
+"""
+    simulate(mdl, scene, conditions)
+
+Time-step a squeeze-flow simulation, returning the deformed state and the analytic parameter
+sensitivities at every step. The sensitivities `∂q/∂η` and `∂q/∂β` are carried through the solve
+rather than finite-differenced afterwards, which is what lets `fit_model` run Gauss-Newton
+directly on the forward solve.
+
+Two driving modes are selected by `scene.control`. Under `"force"` the prescribed force history
+`scene.cParam` is imposed and the top-plate velocity becomes an unknown, appended to the system
+as an extra row and column. Under `"velocity"` the plate velocity is prescribed directly. Any
+other value throws an `ArgumentError`.
+
+Output written to `conditions.filepath` is controlled by the flags on `conditions`: `WRITEVTK`
+for ParaView scenes, `WRITECONTOUR` for projected 2D contours, `ANIMATE` for GIFs.
+
+# Arguments
+- `mdl::Stokes`: Model holding the velocity, pressure and geometry meshes.
+- `scene::SqueezeFlow`: Scenario supplying `β`, the control history, the viscosity law and the
+  time grid.
+- `conditions::Conditions`: Camera model and output flags.
+
+# Returns
+- `output::Vector{Float64}`: Top-surface displacement increments, populated under `"force"`
+  control only; empty under `"velocity"`.
+- `gradList`: Contour sensitivities in 2D per time step, one entry per view.
+- `borderPts2DList`: Projected border points per time step, one entry per view.
+- `displacement`: Nodal displacements per time step.
+- `surface_pts_3D`: Side-surface node positions per time step.
+- `pos2D`: Projected surface points per time step.
+- `pos3D`: Nodal positions per time step.
+- `velocity`: Nodal velocities per time step.
+- `pressure`: Nodal pressures per time step.
+- `gradList_3d`: Nodal sensitivities in 3D per time step.
+"""
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
 
     reset_model!(mdl)

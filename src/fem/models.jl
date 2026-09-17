@@ -1,6 +1,15 @@
 # Abstract type for all models
 abstract type AbstractModel end
 
+"""
+    Model{T}
+
+Mutable box holding one `AbstractModel`, so a model can be swapped in place without rebuilding
+the structures that reference it.
+
+# Arguments
+- `mdl::T`: The wrapped model.
+"""
 mutable struct Model{T<:AbstractModel}
     mdl::T
 end

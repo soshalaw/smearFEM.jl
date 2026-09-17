@@ -5,6 +5,17 @@ using Dates
 using CSV
 using DataFrames
 
+"""
+    mat_nan_inf_check(v)
+
+Throw an `ArgumentError` if the matrix contains any `NaN` or `Inf` entry.
+
+# Arguments
+- `v::AbstractArray`: Matrix to check.
+
+# Returns
+- `nothing`: Returns normally only if every entry is finite.
+"""
 function mat_nan_inf_check(v::AbstractArray)
     row, col = size(v,1), size(v,2)
     for i in 1:row
@@ -114,6 +125,21 @@ end
 
 # logging Functions
 
+"""
+    write_time_log(start_time, end_time, params; dest_dir)
+
+Append a timing record and the run parameters to `time_log.txt` in `dest_dir`, creating the
+directory if needed.
+
+# Arguments
+- `start_time::Dates.DateTime`: Start of the timed run.
+- `end_time::Dates.DateTime`: End of the timed run.
+- `params::Dict`: Run parameters, written one per line.
+- `dest_dir::String`: Directory holding `time_log.txt`.
+
+# Returns
+- `nothing`
+"""
 function write_time_log(start_time::Dates.DateTime, end_time::Dates.DateTime, params::Dict; dest_dir::String)
     log_filepath = joinpath(dest_dir, "time_log.txt")
     if !isdir(dest_dir)
@@ -132,6 +158,18 @@ function write_time_log(start_time::Dates.DateTime, end_time::Dates.DateTime, pa
 end
 
 
+"""
+    dataframe_2_vec(df)
+
+Convert a `DataFrame` to one vector per row, dropping `missing` entries. Rows of a CSV with
+ragged lengths are padded with `missing` on read, so this recovers each row's true length.
+
+# Arguments
+- `df::DataFrame`: Table to convert.
+
+# Returns
+- `data_list::Vector{AbstractArray}`: One vector per row, `missing` entries removed.
+"""
 function dataframe_2_vec(df::DataFrame)
     
     data_list::Vector{AbstractArray} = Vector{AbstractArray}()

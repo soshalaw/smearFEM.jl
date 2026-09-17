@@ -287,6 +287,22 @@ function _animate_3d(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath
     gif(animation, string(filepath,"3D_grid.gif"), fps=10)
 end
 
+"""
+    plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath="None")
+
+Animate the correspondence between simulated and observed border points, writing `matches.gif`
+into `filepath`. Axis limits are fixed to the 2048x1536 camera frame.
+
+# Arguments
+- `simborderfields`: Simulated border points per timestep, row 1 `x` and row 2 `y`.
+- `p`, `q`: Simulated contour coordinates per timestep.
+- `pObs`, `qObs`: Observed contour coordinates per timestep.
+- `pairsList`: Matched index pairs per timestep; must be the same length as `simborderfields`.
+- `filepath::String`: Output directory, created if needed.
+
+# Returns
+- `nothing`
+"""
 function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath::String="None")
     set_file(filepath)
     sz = length(simborderfields)
@@ -319,6 +335,24 @@ function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath::St
     gif(animation, string(filepath,"/matches.gif"), fps=10)
 end
 
+"""
+    set_plot(fs; sz=(477,350), legend_column=1, right_margin=0pt, left_margin=0pt, top_margin=0pt, bottom_margin=-20mm, frame=false, legend=:outerbottom)
+
+Create an empty single-panel plot with the project's publication styling (Computer Modern, boxed
+frame, font sizes scaled from `fs`).
+
+# Arguments
+- `fs::Int`: Base font size; tick and legend fonts are scaled from it.
+- `sz::Tuple{Int,Int}`: Figure size in pixels.
+- `legend_column::Int`: Number of legend columns.
+- `right_margin`, `left_margin`, `top_margin`, `bottom_margin`: Plot margins. `bottom_margin`
+  defaults negative to pull an `:outerbottom` legend closer to the axes.
+- `frame::Bool`: Whether to draw a border matching the axes.
+- `legend`: Legend position.
+
+# Returns
+- `plt::Plots.Plot`: Styled empty plot to draw into.
+"""
 function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1, right_margin=0pt, left_margin=0pt, top_margin=0pt, bottom_margin=-20mm, frame=false, legend=:outerbottom)
 
     frame_brdr = nothing
@@ -352,6 +386,24 @@ function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1, r
 end
 
 
+"""
+    set_subplot(fs; sz=(1000,750), layout=(1,1), legend=nothing, legend_column=nothing, bottom_margin=nothing)
+
+Create an empty multi-panel plot with the project's publication styling. Unlike `set_plot`, the
+legend and margin keywords are only applied when given, leaving the `Plots.jl` defaults in place
+otherwise.
+
+# Arguments
+- `fs::Int`: Font size for ticks, title and axis guides.
+- `sz::Tuple{Int,Int}`: Figure size in pixels.
+- `layout`: Subplot layout passed to `Plots.plot`.
+- `legend`: Legend position, or `nothing` to leave unset.
+- `legend_column`: Number of legend columns, or `nothing` to leave unset.
+- `bottom_margin`: Bottom margin, or `nothing` to leave unset.
+
+# Returns
+- `plt::Plots.Plot`: Styled empty plot to draw into.
+"""
 function set_subplot(fs::Int; sz::Tuple{Int,Int}=(1000,750), layout=(1,1), legend=nothing, legend_column=nothing, bottom_margin=nothing)
 
     # Build optional kwargs for legend placement if provided
@@ -429,6 +481,23 @@ function _truncate_colormap(minval=0.0, maxval=1.0, n=100)
     return new_cmap
 end
 
+"""
+    plot_covariance!(plt, η_list, β_list; label="Covariance", legend_column=1, color_ellipse=nothing, color_scatter=nothing)
+
+Overlay the covariance ellipse of a set of fitted `(η, β)` pairs onto an existing plot.
+
+# Arguments
+- `plt::Plots.Plot`: Plot to draw into; modified in place.
+- `η_list::Vector{Float64}`: Fitted shear viscosities.
+- `β_list::Vector{Float64}`: Fitted slip parameters.
+- `label::String`: Legend entry for the ellipse.
+- `legend_column::Int`: Number of legend columns.
+- `color_ellipse`: Ellipse colour, or `nothing` for the series default.
+- `color_scatter`: Scatter colour, or `nothing` for the series default.
+
+# Returns
+- `nothing`: `plt` is modified in place.
+"""
 function plot_covariance!(plt::Plots.Plot, η_list::Vector{Float64}, β_list::Vector{Float64}; label::String="Covariance", legend_column::Int=1, color_ellipse=nothing, color_scatter=nothing)
 
     mean_η = mean(η_list)

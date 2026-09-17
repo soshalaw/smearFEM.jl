@@ -1,3 +1,18 @@
+"""
+    plot_noise_covariance(ηLst, βLst, noiseLevel, file_path)
+
+Plot covariance ellipses of the fitted `(η, β)` pairs at each noise level, one figure per
+ground-truth parameter combination. The zero-noise level is skipped, having no spread to show.
+
+# Arguments
+- `ηLst`: Ground-truth shear viscosities identifying the experiment directories.
+- `βLst`: Ground-truth slip parameters identifying the experiment directories.
+- `noiseLevel`: Noise levels to overlay.
+- `file_path`: Root of the result tree holding `experiment_<η>_<β>/trials/`.
+
+# Returns
+- `nothing`: Figures are written to disk.
+"""
 function plot_noise_covariance(ηLst, βLst, noiseLevel, file_path)
     
     for η in ηLst
@@ -62,6 +77,20 @@ function plot_noise_covariance(ηLst, βLst, noiseLevel, file_path)
 
 end
 
+"""
+    plot_height_vs_slip(ηLst, βLst, file_path)
+
+Plot ground-truth height against time for every slip parameter, writing
+`height_vs_slip.pdf` to `file_path`.
+
+# Arguments
+- `ηLst`: Ground-truth shear viscosities identifying the experiment directories.
+- `βLst`: Ground-truth slip parameters identifying the experiment directories.
+- `file_path`: Root of the result tree holding `experiment_<η>_<β>/ground_truth/`.
+
+# Returns
+- `nothing`: The figure is written to disk.
+"""
 function plot_height_vs_slip(ηLst, βLst, file_path)
     βsz = length(βLst)
     set_plot(22)
@@ -77,6 +106,22 @@ function plot_height_vs_slip(ηLst, βLst, file_path)
     Plots.savefig(string(file_path,"height_vs_slip.pdf"))
 end
 
+"""
+    plot_field_at_height(ηLst, βLst, file_path)
+
+Plot the surface velocity field as a quiver overlay on the object contour, one figure per
+experiment. All experiments are compared at the same physical height: the reference is the
+first height of the last experiment, and each other run contributes the timestep whose height
+is closest to it, so contours are not compared at mismatched compression states.
+
+# Arguments
+- `ηLst`: Ground-truth shear viscosities identifying the experiment directories.
+- `βLst`: Ground-truth slip parameters identifying the experiment directories.
+- `file_path`: Root of the result tree holding `experiment_<η>_<β>/ground_truth/`.
+
+# Returns
+- `nothing`: Figures are written to disk.
+"""
 function plot_field_at_height(ηLst, βLst, file_path)
     scene_size = length(ηLst)* length(βLst)
     h_Vector = Vector{AbstractArray}(undef, scene_size)
@@ -153,6 +198,26 @@ function plot_field_at_height(ηLst, βLst, file_path)
 
 end
 
+"""
+    arrow0!(x, y, u, v, color_u, color_v; as=0.07, lw=1, lc=:black, la=1, color=0.0)
+
+Draw a single arrow with a manually constructed head onto the current plot. `Plots.jl`'s own
+arrow heads do not scale with the data range, so the head is built from two short segments
+sized relative to the arrow's own length.
+
+# Arguments
+- `x`, `y`: Arrow tail position.
+- `u`, `v`: Arrow components; the head is scaled by their magnitude.
+- `color_u`, `color_v`: Field components a colour could be derived from; currently unused.
+- `as`: Head size as a fraction of the arrow length.
+- `lw`: Line width.
+- `lc`: Line colour.
+- `la`: Line alpha.
+- `color`: Unused.
+
+# Returns
+- `nothing`: The current plot is modified in place.
+"""
 function arrow0!(x, y, u, v, color_u, color_v; as=0.07, lw=1, lc=:black, la=1, color=0.0)
     # resize the arrow
     nuv = sqrt(u^2 + v^2)
@@ -172,6 +237,19 @@ function arrow0!(x, y, u, v, color_u, color_v; as=0.07, lw=1, lc=:black, la=1, c
     Plots.plot!([x+u,x+u-v4[1]], [y+v,y+v-v4[2]], lw=lw, lc=:black, la=la, label= "")
 end
 
+"""
+    get_norm(x)
+
+Scale a matrix of row vectors so the shortest row has unit length, then multiply by 800 to give
+arrow lengths in camera pixels. Relative magnitudes are preserved; the absolute scale is chosen
+for legibility, not physical units.
+
+# Arguments
+- `x::AbstractMatrix`: One vector per row.
+
+# Returns
+- `norm_x::AbstractMatrix`: Scaled vectors, same shape as `x`.
+"""
 function get_norm(x::AbstractMatrix)
     norm_vec = zeros(size(x,1))
     for i::Int in 1:size(x,1)
@@ -182,6 +260,23 @@ function get_norm(x::AbstractMatrix)
     return norm_x.*800
 end
 
+"""
+    plot_data(ηLst, βLst, noiseLevelLst, file_path; n=0)
+
+Plot optimizer convergence and height-error summaries across ground-truth parameters and noise
+levels. At zero noise a single run exists per experiment; at nonzero noise the repeated trials
+are overlaid in one colour per slip parameter, with a dummy series carrying the legend entry.
+
+# Arguments
+- `ηLst`: Ground-truth shear viscosities identifying the experiment directories.
+- `βLst`: Ground-truth slip parameters identifying the experiment directories.
+- `noiseLevelLst`: Noise levels to plot.
+- `file_path`: Root of the result tree holding `experiment_<η>_<β>/trials/`.
+- `n`: Ignored; the repeated-trial count is fixed at 10 internally.
+
+# Returns
+- `nothing`: Figures are written to disk.
+"""
 function plot_data(ηLst, βLst, noiseLevelLst, file_path; n=0)
 
     plot_colors = [:steelblue :indianred :seagreen :darkorange :mediumpurple :cadetblue :lightcoral :dimgray]
