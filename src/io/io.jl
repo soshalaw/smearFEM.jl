@@ -171,7 +171,7 @@ function extract_p_from_u_nodes(NodeList_u, NodeList_p, IEN_p)
         @info "Nearest-neighbor mapping sanity check passed: max distance = $(max_dist), mean distance = $(mean_dist)."
     end
 
-    println("Extracted $(size(node_list_p)) pressure nodes from $(size(NodeList_u)) velocity nodes using nearest-neighbor mapping.")
+    @debug "Extracted $(size(node_list_p)) pressure nodes from $(size(NodeList_u)) velocity nodes using nearest-neighbor mapping."
 
     return node_list_p, p_to_u_idx
 end

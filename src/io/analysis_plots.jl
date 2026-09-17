@@ -106,8 +106,8 @@ function plot_field_at_height(ηLst, βLst, file_path)
         end
         ηiter += 1
     end
+    @debug "Reference height: $(h_Vector)"
     # define a reference height
-    println("Reference height: ", h_Vector)
     h_ref = h_Vector[end][1]
     # find the closest time step to the reference height
     for i::Int in 1:scene_size

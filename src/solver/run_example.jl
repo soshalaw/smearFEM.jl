@@ -38,7 +38,7 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
                                     nDof_p::Int64, β::Number, μu_tp::Number, μu_btm::Number, μu_side::Number; element_shape_x::Symbol=element_shape_u, basis_order_x::Int=basis_order_u, GRAD::Bool=false, DENSE::Bool=false)
 
     filepath_mesh = joinpath(dirname(dirname(@__DIR__)), "mesh_files")
-    println("Loading mesh files from $filepath_mesh")
+    @debug "Loading mesh files from $filepath_mesh"
     mesh_u = meshgrid_cylinder(r, h; mesh_type=:unstructured, ndof=nDof_u, element_shape=element_shape_u, basis_order=basis_order_u, elem_size=Float64(ne), mesh_path=filepath_mesh)
     mesh_p = meshgrid_cylinder(r, h; mesh_type=:unstructured, ndof=nDof_p, element_shape=element_shape_p, basis_order=basis_order_p, elem_size=Float64(ne), mesh_path=filepath_mesh)
     mesh_x = meshgrid_cylinder(r, h; mesh_type=:unstructured, ndof=1, element_shape=element_shape_x, basis_order=basis_order_x, elem_size=Float64(ne), mesh_path=filepath_mesh)
