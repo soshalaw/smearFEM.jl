@@ -16,6 +16,27 @@ function get_η_power_law(t::T, F::U, R_0::V, H_0::W, η_0::X) where {T<:Number,
     return η(t)
 end
 
+"""
+    set_model(geom::Cylinder, ne, η, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x; GMESH_MESH=true, filepath_mesh="")
+
+Build the three meshes of the mixed Stokes discretization for a cylinder and assemble them into
+a `Stokes` model. Velocity, pressure and geometry meshes come from the same geometry at
+different element order; the geometry mesh always has `ndof=1`.
+
+# Arguments
+- `geom::Cylinder`: Geometry, supplying radius and height.
+- `ne::Float64`: Element size for unstructured meshing; rounded to an element count for
+  structured meshing.
+- `η::Vector{Float64}`: Shear viscosity, either one entry or one per time step.
+- `element_shape_u::Symbol`, `basis_order_u::Int`, `nDof_u::Int64`: Velocity mesh.
+- `element_shape_p::Symbol`, `basis_order_p::Int`, `nDof_p::Int64`: Pressure mesh.
+- `element_shape_x::Symbol`, `basis_order_x::Int`: Geometry mesh.
+- `GMESH_MESH::Bool`: Mesh with Gmsh (`true`) or the structured Julia mesher (`false`).
+- `filepath_mesh::String`: Root of the Gmsh mesh cache.
+
+# Returns
+- `::Stokes`: Model holding all three meshes.
+"""
 function set_model(geom::Cylinder, ne::Float64, η::Vector{Float64},
                    element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64,
                    element_shape_p::Symbol, basis_order_p::Int, nDof_p::Int64,
@@ -31,6 +52,15 @@ function set_model(geom::Cylinder, ne::Float64, η::Vector{Float64},
     return Stokes(ndim=_dim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 end
 
+"""
+    set_model(geom::Cuboid, ne, η, ...; GMESH_MESH=true, filepath_mesh="", edge_radius=nothing)
+
+Cuboid variant of `set_model`; see the `Cylinder` method for the shared arguments. Meshes from
+`lx`, `ly`, `lz` and additionally accepts `edge_radius` to fillet the vertical edges.
+
+# Returns
+- `::Stokes`: Model holding all three meshes.
+"""
 function set_model(geom::Cuboid, ne::Float64, η::Vector{Float64},
                    element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64,
                    element_shape_p::Symbol, basis_order_p::Int, nDof_p::Int64,
@@ -47,6 +77,15 @@ function set_model(geom::Cuboid, ne::Float64, η::Vector{Float64},
     return Stokes(ndim=_dim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 end
 
+"""
+    set_model(geom::Disk, ne, η, ...; GMESH_MESH=true, filepath_mesh="")
+
+Disk variant of `set_model`; see the `Cylinder` method for the shared arguments. Errors unless
+`GMESH_MESH=true` — no structured mesher exists for a disk.
+
+# Returns
+- `::Stokes`: Model holding all three meshes.
+"""
 function set_model(geom::Disk, ne::Float64, η::Vector{Float64},
                    element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64,
                    element_shape_p::Symbol, basis_order_p::Int, nDof_p::Int64,
@@ -62,6 +101,15 @@ function set_model(geom::Disk, ne::Float64, η::Vector{Float64},
     return Stokes(ndim=_dim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 end
 
+"""
+    set_model(geom::Square, ne, η, ...; GMESH_MESH=true, filepath_mesh="")
+
+Square variant of `set_model`; see the `Cylinder` method for the shared arguments. Meshes from
+`lx` and `ly`.
+
+# Returns
+- `::Stokes`: Model holding all three meshes.
+"""
 function set_model(geom::Square, ne::Float64, η::Vector{Float64},
                    element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64,
                    element_shape_p::Symbol, basis_order_p::Int, nDof_p::Int64,
@@ -77,6 +125,15 @@ function set_model(geom::Square, ne::Float64, η::Vector{Float64},
     return Stokes(ndim=_dim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 end
 
+"""
+    set_model(geom::Segment, ne, η, ...; GMESH_MESH=true, filepath_mesh="")
+
+Segment variant of `set_model`; see the `Cylinder` method for the shared arguments. Always
+meshes structurally, so `GMESH_MESH` and `filepath_mesh` are ignored.
+
+# Returns
+- `::Stokes`: Model holding all three meshes.
+"""
 function set_model(geom::Segment, ne::Float64, η::Vector{Float64},
                    element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64,
                    element_shape_p::Symbol, basis_order_p::Int, nDof_p::Int64,
@@ -91,6 +148,39 @@ function set_model(geom::Segment, ne::Float64, η::Vector{Float64},
     return Stokes(ndim=_dim, mesh_x=mesh_x, mesh_u=mesh_u, nDof_u=nDof_u, mesh_p=mesh_p, nDof_p=nDof_p, η=η)
 end
 
+"""
+    def_problem(geom::Cylinder, ne, η_0, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β, cParam, control, viscosity_type, sim_time, t_steps; viscosity_model="power_law", GMESH_MESH=true, mesh_path=...)
+
+Wire up a complete squeeze-flow problem for a cylinder: build the viscosity history, the model
+and its boundary conditions, and pack them into a `SqueezeFlow` scenario.
+
+With `viscosity_type == "bulk_viscosity"` the viscosity is resolved per time step, from the
+power-law model when `viscosity_model == "power_law"` and as a constant fill otherwise. Any
+other `viscosity_type` yields a single constant entry.
+
+# Arguments
+- `geom::Cylinder`: Geometry, supplying radius and height.
+- `ne::Z`: Element size, passed through to `set_model`.
+- `η_0::V`: Reference shear viscosity.
+- `element_shape_u`, `basis_order_u`, `nDof_u`: Velocity mesh.
+- `element_shape_p`, `basis_order_p`, `nDof_p`: Pressure mesh.
+- `element_shape_x`, `basis_order_x`: Geometry mesh.
+- `β::Y`: Boundary slip/friction parameter.
+- `cParam::Vector{Float64}`: Control history, one entry per time step. A force here is in
+  kg*mm/s^2, not newtons. Logs an error if shorter than the time array.
+- `control::String`: Driving mode, e.g. constant velocity or constant force.
+- `viscosity_type::String`: `"bulk_viscosity"` for a per-step history, anything else for a
+  constant.
+- `sim_time::W`: Total simulated time in seconds.
+- `t_steps::X`: Time step size in seconds.
+- `viscosity_model::String`: Law used when `viscosity_type == "bulk_viscosity"`.
+- `GMESH_MESH::Bool`: Mesh with Gmsh rather than the structured mesher.
+- `mesh_path::String`: Root of the Gmsh mesh cache.
+
+# Returns
+- `stokes::Stokes`: The assembled model.
+- `squeeze::SqueezeFlow`: The scenario driving it.
+"""
 function def_problem(geom::Cylinder, ne::Z, η_0::V,
                     element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64,
                     element_shape_p::Symbol, basis_order_p::Int, nDof_p::Int64,
@@ -124,10 +214,21 @@ function def_problem(geom::Cylinder, ne::Z, η_0::V,
                        element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x;
                        filepath_mesh=mesh_path, GMESH_MESH=GMESH_MESH)
     q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes)
-    squeeze = SqueezeFlow(stokes, [β], [q_tp, q_side, q_btm], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
+    squeeze = SqueezeFlow(stokes, [β], [q_tp, q_btm, q_side], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
     return stokes, squeeze
 end
 
+"""
+    def_problem(geom::Cuboid, ne, η_0, ...; viscosity_model="power_law", GMESH_MESH=true, mesh_path=...)
+
+Cuboid variant of `def_problem`; see the `Cylinder` method for the shared arguments. The
+power-law viscosity uses the cross-sectional diagonal `sqrt(lx^2 + ly^2)` as the equivalent
+radius and `lz` as the height, and `geom.edge_radius` is forwarded to `set_model`.
+
+# Returns
+- `stokes::Stokes`: The assembled model.
+- `squeeze::SqueezeFlow`: The scenario driving it.
+"""
 function def_problem(geom::Cuboid, ne::Z, η_0::V,
                     element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int64,
                     element_shape_p::Symbol, basis_order_p::Int, nDof_p::Int64,
@@ -162,6 +263,6 @@ function def_problem(geom::Cuboid, ne::Z, η_0::V,
                        element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x;
                        filepath_mesh=mesh_path, GMESH_MESH=GMESH_MESH, edge_radius=edge_radius)
     q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes)
-    squeeze = SqueezeFlow(stokes, [β], [q_tp, q_side, q_btm], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
+    squeeze = SqueezeFlow(stokes, [β], [q_tp, q_btm, q_side], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
     return stokes, squeeze
 end
