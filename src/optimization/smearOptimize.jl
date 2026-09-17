@@ -6,7 +6,7 @@ using ArgCheck
 # residuals) live in `optimization/cost_functions.jl`, included before this file.
 
 """
-    armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, ∂d_prev, cost_prev; c=1e-4, max_backtracks=10, outliers=Int[], penalty, ∇penalty)
+    _armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, ∂d_prev, cost_prev; c=1e-4, max_backtracks=10, outliers=Int[], penalty, ∇penalty)
 
 Armijo line search with sufficient descent condition for optimization.
 
@@ -41,7 +41,7 @@ cost(θ - α·p) ≤ cost_prev - c·α·∇cost·p
 The Armijo test uses the same objective that produced `p_damped`: pass the same
 `penalty`/`∇penalty` here that were used to build the regularized gradient and Hessian.
 """
-function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray},
+function _armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray},
                             θ_prev::Vector{Float64}, p_damped::Vector{Float64}, ∂d_prev::Vector, cost_prev::Float64;
                             c::Float64=1e-4, max_backtracks::Int=10, outliers::Vector{Int}=Int[],
                             penalty::Function = _ -> 0.0, ∇penalty::Function = θ -> zero(θ),
@@ -64,7 +64,7 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
     
     for backtrack_iter in 1:max_backtracks
         θ_trial = θ_prev - α * p_damped
-        val_check(θ_trial)
+        _val_check(θ_trial)
         
         model.η = [θ_trial[1]]
         scene.β = [θ_trial[2]]
@@ -109,7 +109,7 @@ function armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Condi
 end
 
 """
-    backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, cost_prev; outliers=Int[], penalty)
+    _backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, cost_prev; outliers=Int[], penalty)
 
 Simple backtracking line search that tries full step, then half steps.
 
@@ -136,7 +136,7 @@ No principled descent guarantee like Armijo condition.
 - `accepted::Bool` : Whether step was accepted
 - `simBorderPts` : Simulated border points at the returned parameters
 """
-function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray},
+function _backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Conditions, obsBorderPts::Vector{AbstractArray},
                                θ_prev::Vector{Float64}, p_damped::Vector{Float64}, cost_prev::Float64; outliers::Vector{Int}=Int[],
                                penalty::Function = _ -> 0.0, cost::ContourCost=ClosestPointCost())
     # Simple backtracking line search (original method - kept for reference/comparison).
@@ -148,7 +148,7 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     # Try full step
     @debug "      Trying α = 1.0 (full step)..."
     θ_trial = θ_prev - p_damped
-    val_check(θ_trial)
+    _val_check(θ_trial)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
@@ -170,7 +170,7 @@ function backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::Co
     # Try half step
     @debug "      Trying α = 0.5 (half step)..."
     θ_trial = θ_prev - 0.5 * p_damped
-    val_check(θ_trial)
+    _val_check(θ_trial)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
@@ -296,9 +296,9 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         cost_prev::Float64 = totdinit
         
         if line_search_method == :armijo
-            θ, d, ∂d, ∂2d, totd, _, simBorderPts = armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, ∂d, cost_prev, outliers=outliers, cost=cost)
+            θ, d, ∂d, ∂2d, totd, _, simBorderPts = _armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, ∂d, cost_prev, outliers=outliers, cost=cost)
         else
-            θ, d, ∂d, ∂2d, totd, _, simBorderPts = backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, cost_prev, outliers=outliers, cost=cost)
+            θ, d, ∂d, ∂2d, totd, _, simBorderPts = _backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, cost_prev, outliers=outliers, cost=cost)
         end
         
         c_grad = abs(cost_prev - totd)
@@ -520,10 +520,10 @@ function _fit_model_GN_tikhonov(model::Stokes, scene::SqueezeFlow, conditions::C
         cost_prev::Float64 = totdinit
         
         if line_search_method == :armijo
-            θ, d, ∂d, ∂2d, totd, _, simBorderPts = armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, ∂d, cost_prev,
+            θ, d, ∂d, ∂2d, totd, _, simBorderPts = _armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, ∂d, cost_prev,
                                                         outliers=outliers, penalty=R, ∇penalty=∇R, cost=cost)
         else
-            θ, d, ∂d, ∂2d, totd, _, simBorderPts = backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, cost_prev,
+            θ, d, ∂d, ∂2d, totd, _, simBorderPts = _backtrack_line_search(model, scene, conditions, obsBorderPts, θ_prev, p, cost_prev,
                                                            outliers=outliers, penalty=R, cost=cost)
         end
         
@@ -644,7 +644,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         
         # Execute and evaluate step
         θ = θ - p
-        θ = val_check(θ)
+        θ = _val_check(θ)
         
         reset_model!(model)
         model.η = [θ[1]]
@@ -796,7 +796,7 @@ function fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions, ob
 end
 
 """
-    val_check(v::Vector{Float64})
+    _val_check(v::Vector{Float64})
 
 Enforce physical bounds on optimization parameters to prevent unbounded growth.
 
@@ -814,7 +814,7 @@ Clamps parameter values to physically reasonable ranges and corrects negative va
 - η (viscosity): typically 1e-3 to 1e5 Pa·s
 - β (penalty parameter): can be very large in no-slip cases (1e-3 to 1e8 L/mm)
 """
-function val_check(v::Vector{Float64})::Vector{Float64}
+function _val_check(v::Vector{Float64})::Vector{Float64}
     # Enforce physical bounds on parameters
     η_min::Float64, η_max::Float64 = 1e-12, 1e12
     β_min::Float64, β_max::Float64 = 1e-12, 1e12

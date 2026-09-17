@@ -62,23 +62,23 @@ function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3
     if isnothing(Nodes) && isnothing(sim_pts_2d) && isnothing(sim_border_nodes_2d) && isnothing(IEN) && isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
         throw(AssertionError("No fields provided"))
     elseif isnothing(Nodes) && isnothing(SurfaceNodes3D)
-        animate2D(border_nodes_2d=sim_border_nodes_2d, sim_pts_2d=sim_pts_2d, obs_border_nodes_2d=obs_border_nodes_2d, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
+        _animate_2d(border_nodes_2d=sim_border_nodes_2d, sim_pts_2d=sim_pts_2d, obs_border_nodes_2d=obs_border_nodes_2d, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
         return
     elseif isnothing(sim_pts_2d) && isnothing(sim_border_nodes_2d) && isnothing(p) && isnothing(q)
-        animate3D(fields=Nodes, IEN=IEN, filepath=filepath, cam_pose=cam_pose, height=h)
+        _animate_3d(fields=Nodes, IEN=IEN, filepath=filepath, cam_pose=cam_pose, height=h)
         return
     else 
         if !isnothing(SurfaceNodes3D)
-            animate3D(surface_pts=SurfaceNodes3D, filepath=filepath, cam_pose=cam_pose, height=h)
+            _animate_3d(surface_pts=SurfaceNodes3D, filepath=filepath, cam_pose=cam_pose, height=h)
         else
-            animate3D(fields=Nodes, IEN=IEN, filepath=filepath, cam_pose=cam_pose, height=h)
+            _animate_3d(fields=Nodes, IEN=IEN, filepath=filepath, cam_pose=cam_pose, height=h)
         end
-        animate2D(border_nodes_2d=sim_border_nodes_2d, sim_pts_2d=sim_pts_2d, obs_border_nodes_2d=obs_border_nodes_2d, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
+        _animate_2d(border_nodes_2d=sim_border_nodes_2d, sim_pts_2d=sim_pts_2d, obs_border_nodes_2d=obs_border_nodes_2d, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
     end
 end 
 
 """
-    animate2D(;border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=nothing)
+    _animate_2d(;border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=nothing)
 
 Function to animate the 2D fields as a gif
 
@@ -88,7 +88,7 @@ Function to animate the 2D fields as a gif
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function animate2D(;border_nodes_2d=nothing, sim_pts_2d=nothing, obs_border_nodes_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, filepath="images/2D_grid.gif")
+function _animate_2d(;border_nodes_2d=nothing, sim_pts_2d=nothing, obs_border_nodes_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, filepath="images/2D_grid.gif")
 
     if isnothing(border_nodes_2d) && isnothing(sim_pts_2d) && isnothing(p) && isnothing(pObs)
         throw(AssertionError("No fields provided"))
@@ -169,14 +169,14 @@ end
 
 
 """
-    animate3D(fields)
+    _animate_3d(fields)
 
 Function to animate the 3D fields as a gif
 
 # Arguments:
 - `fields::Vector{Vector{Float64}}`: solution vector
 """
-function animate3D(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="images/3D_grid.gif", cam_pose::Union{Nothing,Vector{Float64}}=nothing, height::Union{Nothing,Float64}=nothing)
+function _animate_3d(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="images/3D_grid.gif", cam_pose::Union{Nothing,Vector{Float64}}=nothing, height::Union{Nothing,Float64}=nothing)
     
     if !isnothing(fields)
         sz = length(fields)
@@ -386,9 +386,9 @@ function set_subplot(fs::Int; sz::Tuple{Int,Int}=(1000,750), layout=(1,1), legen
     return plt
 end
 """
-    normalize(q, IEN)
+    _normalize_field(q, IEN)
 
-Function normalize the solution vector for plotting
+Normalize the solution vector for plotting
     
 # Arguments:
 - `q`: solution vector
@@ -397,7 +397,7 @@ Function normalize the solution vector for plotting
 # Returns:
 - `qList`: normalized list of solutions 
 """
-function normalize(q, IEN)
+function _normalize_field(q, IEN)
 
     qList = zeros(size(IEN))
     max_val = maximum(q)
@@ -412,7 +412,7 @@ function normalize(q, IEN)
 end
 
 """
-    truncate_colormap(minval=0.0, maxval=1.0, n=100)
+    _truncate_colormap(minval=0.0, maxval=1.0, n=100)
 
 Function to truncate a colormap
     
@@ -424,7 +424,7 @@ Function to truncate a colormap
 # Returns:
 - `new_cmap`: truncated colormap
 """
-function truncate_colormap(minval=0.0, maxval=1.0, n=100)
+function _truncate_colormap(minval=0.0, maxval=1.0, n=100)
     new_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("mycmap", get_cmap("jet")(collect(range(maxval, minval, n))))
     return new_cmap
 end

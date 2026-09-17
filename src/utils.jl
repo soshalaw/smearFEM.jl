@@ -145,7 +145,7 @@ function dataframe_2_vec(df::DataFrame)
 end
 
 """
-    get_cMat(type; λ=nothing, μ=nothing, Young=nothing, ν=nothing)
+    get_c_mat(type; λ=nothing, μ=nothing, Young=nothing, ν=nothing)
 
 Returns the constitutive matrix for a given material type.
 
@@ -159,7 +159,7 @@ Returns the constitutive matrix for a given material type.
 # Returns
 - `cMat::Matrix{Float64}`: Constitutive matrix.
 """
-function get_cMat(c1::Float64, c2::Float64; type::String="lame")::Matrix{Float64}
+function get_c_mat(c1::Float64, c2::Float64; type::String="lame")::Matrix{Float64}
     if type == "lame"
         cMat =  [[ 2*c2+c1  c1    c1    0  0  0]; 
                         [  c1   2*c2+c1  c1    0  0  0]; 

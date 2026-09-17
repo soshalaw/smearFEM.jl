@@ -127,7 +127,7 @@ function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields;
     end
 end 
 
-function extract_p_from_u_nodes(NodeList_u, NodeList_p, IEN_p)
+function _extract_p_from_u_nodes(NodeList_u, NodeList_p, IEN_p)
     # Map each pressure node to its closest velocity node by Euclidean distance.
     _ = IEN_p  # kept for API compatibility
 
@@ -262,7 +262,7 @@ function write_stokes_scene(
         end
     end
     
-    _node_list_p, p_to_u_idx = extract_p_from_u_nodes(NodeList_u, NodeList_p, IEN_p) 
+    _node_list_p, p_to_u_idx = _extract_p_from_u_nodes(NodeList_u, NodeList_p, IEN_p) 
     paraview_collection(string(filepath, "/vtkFiles/", collection_name_pressure)) do pvd
         @showprogress "Writing out pressure to VTK..." for i in fieldIter
             node_list_p = isa(pos3D, AbstractVector) ? pos3D[i] : NodeList_p
@@ -391,7 +391,7 @@ function set_file(filepath::String)
 end
 
 """
-read_sparse_mat(filepath)
+_read_sparse_mat(filepath)
 
 Function to read the sparse matrix from a JLD2 file
 
@@ -401,7 +401,7 @@ Function to read the sparse matrix from a JLD2 file
 # Returns:
 - `sparse_mat::SparseMatrixCSC`: sparse matrix.
 """
-function read_sparse_mat(filepath::String)
+function _read_sparse_mat(filepath::String)
     filepath_with_ext = endswith(filepath, ".jld2") ? filepath : string(filepath, ".jld2")
     if !isfile(filepath_with_ext)
         throw(SystemError("File not found: $filepath_with_ext"))

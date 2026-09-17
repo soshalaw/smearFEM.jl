@@ -23,7 +23,7 @@ export ContourCost, ClosestPointCost, ChamferCost, SignedDistanceCost, contour_c
 export closest_point # deprecated alias for contour_cost
 export reset_model!, update_model! # models.jl
 
-export simulate, write_sim_data, readData, initialize_mesh, write_gt_data, plot_rad_norm_vel_vs_slip, plot_rad_norm_vel_vs_visc
+export simulate, write_sim_data, read_data, initialize_mesh, write_gt_data, plot_rad_norm_vel_vs_slip, plot_rad_norm_vel_vs_visc
 export simulate_single_tstep_stokes, stokes_single_step_force
 export assemble_system_A, assemble_system_B, def_problem, set_model
 
@@ -31,7 +31,7 @@ export read_csv, write_vtk, write_scene, write_csv, write_json, write_data, writ
 export plot_mesh, animate_fields, plot_matches, set_plot, set_subplot, set_plot_from_config # plotting.jl
 export plot_noise_covariance, plot_height_vs_slip, plot_field_at_height, arrow0!, get_norm, plot_data, plot_covariance! # analysis_plots.jl
 
-export mat_nan_inf_check, write_time_log, dataframe_2_vec, get_cMat, get_camera_matrix # utils.jl
+export mat_nan_inf_check, write_time_log, dataframe_2_vec, get_c_mat, get_camera_matrix # utils.jl
 
 export get_data_dir, get_mesh_dir, get_scratch_dir, resolve_data_path, resolve_mesh_path, create_output_dir, show_config # config.jl
 

@@ -39,7 +39,7 @@ function assemble_system_A(mdl::Stokes, cache::BasisFunctionCache)::SparseMatrix
     IEN_x_cached::Matrix{Int} = IEN
     element_shape_x_cached, basis_order_x_cached = volume_element_shape, basis_order
 
-    C::Matrix{Float64} = get_cMat(1.0,0.0,type="standard")
+    C::Matrix{Float64} = get_c_mat(1.0,0.0,type="standard")
     IEN_u_rows::Int = size(IEN_u_cached,1)
   
     # (I,J,V) vectors for COO sparse matrix

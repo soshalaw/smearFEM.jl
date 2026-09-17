@@ -676,7 +676,7 @@ function initialize_mesh(r::Number, h::Number, ne::Number, element_shape::Symbol
 end 
 
 """
-    readData(filepath)
+    read_data(filepath)
 
 Reads the data from a file.
 
@@ -688,7 +688,7 @@ Reads the data from a file.
 - `splinexObs::Vector{Vector{Float64}}`: x-coordinates of the border observation at each time step.
 - `splineyObs::Vector{Vector{Float64}}`: y-coordinates of the border observation at each time step.
 """
-function readData(filepath::String)
+function read_data(filepath::String)
     obsBorderPts, splinexObs, splineyObs, pd = read_csv(string(filepath,"/Results/contour_data"))   
     animate_fields(filepath = string(filepath,"/Results/cost"),pObs=splinexObs, qObs=splineyObs) # animate the fields
     plot(x->pdf(pd, x))
