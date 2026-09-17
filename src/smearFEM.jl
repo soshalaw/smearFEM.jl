@@ -91,4 +91,4 @@ else
 	const isatty = (io->false)
 end
 
-end # module smearFem
+end # module smearFEM

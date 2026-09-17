@@ -808,8 +808,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         sol = zeros(Float64, size(r))
 
         for t in time
-            _A_bar .= assemble_system_A(mdl, cache)    # assemble the stiffness matrix
-            B .= assemble_system_B(mdl, cache)         # assemble the stiffness matrix
+            _A_bar .= assemble_system_A(mdl, cache)
+            B .= assemble_system_B(mdl, cache)
             b .= apply_boundary_conditions(mdl, cache) # apply the neumann boundary conditions
             q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr) # apply the Dirichlet boundary conditions
    
@@ -845,8 +845,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
                 q_d_cached_top'*dAdβ*C_uc_cached q_d_cached_top'*dB (q_d_cached_top'*dAdβ*q_d_cached_top)[end]]
                 
             r .= [-C_Tu*A*q_d; -B'*q_d; cParam_cached[iter].-q_d_cached_top'*A*q_d]    # assemble the system of equations
-            drdη .= -[C_Tu*dAdη*q_d; zero_matrix_p_q; q_d_cached_top'*dAdη*q_d] # solve the system of equations
-            drdβ .= -[C_Tu*dAdβ*q_d; zero_matrix_p_q; q_d_cached_top'*dAdβ*q_d] # solve the system of equations           
+            drdη .= -[C_Tu*dAdη*q_d; zero_matrix_p_q; q_d_cached_top'*dAdη*q_d]
+            drdβ .= -[C_Tu*dAdβ*q_d; zero_matrix_p_q; q_d_cached_top'*dAdβ*q_d]
             
             @debug begin
                 "Time: $t, Iteration: $iter, η: $(η_cached[1]), β: $(β_cached[1])"
@@ -926,8 +926,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
         end
     elseif control_cached == "velocity"
         for t in time
-            _A_bar .= assemble_system_A(mdl, cache)    # assemble the stiffness matrix
-            B .= assemble_system_B(mdl, cache)         # assemble the stiffness matrix
+            _A_bar .= assemble_system_A(mdl, cache)
+            B .= assemble_system_B(mdl, cache)
             b = apply_boundary_conditions(mdl, cache) # apply the neumann boundary conditions
             q_d .= (μu_btm*q_d_cached_btm + cParam_cached[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
 
@@ -959,8 +959,8 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
             dKdβ = [C_Tu*dAdβ*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
             
             r = [C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
-            drdη = [C_Tu*dAdη*q_d; zero_matrix_p_q] # solve the system of equations
-            drdβ = [C_Tu*dAdβ*q_d; zero_matrix_p_q] # solve the system of equations
+            drdη = [C_Tu*dAdη*q_d; zero_matrix_p_q]
+            drdβ = [C_Tu*dAdβ*q_d; zero_matrix_p_q]
 
             sol, dsoldη, dsoldβ = lock(SPARSE_LU_LOCK) do
                 luk = lu(K_free) # LU decomposition of the system of equations

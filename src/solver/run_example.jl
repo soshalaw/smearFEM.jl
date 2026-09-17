@@ -53,12 +53,12 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     cache = BasisFunctionCache(mdl)
 
     if DENSE == true
-        A_bar = assemble_system_A(mdl, cache)               # assemble the stiffness matrix
-        B = assemble_system_B(mdl, cache)                   # assemble the stiffness matrix
+        A_bar = assemble_system_A(mdl, cache)
+        B = assemble_system_B(mdl, cache)
         b = apply_boundary_conditions_dense(mdl, cache)     # apply the neumann boundary conditions
     else
-        A_bar = assemble_system_A(mdl, cache)               # assemble the stiffness matrix
-        B = assemble_system_B(mdl, cache)                   # assemble the stiffness matrix
+        A_bar = assemble_system_A(mdl, cache)
+        B = assemble_system_B(mdl, cache)
         b = apply_boundary_conditions(mdl, cache)           # apply the neumann boundary conditions
     end
 
@@ -91,8 +91,8 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
         dKdη = [C_Tu*dAdη*C_uc zeros(size(B_free)); zeros(size(B_free')) zeros(size(B,2),size(B,2))] # assemble the system of equations
         dKdβ = [C_Tu*dAdβ*C_uc zeros(size(B_free)); zeros(size(B_free')) zeros(size(B,2),size(B,2))] # assemble the system of equations
     
-        drdη = [C_Tu*dAdη*q_d; zeros(size(B,2),size(q_d,2))] # solve the system of equations
-        drdβ = [C_Tu*dAdβ*q_d; zeros(size(B,2),size(q_d,2))] # solve the system of equations
+        drdη = [C_Tu*dAdη*q_d; zeros(size(B,2),size(q_d,2))]
+        drdβ = [C_Tu*dAdβ*q_d; zeros(size(B,2),size(q_d,2))]
 
         dsoldη = -K_free\(drdη + dKdη*sol) # solve the system of equations
         dsoldβ = -K_free\(drdβ + dKdβ*sol) # solve the system of equations
@@ -252,8 +252,8 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         dMdη = spzeros(size(M))
         dMdβ = spzeros(size(M))
 
-        A_bar .= assemble_system_A(mdl)     # assemble the stiffness matrix
-        B .= assemble_system_B(mdl)         # assemble the stiffness matrix
+        A_bar .= assemble_system_A(mdl)
+        B .= assemble_system_B(mdl)
         b .= apply_boundary_conditions(mdl) # apply the neumann boundary conditions
     
         q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
@@ -314,8 +314,8 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         dMdβ[end,end] = (q_d_cached_top'dAdβ*q_d_cached_top)[end]
 
         r = [-C_Tu*A*q_d; -B'*q_d; cParam_cached[iter].-q_d_cached_top'A*q_d]    # assemble the system of equations
-        drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdη*q_d] # solve the system of equations
-        drdβ = -[C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdβ*q_d] # solve the system of equations
+        drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdη*q_d]
+        drdβ = -[C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdβ*q_d]
 
         sol, dsoldη, dsoldβ = lock(SPARSE_LU_LOCK) do
             lum = lu(M) # LU decomposition of the system of equations
@@ -382,8 +382,8 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
 
     elseif control_cached == "velocity"
 
-        A_bar = assemble_system_A(mdl)     # assemble the stiffness matrix
-        B = assemble_system_B(mdl)         # assemble the stiffness matrix
+        A_bar = assemble_system_A(mdl)
+        B = assemble_system_B(mdl)
         b = apply_boundary_conditions(mdl) # apply the neumann boundary conditions
     
         q_d = (μu_btm*q_d_cached_btm + cParam_cached[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
@@ -418,8 +418,8 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         invK = inv(Matrix(K_free))
     
         r = [C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
-        drdη = [C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2))] # solve the system of equations
-        drdβ = [C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2))] # solve the system of equations
+        drdη = [C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2))]
+        drdβ = [C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2))]
 
         sol = -invK*r                    # solve the system of equations
         dsoldη = -invK*(drdη + dKdη*sol) # solve the system of equations
