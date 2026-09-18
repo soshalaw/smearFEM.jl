@@ -185,9 +185,10 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     @unpack nNodes = mdl.mesh_p
     nNodes_p_cached::Int = nNodes
 
-    @unpack camera_matrix, obj_pose, SIDES = conditions    
+    @unpack camera_matrix, obj_pose, viewing_angles = conditions
     camera_matrix_cached::Matrix{Float64} = camera_matrix
     obj_pose_cached::AbstractArray{Float64} = obj_pose
+    rot_angle_cached::Vector{Float64} = viewing_angles
     
     NodeList_cached::Matrix{Float64} = NodeList_u_cached
     ID_cached::Matrix{Int} = ID_u_cached
@@ -202,8 +203,7 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     μu_btm = 0  
     μu_side = 0
             
-    BorderPts2D, SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached)
-    pi, qi = fit_curve(border=BorderPts2D[1])
+    BorderPts2D, SurfacePts2D, obs_border_pts = _get_2D_data(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, angles=rot_angle_cached)
     
     dqdη = zeros(Float64, size(q_d_cached_top))
     dqdβ = zeros(Float64, size(q_d_cached_top))
@@ -221,15 +221,16 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     splinep = AbstractArray[BorderPts2D[1][1,:]]    # store the x coordinates samples of the spline parameters of the border nodes
     splineq = AbstractArray[BorderPts2D[1][2,:]]    # store the y coordinates samples of the spline parameters of the border nodes
     output = Float64[] 
-    writeborderList = [vcat(pi', qi')]
+    writeborderList = [obs_border_pts[1]]
     iter = 1
-    
+    cache = BasisFunctionCache(mdl)
+
     if control_cached == "force"
 
-        A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached)  # initialize the stiffness matrix
-        B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_p_cached*(nNodes_p_cached)^ndim_cached)      # initialize the stiffness matrix
-        b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*(nNodes_u_cached)^ndim_cached, nDof_u_cached*(nNodes_u_cached)^ndim_cached)      # initialize the stiffness matrix
-        q_d = spzeros(nDof_u_cached*(nNodes_u_cached)^ndim_cached,1)                                                                       # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
+        A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_u_cached*nNodes_u_cached)  # initialize the stiffness matrix
+        B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_p_cached*nNodes_p_cached)      # initialize the stiffness matrix
+        b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_u_cached*nNodes_u_cached)      # initialize the stiffness matrix
+        q_d = spzeros(nDof_u_cached*nNodes_u_cached,1)                                                                       # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
         A = similar(A_bar)
 
         A_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(C_uc_cached,2))   # convert to sparse matrix
@@ -252,9 +253,9 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         dMdη = spzeros(size(M))
         dMdβ = spzeros(size(M))
 
-        A_bar .= assemble_system_A(mdl)
-        B .= assemble_system_B(mdl)
-        b .= apply_boundary_conditions(mdl) # apply the neumann boundary conditions
+        A_bar .= assemble_system_A(mdl, cache)
+        B .= assemble_system_B(mdl, cache)
+        b .= apply_boundary_conditions(mdl, cache) # apply the neumann boundary conditions
     
         q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
         
@@ -364,8 +365,7 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         
         dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
 
-        BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out)
-        pi, qi = fit_curve(border=BorderPts2D[1])
+        BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D, obs_border_pts = _get_2D_data(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, angles=rot_angle_cached)
 
         push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
         push!(displacement, motion_proj)
@@ -378,13 +378,13 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         push!(borderPts2DList, BorderPts2D[1])
         push!(splinep, BorderPts2D[1][1,:])
         push!(splineq, BorderPts2D[1][2,:])
-        push!(writeborderList, vcat(pi', qi'))
+        push!(writeborderList, obs_border_pts[1])
 
     elseif control_cached == "velocity"
 
-        A_bar = assemble_system_A(mdl)
-        B = assemble_system_B(mdl)
-        b = apply_boundary_conditions(mdl) # apply the neumann boundary conditions
+        A_bar = assemble_system_A(mdl, cache)
+        B = assemble_system_B(mdl, cache)
+        b = apply_boundary_conditions(mdl, cache) # apply the neumann boundary conditions
     
         q_d = (μu_btm*q_d_cached_btm + cParam_cached[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
     
@@ -454,8 +454,7 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         
         dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
     
-        BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out)
-        pi, qi = fit_curve(border=BorderPts2D[1])
+        BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D, obs_border_pts = _get_2D_data(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, angles=rot_angle_cached)
 
         mat_nan_inf_check(dudθ[1][:,:,1])
         mat_nan_inf_check(dudθ[1][:,:,2])
@@ -471,7 +470,7 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         push!(borderPts2DList, BorderPts2D[1])
         push!(splinep, BorderPts2D[1][1,:])
         push!(splineq, BorderPts2D[1][2,:]) 
-        push!(writeborderList, vcat(pi', qi'))
+        push!(writeborderList, obs_border_pts[1])
     else
             throw(ArgumentError("Control type is unknown"))
     end
