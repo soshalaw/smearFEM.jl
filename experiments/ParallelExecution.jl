@@ -28,7 +28,15 @@ export get_available_memory_mb,
        print_progress_spinner,
        display_batch_info
 
-# Get available system memory in MB (Linux: /proc/meminfo)
+"""
+    get_available_memory_mb()
+
+Available system memory in MB, read from `/proc/meminfo`. Falls back to 2048 MB if the file
+cannot be read or parsed, so a non-Linux host still schedules rather than failing.
+
+# Returns
+- `::Float64`: Available memory in MB.
+"""
 function get_available_memory_mb()::Float64
     try
         meminfo = readlines("/proc/meminfo")
@@ -79,6 +87,20 @@ function allocate_workers(n_tasks::Int, available_memory_mb::Float64;
 end
 
 # Format task information for display
+"""
+    format_task_info(idx, params)
+
+Build a one-line summary of a task for progress output, picking out the parameters that
+identify a run. Long file paths are truncated to their last 50 characters so the line stays
+readable.
+
+# Arguments
+- `idx::Int`: Task index.
+- `params::Any`: Task parameter dict; `η_gt`, `β_gt` and `filepath_gt` are reported when present.
+
+# Returns
+- `::String`: Comma-separated summary.
+"""
 function format_task_info(idx::Int, params::Any)::String
     # Extract key parameters if they exist
     info_parts = ["Task $idx:"]
@@ -99,7 +121,21 @@ function format_task_info(idx::Int, params::Any)::String
     return join(info_parts, ", ")
 end
 
-# Print animated spinner with progress and optional live worker timing
+"""
+    print_progress_spinner(completed, total, spinner_idx; worker_timings=Dict())
+
+Print an animated progress spinner with completion count and, when supplied, live per-worker
+timings. Advances one frame per call.
+
+# Arguments
+- `completed::Int`: Tasks finished so far.
+- `total::Int`: Total tasks.
+- `spinner_idx::Int`: Frame counter; the glyph cycles every 4.
+- `worker_timings::Dict{Int, Tuple{Int, Float64}}`: Per-worker task count and elapsed time.
+
+# Returns
+- `nothing`: Writes to the console.
+"""
 function print_progress_spinner(completed::Int, total::Int, spinner_idx::Int; 
                                worker_timings::Dict{Int, Tuple{Int, Float64}}=Dict())
     spinners = ['◐', '◓', '◑', '◒']
@@ -133,6 +169,18 @@ function print_progress_spinner(completed::Int, total::Int, spinner_idx::Int;
 end
 
 # Display batch information (minimal, informative output)
+"""
+    display_batch_info(n_tasks, n_workers)
+
+Log the task and worker counts for a batch, alongside the thread count Julia was started with.
+
+# Arguments
+- `n_tasks::Int`: Number of tasks in the batch.
+- `n_workers::Int`: Workers allocated to it.
+
+# Returns
+- `nothing`
+"""
 function display_batch_info(n_tasks::Int, n_workers::Int)
     @info "Executing $n_tasks tasks with $n_workers workers ($(Threads.nthreads()) threads available)"
 end

@@ -1,12 +1,17 @@
 using smearFEM
 
+"""
+    main()
+
+Mesh a rounded cube, project it through the camera model and write the visualization data,
+as a worked example of `initialize_mesh`.
+"""
 function main()
 
     # test case 
     r::Float64 = 25.0*2  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
     ne = 6 # number of elements in the mesh for the ground truth
-    ndim = 3
     element_shape = :Hex
     basis_order = 2
     camera_matrix = get_camera_matrix()
@@ -20,6 +25,8 @@ function main()
     rot_angle_list = [0.0, 30.0, 60.0]
 
     initialize_mesh(r, h, ne, element_shape, basis_order, camera_matrix, obj_pose, rot_angle_list, geometry=geometry, filepath=filepath, edge_radius=edge_radius)
-end    
+end
 
-main()
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end

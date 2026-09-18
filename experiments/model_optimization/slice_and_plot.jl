@@ -10,6 +10,19 @@ install `Plots` and run with `--plot` flag.
 using LinearAlgebra
 using smearFEM
 
+"""
+    compute_gradients(A; dx=1.0, dy=1.0)
+
+Central-difference gradient of a cost surface, one-sided at the edges.
+
+# Arguments
+- `A::AbstractMatrix`: Cost surface; rows are y, columns are x.
+- `dx::Real`, `dy::Real`: Grid spacing in each direction.
+
+# Returns
+- `fx`: Gradient along x (columns), same shape as `A`.
+- `fy`: Gradient along y (rows), same shape as `A`.
+"""
 function compute_gradients(A::AbstractMatrix; dx::Real=1.0, dy::Real=1.0)
     ny, nx = size(A)
     fx = zeros(eltype(A), ny, nx)
@@ -33,6 +46,21 @@ function compute_gradients(A::AbstractMatrix; dx::Real=1.0, dy::Real=1.0)
     return fx, fy
 end
 
+"""
+    directions_at(A, row, col; dx=1.0, dy=1.0, fx_all=nothing, fy_all=nothing)
+
+Steepest-descent and flat directions at one point of a cost surface. Both unit vectors come
+back zero where the gradient vanishes, since no direction is distinguished there.
+
+# Arguments
+- `A::AbstractMatrix`: Cost surface.
+- `row::Integer`, `col::Integer`: Point to evaluate at.
+- `dx::Real`, `dy::Real`: Grid spacing in each direction.
+- `fx_all`, `fy_all`: Precomputed gradients; recomputed from `A` when omitted.
+
+# Returns
+- `::NamedTuple`: `(grad, steepest_unit, flat_unit, grad_norm)`, directions as `(x, y)` pairs.
+"""
 function directions_at(A::AbstractMatrix, row::Integer, col::Integer; dx::Real=1.0, dy::Real=1.0, fx_all=nothing, fy_all=nothing)
     if fx_all === nothing || fy_all === nothing
         fx_all, fy_all = compute_gradients(A; dx=dx, dy=dy)
@@ -362,7 +390,19 @@ function overlay_sampled_lines(A::AbstractMatrix, row::Integer, col::Integer, di
     end
 end
 
-function run_test(plotflag::Bool=false)
+"""
+    main(plotflag=false)
+
+Slice a stored cost surface through the steepest, flat and curvature-flat directions at a
+chosen point, reporting the gradient and Hessian there and optionally plotting the slices.
+
+# Arguments
+- `plotflag::Bool`: Write the slice plots as well as reporting the numbers.
+
+# Returns
+- `nothing`
+"""
+function main(plotflag::Bool=false)
 
     row , col = 10, 10
         contour_plot_params = read_json(resolve_data_path("experiments/syn_data/optimization/Stokes/force/constant/Q2_16/1/Q2_6/simtime_10.0/Results/data/contour_plot_params.json"))
@@ -417,17 +457,17 @@ function run_test(plotflag::Bool=false)
     fx, fy = compute_gradients(A; dx=1.0, dy=1.0)
 
     info = directions_at(A, row, col; dx=1.0, dy=1.0, fx_all=fx, fy_all=fy)
-    println("Gradient at ($row,$col): ", info.grad, " norm=", info.grad_norm)
-    println("Steepest unit: ", info.steepest_unit, "  flat unit: ", info.flat_unit)
+    @debug "Gradient at ($row,$col): $(info.grad) norm=$(info.grad_norm)"
+    @debug "Steepest unit: $(info.steepest_unit)  flat unit: $(info.flat_unit)"
 
     # clamp samples (drop out-of-domain points) and use smaller half_length for a 10x10 grid
     s1, vals1, _ = sample_line_along(A, row, col, info.steepest_unit; half_length=6.0, npoints=201, clamp=true)
     s2, vals2, _ = sample_line_along(A, row, col, info.flat_unit; half_length=6.0, npoints=201, clamp=true)
 
     if isempty(vals1)
-        println("Steepest slice: no in-domain samples (empty)")
+        @debug "Steepest slice: no in-domain samples (empty)"
             fx, fy = compute_gradients(A; dx=1.0, dy=1.0)
-        println("Steepest slice: min=$(minimum(vals1)), max=$(maximum(vals1))")
+        @debug "Steepest slice: min=$(minimum(vals1)), max=$(maximum(vals1))"
             # Automatic orientation check: if ηList/βList appear swapped relative to A dims,
             # transpose A and swap x/y coords. This handles differences in flattening order.
             # If both ηList and βList are present and their lengths match swapped dims, we transpose.
@@ -464,21 +504,21 @@ function run_test(plotflag::Bool=false)
             end
     end
     if isempty(vals2)
-        println("Flat slice: no in-domain samples (empty)")
+        @debug "Flat slice: no in-domain samples (empty)"
     else
-        println("Flat slice:     min=$(minimum(vals2)), max=$(maximum(vals2))")
+        @debug "Flat slice:     min=$(minimum(vals2)), max=$(maximum(vals2))"
     end
 
     # --- Hessian / principal curvature (flattest curvature) ---
     cur = curvature_direction_at(A, row, col; dx=1.0, dy=1.0)
-    println("Hessian at point:\n", cur.hessian)
-    println("Hessian eigenvalues: ", cur.eigvals)
-    println("Curvature flattest eigenvector (col, row) = ", cur.eigvec)
+    @debug "Hessian at point:\n$(cur.hessian)"
+    @debug "Hessian eigenvalues: $(cur.eigvals)"
+    @debug "Curvature flattest eigenvector (col, row) = $(cur.eigvec)"
     s3, vals3, _ = sample_line_along(A, row, col, (cur.eigvec[1], cur.eigvec[2]); half_length=6.0, npoints=201, clamp=true)
     if isempty(vals3)
-        println("Curvature-flat slice: no in-domain samples (empty)")
+        @debug "Curvature-flat slice: no in-domain samples (empty)"
     else
-        println("Curvature-flat slice: min=$(minimum(vals3)), max=$(maximum(vals3))")
+        @debug "Curvature-flat slice: min=$(minimum(vals3)), max=$(maximum(vals3))"
     end
 
     # plotting of slices handled by overlay_sampled_lines
@@ -494,11 +534,11 @@ function run_test(plotflag::Bool=false)
             @warn "Plots.jl not available; run `import Pkg; Pkg.add(\"Plots\")` to enable plotting"
         end
     end
-    println("slice_and_plot.jl done")
+    @info "slice_and_plot.jl done"
     return nothing
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
     plotflag = any(x->x=="--plot", ARGS)
-    run_test(plotflag)
+    main(plotflag)
 end

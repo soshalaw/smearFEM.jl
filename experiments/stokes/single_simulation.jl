@@ -5,6 +5,25 @@ using LaTeXStrings
 using StatsPlots
 
 
+"""
+    const_vel(r, h, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, ne, camera_matrix, obj_pose, z_angle_list)
+
+Run one force-controlled squeeze of a cylinder at constant viscosity and write the simulation
+data, rendered from every angle in `z_angle_list`.
+
+# Arguments
+- `r::Float64`, `h::Float64`: Cylinder radius and height, in mm.
+- `element_shape_u`, `basis_order_u`, `nDof_u`: Velocity mesh.
+- `element_shape_p`, `basis_order_p`, `nDof_p`: Pressure mesh.
+- `element_shape_x`, `basis_order_x`: Geometry mesh.
+- `ne::Int`: Element size passed to the mesher.
+- `camera_matrix::AbstractMatrix{Float64}`: Camera intrinsics.
+- `obj_pose::Vector{Float64}`: Camera position relative to the object.
+- `z_angle_list::Vector{Float64}`: Viewing angles to render, in degrees.
+
+# Returns
+- `nothing`: Results are written under `sim_experiments/single_simulation/`.
+"""
 function const_vel(r::Float64, h::Float64,
                     element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int,
                     element_shape_p::Symbol, basis_order_p::Int, nDof_p::Int,
@@ -33,6 +52,20 @@ function const_vel(r::Float64, h::Float64,
     write_sim_data(model, scene, camera_matrix, obj_pose, z_angle_list, filepath)
 end
 
+"""
+    const_vel(lx, ly, lz, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, ne, camera_matrix, obj_pose, z_angle_list; edge_radius=nothing)
+
+Cuboid counterpart of the cylinder method, run at bulk viscosity rather than constant. Writes
+to the same output directory, so whichever method runs last wins.
+
+# Arguments
+- `lx::Float64`, `ly::Float64`, `lz::Float64`: Box dimensions, in mm; compression is along `lz`.
+- `edge_radius::Union{Float64,Nothing}`: Fillet radius on the vertical edges, `nothing` if sharp.
+- All other arguments: as the cylinder method.
+
+# Returns
+- `nothing`: Results are written under `sim_experiments/single_simulation/`.
+"""
 function const_vel(lx::Float64, ly::Float64, lz::Float64,
                     element_shape_u::Symbol, basis_order_u::Int, nDof_u::Int,
                     element_shape_p::Symbol, basis_order_p::Int, nDof_p::Int,
@@ -59,6 +92,12 @@ function const_vel(lx::Float64, ly::Float64, lz::Float64,
     write_sim_data(model, scene, camera_matrix, obj_pose, z_angle_list, filepath)
 end
 
+"""
+    main()
+
+Run the single-simulation example — currently the cuboid case; the cylinder call is kept
+commented beneath it.
+"""
 function main()
     element_shape_x::Symbol = :Hex
     basis_order_x::Int = 2
@@ -90,4 +129,6 @@ function main()
     #           nDof_p, element_shape_x, basis_order_x, ne, camera_matrix, obj_pose, z_angle_list)
 end
 
-main()
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end

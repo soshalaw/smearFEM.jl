@@ -118,7 +118,7 @@ function plot_aruco_calibration(filepath::String)
                  lw    = 1.2,
                  label = L"\mathrm{mean}")
     Plots.ylims!(plt, 107, 109.1)
-    Plots.Plots.xlims!(plt, 0.0, 10.0)
+    Plots.xlims!(plt, 0.0, 10.0)
     Plots.xlabel!(plt, L"\mathrm{Time}\,[\mathrm{s}]")
     Plots.ylabel!(plt, L"d_{\mathrm{markers}}\;[\mathrm{mm}]")
     Plots.savefig(plt, joinpath(savepath,"stage_precision.pdf"))
@@ -149,7 +149,7 @@ function plot_aruco_calibration(filepath::String)
                 color = def_red,
                 label = L"\Delta h_{\mathrm{true}}")
     Plots.ylims!(plt_h, 9.0, 11.1)
-    Plots.Plots.xlims!(plt_h, 0.0, 10.0)
+    Plots.xlims!(plt_h, 0.0, 10.0)
     Plots.xlabel!(plt_h, L"\mathrm{Time}\,[\mathrm{s}]")
     Plots.ylabel!(plt_h, L"h_{\mathrm{plate}}\;[\mathrm{mm}]")
     Plots.savefig(plt_h, joinpath(savepath,"plate_accuracy.pdf"))
@@ -164,4 +164,6 @@ function plot_aruco_calibration(filepath::String)
     return plt, data
 end
 
-plot_aruco_calibration(resolve_data_path("ground_truth/physical_data/aruco_calibration/aruco_calibration.hdf5"))
+if abspath(PROGRAM_FILE) == @__FILE__
+    plot_aruco_calibration(resolve_data_path("ground_truth/physical_data/aruco_calibration/aruco_calibration.hdf5"))
+end

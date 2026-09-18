@@ -30,6 +30,20 @@ const PLOT_CONFIG = Dict(
 conv_path(parts...) = resolve_data_path(joinpath("experiments", "sim_data", "convergence_analysis", "stokes_convergence", parts...))
 
 
+"""
+    get_r(filepath)
+
+Read every CSV of 3D surface points in a directory and reduce each to a free-surface radius
+profile. Points are sorted by height and one sample is kept per integer z level, so the result
+is a single radius per height rather than a full point cloud.
+
+# Arguments
+- `filepath::String`: Directory of surface-point CSVs. Non-`.csv` entries are skipped.
+
+# Returns
+- `border_r_list::Vector{AbstractArray}`: Radius profile per file.
+- `border_z_list::Vector{AbstractArray}`: Matching heights.
+"""
 function get_r(filepath::String)   
     if !isdir(filepath)
         throw(SystemError("Trying to read from $filepath, the directory does not exist."))
@@ -66,6 +80,19 @@ function get_r(filepath::String)
     return border_r_list, border_z_list
 end
 
+"""
+    get_r_curves(filepath)
+
+Read the `free_curve*.csv` reference profiles in a directory and fit a linear spline to each,
+extrapolating outside the sampled range so curves at different heights stay comparable.
+
+# Arguments
+- `filepath::String`: Directory holding the `free_curve*.csv` files.
+
+# Returns
+- `r_curves::Vector`: One named tuple per curve — `(z, r, spline, file)`, with `z` shifted to
+  start at 0.
+"""
 function get_r_curves(filepath::String)
     csv_list = readdir(filepath, join=true)
     r_curves = []
@@ -84,6 +111,19 @@ function get_r_curves(filepath::String)
     return r_curves
 end
 
+"""
+    fit_convergence_rate(x_vals, y_vals)
+
+Fit a power law by linear regression in log-log space, giving the observed order of convergence.
+
+# Arguments
+- `x_vals::Vector`: Independent variable — element size or time step.
+- `y_vals::Vector`: Corresponding error.
+
+# Returns
+- `intercept::Float64`: Fitted intercept in log space.
+- `rate::Float64`: Fitted slope, i.e. the convergence order.
+"""
 function fit_convergence_rate(x_vals::Vector, y_vals::Vector)
     # Linear regression in log-log space; returns (intercept, rate).
     log_x = log.(x_vals)
@@ -164,6 +204,20 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Abstr
 end
 
 
+"""
+    mesh_convergence_analysis(; radius=25.0, height=40.0, elem_sizes=[10, 8, 6, 4], template_mesh_geo_path=...)
+
+Run the forward solve at a series of element sizes and record height and radius error against
+the finest-mesh reference, writing the series to CSV for `plot_convergence_mesh`.
+
+# Arguments
+- `radius::Float64`, `height::Float64`: Cylinder dimensions, in mm.
+- `elem_sizes::Vector`: Element sizes to sweep, coarsest first.
+- `template_mesh_geo_path::String`: `.geo` template the meshes are generated from.
+
+# Returns
+- `nothing`: Results are written under the ground-truth data tree.
+"""
 function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, elem_sizes::Vector=[10, 8, 6, 4], 
                                   template_mesh_geo_path::String=joinpath(@__DIR__, "mesh.geo"))
 
@@ -207,7 +261,7 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
         filepath = resolve_data_path(joinpath("ground_truth", "sim_data", "Stokes", control, viscosity_type, "$(element_shape_x)_$(basis_order_x)", "convergence_analysis", "mesh_convergence_analysis", "mesh_sz_$nz"))
 
         # Extract element size from directory name
-        println("Running for element size = $nz")
+        @info "Running for element size = $nz"
         
         exp_params = Dict(
                 "element_shape_u" => element_shape_u,
@@ -263,8 +317,8 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             Plots.plot!(z_cmp, r_int, label="Reference mesh", linestyle=:dash)
             Plots.savefig(joinpath(path, "radius_vs_height_mesh_sz_$nz.pdf"))
 
-            println("Height error: ", δh)
-            println("Radius error: ", δr)
+            @debug "Height error: $(δh)"
+            @debug "Radius error: $(δr)"
 
             push!(effective_element_size_list, effective_element_size)
             push!(height_list, h_mesh)
@@ -285,7 +339,21 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
     write_csv(conv_path("mesh_convergence_analysis/time_list"), time_list)
 end
 
-function time_intergration_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, dt_list::Vector=[2, 1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001], 
+"""
+    time_integration_convergence_analysis(; radius=25.0, height=40.0, dt_list=[...], template_mesh_geo_path=...)
+
+Run the forward solve at a series of time steps and record the height error against the
+smallest-step reference, writing the series to CSV for `plot_convergence_time`.
+
+# Arguments
+- `radius::Float64`, `height::Float64`: Cylinder dimensions, in mm.
+- `dt_list::Vector`: Time steps to sweep, largest first.
+- `template_mesh_geo_path::String`: `.geo` template the mesh is generated from.
+
+# Returns
+- `nothing`: Results are written under the ground-truth data tree.
+"""
+function time_integration_convergence_analysis(; radius::Float64=25.0, height::Float64=40.0, dt_list::Vector=[2, 1, 0.5, 0.1, 0.05, 0.01, 0.005, 0.001], 
                                   template_mesh_geo_path::String=joinpath(@__DIR__, "mesh.geo"))    
     height_list = AbstractArray[]
     final_height_list = Float64[]
@@ -330,7 +398,7 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
     for (idx,step_size) in enumerate(Float64.(reverse(dt_list)))
 
         filepath = joinpath(mesh_dir, "convergence_analysis", "time_integration_convergence_analysis","step_$step_size", "simulation")
-        println("Running for time step size = $step_size")
+        @info "Running for time step size = $step_size"
         steps = round(Int, sim_time/step_size)
         
         # Run simulation with the generated mesh
@@ -377,7 +445,7 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
             δh = abs(h_mesh[end] - h_ref) / h_ref
             _δh = (h_mesh[end] - h_ref) / h_ref
             
-            println("Height error: ", _δh)
+            @debug "Height error: $(_δh)"
             push!(effective_element_size_list, effective_element_size)
             push!(height_list, h_mesh)
             push!(height_error_list, δh)
@@ -389,7 +457,7 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
             @warn "Failed to read results for time step size $step_size: $e"
         end
     end
-    println("Final height list: ", final_height_list)
+    @debug "Final height list: $(final_height_list)"
     write_csv(conv_path("time_convergence_analysis/effective_element_size"), effective_element_size_list)
     write_csv(conv_path("time_convergence_analysis/height_list"), height_list)
     write_csv(conv_path("time_convergence_analysis/height_error_list"), height_error_list)
@@ -398,6 +466,18 @@ function time_intergration_convergence_analysis(; radius::Float64=25.0, height::
     write_csv(conv_path("time_convergence_analysis/border_r_list"), border_r_list)
 end
 
+"""
+    plot_convergence_mesh(file_path)
+
+Plot the mesh-convergence study written by `mesh_convergence_analysis`: height and radius
+convergence, their errors against element size, and the computational cost.
+
+# Arguments
+- `file_path::String`: Directory holding the CSVs the analysis wrote.
+
+# Returns
+- `nothing`: Six PDFs are written alongside the inputs.
+"""
 function plot_convergence_mesh(file_path::String)
     try
         radius = 25.0
@@ -457,6 +537,18 @@ function plot_convergence_mesh(file_path::String)
     end
 end
 
+"""
+    plot_convergence_time(file_path)
+
+Plot the time-integration convergence study: height error against time step, and the converged
+final height against time step.
+
+# Arguments
+- `file_path::String`: Directory holding the CSVs the analysis wrote.
+
+# Returns
+- `nothing`: Two PDFs are written alongside the inputs.
+"""
 function plot_convergence_time(file_path::String)
         height_error_list = readdlm(joinpath(file_path, "height_error_list.csv"), ',', Float64)
         dt_list = readdlm(joinpath(file_path, "t_steps.csv"), ',', Float64)
@@ -494,7 +586,7 @@ results. Invoked automatically when this file is run as a script
 (`julia forward_convergence.jl`), but not when it is `include`d.
 """
 function main()
-    time_intergration_convergence_analysis()
+    time_integration_convergence_analysis()
     plot_convergence_time(conv_path("time_convergence_analysis"))
     mesh_convergence_analysis()
     plot_convergence_mesh(conv_path("mesh_convergence_analysis"))

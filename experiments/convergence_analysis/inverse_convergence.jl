@@ -25,6 +25,21 @@ function _view_path(dt_path::String, opt_method::String, view::String="view_1")
     return joinpath(dt_path, view)   # pre-2026-08-26 layout
 end
 
+"""
+    plot_inv_mesh_convergence(filepath_res, filepath_gt; opt_method="gn")
+
+Plot how the recovered `η`, `β` and final cost converge as the mesh is refined, one point per
+`Hex2_*` element-size directory, against the ground truth.
+
+# Arguments
+- `filepath_res::String`: Result tree holding the `Hex2_*` directories.
+- `filepath_gt::String`: Ground-truth tree the estimates are compared against.
+- `opt_method::String`: Optimizer subdirectory to read; falls back to the pre-2026-08-26 layout
+  when absent.
+
+# Returns
+- `nothing`: Three PDFs are written to the analysis directory.
+"""
 function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String; opt_method::String="gn")
     # Load the data from the CSV file
     _mesh_dir = readdir(filepath_res)
@@ -99,6 +114,21 @@ function plot_inv_mesh_convergence(filepath_res::String, filepath_gt::String; op
 
 end
 
+"""
+    plot_inv_time_convergence(filepath_res, filepath_gt; opt_method="gn")
+
+Plot how the recovered `η`, `β` and final cost converge as the time step is refined, one point
+per `dt_*` directory under a fixed mesh, against the ground truth.
+
+# Arguments
+- `filepath_res::String`: Result tree; the `dt_*` directories are read from its `Hex2_6` mesh.
+- `filepath_gt::String`: Ground-truth tree the estimates are compared against.
+- `opt_method::String`: Optimizer subdirectory to read; falls back to the pre-2026-08-26 layout
+  when absent.
+
+# Returns
+- `nothing`: Three PDFs are written to the analysis directory.
+"""
 function plot_inv_time_convergence(filepath_res::String, filepath_gt::String; opt_method::String="gn")
      # Load the data from the CSV file
     _dt_dir = readdir(joinpath(filepath_res, "Hex2_6"))
