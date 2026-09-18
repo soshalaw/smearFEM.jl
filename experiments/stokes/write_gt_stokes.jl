@@ -8,6 +8,18 @@ using LinearAlgebra
 include("../ParallelExecution.jl")
 using .ParallelExecution
 
+"""
+    _get_F_ext(β_gt)
+
+Applied force for a given slip parameter, calibrated so every ground-truth run reaches roughly
+the same final height despite differing slip. Force is in kg*mm/s², not newtons.
+
+# Arguments
+- `β_gt::Real`: Ground-truth slip parameter.
+
+# Returns
+- `::Float64`: Force to apply.
+"""
 function _get_F_ext(β_gt::Real)::Float64
     if β_gt <= 1.0
         return 9.813e3 * 0.85
@@ -37,6 +49,18 @@ function _get_F_ext(β_gt::Real)::Float64
 end
 
 # Read final height from simulation output CSV
+"""
+    get_final_height(filepath)
+
+Read the last height from a completed run's `data/h.csv`. Returns `NaN` rather than throwing
+when the file is missing, empty or unreadable, so a calibration sweep survives one bad run.
+
+# Arguments
+- `filepath::String`: Run directory containing `data/h.csv`.
+
+# Returns
+- `::Float64`: Final height in mm, or `NaN` if unavailable.
+"""
 function get_final_height(filepath::String)::Float64
     height_file = joinpath(filepath, "data", "h.csv")
     
@@ -60,6 +84,22 @@ function get_final_height(filepath::String)::Float64
 end
 
 # Iteratively adjust F_ext multipliers to achieve target height across all experiments
+"""
+    calibrate_multipliers(param_list; target_height=29.0, tolerance=1e-2, max_iterations=3)
+
+Iteratively adjust the per-slip force multipliers so each ground-truth run lands at
+`target_height`, re-running the affected experiments between iterations. This is how the table
+baked into `_get_F_ext` was produced.
+
+# Arguments
+- `param_list::Vector{Dict}`: Experiment parameters, one dict per run.
+- `target_height::Float64`: Final height each run should reach, in mm.
+- `tolerance::Float64`: Relative height error accepted as converged.
+- `max_iterations::Int`: Cap on refinement passes.
+
+# Returns
+- `multipliers::Dict`: Slip parameter to force multiplier.
+"""
 function calibrate_multipliers(param_list::Vector{Dict}; target_height::Float64=29.0, tolerance::Float64=1e-2, max_iterations::Int=3)
     base_force = 9.813e3
     multipliers = Dict(
@@ -123,6 +163,21 @@ function calibrate_multipliers(param_list::Vector{Dict}; target_height::Float64=
 end
 
 # Write error logs to file
+"""
+    write_error_log(err, bt; params=Dict(), dest_dir=".")
+
+Persist a worker failure to a timestamped file, so a crash inside a parallel batch survives the
+run rather than scrolling past.
+
+# Arguments
+- `err::Exception`: The failure.
+- `bt::Vector`: Backtrace captured at the failure.
+- `params::Dict`: Parameters of the failing task.
+- `dest_dir::String`: Directory for the log; created if absent.
+
+# Returns
+- `nothing`
+"""
 function write_error_log(err::Exception, bt::Vector; params::Dict=Dict(), dest_dir::String=".")
     mkpath(dest_dir)
     log_file = joinpath(dest_dir, "error_log_$(now()).txt")
@@ -138,7 +193,20 @@ function write_error_log(err::Exception, bt::Vector; params::Dict=Dict(), dest_d
     @info "Error log written to $log_file"
 end
 
-# Handle errors in worker threads
+"""
+    _handle_worker_error(err, idx, params)
+
+Log a worker failure and persist it under the run's own `Results/logs`, falling back to a plain
+`@error` if even the log write fails.
+
+# Arguments
+- `err::Exception`: The failure.
+- `idx::Int`: Index of the failing task.
+- `params::Dict`: Parameters of the failing task; `filepath_res` selects the log directory.
+
+# Returns
+- `nothing`
+"""
 function _handle_worker_error(err::Exception, idx::Int, params::Dict)
     bt = catch_backtrace()
     @error "write_gt_data failed for params index $idx" exception=(err, bt)
@@ -151,6 +219,21 @@ function _handle_worker_error(err::Exception, idx::Int, params::Dict)
     end
 end
 
+"""
+    main(; use_parallel=true, calibrate=false, max_workers=-1, memory_per_experiment_mb=512.0)
+
+Generate the ground-truth dataset: build the parameter sweep and run every experiment, either
+through the memory-aware scheduler or serially.
+
+# Arguments
+- `use_parallel::Bool`: Dispatch to `run_parallel_tasks` rather than looping serially.
+- `calibrate::Bool`: Re-derive the force multipliers instead of using `_get_F_ext`'s table.
+- `max_workers::Int`: Worker cap; `-1` auto-detects from available memory.
+- `memory_per_experiment_mb::Float64`: Memory estimate per task, used for that allocation.
+
+# Returns
+- `nothing`: Ground-truth data is written under the configured data directory.
+"""
 function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int=-1, memory_per_experiment_mb::Float64=512.0)
     # parameters for the optimization
     r::Float64 = 25.0*2  # radius of the cylinder in mm
@@ -275,10 +358,12 @@ function main(; use_parallel::Bool=true, calibrate::Bool=false, max_workers::Int
                 _handle_worker_error(err, i, params)
             end
         end
-        println("All experiments completed.")
+        @info "All experiments completed."
     end
 end
 
 # Usage: main(use_parallel=true, calibrate=false) or main(use_parallel=true, calibrate=true)
 # Default: Run with current F_ext values (to calibrate: pass calibrate=true)
-main(use_parallel=true, calibrate=false, memory_per_experiment_mb=1024.0)
+if abspath(PROGRAM_FILE) == @__FILE__
+    main(use_parallel=true, calibrate=false, memory_per_experiment_mb=1024.0)
+end
