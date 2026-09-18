@@ -3937,6 +3937,9 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list; 
     rel_err_pred_runs = Vector{Vector{Float64}}()
     norm_pred_segs    = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
     rel_err_pred_segs = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
+    cpd_runs      = Vector{Vector{Float64}}()      # contour cost of the estimate   / initial
+    cpd_pred_runs = Vector{Vector{Float64}}()      # contour cost of the prediction / initial
+    cpd_pred_segs = Vector{Vector{Tuple{UnitRange{Int},Vector{Float64}}}}()
     stat_time = Float64[]
     stat_windows = Float64[]                        # window boundaries, for the vlines
 
@@ -4122,7 +4125,15 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list; 
                     t_windows = readdlm(datapath(win_exp_path,"window_data","t_windows.csv"),',',Float64)
                     time_windows = readdlm(datapath(win_exp_path,"window_data","time_windows.csv"),',',Float64)
 
+                    # Normalizing by each run's own initial cost keeps the series comparable
+                    # across runs made at different η/β, as `replot` does per experiment.
+                    cost_init = readdlm(datapath(win_exp_path,"window_data","cost_windows.csv"), ',', '\n')[1,1]
+
                     sim_border_pt_lst, splinex, spliney = read_csv(datapath(win_exp_path,"sim_data","view_1","2D_border_points_est"))
+                    # Written only when the fit ran short-horizon predictions, so optional
+                    # exactly like `pred_h`.
+                    _pred_border_dir = datapath(win_exp_path,"sim_data","view_1","2D_border_points_pred")
+                    pred_border_pt_lst = isdir(_pred_border_dir) ? read_csv(_pred_border_dir)[1] : nothing
 
                     @debug "Time windows: $(time_windows)"
                     obs_time = sum(time_windows)
@@ -4229,6 +4240,7 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list; 
 
                             push!(norm_est_runs, vec(est_h ./ gt_h))
                             push!(rel_err_est_runs, vec(rel_height_error))
+                            push!(cpd_runs, vec(contour_cost(sim_border_pt_lst, obs_border_pt_lst)[1]) ./ cost_init)
                             if !isnothing(pred_h_list)
                                 gtp = vec(gt_h)
                                 ph  = _align_windowed(vec(pred_h_list), data_ranges_, length(gtp))
@@ -4237,6 +4249,15 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list; 
                                 segs = _windowed_series(vec(pred_h_list), data_ranges_, length(gtp))
                                 push!(norm_pred_segs, [(r, v ./ gtp[r]) for (r, v) in segs])
                                 push!(rel_err_pred_segs, [(r, abs.(v .- gtp[r]) ./ gtp[r] .* 100.0) for (r, v) in segs])
+                                if !isnothing(pred_border_pt_lst)
+                                    # Predicted contours scored against the same observations and
+                                    # normalized by the same initial cost as the estimated ones,
+                                    # so the two are read on one axis.
+                                    cpd_p, cpd_p_segs = _windowed_contour_cost(
+                                        pred_border_pt_lst, obs_border_pt_lst, data_ranges_, length(gtp))
+                                    push!(cpd_pred_runs, cpd_p ./ cost_init)
+                                    push!(cpd_pred_segs, [(r, v ./ cost_init) for (r, v) in cpd_p_segs])
+                                end
                             end
                             isempty(stat_time) && (stat_time = collect(t))
                             isempty(stat_windows) && (stat_windows = vec(Float64.(t_windows)))
@@ -4341,6 +4362,34 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list; 
                   mosd_time, plot_path_global, "mosd_relative";
                   xlabel=L"\mathrm{Time\;[s]}", ylabel=L"\mathrm{Relative\;MOSD}",
                   hline=1.0, vlines=stat_windows)
+    end
+
+    # ---- cross-experiment statistics on the contour cost ---------------------------------
+    # The third reported quantity alongside height and MOSD, matching what `replot` draws per
+    # experiment (`closest_point_distance_error.pdf`). Each run is divided by its own initial
+    # cost: the absolute contour cost carries the object's scale in frame, so its raw spread
+    # across runs would describe the geometry rather than the fit.
+    contour_stats = filter(!isnothing, [
+        normalized_replicate_stats(cpd_runs,      "contour cost est / initial";  reference=0.0, signed=false),
+        normalized_replicate_stats(cpd_pred_runs, "contour cost pred / initial"; reference=0.0, signed=false),
+    ])
+
+    if !replicate_report(contour_stats, "EXPERIMENT STATISTICS — relative contour cost",
+                         joinpath(plot_path_global, "contour_cost_statistics.csv"))
+        @info "No contour data found — skipping contour-cost statistics"
+    else
+        _write_approach_reports(contour_stats, plot_path_global, "contour_cost_statistics.csv")
+        by_label_cpd = Dict(st.label => st for st in contour_stats)
+        _stat_fig_approaches(((cpd_runs, by_label_cpd["contour cost est / initial"], def_red, :solid, "Estimation"),
+                   (cpd_pred_segs, get(by_label_cpd, "contour cost pred / initial", nothing), def_blue,
+                    :dash, "Prediction")),
+                  stat_time, plot_path_global, "closest_point_distance_error";
+                  xlabel=L"\mathrm{Time\;[s]}",
+                  ylabel=L"\mathrm{Relative\;Cost}",
+                  # Same window as `replot`'s per-experiment version: the first window's
+                  # prediction starts from the initial guess and overshoots, which would
+                  # flatten every later window to a line.
+                  xlims=(0, end_obs_win), ylims=(0, 3), vlines=stat_windows)
     end
 end
 
