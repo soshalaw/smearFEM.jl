@@ -24,10 +24,7 @@ using Plots.PlotMeasures
 include("../ParallelExecution.jl")
 using .ParallelExecution
 
-global def_orange = RGB(245/255,118/255,0)
-global def_blue = RGB(5/255,79/255,185/255)
-global def_red = RGB(196/255,70/255,1/255)
-global def_green = RGB(2/255,147/255,86/255)
+include(joinpath(@__DIR__, "..", "plot_style.jl"))
 global end_obs_win = 40.1
 
 # PLOT_CONFIG: default geometry seeding the globals below at load time.

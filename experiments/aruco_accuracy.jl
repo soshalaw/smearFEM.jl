@@ -6,10 +6,7 @@ using Plots
 using LaTeXStrings
 using smearFEM
 
-global def_orange = RGB(245/255,118/255,0)
-global def_blue = RGB(5/255,79/255,185/255)
-global def_red = RGB(196/255,70/255,1/255)
-global def_green = RGB(2/255,147/255,86/255)
+include(joinpath(@__DIR__, "plot_style.jl"))
 
 const PLOT_CONFIG = Dict(
     :font_size => 11,
