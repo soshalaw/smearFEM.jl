@@ -25,7 +25,7 @@ include("../ParallelExecution.jl")
 using .ParallelExecution
 
 include(joinpath(@__DIR__, "..", "plot_style.jl"))
-global end_obs_win = 40.1
+const end_obs_win = 40.1
 
 # PLOT_CONFIG: default geometry seeding the globals below at load time.
 # PLOT_PRESETS: per-(data_type[, viscosity_type]) overrides applied by
@@ -40,14 +40,6 @@ const PLOT_CONFIG = Dict(
     :top_margin => 1pt,
 )
 
-# for 1/3 linewidth
-# const PLOT_CONFIG = Dict(:font_size => 12, :plot_height => 360, :plot_width => 330,
-#                           :left_margin => -6pt, :right_margin => 10pt, :top_margin => 0pt)
-
-# for 1/4 linewidth
-# const PLOT_CONFIG = Dict(:font_size => 10, :plot_height => 300, :plot_width => 239,
-#                           :left_margin => -6pt, :right_margin => 0pt, :top_margin => -1pt)
-
 global fs::Int = PLOT_CONFIG[:font_size]
 global plt_height::Int = PLOT_CONFIG[:plot_height]
 global plt_width::Int = PLOT_CONFIG[:plot_width]
@@ -57,8 +49,8 @@ global plt_top_margin = PLOT_CONFIG[:top_margin]
 
 # Fixed 1/2-linewidth geometry for the multi-window η/β plots (plt_η, plt_β),
 # independent of the data_type/viscosity_type preset applied by set_plot_config().
-global eta_beta_plt_width::Int = 330
-global eta_beta_plt_height::Int = 360
+const eta_beta_plt_width::Int = 330
+const eta_beta_plt_height::Int = 360
 
 # Per-(data_type[, viscosity_type]) geometry + y-limit presets, applied by
 # set_plot_config(). Keyed by data_type alone except for "synthetic", which
@@ -488,6 +480,9 @@ function _get_borders(data_type::String, filepath_gt::String, exp_path::String, 
     return obs_border_pt_lst, sim_border_pt_lst, gt_Splinex, gt_Spliney, splinex, spliney
 end
 
+# Point count of one contour frame, whichever way round it is stored.
+_npts(p) = max(size(p, 1), size(p, 2))
+
 """
     iteration_contour_metrics(data_type, filepath_gt, exp_path; view_folder, sim_view, write_results)
         -> Dict
@@ -549,9 +544,6 @@ the shorter of the observed and simulated sequences.
   All in px². The `_up` entries are the upsampled arm; `closest_pt` is computed on the
   upsampled contour.
 """
-# Point count of one contour frame, whichever way round it is stored.
-_npts(p) = max(size(p, 1), size(p, 2))
-
 function iteration_contour_metrics(data_type::String, filepath_gt::String, exp_path::String;
                                    view_folder::String="view_1", sim_view::String="view_1",
                                    upsample_method::Symbol=:spline,
@@ -2301,6 +2293,42 @@ function _result_methods(filepath_res::String, dirs, avoid_dirs)
 end
 
 """
+    _window_subdirs(exp_path)
+
+Time-window subdirectories of an experiment, with the non-window siblings filtered out.
+
+`single_window` is the one that matters: it is a *separate experimental condition* (one global
+static fit evaluated against the same window grid, for comparison), not another window of the
+`multi_window` re-fit. It shares `data_ranges.csv`/`t_windows.csv` with `multi_window`, so
+nothing upstream distinguishes them. Left in, it doubles `n` (replicates x 2 conditions) and its
+differently-shaped `pred_h.csv` breaks `_align_windowed`, producing `h_pred/h_gt` and
+`MOSD_pred/MOSD_gt` `NaN`.
+
+This filter is shared by `replot`, `post_analysis_bulk` and `post_analysis_real`. It lives in one
+place because it used to be copy-pasted into all three, where editing two of the three copies
+would silently reintroduce that bug. A future sibling directory under `view_*` holding another
+comparison condition needs adding here, once.
+
+`keep_single_window=true` opts back in, and **only `replot` does**. The cross-replicate
+statistics must never see it — that is the bug above. `replot` draws one experiment at a time,
+already branches on `window_dir == "single_window"` to plot it over the first window's range,
+and detects the differing `pred_h.csv` length through `pred_is_windowed`, so for that caller
+`single_window` is a condition worth plotting rather than a contaminant.
+
+# Arguments
+- `exp_path::AbstractString`: experiment directory to list.
+- `keep_single_window::Bool`: include the `single_window` condition (default `false`).
+
+# Returns
+- `::Vector{String}`: window subdirectory names, in `readdir` order.
+"""
+function _window_subdirs(exp_path::AbstractString; keep_single_window::Bool=false)
+    skip = keep_single_window ? ("Results", "post_analysis_window", "post_analysis_noise") :
+                                ("Results", "post_analysis_window", "post_analysis_noise", "single_window")
+    return filter(d -> !(d in skip), readdir(exp_path))
+end
+
+"""
     replot(filepath, filepath_gt)
 
 Regenerate all comparison plots (and some derived post-processed data) for
@@ -2821,21 +2849,13 @@ function replot(filepath, filepath_gt; method::Union{Nothing,String}=nothing)
                 local η_gt = Vector{Float64}(undef, 0)
                 local β_gt = Vector{Float64}(undef, 0)
 
-                window_dirs = readdir(exp_path)
+                window_dirs = _window_subdirs(exp_path; keep_single_window=true)
                 for window_dir in window_dirs
-                    # `single_window` is a separate experimental condition (one global
-                    # static fit evaluated against the same window grid, for comparison), not
-                    # another window of the multi-window re-fit -- sharing
-                    # `data_ranges.csv`/`t_windows.csv` with `multi_window` let it slip through
-                    # this filter before: same window grid, different fit. Mixing it in doubled
-                    # `n` (replicates x 2 conditions) and broke `_align_windowed` (differently
-                    # shaped `pred_h.csv`), producing the `h_pred/h_gt` NaN.
-                    if window_dir == "Results" || window_dir == "post_analysis_window" ||
-                       window_dir == "post_analysis_noise" || window_dir == "single_window"
-                        @debug "Skipping directory: $window_dir"
-                        continue
-                    end
                     win_exp_path = joinpath(exp_path, window_dir)
+                    # `single_window` is plotted here (unlike in the post-analysis passes), so an
+                    # empty or half-written one must be skipped rather than throwing on the first
+                    # `readdlm` below. Same guard the two post-analysis window loops already use.
+                    _skip_incomplete(win_exp_path) && continue
                     if !_is_window_dir(win_exp_path)
                         @debug "Not a fitting window, skipping: $win_exp_path"
                         continue
@@ -4053,20 +4073,8 @@ function post_analysis_bulk(filepath_gt_::String, filepath::String, avoid_list; 
 
                 printstyled("Processing simulation time folder: $(sim_time_folder)\n", color=:cyan)
 
-                window_dirs = readdir(leaf.exp_path)
+                window_dirs = _window_subdirs(leaf.exp_path)
                 for window_dir in window_dirs
-                    # `single_window` is a separate experimental condition (one global
-                    # static fit evaluated against the same window grid, for comparison), not
-                    # another window of the multi-window re-fit -- sharing
-                    # `data_ranges.csv`/`t_windows.csv` with `multi_window` let it slip through
-                    # this filter before: same window grid, different fit. Mixing it in doubled
-                    # `n` (replicates x 2 conditions) and broke `_align_windowed` (differently
-                    # shaped `pred_h.csv`), producing the `h_pred/h_gt` NaN.
-                    if window_dir == "Results" || window_dir == "post_analysis_window" ||
-                       window_dir == "post_analysis_noise" || window_dir == "single_window"
-                        @debug "Skipping directory: $window_dir"
-                        continue
-                    end
                     win_exp_path = joinpath(leaf.exp_path, window_dir)
                     _skip_incomplete(win_exp_path) && continue
 
@@ -4504,20 +4512,8 @@ function post_analysis_real(filepath_gt_::String, filepath::String, avoid_list; 
 
                 printstyled("Processing simulation time folder: $(sim_time_folder)\n", color=:cyan)
 
-                window_dirs = readdir(leaf.exp_path)
+                window_dirs = _window_subdirs(leaf.exp_path)
                 for window_dir in window_dirs
-                    # `single_window` is a separate experimental condition (one global
-                    # static fit evaluated against the same window grid, for comparison), not
-                    # another window of the multi-window re-fit -- sharing
-                    # `data_ranges.csv`/`t_windows.csv` with `multi_window` let it slip through
-                    # this filter before: same window grid, different fit. Mixing it in doubled
-                    # `n` (replicates x 2 conditions) and broke `_align_windowed` (differently
-                    # shaped `pred_h.csv`), producing the `h_pred/h_gt` NaN.
-                    if window_dir == "Results" || window_dir == "post_analysis_window" ||
-                       window_dir == "post_analysis_noise" || window_dir == "single_window"
-                        @debug "Skipping directory: $window_dir"
-                        continue
-                    end
                     win_exp_path = joinpath(leaf.exp_path, window_dir)
                     _skip_incomplete(win_exp_path) && continue
 
