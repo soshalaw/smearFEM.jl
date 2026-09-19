@@ -76,19 +76,27 @@ function gaussian_quadrature(a::Int64,b::Int64,n_gauss_pts::Int64=2)
     return ξ, w
 end
 
+# `_basis_tri`/`_basis_tet` take their ∂λ/∂ξ from the equilateral (2D) and regular (3D)
+# unit-edge master simplices — Eq. (3.39) of the 4774 FEM notes. Quadrature weights must sum to
+# THAT master element's measure, not the right-simplex 1/2 and 1/6 of the usual published
+# tables. Each rule below is therefore written as normalised fractions times its measure.
+const TRI_MASTER_AREA   = sqrt(3) / 4      # equilateral triangle, unit edge
+const TET_MASTER_VOLUME = 1 / (6 * sqrt(2))  # regular tetrahedron, unit edge
+
 function _tri_quadrature(n_gauss_pts::Int64=3)
     if n_gauss_pts == 1
-        λ1 = [1/3]; λ2 = [1/3]; λ3 = [1/3]; w = [0.5]
+        λ1 = [1/3]; λ2 = [1/3]; λ3 = [1/3]
+        w  = [1.0] .* TRI_MASTER_AREA
     elseif n_gauss_pts == 3
         λ1 = [0.5, 0.0, 0.5]
         λ2 = [0.5, 0.5, 0.0]
         λ3 = [0.0, 0.5, 0.5]
-        w  = [1/6, 1/6, 1/6]
+        w  = [1/3, 1/3, 1/3] .* TRI_MASTER_AREA
     elseif n_gauss_pts == 4
         λ1 = [3/5, 0.2, 0.2, 1/3]
         λ2 = [0.2, 3/5, 0.2, 1/3]
         λ3 = [0.2, 0.2, 3/5, 1/3]
-        w  = [25/48, 25/48, 25/48, -27/48]
+        w  = [25/48, 25/48, 25/48, -27/48] .* TRI_MASTER_AREA
     else
         error("Unsupported n_gauss_pts=$n_gauss_pts for _tri_quadrature (supported: 1, 3, 4)")
     end
@@ -97,19 +105,20 @@ end
 
 function _tet_quadrature(n_gauss_pts::Int64=4)
     if n_gauss_pts == 1
-        λ1 = [1/4]; λ2 = [1/4]; λ3 = [1/4]; λ4 = [1/4]; w = [1.0]
+        λ1 = [1/4]; λ2 = [1/4]; λ3 = [1/4]; λ4 = [1/4]
+        w  = [1.0] .* TET_MASTER_VOLUME
     elseif n_gauss_pts == 4
         λ1 = [0.58541020168919, 0.13819660, 0.13819660, 0.13819660]
         λ2 = [0.13819660, 0.58541020168919, 0.13819660, 0.13819660]
         λ3 = [0.13819660, 0.13819660, 0.58541020168919, 0.13819660]
         λ4 = [0.13819660, 0.13819660, 0.13819660, 0.58541020168919]
-        w  = [0.25, 0.25, 0.25, 0.25]
+        w  = [1/4, 1/4, 1/4, 1/4] .* TET_MASTER_VOLUME
     elseif n_gauss_pts == 5
         λ1 = [1/2, 1/6, 1/6, 1/6, 1/4]
         λ2 = [1/6, 1/2, 1/6, 1/6, 1/4]
         λ3 = [1/6, 1/6, 1/2, 1/6, 1/4]
         λ4 = [1/6, 1/6, 1/6, 1/2, 1/4]
-        w  = [9/20, 9/20, 9/20, 9/20, -4/5]
+        w  = [9/20, 9/20, 9/20, 9/20, -4/5] .* TET_MASTER_VOLUME
     else
         error("Unsupported n_gauss_pts=$n_gauss_pts for _tet_quadrature (supported: 1, 4, 5)")
     end
