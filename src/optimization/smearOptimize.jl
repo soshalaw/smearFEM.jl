@@ -195,6 +195,105 @@ end
 
 
 """
+    _accumulate_derivatives!(t∂2d, t∂d, ∂2d, ∂d, len_d)
+
+Sum the per-frame cost derivatives into the running totals, in place.
+
+# Arguments
+- `t∂2d::Matrix{Float64}`, `t∂d::Vector{Float64}`: accumulators, zeroed by the caller.
+- `∂2d`, `∂d`: per-frame second and first derivatives.
+- `len_d::Int`: number of frames.
+
+# Returns
+- `(t∂2d, t∂d)`: the accumulators.
+"""
+function _accumulate_derivatives!(t∂2d::Matrix{Float64}, t∂d::Vector{Float64}, ∂2d, ∂d, len_d::Int)
+    for i::Int in 1:len_d
+        t∂2d = t∂2d + ∂2d[i]
+        t∂d = t∂d + ∂d[i]
+    end
+    return t∂2d, t∂d
+end
+
+"""
+    _warn_ill_conditioned(t∂2d)
+
+Warn when the accumulated Gauss-Newton Hessian is ill-conditioned or badly scaled between
+the two parameters, which is what makes a step unreliable.
+
+# Arguments
+- `t∂2d::Matrix{Float64}`: accumulated Hessian.
+
+# Returns
+- `(condition_number, ill_conditioned)`: `cond(t∂2d)` and whether either threshold tripped.
+  `_fit_model_GN` damps its step on the flag; `_fit_model_GN_tikhonov` only reports.
+"""
+function _warn_ill_conditioned(t∂2d::Matrix{Float64})
+    condition_number::Float64 = cond(t∂2d)
+    H_η::Float64 = abs(t∂2d[1, 1])
+    H_β::Float64 = abs(t∂2d[2, 2])
+    H_ratio::Float64 = H_η / (H_β + 1e-12)
+    if condition_number > 1e2 || H_ratio > 1e2
+        printstyled("  [WARNING] Hessian: κ=$(round(condition_number, sigdigits=3)), H_β=$H_β, H_η=$H_η, ratio=$(round(H_ratio, sigdigits=3))\n", color=:yellow)
+    end
+    return condition_number, (condition_number > 1e2 || H_ratio > 1e2)
+end
+
+"""
+    _check_stop(iter, c_grad, c_grad_rel, θ)
+
+Shared stopping rule for the line-search optimizers. Kept in one place so `_fit_model_GN` and
+`_fit_model_GN_tikhonov` cannot drift apart on the criteria — the thresholds are the contract,
+not an implementation detail of either.
+
+# Arguments
+- `iter::Int`: iterations completed.
+- `c_grad::Float64`, `c_grad_rel::Float64`: absolute and relative cost change.
+- `θ::Vector{Float64}`: current parameters, for the convergence message.
+
+# Returns
+- `::Bool`: `true` when the caller should stop.
+"""
+function _check_stop(iter::Int, c_grad::Float64, c_grad_rel::Float64, θ::Vector{Float64})
+    if c_grad_rel < 1e-3 && c_grad < 1e-3
+        printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n 
+                    η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4))", color=:green)
+        return true
+    end
+    if iter ≥ 100
+        printstyled("[WARNING] MAX ITERATIONS (100) REACHED\n", color=:yellow)
+        return true
+    end
+    return false
+end
+
+"""
+    _fit_stats(θ, ηpList, βpList, cost_list, iterList, simBorderPtsList)
+
+Assemble the result dictionary every `fit_model` variant returns.
+
+# Arguments
+- `θ::Vector{Float64}`: converged parameters.
+- `ηpList`, `βpList`, `cost_list`, `iterList`: per-iteration histories.
+- `simBorderPtsList`: stored contours, empty unless `store_border_pts`.
+
+# Returns
+- `::Dict`: keys `"η"`, `"β"`, `"ηList"`, `"βList"`, `"cost_list"`, `"iterList"`,
+  `"simBorderPtsList"`. Variants add their own keys to it.
+"""
+function _fit_stats(θ::Vector{Float64}, ηpList, βpList, cost_list, iterList, simBorderPtsList)
+    return Dict(
+        "η" => θ[1],
+        "β" => θ[2],
+        "ηList" => ηpList,
+        "βList" => βpList,
+        "cost_list" => cost_list,
+        "iterList" => iterList,
+        "simBorderPtsList" => simBorderPtsList,
+    )
+end
+
+"""
     _fit_model_GN(model, scene, conditions, obsBorderPts, θ; outliers, line_search_method)
         -> (ηpList, βpList, cost_list, iterList)
 
@@ -267,20 +366,12 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         t∂d .= 0.0
 
         @debug "Current parameters: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totdinit, sigdigits=4))"
-        for i::Int in 1:len_d
-            t∂2d = t∂2d + ∂2d[i]
-            t∂d = t∂d + ∂d[i]
-        end
+        t∂2d, t∂d = _accumulate_derivatives!(t∂2d, t∂d, ∂2d, ∂d, len_d)
 
         # Hessian diagnostics and damping
-        condition_number::Float64 = cond(t∂2d)
-        H_η::Float64 = abs(t∂2d[1, 1])
-        H_β::Float64 = abs(t∂2d[2, 2])
-        H_ratio::Float64 = H_η / (H_β + 1e-12)
-        
-        
-        if condition_number > 1e2 || H_ratio > 1e2
-            printstyled("  [WARNING] Hessian: κ=$(round(condition_number, sigdigits=3)), H_β=$H_β, H_η=$H_η, ratio=$(round(H_ratio, sigdigits=3))\n", color=:yellow)
+        condition_number::Float64, _ill_conditioned = _warn_ill_conditioned(t∂2d)
+
+        if _ill_conditioned
             reg_param = 1e-6 * norm(t∂2d, 2)
             t∂2d_reg = t∂2d + reg_param * I
             p = t∂2d_reg \ t∂d
@@ -317,29 +408,12 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         @debug "Result: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))"
         @debug "Deltas: Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))"
 
-        if c_grad_rel < 1e-3 && c_grad < 1e-3
-            printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n 
-                        η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4))", color=:green)
-            break
-        end
-        
-        if iter ≥ 100
-            printstyled("[WARNING] MAX ITERATIONS (100) REACHED\n", color=:yellow)
-            break
-        end
+        _check_stop(iter, c_grad, c_grad_rel, θ) && break
     end
     
     printstyled("\n========= Optimization Complete =========\n", color=:blue)
 
-    stats = Dict(
-        "η" => θ[1],
-        "β" => θ[2],
-        "ηList" => ηpList,
-        "βList" => βpList,
-        "cost_list" => cost_list,
-        "iterList" => iterList,
-        "simBorderPtsList" => simBorderPtsList,
-    )
+    stats = _fit_stats(θ, ηpList, βpList, cost_list, iterList, simBorderPtsList)
     return stats
 end
 
@@ -483,20 +557,9 @@ function _fit_model_GN_tikhonov(model::Stokes, scene::SqueezeFlow, conditions::C
         t∂d .= 0.0
 
         @debug "Current parameters: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totdinit, sigdigits=4))"
-        for i::Int in 1:len_d
-            t∂2d = t∂2d + ∂2d[i]
-            t∂d = t∂d + ∂d[i]
-        end
+        t∂2d, t∂d = _accumulate_derivatives!(t∂2d, t∂d, ∂2d, ∂d, len_d)
 
-        # Hessian diagnostics and damping
-        condition_number::Float64 = cond(t∂2d)
-        H_η::Float64 = abs(t∂2d[1, 1])
-        H_β::Float64 = abs(t∂2d[2, 2])
-        H_ratio::Float64 = H_η / (H_β + 1e-12)
-          
-        if condition_number > 1e2 || H_ratio > 1e2
-            printstyled("  [WARNING] Hessian: κ=$(round(condition_number, sigdigits=3)), H_β=$H_β, H_η=$H_η, ratio=$(round(H_ratio, sigdigits=3))\n", color=:yellow)
-        end
+        condition_number::Float64, _ = _warn_ill_conditioned(t∂2d)
 
         t∂d_reg = t∂d/len_d + ∇R(θ)
         t∂2d_reg = t∂2d/len_d + ∇²R
@@ -544,31 +607,15 @@ function _fit_model_GN_tikhonov(model::Stokes, scene::SqueezeFlow, conditions::C
         @debug "Result: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(totd, sigdigits=4))"
         @debug "Deltas: Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))"
 
-        if c_grad_rel < 1e-3 && c_grad < 1e-3
-            printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n 
-                        η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4))", color=:green)
-            break
-        end
-        
-        if iter ≥ 100
-            printstyled("[WARNING] MAX ITERATIONS (100) REACHED\n", color=:yellow)
-            break
-        end
+        _check_stop(iter, c_grad, c_grad_rel, θ) && break
     end
     
     printstyled("\n========= Optimization Complete =========\n", color=:blue)
 
-    stats = Dict(
-        "η" => θ[1],
-        "β" => θ[2],
-        "ηList" => ηpList,
-        "βList" => βpList,
-        "cost_list" => cost_list,
-        "iterList" => iterList,
-        "simBorderPtsList" => simBorderPtsList,
-        "H" => t∂2d_reg,
-        "λ" => λ,
-    )
+    stats = _fit_stats(θ, ηpList, βpList, cost_list, iterList, simBorderPtsList)
+    # Tikhonov-only: the converged regularized Hessian and the frozen weight vector.
+    stats["H"] = t∂2d_reg
+    stats["λ"] = λ
     return stats
 end
 
@@ -631,10 +678,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         
         t∂2d .= 0.0
         t∂d .= 0.0
-        for i::Int in 1:len_d
-            t∂2d = t∂2d + ∂2d[i]
-            t∂d = t∂d + ∂d[i]
-        end
+        t∂2d, t∂d = _accumulate_derivatives!(t∂2d, t∂d, ∂2d, ∂d, len_d)
         if iter == 1
             λ = 1e-3 * maximum(diag(t∂2d))
         end
