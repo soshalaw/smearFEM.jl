@@ -2,253 +2,255 @@ using smearFEM
 using Test
 using LinearAlgebra
 
-file = resolve_data_path("sim_experiments/cost_function_test/optimization/test3")
+@testset "stokes optimization sensitivities" begin
 
-# test case 
-r::Float64 = 25  # radius of the cylinder in mm
-h::Float64 = 40.0  # height of the cylinder in mm
-ndim::Int = 3
-element_shape_x::Symbol = :Hex
-basis_order_x::Int = 2
-element_shape_u::Symbol = :Hex
-basis_order_u::Int = 2
-nDof_u::Int = ndim  # number of degree of freedom per node
-element_shape_p::Symbol = :Hex
-basis_order_p::Int = 1
-nDof_p::Int = 1  # number of degree of freedom per node
+    file = resolve_data_path("sim_experiments/cost_function_test/optimization/test3")
 
-obj_pose = zeros(Float64, 4,4)
-obj_pose[1,1] = -1.0
-obj_pose[2,3] = -1.0
-obj_pose[3,2] = -1.0
-obj_pose[1:3,4] = [0.0, h/2, 150.0]
-camera_matrix::Matrix{Float64} = [2.39642674e+03  0.0  1.00429248e+03; 0.0  2.40565353e+03  7.57028161e+02; 0.0  0.0 1.0;]
+    # test case 
+    r::Float64 = 25  # radius of the cylinder in mm
+    h::Float64 = 40.0  # height of the cylinder in mm
+    ndim::Int = 3
+    element_shape_x::Symbol = :Hex
+    basis_order_x::Int = 2
+    element_shape_u::Symbol = :Hex
+    basis_order_u::Int = 2
+    nDof_u::Int = ndim  # number of degree of freedom per node
+    element_shape_p::Symbol = :Hex
+    basis_order_p::Int = 1
+    nDof_p::Int = 1  # number of degree of freedom per node
 
-μu_tp = -10.0  # top boundary condition in mm/s
-μu_btm = 0
-μu_side = 0
+    obj_pose = zeros(Float64, 4,4)
+    obj_pose[1,1] = -1.0
+    obj_pose[2,3] = -1.0
+    obj_pose[3,2] = -1.0
+    obj_pose[1:3,4] = [0.0, h/2, 150.0]
+    camera_matrix::Matrix{Float64} = [2.39642674e+03  0.0  1.00429248e+03; 0.0  2.40565353e+03  7.57028161e+02; 0.0  0.0 1.0;]
 
-sim_time = 0.5
-steps = 5
-t_steps = sim_time/steps
-time = collect(range(start=t_steps,stop=sim_time,step=t_steps)) # time vector
+    μu_tp = -10.0  # top boundary condition in mm/s
+    μu_btm = 0
+    μu_side = 0
 
-println("time step size", t_steps)
-control = "force" 
-viscosity_type = "constant" # "constant" or "bulk_viscosity"
-β::Float64 = 100.0
-η::Float64 = 100.0
-F_ext::Float64 = 9.813e3 * 0.85
-F::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps)))
-# F::Float64 = 3.0
-ne = 6
-Δη = 1e-4
-Δβ = 1e-4
-error_tol = 2.5e-4
-rel_error_tol = 1e-4
+    sim_time = 0.5
+    steps = 5
+    t_steps = sim_time/steps
+    time = collect(range(start=t_steps,stop=sim_time,step=t_steps)) # time vector
 
-filePath = joinpath(@__DIR__, "..", "cylindergen")
+    println("time step size", t_steps)
+    control = "force" 
+    viscosity_type = "constant" # "constant" or "bulk_viscosity"
+    β::Float64 = 100.0
+    η::Float64 = 100.0
+    F_ext::Float64 = 9.813e3 * 0.85
+    F::Vector{Float64} = -F_ext*ones(Float64, round(Int, (sim_time/t_steps)))
+    # F::Float64 = 3.0
+    ne = 6
+    Δη = 1e-4
+    Δβ = 1e-4
+    error_tol = 2.5e-4
+    rel_error_tol = 1e-4
 
-p_, dp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
-μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x, GRAD=true)
+    filePath = joinpath(@__DIR__, "..", "cylindergen")
 
-# simulate_single_tstep_stokes meshes internally; size T from the mesh it built.
-T = Matrix{Float64}(I, size(model.mesh_x.NodeList,2), size(model.mesh_x.NodeList,2))
-T_ = T'*inv(T*T')
+    p_, dp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
+    μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x, GRAD=true)
 
-p = p_*T_
-dp = similar(dp_)
-dp[:,:,1] = dp_[:,:,1]*T_
-dp[:,:,2] = dp_[:,:,2]*T_
-Nodes_ = model.mesh_x.NodeList + p
-Nodes = Nodes_*T
+    # simulate_single_tstep_stokes meshes internally; size T from the mesh it built.
+    T = Matrix{Float64}(I, size(model.mesh_x.NodeList,2), size(model.mesh_x.NodeList,2))
+    T_ = T'*inv(T*T')
 
-# estimate dp with finite (central) difference
-Δp_ηp_, model = simulate_single_tstep_stokes(r, h, ne, (η+Δη), ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
-μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
-Δp_ηp = Δp_ηp_*T_
-ΔNodesηp_ = model.mesh_x.NodeList + Δp_ηp
-ΔNodesηp = ΔNodesηp_*T
+    p = p_*T_
+    dp = similar(dp_)
+    dp[:,:,1] = dp_[:,:,1]*T_
+    dp[:,:,2] = dp_[:,:,2]*T_
+    Nodes_ = model.mesh_x.NodeList + p
+    Nodes = Nodes_*T
 
-Δp_ηm_, model = simulate_single_tstep_stokes(r, h, ne, (η-Δη), ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
-μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
-Δp_ηm = Δp_ηm_*T_
-ΔNodesηm_ = model.mesh_x.NodeList + Δp_ηm
-ΔNodesηm = ΔNodesηm_*T
+    # estimate dp with finite (central) difference
+    Δp_ηp_, model = simulate_single_tstep_stokes(r, h, ne, (η+Δη), ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
+    μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
+    Δp_ηp = Δp_ηp_*T_
+    ΔNodesηp_ = model.mesh_x.NodeList + Δp_ηp
+    ΔNodesηp = ΔNodesηp_*T
 
-# estimate dp with finite (central) difference
-Δp_βp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, (β+Δβ), μu_tp, μu_btm,
-μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
-Δp_βp = Δp_βp_*T_
-ΔNodesβp_ = model.mesh_x.NodeList + Δp_βp
-ΔNodesβp = ΔNodesβp_*T
+    Δp_ηm_, model = simulate_single_tstep_stokes(r, h, ne, (η-Δη), ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
+    μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
+    Δp_ηm = Δp_ηm_*T_
+    ΔNodesηm_ = model.mesh_x.NodeList + Δp_ηm
+    ΔNodesηm = ΔNodesηm_*T
 
-Δp_βm_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, (β-Δβ), μu_tp, μu_btm,
-μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
-Δp_βm = Δp_βm_*T_
-ΔNodesβm_ = model.mesh_x.NodeList + Δp_βm
-ΔNodesβm = ΔNodesβm_*T
+    # estimate dp with finite (central) difference
+    Δp_βp_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, (β+Δβ), μu_tp, μu_btm,
+    μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
+    Δp_βp = Δp_βp_*T_
+    ΔNodesβp_ = model.mesh_x.NodeList + Δp_βp
+    ΔNodesβp = ΔNodesβp_*T
 
-dηp_approx = (ΔNodesηp-ΔNodesηm)/(2*Δη)
-dβp_approx = (ΔNodesβp-ΔNodesβm)/(2*Δβ)
+    Δp_βm_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, (β-Δβ), μu_tp, μu_btm,
+    μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
+    Δp_βm = Δp_βm_*T_
+    ΔNodesβm_ = model.mesh_x.NodeList + Δp_βm
+    ΔNodesβm = ΔNodesβm_*T
 
-iIter,jIter = size(dηp_approx)        
+    dηp_approx = (ΔNodesηp-ΔNodesηm)/(2*Δη)
+    dβp_approx = (ΔNodesβp-ΔNodesβm)/(2*Δβ)
 
-for i in 1:iIter  
-    for j in 1:jIter
-        @test dp[i,j,1] ≈ dηp_approx[i,j] atol=error_tol rtol=rel_error_tol
+    iIter,jIter = size(dηp_approx)        
+
+    for i in 1:iIter  
+        for j in 1:jIter
+            @test dp[i,j,1] ≈ dηp_approx[i,j] atol=error_tol rtol=rel_error_tol
+        end
     end
-end
 
-for i in 1:iIter  
-    for j in 1:jIter
-        @test dp[i,j,2] ≈ dβp_approx[i,j] atol=error_tol rtol=rel_error_tol
+    for i in 1:iIter  
+        for j in 1:jIter
+            @test dp[i,j,2] ≈ dβp_approx[i,j] atol=error_tol rtol=rel_error_tol
+        end
     end
-end
 
-## Testing ∇u(θ)
-BorderPts2D, dudη, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, camera_matrix, obj_pose, h, BorderNodesList = model.mesh_u.side_nodes, GRAD=true, dqdθ=dp)
+    ## Testing ∇u(θ)
+    BorderPts2D, dudη, SurfacePts2D, ∇SurfacePts2D = extract_borders(Nodes, camera_matrix, obj_pose, h, BorderNodesList = model.mesh_u.side_nodes, GRAD=true, dqdθ=dp)
 
-# estimate dudη with finite (central) difference
-ΔBorderPts2Dηp, ΔSurfacePts2Dηp = extract_borders(ΔNodesηp, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
-ΔBorderPts2Dηm, ΔSurfacePts2Dηm = extract_borders(ΔNodesηm, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
+    # estimate dudη with finite (central) difference
+    ΔBorderPts2Dηp, ΔSurfacePts2Dηp = extract_borders(ΔNodesηp, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
+    ΔBorderPts2Dηm, ΔSurfacePts2Dηm = extract_borders(ΔNodesηm, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
 
-ΔBorderPts2Dβp, ΔSurfacePts2Dβp = extract_borders(ΔNodesβp, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
-ΔBorderPts2Dβm, ΔSurfacePts2Dβm = extract_borders(ΔNodesβm, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
+    ΔBorderPts2Dβp, ΔSurfacePts2Dβp = extract_borders(ΔNodesβp, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
+    ΔBorderPts2Dβm, ΔSurfacePts2Dβm = extract_borders(ΔNodesβm, camera_matrix, obj_pose, h, BorderNodesList=model.mesh_u.side_nodes, GRAD=false)
 
-∇SurfacePts2dη_approx = (ΔSurfacePts2Dηp - ΔSurfacePts2Dηm)/(2*Δη)
-∇SurfacePts2Dβ_approx = (ΔSurfacePts2Dβp - ΔSurfacePts2Dβm)/(2*Δβ)
+    ∇SurfacePts2dη_approx = (ΔSurfacePts2Dηp - ΔSurfacePts2Dηm)/(2*Δη)
+    ∇SurfacePts2Dβ_approx = (ΔSurfacePts2Dβp - ΔSurfacePts2Dβm)/(2*Δβ)
 
-iIter,jIter = size(∇SurfacePts2dη_approx)
-for i in 1:iIter  
-    for j in 1:jIter
-        @test ∇SurfacePts2D[i,j,1] ≈ ∇SurfacePts2dη_approx[i,j] atol=error_tol rtol=rel_error_tol
+    iIter,jIter = size(∇SurfacePts2dη_approx)
+    for i in 1:iIter  
+        for j in 1:jIter
+            @test ∇SurfacePts2D[i,j,1] ≈ ∇SurfacePts2dη_approx[i,j] atol=error_tol rtol=rel_error_tol
+        end
     end
-end
 
-for i in 1:iIter  
-    for j in 1:jIter
-        @test ∇SurfacePts2D[i,j,2] ≈ ∇SurfacePts2Dβ_approx[i,j] atol=error_tol rtol=rel_error_tol
+    for i in 1:iIter  
+        for j in 1:jIter
+            @test ∇SurfacePts2D[i,j,2] ≈ ∇SurfacePts2Dβ_approx[i,j] atol=error_tol rtol=rel_error_tol
+        end
     end
-end
 
-dudη_approx = (ΔBorderPts2Dηp - ΔBorderPts2Dηm)/(2*Δη)
-dudβ_approx = (ΔBorderPts2Dβp - ΔBorderPts2Dβm)/(2*Δβ)
+    dudη_approx = (ΔBorderPts2Dηp - ΔBorderPts2Dηm)/(2*Δη)
+    dudβ_approx = (ΔBorderPts2Dβp - ΔBorderPts2Dβm)/(2*Δβ)
 
-iIter,jIter = size(dudη_approx)
-for i in 1:iIter  
-    for j in 1:jIter
-        @test dudη[i,j,1] ≈ dudη_approx[i,j] atol=error_tol rtol=rel_error_tol
+    iIter,jIter = size(dudη_approx)
+    for i in 1:iIter  
+        for j in 1:jIter
+            @test dudη[i,j,1] ≈ dudη_approx[i,j] atol=error_tol rtol=rel_error_tol
+        end
     end
-end
 
-for i in 1:iIter  
-    for j in 1:jIter
-        @test dudη[i,j,2] ≈ dudβ_approx[i,j] atol=error_tol rtol=rel_error_tol
+    for i in 1:iIter  
+        for j in 1:jIter
+            @test dudη[i,j,2] ≈ dudβ_approx[i,j] atol=error_tol rtol=rel_error_tol
+        end
     end
-end
 
 
-p_gt_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
-μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
-p_gt = p_gt_*T_
-Nodes_gt_ = model.mesh_x.NodeList + p_gt
-Nodes_gt = Nodes_gt_*T
+    p_gt_, model = simulate_single_tstep_stokes(r, h, ne, η, ndim, element_shape_u, basis_order_u, element_shape_p, basis_order_p, nDof_u, nDof_p, β, μu_tp, μu_btm,
+    μu_side, element_shape_x=element_shape_x, basis_order_x=basis_order_x)
+    p_gt = p_gt_*T_
+    Nodes_gt_ = model.mesh_x.NodeList + p_gt
+    Nodes_gt = Nodes_gt_*T
 
-BorderPts2D_gt = back_project(Nodes_gt, camera_matrix, obj_pose, h)
+    BorderPts2D_gt = back_project(Nodes_gt, camera_matrix, obj_pose, h)
 
-costList, ∇d, ∇2d, pairsList = contour_cost([BorderPts2D],[BorderPts2D_gt],[dudη])
+    costList, ∇d, ∇2d, pairsList = contour_cost([BorderPts2D],[BorderPts2D_gt],[dudη])
 
-ΔcostList_ηp, pairsList_ηp = contour_cost([ΔBorderPts2Dηp],[BorderPts2D_gt])
-ΔcostList_ηm, pairsList_ηm = contour_cost([ΔBorderPts2Dηm],[BorderPts2D_gt])
+    ΔcostList_ηp, pairsList_ηp = contour_cost([ΔBorderPts2Dηp],[BorderPts2D_gt])
+    ΔcostList_ηm, pairsList_ηm = contour_cost([ΔBorderPts2Dηm],[BorderPts2D_gt])
 
-ΔcostList_βp, pairsList_βp = contour_cost([ΔBorderPts2Dβp],[BorderPts2D_gt])
-ΔcostList_βm, pairsList_βm = contour_cost([ΔBorderPts2Dβm],[BorderPts2D_gt])
+    ΔcostList_βp, pairsList_βp = contour_cost([ΔBorderPts2Dβp],[BorderPts2D_gt])
+    ΔcostList_βm, pairsList_βm = contour_cost([ΔBorderPts2Dβm],[BorderPts2D_gt])
 
-∇dη_approx = (ΔcostList_ηp - ΔcostList_ηm)/(2*Δη)
-∇dβ_approx = (ΔcostList_βp - ΔcostList_βm)/(2*Δβ)
+    ∇dη_approx = (ΔcostList_ηp - ΔcostList_ηm)/(2*Δη)
+    ∇dβ_approx = (ΔcostList_βp - ΔcostList_βm)/(2*Δβ)
 
-iIter = size(∇d[1])
+    iIter = size(∇d[1])
 
-@test ∇d[1][1] ≈ ∇dη_approx[1] atol=error_tol rtol=rel_error_tol
-@test ∇d[1][2] ≈ ∇dβ_approx[1] atol=error_tol rtol=rel_error_tol
+    @test ∇d[1][1] ≈ ∇dη_approx[1] atol=error_tol rtol=rel_error_tol
+    @test ∇d[1][2] ≈ ∇dβ_approx[1] atol=error_tol rtol=rel_error_tol
 
-conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
-model, scene = def_problem(Cylinder(r, h), ne, η, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β, F, control, viscosity_type,
-                        sim_time, t_steps, GMESH_MESH=false)
-## testing Σ∇p(θ)
-μ_list, gradList, simBorderPts, _, _, _, Δpos3D_, _, _, gradList_3d = simulate(model, scene, conditions)
-reset_model!(model)
-model.η = [η+Δη]
-μ_list, simBorderPts, ΔsimBorderPts_pL, _, _, _, Δpos3D_pL, _, _, _= simulate(model, scene, conditions)
-reset_model!(model)
-model.η = [η-Δη]
-μ_list, simBorderPts, ΔsimBorderPts_mL, _, _, _, Δpos3D_mL, _, _, _ = simulate(model, scene, conditions)
-reset_model!(model)
-scene.β = [β+Δβ]
-μ_list, simBorderPts, ΔsimBorderPts_pβ, _, _, _, Δpos3D_pβ, _, _, _ = simulate(model, scene, conditions)
-reset_model!(model)
-scene.β = [β-Δβ]
-μ_list, simBorderPts, ΔsimBorderPts_mβ, _, _, _, Δpos3D_mβ, _, _, _ = simulate(model, scene, conditions)
+    conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose)
+    model, scene = def_problem(Cylinder(r, h), ne, η, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β, F, control, viscosity_type,
+                            sim_time, t_steps, GMESH_MESH=false)
+    ## testing Σ∇p(θ)
+    μ_list, gradList, simBorderPts, _, _, _, Δpos3D_, _, _, gradList_3d = simulate(model, scene, conditions)
+    reset_model!(model)
+    model.η = [η+Δη]
+    μ_list, simBorderPts, ΔsimBorderPts_pL, _, _, _, Δpos3D_pL, _, _, _= simulate(model, scene, conditions)
+    reset_model!(model)
+    model.η = [η-Δη]
+    μ_list, simBorderPts, ΔsimBorderPts_mL, _, _, _, Δpos3D_mL, _, _, _ = simulate(model, scene, conditions)
+    reset_model!(model)
+    scene.β = [β+Δβ]
+    μ_list, simBorderPts, ΔsimBorderPts_pβ, _, _, _, Δpos3D_pβ, _, _, _ = simulate(model, scene, conditions)
+    reset_model!(model)
+    scene.β = [β-Δβ]
+    μ_list, simBorderPts, ΔsimBorderPts_mβ, _, _, _, Δpos3D_mβ, _, _, _ = simulate(model, scene, conditions)
                                                                                     
-titer = 1:length(Δpos3D_)
+    titer = 1:length(Δpos3D_)
 
-for t in titer
-    println("time: ", t)
-    grad_3d = gradList_3d[t]
+    for t in titer
+        println("time: ", t)
+        grad_3d = gradList_3d[t]
 
-    grad_approx_η_3d = (Δpos3D_pL[t]- Δpos3D_mL[t])/(2*Δη)
+        grad_approx_η_3d = (Δpos3D_pL[t]- Δpos3D_mL[t])/(2*Δη)
 
-    # println("dxdη: ")
-    # display(grad_3d[:,:,1])
+        # println("dxdη: ")
+        # display(grad_3d[:,:,1])
 
-    # println("dxdη approx: ")
-    # display(grad_approx_η_3d)
+        # println("dxdη approx: ")
+        # display(grad_approx_η_3d)
 
-    grad_approx_β_3d = (Δpos3D_pβ[t]- Δpos3D_mβ[t])/(2*Δβ)
+        grad_approx_β_3d = (Δpos3D_pβ[t]- Δpos3D_mβ[t])/(2*Δβ)
 
-    # println("dxdβ : ")
-    # display(grad_3d[:,:,2])
+        # println("dxdβ : ")
+        # display(grad_3d[:,:,2])
 
-    # println("dxdβ approx: ")
-    # display(grad_approx_β_3d)
+        # println("dxdβ approx: ")
+        # display(grad_approx_β_3d)
 
-    pIter,qIter = size(grad_approx_η_3d)
-    for i in 1:pIter  
-        for j in 1:qIter
-            @test grad_3d[i,j,1] ≈ grad_approx_η_3d[i,j] atol=error_tol rtol=rel_error_tol
-            @test grad_3d[i,j,2] ≈ grad_approx_β_3d[i,j] atol=error_tol rtol=rel_error_tol
+        pIter,qIter = size(grad_approx_η_3d)
+        for i in 1:pIter  
+            for j in 1:qIter
+                @test grad_3d[i,j,1] ≈ grad_approx_η_3d[i,j] atol=error_tol rtol=rel_error_tol
+                @test grad_3d[i,j,2] ≈ grad_approx_β_3d[i,j] atol=error_tol rtol=rel_error_tol
+            end
+        end
+    end
+
+    for t in titer
+        println("time: ", t)
+        # simulate returns per-view lists; this test uses a single view
+        grad = gradList[t][1]
+
+        grad_approx_η = (ΔsimBorderPts_pL[t][1] - ΔsimBorderPts_mL[t][1])/(2*Δη)
+
+        # println("dudη: ")
+        # display(grad[:,:,1])
+
+        # println("dudη approx: ")
+        # display(grad_approx_η)
+
+        grad_approx_β = (ΔsimBorderPts_pβ[t][1] - ΔsimBorderPts_mβ[t][1])/(2*Δβ)
+
+        # println("dudβ : ")
+        # display(grad[:,:,2])
+
+        # println("dudβ approx: ")
+        # display(grad_approx_β)
+
+        pIter,qIter = size(grad_approx_η)
+        for i in 1:pIter  
+            for j in 1:qIter
+                @test grad[i,j,1] ≈ grad_approx_η[i,j] atol=error_tol rtol=rel_error_tol
+                @test grad[i,j,2] ≈ grad_approx_β[i,j] atol=error_tol rtol=rel_error_tol
+            end
         end
     end
 end
-
-for t in titer
-    println("time: ", t)
-    # simulate returns per-view lists; this test uses a single view
-    grad = gradList[t][1]
-
-    grad_approx_η = (ΔsimBorderPts_pL[t][1] - ΔsimBorderPts_mL[t][1])/(2*Δη)
-
-    # println("dudη: ")
-    # display(grad[:,:,1])
-
-    # println("dudη approx: ")
-    # display(grad_approx_η)
-
-    grad_approx_β = (ΔsimBorderPts_pβ[t][1] - ΔsimBorderPts_mβ[t][1])/(2*Δβ)
-
-    # println("dudβ : ")
-    # display(grad[:,:,2])
-
-    # println("dudβ approx: ")
-    # display(grad_approx_β)
-
-    pIter,qIter = size(grad_approx_η)
-    for i in 1:pIter  
-        for j in 1:qIter
-            @test grad[i,j,1] ≈ grad_approx_η[i,j] atol=error_tol rtol=rel_error_tol
-            @test grad[i,j,2] ≈ grad_approx_β[i,j] atol=error_tol rtol=rel_error_tol
-        end
-    end
-end
-

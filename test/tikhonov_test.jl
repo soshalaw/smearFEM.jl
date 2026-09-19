@@ -98,6 +98,7 @@ g, z = results["gn"], results["tikh_λ0"]
 end
 println("θ_gt = $θ_gt")
 for (k,v) in sort(collect(results), by=first)
-    println(rpad(k,12), " η=", round(v["η"],sigdigits=6), " β=", round(v["β"],sigdigits=6),
-            " λ=", round(get(v,"λ",NaN),sigdigits=4))
+    # Broadcast: some entries store η/β as a 1-element Vector, others as a scalar.
+    println(rpad(k,12), " η=", round.(v["η"],sigdigits=6), " β=", round.(v["β"],sigdigits=6),
+            " λ=", round.(get(v,"λ",NaN),sigdigits=4))
 end
