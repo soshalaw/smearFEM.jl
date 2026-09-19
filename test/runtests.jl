@@ -10,5 +10,9 @@ using Aqua
     include("cost_functions_test.jl")
     include("stokes_optimization_test.jl")
     include("mesh_templates_test.jl")
-    
+    # Slow (~6 min): two full squeeze-flow solves. It is the only guard against the simplex
+    # quadrature weights drifting out of step with the master element `_basis_tet`/`_basis_tri`
+    # assume — a mismatch that silently over-stiffens every Tet/Tri solve.
+    include("verify_meshes_test.jl")
+
 end
