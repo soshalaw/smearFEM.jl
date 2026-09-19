@@ -26,7 +26,9 @@ export get_available_memory_mb,
        allocate_workers,
        run_parallel_tasks,
        print_progress_spinner,
-       display_batch_info
+       display_batch_info,
+       write_error_log,
+       _handle_worker_error
 
 """
     get_available_memory_mb()
@@ -183,6 +185,62 @@ Log the task and worker counts for a batch, alongside the thread count Julia was
 """
 function display_batch_info(n_tasks::Int, n_workers::Int)
     @info "Executing $n_tasks tasks with $n_workers workers ($(Threads.nthreads()) threads available)"
+end
+
+"""
+    write_error_log(err, bt; params=Dict(), dest_dir=".")
+
+Persist a worker failure to a timestamped file, so a crash inside a parallel batch survives the
+run rather than scrolling past.
+
+# Arguments
+- `err`: The failure.
+- `bt::Vector`: Backtrace captured at the failure.
+- `params`: Parameters of the failing task.
+- `dest_dir::String`: Directory for the log; created if absent.
+
+# Returns
+- `nothing`
+"""
+function write_error_log(err, bt::Vector; params=Dict(), dest_dir::String=".")
+    mkpath(dest_dir)
+    log_file = joinpath(dest_dir, "error_log_$(now()).txt")
+    open(log_file, "w") do f
+        write(f, "Error Log\n")
+        write(f, "=========\n\n")
+        write(f, "Timestamp: $(now())\n")
+        write(f, "Error: $(err)\n\n")
+        write(f, "Parameters: $params\n\n")
+        write(f, "Stacktrace:\n")
+        write(f, string(bt))
+    end
+    @info "Error log written to $log_file"
+end
+
+"""
+    _handle_worker_error(err, idx, params)
+
+Log a worker failure and persist it under the run's own `Results/logs`, falling back to a plain
+`@error` if even the log write fails.
+
+# Arguments
+- `err`: The failure.
+- `idx::Int`: Index of the failing task.
+- `params`: Parameters of the failing task; `filepath_res` selects the log directory.
+
+# Returns
+- `nothing`
+"""
+function _handle_worker_error(err, idx::Int, params)
+    bt = catch_backtrace()
+    @error "Task $idx failed" params exception=(err, bt)
+    
+    try
+        dest_dir = get(params, "filepath_res", ".") |> d -> joinpath(d, "Results", "logs")
+        write_error_log(err, bt; params=params, dest_dir=dest_dir)
+    catch ewrite
+        @error "Failed to write error log" exception=ewrite
+    end
 end
 
 """

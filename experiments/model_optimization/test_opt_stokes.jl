@@ -746,25 +746,6 @@ function _max_band_mean(z::AbstractVector, tol::Float64)
 end
 
 """
-    _handle_worker_error(err, i, params)
-
-Log a failed parallel worker task (index `i`, its `params`, and the caught
-exception `err` with backtrace) via `@error`, for use in a `catch` block.
-
-# Arguments
-- `err`: the caught exception.
-- `i::Int`: index of the failed task.
-- `params`: parameters passed to the failed task, logged for diagnosis.
-
-# Returns
-None.
-"""
-function _handle_worker_error(err, i::Int, params)
-    bt = catch_backtrace()
-    @error "Task $i failed" params exception=(err, bt)
-end
-
-"""
     run_window_predictions(model, scene, conditions, est_ηpList, est_βpList,
                            data_ranges_, time_windows, F, h)
         -> (h_pred_vec, pos3D_pred_vec, surface_pts_3D_pred_vec,
