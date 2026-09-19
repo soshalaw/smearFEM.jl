@@ -40,6 +40,10 @@ All pull requests must pass the full test suite (~90 000 checks) before merging.
 
 ## Docstring Format
 
+Keyword arguments go in `# Arguments` alongside the positional ones — there is no separate
+`# Keyword Arguments` section. `# Example` is optional. This matches `docs/coding_guide.md`,
+which is authoritative if the two ever disagree again.
+
 ```julia
 """
     function_name(arg1, arg2; kwarg=default) -> ReturnType
@@ -47,19 +51,24 @@ All pull requests must pass the full test suite (~90 000 checks) before merging.
 One-line summary.
 
 # Arguments
-- `arg1::Type`: Description.
-- `arg2::Type`: Description.
-
-# Keyword Arguments
-- `kwarg::Type`: Description (default: `default`).
+- `arg1::Type`: description
+- `arg2::Type`: description
+- `kwarg::Type`: description (default: `default`)
 
 # Returns
-- `result::Type`: Description.
+- `ReturnType`: description
+
+# Example
+```julia
+result = function_name(x, y)
+```
 """
 function function_name(arg1, arg2; kwarg=default)
     ...
 end
 ```
+
+Non-exported helpers (`_` prefix) do not need docstrings unless the logic is non-obvious.
 
 ## Pull Request Process
 

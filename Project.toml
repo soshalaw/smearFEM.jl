@@ -82,7 +82,8 @@ Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
 ProfileView = "c46f51b8-102a-5cf2-8d2c-8597cb0e0da7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "BenchmarkTools", "Images", "ProfileView", "Test"]
+test = ["Aqua", "BenchmarkTools", "Images", "ProfileView", "Random", "Test"]

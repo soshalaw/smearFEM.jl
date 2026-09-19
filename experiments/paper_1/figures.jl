@@ -1,10 +1,17 @@
-# Figures and numbers for the paper, in two parts:
+# Figures and numbers for the paper, in four parts:
 #
 #   1. Contour-extraction (segmentation) error, constant-viscosity experiments.
 #   2. The Tikhonov λ sweep on the synthetic bulk-viscosity experiments.
+#   3. Sampling bias of the contour metrics.
+#   4. Bounding β under regularization.
 #
 # Part 2 fits models, so this file includes the pipeline rather than duplicating it; the
-# colour constants and the `datapath`/`plotpath` helpers come from there too.
+# colour constants and the `datapath`/`plotpath` helpers come from there too. That include is
+# gated by a PROGRAM_FILE check on the other side, so it defines without running anything —
+# which matters, because `pipeline.jl`'s `main()` launches multi-hour fitting batches.
+#
+# Only Part 1 runs from the script gate at the end of that part; Parts 2-4 are called by hand
+# from the REPL, one figure at a time.
 #
 # --- part 1 ---------------------------------------------------------------------------
 # Each constant-viscosity ground-truth run carries two contour sets per frame:
@@ -12,7 +19,7 @@
 #   data/img_data/<view>/contour_data — segmented from the rendered image
 # The projected contour is exact by construction, so the distance between the two is
 # the error the segmentation injects before the optimizer ever sees the data. Readers
-# and metrics are the ones `test_opt_stokes.jl` uses (`read_csv`, `compare_pt_clouds`),
+# and metrics are the ones `pipeline.jl` uses (`read_csv`, `compare_pt_clouds`),
 # so these numbers sit on the same px scale as the contour costs reported there.
 
 using smearFEM
@@ -25,7 +32,7 @@ using DelimitedFiles
 # Brings `optimize` (part 2 fits models), the plotting helpers `_fig`/`_label!`, the
 # `datapath`/`plotpath` path helpers, the `def_*` colours, `_align_windowed` and `_run_dir`.
 # `main()` there is guarded by a PROGRAM_FILE check, so including it runs nothing.
-include(joinpath(@__DIR__, "model_optimization", "test_opt_stokes.jl"))
+include(joinpath(@__DIR__, "pipeline.jl"))
 
 const GT_CONST  = "ground_truth/sim_data/Stokes/force/constant/Hex2_16/cylinder"
 const RES_CONST = "experiments/sim_data/optimization/Stokes/force/constant/Hex2_16/cylinder"
@@ -485,10 +492,37 @@ function contour_bias_case(filepath_gt::String;
     return bias, stats
 end
 
+"""
+    contour_bias_const(filepath_gt=resolve_data_path(GT_CONST); kwargs...)
+
+Signed contour bias for the constant-viscosity experiments — the Part 1 default case.
+
+# Arguments
+- `filepath_gt::String`: ground-truth tree; defaults to `GT_CONST`.
+- `kwargs...`: forwarded to `contour_bias_case`.
+
+# Returns
+- Whatever `contour_bias_case` returns for this case.
+"""
 function contour_bias_const(filepath_gt::String=resolve_data_path(GT_CONST); kwargs...)
     return contour_bias_case(filepath_gt; kwargs...)
 end
 
+"""
+    contour_bias_bulk(; filepath_gt=resolve_data_path(GT_BULK), filepath_res=resolve_data_path(RES_BULK), frame_rate=10.0, kwargs...)
+
+Signed contour bias for the bulk-viscosity experiments. Same analysis as `contour_bias_const`
+against a different tree, relabelled so the two figures are distinguishable.
+
+# Arguments
+- `filepath_gt::String`: ground-truth tree; defaults to `GT_BULK`.
+- `filepath_res::String`: result tree; defaults to `RES_BULK`.
+- `frame_rate::Real`: frames per second, for the time axis.
+- `kwargs...`: forwarded to `contour_bias_case`.
+
+# Returns
+- Whatever `contour_bias_case` returns for this case.
+"""
 function contour_bias_bulk(; filepath_gt::String=resolve_data_path(GT_BULK),
                                                      filepath_res::String=resolve_data_path(RES_BULK),
                                                      frame_rate::Real=10.0, kwargs...)
@@ -538,7 +572,7 @@ const LAM_VALUES = [1.0e-5, 3.5e-5, 1.0e-4, 3.5e-4, 1.1e-3, 3.5e-3]
 const BETA_REF = 2000.0          # penalty knee, between the true β range and the runaways
 
 # Figure geometry for LaTeX inclusion at ½ and ⅓ of the text width, taken verbatim from the
-# commented `PLOT_CONFIG` variants in `test_opt_stokes.jl` rather than derived — the margins
+# commented `PLOT_CONFIG` variants in `pipeline.jl` rather than derived — the margins
 # differ between the two, not just the width, and a ⅓-width figure is *taller* than a ½-width
 # one because it has less room for the legend.
 const LAM_FIG_HALF  = (sz = (480, 320), left =  1pt, right =  5pt, top = 1pt)
@@ -1481,6 +1515,10 @@ function run_metric_bias_analysis(; runs=["1", "2", "3", "4", "5", "6"],
     @info "Wrote metric-bias figures to $outdir"
     return outdir
 end
+
+# ---------------------------------------------------------------------------------------
+# Part 4 — bounding β under regularization.
+# ---------------------------------------------------------------------------------------
 
 """
     plot_beta_bounding(; run, λs, outdir) -> String

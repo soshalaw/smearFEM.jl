@@ -177,7 +177,7 @@ forward study; `inverse_convergence.jl` only plots results already on disk.
 ### Parameter optimization
 
 ```bash
-julia -O3 --threads=auto --project experiments/model_optimization/test_opt_stokes.jl
+julia -O3 --threads=auto --project experiments/paper_1/pipeline.jl
 ```
 
 Runs the simulated, synthetic, and physical optimization batches, then plots results. Key

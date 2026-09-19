@@ -101,7 +101,7 @@ does this.
 - `optimize` no longer skips views after the first — the `if i != 1; continue`
   guard the original note referred to is gone, so a ground truth with several
   `z_angle_list` entries produces several `view_*` leaves again. `_single_leaf` in
-  `test_opt_stokes.jl` errors on multi-leaf groups by design, but it is not
+  `paper_1/pipeline.jl` errors on multi-leaf groups by design, but it is not
   reachable from this tree (see above). It *is* reachable from the optimization
   trees once a second optimizer is run over one experiment — pass
   `collect_experiment_groups(…; method=…)` there.
