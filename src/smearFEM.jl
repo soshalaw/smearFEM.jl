@@ -25,6 +25,7 @@ export reset_mesh!, update_initial_state! # Meshes.jl
 export gaussian_quadrature, basis_function, get_quadrature, BasisFunctionCache, get_surface_basis_functions # fem.jl
 export fit_curve, upsample_contour, extract_borders, filter_points, rearrange, add_noise, project_to, back_project, ∇π, get_height, eval_on_cylinder, get_lagrange_proj, get_lagrange_pts, get_nurbs_2_lagrange_proj, detect_outlier_observations, get_pose, project_to_camera_frame # PostProcess.jl
 export fit_model # smearOptimize.jl
+export set_time_window, estimate_window, predict_window # optimization/window_estimation.jl
 export ContourCost, ClosestPointCost, ChamferCost, SignedDistanceCost, contour_cost, match_points # optimization/cost_functions.jl
 export closest_point # deprecated alias for contour_cost
 export reset_model!, update_model! # models.jl
@@ -59,6 +60,7 @@ include("io/gmsh_utils.jl")
 
 include("optimization/cost_functions.jl")
 include("optimization/smearOptimize.jl")
+include("optimization/window_estimation.jl")
 
 include("fem/geometries.jl")
 include("solver/stokes_solver.jl")
@@ -82,13 +84,5 @@ catch e
 	@warn "Failed to configure logger: $(e.msg)"
 end
 
-# Provide a safe alias to Base.isatty so external code that references
-# `smearFEM.isatty` (incorrectly) will still work. If Base.isatty is not
-# available in this Julia build, fall back to a safe no-op that returns false.
-if isdefined(Base, :isatty)
-	const isatty = Base.isatty
-else
-	const isatty = (io->false)
-end
 
 end # module smearFEM

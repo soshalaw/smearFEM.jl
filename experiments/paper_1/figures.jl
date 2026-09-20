@@ -10,8 +10,8 @@
 # gated by a PROGRAM_FILE check on the other side, so it defines without running anything —
 # which matters, because `pipeline.jl`'s `main()` launches multi-hour fitting batches.
 #
-# Only Part 1 runs from the script gate at the end of that part; Parts 2-4 are called by hand
-# from the REPL, one figure at a time.
+# Running this file as a script regenerates every figure that reads existing results; only
+# `run_lambda_sweep` (Part 2) is excluded, because it refits. See the gate at the end.
 #
 # --- part 1 ---------------------------------------------------------------------------
 # Each constant-viscosity ground-truth run carries two contour sets per frame:
@@ -530,11 +530,6 @@ function contour_bias_bulk(; filepath_gt::String=resolve_data_path(GT_BULK),
                                                          case_label="bulk viscosity", frame_rate=frame_rate, kwargs...)
 end
 
-if abspath(PROGRAM_FILE) == @__FILE__
-    contour_extraction_error_const()
-    contour_bias_const()
-    contour_bias_bulk()
-end
 
 # ---------------------------------------------------------------------------------------
 # Part 2 — Tikhonov λ sweep on the synthetic bulk-viscosity experiments.
@@ -1563,4 +1558,33 @@ function plot_beta_bounding(; run::AbstractString="6",
     Plots.savefig(plt, joinpath(outdir, "beta_bounding_run$(run).pdf"))
     @info "Wrote β bounding figure to $outdir"
     return outdir
+end
+
+# ---------------------------------------------------------------------------------------
+# Script entry point.
+#
+# Regenerates every figure that reads existing results. `run_lambda_sweep` (Part 2) is the one
+# public function in this file that refits — it calls `optimize` — so it is deliberately left
+# out; run it by hand when the sweep itself needs redoing.
+#
+# Each call is guarded so one missing dataset reports and the remaining figures still
+# regenerate, rather than the first gap aborting the whole run.
+# ---------------------------------------------------------------------------------------
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    for (label, f) in (("Part 1 - contour extraction error", contour_extraction_error_const),
+                       ("Part 1 - contour bias, constant",   contour_bias_const),
+                       ("Part 1 - contour bias, bulk",       contour_bias_bulk),
+                       ("Part 2 - lambda sweep table",       lambda_sweep_table),
+                       ("Part 2 - lambda sweep figures",     plot_lambda_sweep),
+                       ("Part 2 - lambda contour error",     plot_lambda_contour_error),
+                       ("Part 3 - metric bias analysis",     run_metric_bias_analysis),
+                       ("Part 4 - beta bounding",            plot_beta_bounding))
+        try
+            @info "=== $label ==="
+            f()
+        catch e
+            @warn "$label failed - continuing with the remaining figures" exception=(e, catch_backtrace())
+        end
+    end
 end

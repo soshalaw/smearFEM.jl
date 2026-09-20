@@ -58,7 +58,7 @@ Function to animate the fields as a gif
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
 function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, sim_border_nodes_2d=nothing, obs_border_nodes_2d=nothing,sim_pts_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, cam_pose::Union{Nothing,Vector{Float64}}=nothing, h::Union{Nothing,Float64}=nothing)
-    set_file(filepath) # create the directory to store the VTK files
+    set_file(filepath)
     if isnothing(Nodes) && isnothing(sim_pts_2d) && isnothing(sim_border_nodes_2d) && isnothing(IEN) && isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
         throw(AssertionError("No fields provided"))
     elseif isnothing(Nodes) && isnothing(SurfaceNodes3D)
@@ -437,49 +437,7 @@ function set_subplot(fs::Int; sz::Tuple{Int,Int}=(1000,750), layout=(1,1), legen
                             label=""; kw...)
     return plt
 end
-"""
-    _normalize_field(q, IEN)
 
-Normalize the solution vector for plotting
-    
-# Arguments:
-- `q`: solution vector
-- `IEN::Matrix{Float64}{nElem, nNodes}`: IEN array
-
-# Returns:
-- `qList`: normalized list of solutions 
-"""
-function _normalize_field(q, IEN)
-
-    qList = zeros(size(IEN))
-    max_val = maximum(q)
-    min_val = minimum(q)
-    iter = 1:size(IEN,1)
-    for e in iter
-        for n in 1:4
-            qList[e,n] = (q[IEN[e,n]] - min_val) / (max_val - min_val)
-        end
-    end
-    return qList
-end
-
-"""
-    _truncate_colormap(minval=0.0, maxval=1.0, n=100)
-
-Function to truncate a colormap
-    
-# Arguments:
-- `minval::Integer`: minimum value of the colormap
-- `maxval::Integer`: maximum value of the colormap
-- `n::Integer`: number of colors
-
-# Returns:
-- `new_cmap`: truncated colormap
-"""
-function _truncate_colormap(minval=0.0, maxval=1.0, n=100)
-    new_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("mycmap", get_cmap("jet")(collect(range(maxval, minval, n))))
-    return new_cmap
-end
 
 """
     plot_covariance!(plt, η_list, β_list; label="Covariance", legend_column=1, color_ellipse=nothing, color_scatter=nothing)

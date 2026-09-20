@@ -25,7 +25,7 @@ Function to write the solution to a VTK file
 """
 function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64, ndim::Int64, q; ID=nothing, element_shape::Symbol=:Hex, basis_order::Int=1)
 
-    set_file(string(filePath,"/vtkFiles")) # create the directory to store the VTK files
+    set_file(string(filePath,"/vtkFiles"))
     if element_shape == :Tet
         if basis_order == 1
             cellType = ndim == 2 ? VTKCellTypes.VTK_TRIANGLE : VTKCellTypes.VTK_TETRA
@@ -48,7 +48,7 @@ function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64
         elseif ndim == 3
             cellType = VTKCellTypes.VTK_LAGRANGE_HEXAHEDRON
         end
-        IEN = rearrange(ndim, IEN)  # rearrange the solution
+        IEN = rearrange(ndim, IEN)
     end
 
     cells = [MeshCell(cellType,IEN[:,e]) for e in 1:size(IEN,2)]
@@ -74,7 +74,7 @@ Function to write the solution to a VTK file
 """
 function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields; element_shape::Symbol=:Hex, basis_order::Int=1)
 
-    set_file(string(filepath,"/vtkFiles")) # create the directory to store the VTK files
+    set_file(string(filepath,"/vtkFiles"))
     if element_shape == :Tet
         if basis_order == 1
             if ndim == 1
@@ -109,7 +109,7 @@ function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields;
         elseif ndim == 3
             cellType = VTKCellTypes.VTK_LAGRANGE_HEXAHEDRON
         end
-        IEN = rearrange(ndim, IEN)  # rearrange the solution
+        IEN = rearrange(ndim, IEN)
     end
 
     # Create a VTK collection
@@ -214,7 +214,7 @@ function write_stokes_scene(
     basis_order_p::Int=1
 )
 
-    set_file(string(filepath, "/vtkFiles")) # create the directory to store the VTK files
+    set_file(string(filepath, "/vtkFiles"))
 
     if ndim == 1
         cellType_p = VTKCellTypes.VTK_LINE
@@ -402,26 +402,6 @@ function set_file(filepath::String)
         @info "Specified file path $(filepath) not found, creating directories ..."
         mkpath(filepath)
     end
-end
-
-"""
-_read_sparse_mat(filepath)
-
-Function to read the sparse matrix from a JLD2 file
-
-# Arguments:
-- `filepath::String`: path to the file (with or without .jld2 extension).
-
-# Returns:
-- `sparse_mat::SparseMatrixCSC`: sparse matrix.
-"""
-function _read_sparse_mat(filepath::String)
-    filepath_with_ext = endswith(filepath, ".jld2") ? filepath : string(filepath, ".jld2")
-    if !isfile(filepath_with_ext)
-        throw(SystemError("File not found: $filepath_with_ext"))
-    end
-    @load filepath_with_ext sparse_mat
-    return sparse_mat
 end
 
 """                                                                                                                                                                    

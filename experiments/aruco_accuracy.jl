@@ -89,9 +89,9 @@ function plot_aruco_calibration(filepath::String)
     σ_h = data.std_diff
     gt_h = data.true_diff
 
-    savepath = resolve_data_path("experiments/physical_data/aruco_calibration/plots")
+    savepath = resolve_data_path("experiments/aruco_calibration/plots")
 
-    set_file(dirname(savepath))
+    set_file(savepath)
     plt = set_plot(PLOT_CONFIG[:font_size];
                    sz=(PLOT_CONFIG[:plot_width], PLOT_CONFIG[:plot_height]),
                    left_margin=PLOT_CONFIG[:left_margin],
@@ -126,13 +126,18 @@ function plot_aruco_calibration(filepath::String)
                      right_margin=PLOT_CONFIG[:right_margin],
                      top_margin=PLOT_CONFIG[:top_margin],
                      legend_column=4)
-    Plots.plot!(plt_h, t, fill(μ_h, length(t));
+    # `plate_separation` is a shorter, separate acquisition from `stage_separation` (115 vs 162
+    # samples here) and carries no `frame_index`, so it needs its own axis — reusing the stage
+    # `t` overruns it.
+    t_h = (0:length(data.meas_diff)-1) ./ data.fps
+
+    Plots.plot!(plt_h, t_h, fill(μ_h, length(t_h));
                 ribbon    = σ_h,
                 fillalpha = 0.20,
                 lw        = 0,
                 color     = def_blue,
                 label     = L"\pm 1\sigma")
-    Plots.plot!(plt_h, t, data.meas_diff;
+    Plots.plot!(plt_h, t_h, data.meas_diff;
                 lw    = 1.0,
                 color = def_blue,
                 label = L"h_{\mathrm{plate}}")
@@ -141,7 +146,7 @@ function plot_aruco_calibration(filepath::String)
                  lc    = def_red,
                  lw    = 1.2,
                  label = L"\mathrm{mean}")
-    Plots.plot!(plt_h, t, fill(gt_h, length(t));
+    Plots.plot!(plt_h, t_h, fill(gt_h, length(t_h));
                 lw    = 1.0,
                 color = def_red,
                 label = L"\Delta h_{\mathrm{true}}")
@@ -162,5 +167,5 @@ function plot_aruco_calibration(filepath::String)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    plot_aruco_calibration(resolve_data_path("ground_truth/physical_data/aruco_calibration/aruco_calibration.hdf5"))
+    plot_aruco_calibration(resolve_data_path("ground_truth/aruco_calibration/aruco_calibration.hdf5"))
 end

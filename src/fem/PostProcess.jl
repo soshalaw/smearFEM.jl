@@ -327,55 +327,6 @@ function ∇π(x::Array{Float64},camera_matrix::AbstractMatrix{Float64})
     return dπdx
 end
 
-"""
-    closest_point_contour(contour1, contour2) -> (hausdorff, [avg, chamfer])
-
-Compute robust distances between two 2D contours using Hausdorff, average, and
-Chamfer (RMS) metrics. If the contours have different numbers of points they are
-first resampled to `min(n1, n2)` uniformly-spaced points via linear interpolation.
-
-# Arguments
-- `contour1::AbstractMatrix{Float64}`: 2×N₁ matrix of 2D contour points.
-- `contour2::AbstractMatrix{Float64}`: 2×N₂ matrix of 2D contour points.
-
-# Returns
-- `[hausdorff_dist]::Vector{Float64}`: maximum point-wise distance.
-- `[average_dist, chamfer_dist]::Vector{Float64}`: mean and RMS point-wise distances.
-"""
-function closest_point_contour(contour1::AbstractMatrix{Float64}, contour2::AbstractMatrix{Float64})
-    # Ensure contours have same number of points or interpolate
-    n1, n2 = size(contour1, 2), size(contour2, 2)
-    
-    if n1 != n2
-        # Interpolate to same number of points
-        n_target = min(n1, n2)
-        t1 = range(0, 1, length=n1)
-        t2 = range(0, 1, length=n2)
-        t_target = range(0, 1, length=n_target)
-        
-        # Simple linear interpolation for each coordinate
-        x1_interp = [LinearInterpolation(t1, contour1[1,:])(t) for t in t_target]
-        y1_interp = [LinearInterpolation(t1, contour1[2,:])(t) for t in t_target]
-        x2_interp = [LinearInterpolation(t2, contour2[1,:])(t) for t in t_target]
-        y2_interp = [LinearInterpolation(t2, contour2[2,:])(t) for t in t_target]
-        
-        contour1_norm = hcat(x1_interp, y1_interp)'
-        contour2_norm = hcat(x2_interp, y2_interp)'
-    else
-        contour1_norm = contour1
-        contour2_norm = contour2
-    end
-    
-    # Compute point-wise distances
-    distances = [norm(contour1_norm[:,i] - contour2_norm[:,i]) for i in 1:size(contour1_norm,2)]
-    
-    # Multiple distance metrics
-    hausdorff_dist = maximum(distances)
-    average_dist = mean(distances)
-    chamfer_dist = sqrt(mean(distances.^2))  # RMS distance
-    
-    return [hausdorff_dist], [average_dist, chamfer_dist]
-end
 
 """
     detect_outlier_observations(contour_list; area_outlier_threshold, centroid_outlier_threshold,
@@ -706,25 +657,6 @@ function upsample_contour(border::AbstractMatrix, n_target::Int; method::Symbol=
     return by_rows ? out : permutedims(out)
 end
 
-"""
-    fit_curve_2D(x,y, n)
-
-Fit a curve to the border nodes of the 2D mesh
-
-# Arguments:
-- `x::Vector{Float64}`: x coordinates
-- `y::Vector{Float64}`: y coordinates
-- `n::Integer`: number of sampled points
-
-# Returns:
-- `points::Vector{Float64}`: vector of n sampled points
-"""
-function fit_curve_2D(x,y, n)
-    spl = CubicSpline(x,y)
-    points = [spl(i) for i in range(y[1],stop=y[end],length=n)]
-
-    return points
-end
 
 """
     rearrange(q, ne, ndim, IEN, basis_order)

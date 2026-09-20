@@ -6,18 +6,18 @@ Supertype for the physical experiment a model is driven through. Concrete subtyp
 abstract type AbstractScenario end
 
 """
-    SqueezeFlow(model, β=Float64[], q=…, C_uc=…, control="force", sim_time=0.0, t_steps=0.0, viscosity_type="constant", cParam=Float64[])
+    SqueezeFlow(β=Float64[], q=…, C_uc=…, control="force", sim_time=0.0, t_steps=0.0, viscosity_type="constant", cParam=Float64[])
 
 An object compressed between two plates. The constructor takes the three prescribed-velocity
 blocks as a positional vector and stores them keyed by surface, so callers index by name rather
 than by position.
 
-`model` is the one parameter without a default — it is abstractly typed, so no safe value
-exists. Every other parameter defaults to an empty or zero-sized value, except `control` and
-`viscosity_type`, which default to the most common configuration.
+Every parameter has a default: empty or zero-sized values, except `control` and
+`viscosity_type`, which default to the most common configuration. (A dead `model` field used to
+sit first and, being abstractly typed, forced an exception to the "defaults for every field"
+guideline. It was never read anywhere and was removed 2026-09-20, dissolving the exception.)
 
 # Arguments
-- `model::AbstractModel`: Model being driven.
 - `β::Vector{Float64}`: Boundary slip/friction parameter.
 - `q::Vector{SparseMatrixCSC{Float64, Int64}}`: Prescribed velocities, ordered top plate, bottom
   plate, lateral surface; stored as `q_d[:top]`, `q_d[:bottom]`, `q_d[:border]`. The lateral
@@ -30,7 +30,6 @@ exists. Every other parameter defaults to an empty or zero-sized value, except `
 - `cParam::Vector{Float64}`: Control parameters; a force here is in kg*mm/s^2, not newtons.
 """
 mutable struct SqueezeFlow <: AbstractScenario
-    model::AbstractModel
     β::Vector{Float64}
     q_d::Dict{Symbol, Matrix{Float64}}
     C_uc::AbstractMatrix
@@ -41,7 +40,6 @@ mutable struct SqueezeFlow <: AbstractScenario
     cParam::Vector{Float64}
 
     function SqueezeFlow(
-        model::AbstractModel,
         β::Vector{Float64}=Float64[],
         q::Vector{SparseMatrixCSC{Float64, Int64}}=[spzeros(Float64, 0, 0) for _ in 1:3],
         C_uc::AbstractMatrix=spzeros(Float64, 0, 0),
@@ -52,6 +50,6 @@ mutable struct SqueezeFlow <: AbstractScenario
         cParam::Vector{Float64}=Float64[]
     )
         q_d = Dict{Symbol, Matrix{Float64}}(:top => q[1], :bottom => q[2], :border => q[3])
-        new(model, β, q_d, C_uc, control, sim_time, t_steps, viscosity_type, cParam)
+        new(β, q_d, C_uc, control, sim_time, t_steps, viscosity_type, cParam)
     end
 end

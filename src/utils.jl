@@ -84,36 +84,9 @@ end
 function progress_guard(total; kwargs...)
     # Optional keyword to control reporting frequency in seconds
     report_interval = haskey(kwargs, :report_interval) ? float(kwargs[:report_interval]) : 5.0
-        # Determine whether we have a TTY on a reasonable stdout object.
-        function _get_default_stdout()
-            # Try several likely places where a global stdout may be defined.
-            if isdefined(Base, :STDOUT)
-                return Base.STDOUT
-            elseif isdefined(Base, :stdout)
-                return Base.stdout
-            elseif isdefined(Main, :STDOUT)
-                return Main.STDOUT
-            elseif isdefined(Main, :stdout)
-                return Main.stdout
-            else
-                return nothing
-            end
-        end
-
-        function _isatty_default()
-            io = _get_default_stdout()
-            if io === nothing
-                return false
-            end
-            try
-                return isatty(io)
-            catch e
-                @debug "isatty check failed: $e"
-                return false
-            end
-        end
-
-        if _isatty_default()
+    # A live terminal gets ProgressMeter's redrawing bar; anything else (a pipe, a log file,
+    # a batch job) gets periodic one-line reports instead, since redraws would spam the log.
+    if stdout isa Base.TTY
         return Progress(total; kwargs...)
     else
         desc = haskey(kwargs, :desc) ? string(kwargs[:desc]) : ""

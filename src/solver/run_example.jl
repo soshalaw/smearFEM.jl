@@ -55,31 +55,31 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
     if DENSE == true
         A_bar = assemble_system_A(mdl, cache)
         B = assemble_system_B(mdl, cache)
-        b = apply_boundary_conditions_dense(mdl, cache)     # apply the neumann boundary conditions
+        b = apply_boundary_conditions_dense(mdl, cache)
     else
         A_bar = assemble_system_A(mdl, cache)
         B = assemble_system_B(mdl, cache)
-        b = apply_boundary_conditions(mdl, cache)           # apply the neumann boundary conditions
+        b = apply_boundary_conditions(mdl, cache)
     end
 
-    q_d = (μu_btm*q_btm + μu_tp*q_tp + μu_side*q_side)      # apply the Dirichlet boundary conditions
+    q_d = (μu_btm*q_btm + μu_tp*q_tp + μu_side*q_side)
 
     A = η*A_bar + β*b
 
-    C_Tu = transpose(C_uc)           # transpose the constraint matrix
+    C_Tu = transpose(C_uc)
 
-    A_free = C_Tu*A*C_uc        # extract the free part of the stiffness matrix
-    B_free = C_Tu*B             # extract the free part of the stiffness matrix
+    A_free = C_Tu*A*C_uc
+    B_free = C_Tu*B
 
-    K_free = [A_free B_free; B_free' zeros(size(B_free,2),size(B_free,2))]     # assemble the system of equations
+    K_free = [A_free B_free; B_free' zeros(size(B_free,2),size(B_free,2))]
 
-    r = [C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
-    sol = -K_free\Matrix(r)                 # solve the system of equations
+    r = [C_Tu*A*q_d; B'*q_d]
+    sol = -K_free\Matrix(r)
 
-    q_f = sol[1:size(A_free,1)]     # extract the free part of the solution
-    p_f = sol[size(A_free,1)+1:end] # extract the free part of the solution 
+    q_f = sol[1:size(A_free,1)]
+    p_f = sol[size(A_free,1)+1:end]
 
-    q = q_d + C_uc*q_f;                 # assemble the solution 
+    q = q_d + C_uc*q_f;
     p = p_f;
 
     q_out = [q[ID_u[1,:]] q[ID_u[2,:]] q[ID_u[3,:]]]'
@@ -88,31 +88,31 @@ function simulate_single_tstep_stokes(r::Number, h::Number, ne::Int64, η::Numbe
         dAdη = A_bar
         dAdβ = b 
 
-        dKdη = [C_Tu*dAdη*C_uc zeros(size(B_free)); zeros(size(B_free')) zeros(size(B,2),size(B,2))] # assemble the system of equations
-        dKdβ = [C_Tu*dAdβ*C_uc zeros(size(B_free)); zeros(size(B_free')) zeros(size(B,2),size(B,2))] # assemble the system of equations
+        dKdη = [C_Tu*dAdη*C_uc zeros(size(B_free)); zeros(size(B_free')) zeros(size(B,2),size(B,2))]
+        dKdβ = [C_Tu*dAdβ*C_uc zeros(size(B_free)); zeros(size(B_free')) zeros(size(B,2),size(B,2))]
     
         drdη = [C_Tu*dAdη*q_d; zeros(size(B,2),size(q_d,2))]
         drdβ = [C_Tu*dAdβ*q_d; zeros(size(B,2),size(q_d,2))]
 
-        dsoldη = -K_free\(drdη + dKdη*sol) # solve the system of equations
-        dsoldβ = -K_free\(drdβ + dKdβ*sol) # solve the system of equations
+        dsoldη = -K_free\(drdη + dKdη*sol)
+        dsoldβ = -K_free\(drdβ + dKdβ*sol)
 
-        dqfdη = dsoldη[1:size(A_free,1)] # extract the free part of the solution
-        dqfdβ = dsoldβ[1:size(A_free,1)] # extract the free part of the solution
+        dqfdη = dsoldη[1:size(A_free,1)]
+        dqfdβ = dsoldβ[1:size(A_free,1)]
 
-        dpfdη = dsoldη[size(A_free,1)+1:end] # extract the free part of the solution 
-        dpfdβ = dsoldβ[size(A_free,1)+1:end] # extract the free part of the solution
+        dpfdη = dsoldη[size(A_free,1)+1:end]
+        dpfdβ = dsoldβ[size(A_free,1)+1:end]
 
-        dqdη = C_uc*dqfdη;              # assemble the solution
-        dqdβ = C_uc*dqfdβ;              # assemble the solution
+        dqdη = C_uc*dqfdη;
+        dqdβ = C_uc*dqfdβ;
 
-        dpdη = dpfdη;                  # assemble the solution
-        dpdβ = dpfdβ;                  # assemble the solution
+        dpdη = dpfdη;
+        dpdβ = dpfdβ;
 
         dqdη_out = hcat(dqdη[ID_u[1,:]], dqdη[ID_u[2,:]], dqdη[ID_u[3,:]])'
         dqdβ_out = hcat(dqdβ[ID_u[1,:]], dqdβ[ID_u[2,:]], dqdβ[ID_u[3,:]])'
 
-        dqdθ_out = cat(dqdη_out,dqdβ_out,dims=(3,3)) # concatenate the gradients in to a tensor
+        dqdθ_out = cat(dqdη_out,dqdβ_out,dims=(3,3))
         return q_out, dqdθ_out, mdl
     else
         return q_out, mdl
@@ -141,7 +141,8 @@ reports its own wall-clock cost.
 - `splinep`, `splineq`: Fitted contour coordinates.
 - `elapsed_time`: Wall-clock time for the step.
 """
-function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions)
+function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
+                                  μu_btm::Real=0.0, μu_side::Real=0.0)
 
     start_time = Dates.now()
     reset_model!(mdl)
@@ -193,30 +194,28 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
     NodeList_cached::Matrix{Float64} = NodeList_u_cached
     ID_cached::Matrix{Int} = ID_u_cached
 
-    C_Tu = transpose(C_uc_cached) # transpose the constraint matrix
+    C_Tu = transpose(C_uc_cached)
 
     if conditions.filepath != ""
         isnothing(conditions.filepath) && throw(AssertionError("Please provide a filepath to write the data"))
         set_file(conditions.filepath)
     end
 
-    μu_btm = 0  
-    μu_side = 0
             
     BorderPts2D, SurfacePts2D, obs_border_pts = _get_2D_data(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, angles=rot_angle_cached)
     
     dqdη = zeros(Float64, size(q_d_cached_top))
     dqdβ = zeros(Float64, size(q_d_cached_top))
 
-    displacement = AbstractArray[zeros(Float64,size(NodeList_cached,1),size(NodeList_cached,2))] # store the displacement of the mesh in 3D
+    displacement = AbstractArray[zeros(Float64,size(NodeList_cached,1),size(NodeList_cached,2))]
     surface_fields = AbstractArray[]
     surface_pts_3D = AbstractArray[vcat(NodeList_cached[:,top_node_list_cached]', 
                                         NodeList_cached[:,bottom_node_list_cached]', 
-                                        NodeList_cached[:,side_node_list_cached]')']      # store the solution fields of the mesh in 3D
+                                        NodeList_cached[:,side_node_list_cached]')']
     gradList = AbstractArray[zeros(Float64, size(BorderPts2D[1],1),size(BorderPts2D[1],2),2)] # store the solution fields of the border nodes in 2D
-    pos3D = AbstractArray[NodeList_cached]         # store the solution fields of the mesh in 3D
+    pos3D = AbstractArray[NodeList_cached]
     pos3D_cp = AbstractArray[NodeList_cached]
-    pos2D = AbstractArray[SurfacePts2D[1]]          # store the solution fields of the mesh in 2D
+    pos2D = AbstractArray[SurfacePts2D[1]]
     borderPts2DList = AbstractArray[BorderPts2D[1]] # store the solution fields of the surfaces in 2D
     splinep = AbstractArray[BorderPts2D[1][1,:]]    # store the x coordinates samples of the spline parameters of the border nodes
     splineq = AbstractArray[BorderPts2D[1][2,:]]    # store the y coordinates samples of the spline parameters of the border nodes
@@ -227,14 +226,14 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
 
     if control_cached == "force"
 
-        A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_u_cached*nNodes_u_cached)  # initialize the stiffness matrix
-        B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_p_cached*nNodes_p_cached)      # initialize the stiffness matrix
-        b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_u_cached*nNodes_u_cached)      # initialize the stiffness matrix
+        A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_u_cached*nNodes_u_cached)
+        B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_p_cached*nNodes_p_cached)
+        b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_u_cached*nNodes_u_cached)
         q_d = spzeros(nDof_u_cached*nNodes_u_cached,1)                                                                       # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
         A = similar(A_bar)
 
-        A_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(C_uc_cached,2))   # convert to sparse matrix
-        B_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(B,2))             # convert to sparse matrix
+        A_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(C_uc_cached,2))
+        B_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(B,2))
 
         dA_freedη = similar(A_free)                         
         dA_freedβ = similar(A_free)                         
@@ -255,9 +254,9 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
 
         A_bar .= assemble_system_A(mdl, cache)
         B .= assemble_system_B(mdl, cache)
-        b .= apply_boundary_conditions(mdl, cache) # apply the neumann boundary conditions
+        b .= apply_boundary_conditions(mdl, cache)
     
-        q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
+        q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr)
         
         if viscosity_type_cached == "bulk_viscosity"
             if length(β_cached) == 1
@@ -272,11 +271,11 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         dAdη .= A_bar
         dAdβ .= b
 
-        A_free .= C_Tu*A*C_uc_cached # extract the free part of the stiffness matrix
-        B_free .= C_Tu*B             # extract the free part of the stiffness matrix
+        A_free .= C_Tu*A*C_uc_cached
+        B_free .= C_Tu*B
 
-        dA_freedη .= C_Tu*dAdη*C_uc_cached # extract the free part of the stiffness matrix
-        dA_freedβ .= C_Tu*dAdβ*C_uc_cached # extract the free part of the stiffness matrix
+        dA_freedη .= C_Tu*dAdη*C_uc_cached
+        dA_freedβ .= C_Tu*dAdβ*C_uc_cached
 
         M[1:size(A_free,1),1:size(A_free,2)] = A_free
         M[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),1:size(A_free,2)] = B_free'
@@ -314,15 +313,15 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         dMdβ[(size(A_free,1)+1):(size(A_free,1)+size(B_free,2)),end] = dB'*q_d_cached_top
         dMdβ[end,end] = (q_d_cached_top'dAdβ*q_d_cached_top)[end]
 
-        r = [-C_Tu*A*q_d; -B'*q_d; cParam_cached[iter].-q_d_cached_top'A*q_d]    # assemble the system of equations
+        r = [-C_Tu*A*q_d; -B'*q_d; cParam_cached[iter].-q_d_cached_top'A*q_d]
         drdη = -[C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdη*q_d]
         drdβ = -[C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2)); q_d_cached_top'dAdβ*q_d]
 
         sol, dsoldη, dsoldβ = lock(SPARSE_LU_LOCK) do
-            lum = lu(M) # LU decomposition of the system of equations
-            sol = lum\Matrix(r)             # solve the system of equations
-            dsoldη = lum\(drdη - dMdη*sol)  # solve the system of equations
-            dsoldβ = lum\(drdβ - dMdβ*sol)  # solve the system of equations
+            lum = lu(M)
+            sol = lum\Matrix(r)
+            dsoldη = lum\(drdη - dMdη*sol)
+            dsoldβ = lum\(drdβ - dMdβ*sol)
             sol, dsoldη, dsoldβ
         end
 
@@ -338,24 +337,24 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         dμdη = dsoldη[end]
         dμdβ = dsoldβ[end]
         
-        q .= q_d + C_uc_cached*q_f + μ_tp*q_d_cached_top;       # assemble the solution 
-        dqdη .= dqdη + C_uc_cached*dqfdη + dμdη*q_d_cached_top; # assemble the solution
-        dqdβ .= dqdβ + C_uc_cached*dqfdβ + dμdβ*q_d_cached_top; # assemble the solution
+        q .= q_d + C_uc_cached*q_f + μ_tp*q_d_cached_top;
+        dqdη .= dqdη + C_uc_cached*dqfdη + dμdη*q_d_cached_top;
+        dqdβ .= dqdβ + C_uc_cached*dqfdβ + dμdβ*q_d_cached_top;
 
         p = p_f;
-        dpdη = dpfdη; # assemble the solution
-        dpdβ = dpfdβ; # assemble the solution
+        dpdη = dpfdη;
+        dpdβ = dpfdβ;
 
-        motion_y = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # extract the motion of the mesh grid
+        motion_y = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached
         dmdη_out_y = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'*t_steps_cached
         dmdβ_out_y = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'*t_steps_cached
 
-        motion =  motion_y # extract the motion of the mesh grid
+        motion =  motion_y
 
-        NodeList_cached = NodeList_cached + motion # update the mesh grid
-        mdl.mesh_x.NodeList = NodeList_cached      # update the mesh grid
+        NodeList_cached = NodeList_cached + motion
+        mdl.mesh_x.NodeList = NodeList_cached
 
-        NodeList_cached = NodeList_cached # project the motion on the geometry mesh grid
+        NodeList_cached = NodeList_cached
         dmdη_out_proj = dmdη_out_y
         dmdβ_out_proj = dmdβ_out_y
         motion_proj = motion
@@ -363,11 +362,11 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         mat_nan_inf_check(dmdη_out_y)
         mat_nan_inf_check(dmdβ_out_y)
         
-        dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
+        dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3)
 
         BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D, obs_border_pts = _get_2D_data(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, angles=rot_angle_cached)
 
-        push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
+        push!(output, μ_tp*t_steps_cached)
         push!(displacement, motion_proj)
         push!(surface_fields, motion_proj[:,side_node_list_cached])
         push!(surface_pts_3D, vcat(NodeList_cached[:,top_node_list_cached]', NodeList_cached[:,bottom_node_list_cached]', NodeList_cached[:,side_node_list_cached]')')
@@ -384,9 +383,9 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
 
         A_bar = assemble_system_A(mdl, cache)
         B = assemble_system_B(mdl, cache)
-        b = apply_boundary_conditions(mdl, cache) # apply the neumann boundary conditions
+        b = apply_boundary_conditions(mdl, cache)
     
-        q_d = (μu_btm*q_d_cached_btm + cParam_cached[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)      # apply the Dirichlet boundary conditions
+        q_d = (μu_btm*q_d_cached_btm + cParam_cached[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)
     
         if viscosity_type_cached == "bulk_viscosity"
             if length(β_cached) == 1
@@ -402,64 +401,64 @@ function stokes_single_step_force(mdl::Stokes, scene::SqueezeFlow, conditions::C
         dAdβ = b
         dB = zeros(Float64, size(B))
 
-        C_Tu = transpose(C_uc_cached)      # transpose the constraint matrix
+        C_Tu = transpose(C_uc_cached)
     
-        A_free = C_Tu*A*C_uc_cached        # extract the free part of the stiffness matrix
-        B_free = C_Tu*B                    # extract the free part of the stiffness matrix
+        A_free = C_Tu*A*C_uc_cached
+        B_free = C_Tu*B
 
-        dA_freedη = C_Tu*dAdη*C_uc_cached        # extract the free part of the stiffness matrix
-        dA_freedβ = C_Tu*dAdβ*C_uc_cached        # extract the free part of the stiffness matrix
+        dA_freedη = C_Tu*dAdη*C_uc_cached
+        dA_freedβ = C_Tu*dAdβ*C_uc_cached
         dB_free = zeros(Float64, size(B_free))
     
-        K_free = [A_free B_free; B_free' zeros(Float64, size(B_free,2),size(B_free,2))]      # assemble the system of equations
-        dKdη = [C_Tu*dAdη*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
-        dKdβ = [C_Tu*dAdβ*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))] # assemble the system of equations
+        K_free = [A_free B_free; B_free' zeros(Float64, size(B_free,2),size(B_free,2))]
+        dKdη = [C_Tu*dAdη*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))]
+        dKdβ = [C_Tu*dAdβ*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))]
         
         invK = inv(Matrix(K_free))
     
-        r = [C_Tu*A*q_d; B'*q_d]    # assemble the system of equations
+        r = [C_Tu*A*q_d; B'*q_d]
         drdη = [C_Tu*dAdη*q_d; zeros(Float64, size(B,2),size(q_d,2))]
         drdβ = [C_Tu*dAdβ*q_d; zeros(Float64, size(B,2),size(q_d,2))]
 
-        sol = -invK*r                    # solve the system of equations
-        dsoldη = -invK*(drdη + dKdη*sol) # solve the system of equations
-        dsoldβ = -invK*(drdβ + dKdβ*sol) # solve the system of equations
+        sol = -invK*r
+        dsoldη = -invK*(drdη + dKdη*sol)
+        dsoldβ = -invK*(drdβ + dKdβ*sol)
     
-        q_f = sol[1:size(A_free,1)]      # extract the free part of the solution
-        dqfdη = dsoldη[1:size(A_free,1)] # extract the free part of the solution
-        dqfdβ = dsoldβ[1:size(A_free,1)] # extract the free part of the solution
+        q_f = sol[1:size(A_free,1)]
+        dqfdη = dsoldη[1:size(A_free,1)]
+        dqfdβ = dsoldβ[1:size(A_free,1)]
 
-        p_f = sol[size(A_free,1)+1:end]      # extract the free part of the solution
-        dpfdη = dsoldη[size(A_free,1)+1:end] # extract the free part of the solution 
-        dpfdβ = dsoldβ[size(A_free,1)+1:end] # extract the free part of the solution
+        p_f = sol[size(A_free,1)+1:end]
+        dpfdη = dsoldη[size(A_free,1)+1:end]
+        dpfdβ = dsoldβ[size(A_free,1)+1:end]
     
-        q = q_d + C_uc_cached*q_f;         # assemble the solution 
-        dqdη = dqdη + C_uc_cached*dqfdη;   # assemble the solution
-        dqdβ = dqdβ + C_uc_cached*dqfdβ;   # assemble the solution
+        q = q_d + C_uc_cached*q_f;
+        dqdη = dqdη + C_uc_cached*dqfdη;
+        dqdβ = dqdβ + C_uc_cached*dqfdβ;
 
         p = p_f;
-        dpdη = dpfdη;  # assemble the solution
-        dpdβ = dpfdβ;  # assemble the solution
+        dpdη = dpfdη;
+        dpdβ = dpfdβ;
 
         motion = hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'*t_steps_cached # get the motion of the mesh
         dmdη_out = hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
         dmdβ_out = hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
         
-        NodeList_cached = NodeList_cached + motion # update the mesh grid
-        mdl.mesh_u.NodeList = NodeList_cached # update the mesh grid
+        NodeList_cached = NodeList_cached + motion
+        mdl.mesh_u.NodeList = NodeList_cached
     
-        NodeList_cached = NodeList_cached*T # project the motion on the geometry mesh grid
+        NodeList_cached = NodeList_cached*T
         dmdη_out_proj = dmdη_out*T
         dmdβ_out_proj = dmdβ_out*T
         
-        dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3) # concatenate the gradients in to a tensor
+        dmdθ_out = @views cat(dmdη_out_proj,dmdβ_out_proj,dims=3)
     
         BorderPts2D, dudθ, SurfacePts2D, ∇SurfacePts2D, obs_border_pts = _get_2D_data(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, angles=rot_angle_cached)
 
         mat_nan_inf_check(dudθ[1][:,:,1])
         mat_nan_inf_check(dudθ[1][:,:,2])
 
-        push!(output, μ_tp*t_steps_cached) # store displacement at the top surface
+        push!(output, μ_tp*t_steps_cached)
         push!(displacement, motion)
         push!(surface_fields, motion[:,side_node_list_cached])
         push!(surface_pts_3D, NodeList_cached[:,side_node_list_cached]')
@@ -684,9 +683,9 @@ function initialize_mesh(r::Number, h::Number, ne::Number, element_shape::Symbol
     BorderPts2D, SurfacePts2D, obs_border_pts = _get_2D_data(mesh.NodeList, camera_matrix, obj_pose, h; BorderNodesList=mesh.side_nodes, angles=z_angle_list)
     
     # store the solution fields of the border nodes in 2D 
-    pos3D = AbstractArray[mesh.NodeList]                                                             # store the solution fields of the mesh in 3D
-    surface_pts_3D = [vcat(mesh.NodeList[:,mesh.top_nodes]', mesh.NodeList[:,mesh.bottom_nodes]', mesh.NodeList[:,mesh.side_nodes]')'] # store the solution fields of the mesh in 3D
-    pos2D = AbstractArray[SurfacePts2D]                                                                   # store the solution fields of the mesh in 2D
+    pos3D = AbstractArray[mesh.NodeList]
+    surface_pts_3D = [vcat(mesh.NodeList[:,mesh.top_nodes]', mesh.NodeList[:,mesh.bottom_nodes]', mesh.NodeList[:,mesh.side_nodes]')']
+    pos2D = AbstractArray[SurfacePts2D]
     borderPts2DList = AbstractArray[BorderPts2D]                                                          # store the solution fields of the surfaces in 2D                                                                          # store the y coordinates samples of the spline parameters of the border nodes 
     writeborderList = [obs_border_pts]
 

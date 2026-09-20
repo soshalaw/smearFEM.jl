@@ -214,7 +214,7 @@ function def_problem(geom::Cylinder, ne::Z, η_0::V,
                        element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x;
                        filepath_mesh=mesh_path, GMESH_MESH=GMESH_MESH)
     q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes)
-    squeeze = SqueezeFlow(stokes, [β], [q_tp, q_btm, q_side], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
+    squeeze = SqueezeFlow([β], [q_tp, q_btm, q_side], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
     return stokes, squeeze
 end
 
@@ -263,6 +263,6 @@ function def_problem(geom::Cuboid, ne::Z, η_0::V,
                        element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x;
                        filepath_mesh=mesh_path, GMESH_MESH=GMESH_MESH, edge_radius=edge_radius)
     q_tp, q_side, q_btm, C_uc = set_boundary_cond(stokes)
-    squeeze = SqueezeFlow(stokes, [β], [q_tp, q_btm, q_side], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
+    squeeze = SqueezeFlow([β], [q_tp, q_btm, q_side], C_uc, control, sim_time, t_steps, viscosity_type, cParam)
     return stokes, squeeze
 end
