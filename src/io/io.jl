@@ -290,6 +290,32 @@ function write_stokes_scene(
     @info "Finished writing VTK files to $(filepath)/vtkFiles"
 end
 
+# Timestep index width. Fixed-width names keep lexicographic order equal to time
+# order for anything reading these directories outside Julia (ParaView, smearPerception).
+_index_pad(n_steps::Integer) = max(3, ndigits(max(n_steps - 1, 0)))
+
+"""
+    sorted_csv_files(filepath)
+
+List the CSV files in a per-timestep directory ordered by their timestep index.
+
+Files are named by timestep, so `readdir`'s lexicographic order only matches time order
+when every name is the same width. Directories written before the padding was widened mix
+widths (`999.csv` sorts after `1000.csv`), so order by the parsed index instead.
+
+# Arguments
+- `filepath::String`: Directory of per-timestep CSVs.
+
+# Returns
+- `::Vector{String}`: Full paths, ordered by timestep. Names that are not a bare integer
+  keep their lexicographic position relative to each other, after the indexed ones.
+"""
+function sorted_csv_files(filepath::String)
+    files = filter(f -> endswith(f, ".csv"), readdir(filepath, join=true))
+    idx(f) = something(tryparse(Int, splitext(basename(f))[1]), typemax(Int))
+    return sort(files, by = f -> (idx(f), basename(f)))
+end
+
 """
     read_csv(filepath)
 
@@ -308,7 +334,7 @@ function read_csv(filepath::String)
         throw(SystemError("Trying to read from $filepath, the directory does not exist."))
     end
 
-    csv_files = readdir(filepath, join=true)        # get the list of the csv files in the directory
+    csv_files = sorted_csv_files(filepath)         # ordered by timestep index, not lexicographically
     ObsDataList = AbstractArray[]                                  # store the observation data
     splinex = AbstractArray[]
     spliney = AbstractArray[]
@@ -353,8 +379,9 @@ Function to write the contour data to a CSV file
 function write_data(filepath::String, data_array::AbstractArray)
     @info "Writing contour files..."
     set_file(filepath)
+    pad = _index_pad(length(data_array))
     for (t, t_data) in enumerate(data_array)
-        cStr = string(t - 1, pad=3)
+        cStr = string(t - 1; pad=pad)
         write_csv(joinpath(filepath, cStr), t_data)
     end
 end
@@ -377,8 +404,9 @@ function write_2d_data(filepath::String, data_array::AbstractArray)
     @info "Writing contour files..."
     root_folder = dirname(filepath)
     folder_name = basename(filepath)
+    pad = _index_pad(length(data_array))
     for (t, t_data) in enumerate(data_array)
-        cStr = string(t - 1, pad=3)
+        cStr = string(t - 1; pad=pad)
         for (a, angle_data) in enumerate(t_data)
             angle_dir = joinpath(root_folder, "view_$a", folder_name)
             set_file(angle_dir)

@@ -49,13 +49,10 @@ function get_r(filepath::String)
         throw(SystemError("Trying to read from $filepath, the directory does not exist."))
     end
 
-    csv_files = readdir(filepath, join=true)        # get the list of the csv files in the directory
+    csv_files = sorted_csv_files(filepath)         # ordered by timestep index, not lexicographically
     border_r_list = AbstractArray[]
     border_z_list = AbstractArray[]
     for file in csv_files
-        if !endswith(file, ".csv")  # check if the file is a CSV file
-            continue
-        end
         data = readdlm(file, ',', Float64, '\n', header=false)  # read the observation data
         data_sorted = data[sortperm(data[:, 3]), :]  # sort the data based on the z coordinate (3rd column)
         r = sqrt.(data_sorted[:, 1].^2 + data_sorted[:, 2].^2)  
@@ -94,13 +91,12 @@ extrapolating outside the sampled range so curves at different heights stay comp
   start at 0.
 """
 function get_r_curves(filepath::String)
-    csv_list = readdir(filepath, join=true)
+    csv_list = sort(filter(f -> startswith(basename(f), "free_curve") && endswith(f, ".csv"),
+                           readdir(filepath, join=true)),
+                    by = f -> something(tryparse(Int, replace(splitext(basename(f))[1], "free_curve" => "")), typemax(Int)))
     r_curves = []
     for file in csv_list
         name = basename(file)
-        if !startswith(name, "free_curve") || !endswith(name, ".csv")
-            continue
-        end
         data = readdlm(file, ',', '\n')
         z = data[2:end, 1] .- minimum(data[2:end, 1])  # Normalize z to start from 0
         r = data[2:end, 2]
@@ -134,31 +130,19 @@ function fit_convergence_rate(x_vals::Vector, y_vals::Vector)
 end
 
 """
-    plot_convergence_generic(x_vals, y_vals, x_label, x_label_latex=""; int_tol=0.2, shift=5.0)
+    plot_convergence_generic(x_vals, y_vals, x_label)
 
-Plot convergence data with a fitted power-law reference line.
+Plot convergence data on log-log axes.
 
 # Arguments
 - `x_vals::Vector`: x-axis values (h for mesh, Δt for time).
 - `y_vals::Vector`: error values.
 - `x_label::String`: label for the x-axis.
-- `x_label_latex::String`: LaTeX symbol for the x-axis quantity, used to
-  label the reference-line order (e.g. `"O(h^2)"`) (default: `""`).
-
-# Keyword Arguments
-- `int_tol::Float64`: if the fitted rate is within `int_tol` of the nearest
-  integer, draw a single reference line at that integer; otherwise draw both
-  the floor and ceil bounding lines (default: `0.2`).
-- `shift::Float64`: multiplicative offset separating the reference line from
-  the data at its anchor point (x_min for the single/floor line, x_max for
-  the ceil line), so the reference line runs offset from the data rather
-  than through it (default: `5.0`).
 
 # Returns
 - `plt`: the convergence plot.
 """
-function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::AbstractString, x_label_latex::String="";
-                                  int_tol::Float64=0.2, shift::Float64=5.0)
+function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::AbstractString)
     # Filter valid data
     valid_idx = findall(x -> !isnan(x) && !isinf(x) && x > 0, y_vals)
     y_vals_clean = y_vals[valid_idx]
@@ -169,26 +153,8 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Abstr
         return
     end
 
-    # Fit convergence rate
-    intercept, convergence_rate = fit_convergence_rate(x_vals_clean, y_vals_clean)
-    rate = convergence_rate
+    _, rate = fit_convergence_rate(x_vals_clean, y_vals_clean)
 
-    x_min = minimum(x_vals_clean)
-    x_max = maximum(x_vals_clean)
-    fit_at(x0) = exp(intercept + rate * log(x0))
-
-    ref_y_max = maximum(y_vals_clean)
-    ref_y_min = minimum(y_vals_clean)
-
-    ref_line(m, xs, C) = C .* xs .^ m
-    get_x(y, m, C) = (y / C)^(1/m)
-    # x-range that makes ref_line(m, ., C) span exactly [ref_y_min, ref_y_max] for this m, C.
-    # For m == 0 the line is constant in y, so it can't be inverted to span a y-range —
-    # just use the data's own x-range instead.
-    x_range_for(m, C) = m == 0 ? exp.(range(log(x_min), log(x_max), length=100)) :
-                                  exp.(range(log(get_x(ref_y_min, m, C)), log(get_x(ref_y_max, m, C)), length=100))
-
-    conv_rate_str = @sprintf("%.3f", rate)
     plt = set_plot_from_config(PLOT_CONFIG)
 
     Plots.plot!(plt, x_vals_clean, y_vals_clean,
@@ -196,13 +162,21 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Abstr
                 xlabel=x_label, ylabel="Relative Absolute Error (RAE)",
                 marker=:circle, markersize=4, markerstrokewidth=1.5, color="#FF7F0E",
                 yscale=:log10, xscale=:log10)
-    
-    @info "Convergence rate: O(h^$(conv_rate_str))"
+
+    @info "Convergence rate: O(h^$(@sprintf("%.3f", rate)))"
 
     # Save plot
     return plt
 end
 
+
+# A size counts as done only with the full height series on disk; a partial run
+# (killed mid-sweep) has a short or missing h.csv and is redone.
+function _run_complete(filepath::String, steps::Int)
+    h_file = joinpath(filepath, "data", "h.csv")
+    isfile(h_file) || return false
+    return size(readdlm(h_file, ',', Float64), 1) >= steps + 1
+end
 
 """
     mesh_convergence_analysis(; radius=25.0, height=40.0, elem_sizes=[10, 8, 6, 4], template_mesh_geo_path=...)
@@ -214,12 +188,16 @@ the finest-mesh reference, writing the series to CSV for `plot_convergence_mesh`
 - `radius::Float64`, `height::Float64`: Cylinder dimensions, in mm.
 - `elem_sizes::Vector`: Element sizes to sweep, coarsest first.
 - `template_mesh_geo_path::String`: `.geo` template the meshes are generated from.
+- `nz_list::Vector`: Elements along the height, one forward solve each.
+- `force::Bool`: Re-run sizes that already have a complete result on disk.
 
 # Returns
-- `nothing`: Results are written under the ground-truth data tree.
+- `::String`: Output directory the series were written to, one per element shape.
 """
 function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, elem_sizes::Vector=[10, 8, 6, 4], 
-                                  template_mesh_geo_path::String=joinpath(@__DIR__, "mesh.geo"))
+                                  template_mesh_geo_path::String=joinpath(@__DIR__, "mesh.geo"),
+                                  nz_list::Vector=Union{Int,Float64}[2, 4, 6, 8],
+                                  force::Bool=false)
 
     height_list = AbstractArray[]
     height_error_list = Float64[]
@@ -232,15 +210,17 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
     η::Float64 = 100.0
 
     viscosity_type::String = "constant" # "constant" or "bulk_viscosity"
-    element_shape_x::Symbol = :Hex
+    element_shape_x::Symbol = :Tet
     basis_order_x::Int = 2
-    element_shape_u::Symbol = :Hex
+    element_shape_u::Symbol = :Tet
     basis_order_u::Int = 2
-    element_shape_p::Symbol = :Hex
+    element_shape_p::Symbol = :Tet
     basis_order_p::Int = 1
     control::String = "force" # "force" or "velocity"
 
     geometry::Symbol = :cylinder # geometry type for the mesh generation
+
+    out_dir = conv_path("mesh_convergence_analysis", "$(element_shape_x)$(basis_order_x)")
 
     gt_path = resolve_data_path(joinpath("ground_truth", "sim_data", "Stokes", "force", "constant", "Hex_2", "convergence_analysis", "mesh_convergence_analysis", "mesh_convergence_tfem_data"))
 
@@ -251,7 +231,6 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
 
     obj_pose = [150, 0.0, height/2]
     camera_matrix = get_camera_matrix()
-    nz_list = Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16] # number of elements for each mesh size
     volume = π*radius^2*height # approximate volume of the cylinder divided by number of elements for the coarsest mesh
     
     h_ref = readdlm(joinpath(gt_path, "data", "h.csv"), ',', Float64, '\n', header=false)[end] # reference height from the finest mesh solution
@@ -287,11 +266,15 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
                 "geometry" => geometry
             )
         
-        try
-            write_gt_data(exp_params)
-        catch e
-            @error "Simulation failed for element size $nz" exception=(e, catch_backtrace())
-            continue
+        if !force && _run_complete(filepath, steps)
+            @info "Element size $nz already complete, reusing it"
+        else
+            try
+                write_gt_data(exp_params)
+            catch e
+                @error "Simulation failed for element size $nz" exception=(e, catch_backtrace())
+                continue
+            end
         end
         
         # Read results
@@ -312,7 +295,8 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             δh = sqrt(mean(((h_mesh[end] - h_ref) / h_ref).^2))
             δr = sqrt(mean(((r_cmp - r_int) ./ r_int).^2))
 
-            path =conv_path("mesh_convergence_analysis/plots")
+            path = joinpath(out_dir, "plots")
+            set_file(path)
             Plots.plot(z[end], r[end], label="Current mesh", xlabel="z", ylabel="r", title="Radius vs Height for element size $nz")
             Plots.plot!(z_cmp, r_int, label="Reference mesh", linestyle=:dash)
             Plots.savefig(joinpath(path, "radius_vs_height_mesh_sz_$nz.pdf"))
@@ -331,12 +315,13 @@ function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, 
             continue
         end
     end
-    write_csv(conv_path("mesh_convergence_analysis/effective_element_size"), effective_element_size_list)
-    write_csv(conv_path("mesh_convergence_analysis/height_list"), height_list)
-    write_csv(conv_path("mesh_convergence_analysis/height_error_list"), height_error_list)
-    write_csv(conv_path("mesh_convergence_analysis/rad_error_list"), rad_error_list)
-    write_csv(conv_path("mesh_convergence_analysis/elem_sizes"), elem_sizes)
-    write_csv(conv_path("mesh_convergence_analysis/time_list"), time_list)
+    write_csv(joinpath(out_dir, "effective_element_size"), effective_element_size_list)
+    write_csv(joinpath(out_dir, "height_list"), height_list)
+    write_csv(joinpath(out_dir, "height_error_list"), height_error_list)
+    write_csv(joinpath(out_dir, "rad_error_list"), rad_error_list)
+    write_csv(joinpath(out_dir, "elem_sizes"), elem_sizes)
+    write_csv(joinpath(out_dir, "time_list"), time_list)
+    return out_dir
 end
 
 """
@@ -499,13 +484,13 @@ function plot_convergence_mesh(file_path::String)
         @info "Selected mesh size for experiment: $selected_mesh_size"
         plot_path = joinpath(file_path, "plots")
 
-        plt1 = plot_convergence_generic(elem_sizes_flat, abs.(relative_error), "Effective element size (h)", "h")
+        plt1 = plot_convergence_generic(elem_sizes_flat, abs.(relative_error), "Effective element size (h)")
         Plots.ylims!(plt1, 10^(-4.5), 10^(-2.8))
         Plots.xlims!(plt1, 1,100)
-        Plots.vline!(plt1, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=4)
+        Plots.vline!(plt1, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=2)
         plt2 = set_plot_from_config(PLOT_CONFIG)
         Plots.plot!(plt2, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (ms)", marker=:circle, yscale=:log10, xscale=:log10)
-        Plots.vline!(plt2, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
+        Plots.vline!(plt2, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=2)
         Plots.ylabel!(plt2, "Time per step (ms)")
         Plots.xlims!(plt2, 1,100)
         Plots.ylims!(plt2, 1e1, 10^5.05)
@@ -516,8 +501,8 @@ function plot_convergence_mesh(file_path::String)
         plt4 = set_plot_from_config(PLOT_CONFIG)
         Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (s)", marker=:circle, yscale=:log10, xscale=:log10)
 
-        plt5 = plot_convergence_generic(elem_sizes_flat, abs.(rad_error_list), "Effective element size (h)", "h")
-        Plots.vline!(plt5, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
+        plt5 = plot_convergence_generic(elem_sizes_flat, abs.(rad_error_list), "Effective element size (h)")
+        Plots.vline!(plt5, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=2)
         Plots.ylims!(plt5, 10^(-5), 10^(-2.05))
         Plots.xlims!(plt5, 1,100)
 
@@ -562,11 +547,11 @@ function plot_convergence_time(file_path::String)
         plot_path = joinpath(file_path, "plots")
         set_file(plot_path)
         # returns nothing when fewer than two valid points survive filtering
-        plt1 = plot_convergence_generic(dt_sizes, relative_error, "Time step size (dt)", "\\Delta t")
+        plt1 = plot_convergence_generic(dt_sizes, relative_error, "Time step size (dt)")
         if plt1 === nothing
             @warn "Skipping time_convergence.pdf: not enough valid data points" file_path
         else
-            Plots.vline!(plt1, [selected_dt], label=L"\Delta t_{\mathrm{exp}}", line=:dash, color=:red, legend_column=3)
+            Plots.vline!(plt1, [selected_dt], label=L"\Delta t_{\mathrm{exp}}", line=:dash, color=:red, legend_column=2)
             Plots.xlims!(plt1, 10^(-3), 5)
             Plots.ylims!(plt1, 1e-6, 10^(-2.2))
             Plots.savefig(plt1, joinpath(plot_path, "time_convergence.pdf"))
@@ -578,18 +563,138 @@ function plot_convergence_time(file_path::String)
         Plots.savefig(plt2, joinpath(plot_path, "final_height_vs_dt.pdf"))
 end
 
+# Element-shape identity for the comparison figures. Colour and marker track the
+# shape itself, never the series order, so a figure missing one shape keeps the
+# other's appearance. Okabe-Ito blue/vermillion: separable under protan/deutan
+# simulation and above 3:1 against white, with marker and line style carrying the
+# same distinction so identity never rests on colour alone.
+const SHAPE_STYLE = Dict(
+    "Hex2" => (name="Hex", label="Hex (Q2/Q1)", color="#0072B2", marker=:circle, line=:solid),
+    "Tet2" => (name="Tet", label="Tet (P2/P1)", color="#D55E00", marker=:rect,   line=:dash),
+)
+
+# One element shape's mesh-convergence series, or `nothing` when the sweep has
+# not written it yet. Sorted by element size so the connecting line is monotone.
+function _read_convergence_series(dir::String)
+    names = ("effective_element_size", "height_error_list", "rad_error_list", "time_list")
+    all(n -> isfile(joinpath(dir, n * ".csv")), names) || return nothing
+    col(n) = vec(readdlm(joinpath(dir, n * ".csv"), ',', Float64)[:, end])
+    h, δh, δr, t = col.(names)
+    n = minimum(length, (h, δh, δr, t))
+    n >= 2 || return nothing
+    p = sortperm(h[1:n])
+    return (h=h[1:n][p], δh=δh[1:n][p], δr=δr[1:n][p], t=t[1:n][p])
+end
+
+# One overlaid log-log panel, styled like `plot_convergence_mesh`: the shared
+# `PLOT_CONFIG` figure and an outer-bottom legend whose column count is set on
+# the last series added.
+function _overlay_panel(series, xf, yf, x_label::AbstractString, y_label::AbstractString)
+    plt = set_plot_from_config(PLOT_CONFIG)
+    x_all, y_all = Float64[], Float64[]
+    entries = 0
+    for (name, d) in series
+        style = SHAPE_STYLE[name]
+        x, y = xf(d), yf(d)
+        keep = findall(i -> x[i] > 0 && y[i] > 0 && isfinite(x[i]) && isfinite(y[i]), eachindex(x))
+        isempty(keep) && continue
+        append!(x_all, x[keep]); append!(y_all, y[keep])
+        entries += 1
+        Plots.plot!(plt, x[keep], y[keep]; label=style.name, color=style.color,
+                    linestyle=style.line, marker=style.marker, markersize=4,
+                    markerstrokewidth=1.5, xlabel=x_label, ylabel=y_label,
+                    xscale=:log10, yscale=:log10, legend_column=entries)
+    end
+    # Headroom so markers at the extremes are not clipped by the frame.
+    isempty(y_all) || Plots.ylims!(plt, (minimum(y_all)/2.2, maximum(y_all)*2.2))
+    isempty(x_all) || Plots.xlims!(plt, (minimum(x_all)/1.4, maximum(x_all)*1.4))
+    return plt
+end
+
+"""
+    compare_tet_hex_mesh_convergence(; shapes, root, plot_path)
+
+Overlay the mesh-convergence series of two or more element shapes in one set of figures,
+so the hex and tet sweeps can be read against each other rather than side by side.
+
+Each shape's series is read from the per-shape directory `mesh_convergence_analysis`
+writes (`<root>/Hex2`, `<root>/Tet2`). A shape whose sweep has not run yet is skipped with
+a warning, so this is safe to call part-way through a sweep.
+
+Four PDFs are written, plus a CSV of the same numbers so the comparison is legible
+without the figures:
+
+- `radius_convergence_comparison.pdf` — free-surface radius error vs element size
+- `height_convergence_comparison.pdf` — height error vs element size
+- `cost_vs_elem_size_comparison.pdf` — time per step vs element size
+- `radius_error_vs_cost_comparison.pdf` — radius error vs time per step
+
+# Arguments
+- `shapes::Vector{String}`: Per-shape directory names to overlay, in legend order.
+- `root::String`: Directory holding the per-shape subdirectories.
+- `plot_path::String`: Output directory for the figures and the CSV.
+
+# Returns
+- `::Union{String,Nothing}`: Output directory, or `nothing` if fewer than two shapes were found.
+"""
+function compare_tet_hex_mesh_convergence(; shapes::Vector{String}=["Hex2", "Tet2"],
+                                           root::String=conv_path("mesh_convergence_analysis"),
+                                           plot_path::String=conv_path("mesh_convergence_analysis", "comparison"))
+    series = Pair{String,NamedTuple}[]
+    for shape in shapes
+        haskey(SHAPE_STYLE, shape) || (@warn "No plot style defined for $shape, skipping"; continue)
+        data = _read_convergence_series(joinpath(root, shape))
+        isnothing(data) ? (@warn "No convergence series for $shape under $root, skipping") :
+                          push!(series, shape => data)
+    end
+    if length(series) < 2
+        @warn "Need at least two element shapes to compare, found $(length(series))"
+        return nothing
+    end
+
+    set_file(plot_path)
+    h_label = "Effective element size (h)"
+
+    figures = (
+        ("radius_convergence_comparison.pdf",
+         _overlay_panel(series, d->d.h, d->d.δr, h_label, "Radius RAE")),
+        ("height_convergence_comparison.pdf",
+         _overlay_panel(series, d->d.h, d->d.δh, h_label, "Height RAE")),
+        ("cost_vs_elem_size_comparison.pdf",
+         _overlay_panel(series, d->d.h, d->d.t, h_label, "Time per step (ms)")),
+        ("radius_error_vs_cost_comparison.pdf",
+         _overlay_panel(series, d->d.t, d->d.δr, "Time per step (ms)", "Radius RAE")),
+    )
+    for (filename, plt) in figures
+        Plots.savefig(plt, joinpath(plot_path, filename))
+    end
+
+    table = ["shape" "h_eff" "height_error" "radius_error" "ms_per_step"]
+    for (name, d) in series, i in eachindex(d.h)
+        table = vcat(table, [SHAPE_STYLE[name].label d.h[i] d.δh[i] d.δr[i] d.t[i]])
+    end
+    open(joinpath(plot_path, "convergence_comparison.csv"), "w") do io
+        writedlm(io, table, ',')
+    end
+
+    @info "Wrote element-shape comparison to $plot_path"
+    return plot_path
+end
+
 """
     main()
 
-Run both convergence studies (time-integration and mesh) and plot their
-results. Invoked automatically when this file is run as a script
+Run the mesh convergence sweep, plot it per element shape, and overlay the shapes that
+have results. Invoked automatically when this file is run as a script
 (`julia forward_convergence.jl`), but not when it is `include`d.
+
+The time-integration study is left commented out — uncomment both of its lines to run it.
 """
 function main()
-    time_integration_convergence_analysis()
-    plot_convergence_time(conv_path("time_convergence_analysis"))
-    mesh_convergence_analysis()
-    plot_convergence_mesh(conv_path("mesh_convergence_analysis"))
+    # time_integration_convergence_analysis()
+    # plot_convergence_time(conv_path("time_convergence_analysis"))
+    plot_convergence_mesh(mesh_convergence_analysis())
+    compare_tet_hex_mesh_convergence()
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
