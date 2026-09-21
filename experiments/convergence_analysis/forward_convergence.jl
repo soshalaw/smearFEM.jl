@@ -130,7 +130,7 @@ function fit_convergence_rate(x_vals::Vector, y_vals::Vector)
 end
 
 """
-    plot_convergence_generic(x_vals, y_vals, x_label)
+    plot_convergence_generic(x_vals, y_vals, x_label; series_label="RAE  ", y_label="Relative Absolute Error (RAE)")
 
 Plot convergence data on log-log axes.
 
@@ -139,10 +139,17 @@ Plot convergence data on log-log axes.
 - `y_vals::Vector`: error values.
 - `x_label::String`: label for the x-axis.
 
+# Keyword Arguments
+- `series_label::String`: legend entry for the error series. `"RAE  "` suits a single
+  relative absolute error; pass `"rRMSE  "` for an error pooled over several points.
+- `y_label::String`: label for the y-axis, matching `series_label`.
+
 # Returns
 - `plt`: the convergence plot.
 """
-function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::AbstractString)
+function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::AbstractString;
+                                  series_label::AbstractString="RAE  ",
+                                  y_label::AbstractString="Relative Absolute Error (RAE)")
     # Filter valid data
     valid_idx = findall(x -> !isnan(x) && !isinf(x) && x > 0, y_vals)
     y_vals_clean = y_vals[valid_idx]
@@ -158,8 +165,8 @@ function plot_convergence_generic(x_vals::Vector, y_vals::Vector, x_label::Abstr
     plt = set_plot_from_config(PLOT_CONFIG)
 
     Plots.plot!(plt, x_vals_clean, y_vals_clean,
-                label="RAE  ", mode="markers",
-                xlabel=x_label, ylabel="Relative Absolute Error (RAE)",
+                label=series_label, mode="markers",
+                xlabel=x_label, ylabel=y_label,
                 marker=:circle, markersize=4, markerstrokewidth=1.5, color="#FF7F0E",
                 yscale=:log10, xscale=:log10)
 
@@ -196,7 +203,7 @@ the finest-mesh reference, writing the series to CSV for `plot_convergence_mesh`
 """
 function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, elem_sizes::Vector=[10, 8, 6, 4], 
                                   template_mesh_geo_path::String=joinpath(@__DIR__, "mesh.geo"),
-                                  nz_list::Vector=Union{Int,Float64}[2, 4, 6, 8],
+                                  nz_list::Vector=Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16],
                                   force::Bool=false)
 
     height_list = AbstractArray[]
@@ -501,7 +508,8 @@ function plot_convergence_mesh(file_path::String)
         plt4 = set_plot_from_config(PLOT_CONFIG)
         Plots.plot!(plt4, elem_sizes_flat, time_list, label="Time per step", xlabel="Effective element size (h)", ylabel="Time per step (s)", marker=:circle, yscale=:log10, xscale=:log10)
 
-        plt5 = plot_convergence_generic(elem_sizes_flat, abs.(rad_error_list), "Effective element size (h)")
+        plt5 = plot_convergence_generic(elem_sizes_flat, abs.(rad_error_list), "Effective element size (h)";
+                                        series_label="rRMSE  ", y_label="Relative RMSE")
         Plots.vline!(plt5, [selected_mesh_size], label=L"h_{\mathrm{exp}}", line=:dash, color=:red, legend_column=2)
         Plots.ylims!(plt5, 10^(-5), 10^(-2.05))
         Plots.xlims!(plt5, 1,100)
@@ -657,13 +665,13 @@ function compare_tet_hex_mesh_convergence(; shapes::Vector{String}=["Hex2", "Tet
 
     figures = (
         ("radius_convergence_comparison.pdf",
-         _overlay_panel(series, d->d.h, d->d.δr, h_label, "Radius RAE")),
+         _overlay_panel(series, d->d.h, d->d.δr, h_label, "Relative RMSE")),
         ("height_convergence_comparison.pdf",
-         _overlay_panel(series, d->d.h, d->d.δh, h_label, "Height RAE")),
+         _overlay_panel(series, d->d.h, d->d.δh, h_label, "Relative Absolute Error (RAE)")),
         ("cost_vs_elem_size_comparison.pdf",
          _overlay_panel(series, d->d.h, d->d.t, h_label, "Time per step (ms)")),
         ("radius_error_vs_cost_comparison.pdf",
-         _overlay_panel(series, d->d.t, d->d.δr, "Time per step (ms)", "Radius RAE")),
+         _overlay_panel(series, d->d.t, d->d.δr, "Time per step (ms)", "Relative RMSE")),
     )
     for (filename, plt) in figures
         Plots.savefig(plt, joinpath(plot_path, filename))
