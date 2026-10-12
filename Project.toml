@@ -39,7 +39,6 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 [compat]
 Aqua = "0.8"
 ArgCheck = "2"
-BenchmarkTools = "1.7.0"
 CSV = "0.10.15"
 Colors = "0.13.1"
 ConvexHulls2d = "0.1"
@@ -52,7 +51,6 @@ ElasticArrays = "1"
 FileIO = "1.17.0"
 Gmsh = "0.3.1"
 HDF5 = "0.17"
-Images = "0.26.2"
 IterativeSolvers = "0.9.4"
 JLD2 = "0.6.4"
 JSON = "0.21.4"
@@ -65,7 +63,6 @@ NearestNeighbors = "0.4.16"
 Parameters = "0.12.3"
 Plots = "1"
 Printf = "1"
-ProfileView = "1.10.3"
 ProgressMeter = "1"
 SparseArrays = "1"
 Statistics = "1.11.1"
@@ -77,11 +74,8 @@ julia = "1.11"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
-Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
-ProfileView = "c46f51b8-102a-5cf2-8d2c-8597cb0e0da7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Aqua", "BenchmarkTools", "Images", "ProfileView", "Random", "Test"]
+test = ["Aqua", "Random", "Test"]
