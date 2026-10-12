@@ -542,7 +542,6 @@ function _meshgrid_cuboid(lx::X, ly::Y, lz::Z, ne::Int64; element_shape::Symbol=
         throw(ArgumentError("Unknown basis_order $basis_order for element_shape $element_shape"))
     end
 
-    # display(ID)
     return NodeList, IEN, ID, IEN_top, IEN_bottom, IEN_side, nNodes, [BorderNodes, BottomBorderNodes, TopBorderNodes]
 end
 

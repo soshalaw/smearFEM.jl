@@ -529,7 +529,7 @@ function write_gt_data(exp_params::Dict)
 
     _mesh_path_kw(d) = haskey(d, "mesh_path") ? (mesh_path=d["mesh_path"],) : (;)
 
-    printstyled("Ground truth η: $(η_gt), ground truth β: $(β_gt)\n"; color = :green)
+    @info "Ground truth η: $(η_gt), ground truth β: $(β_gt)"
     _shared = (η_gt, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β_gt, F, control, viscosity_type, sim_time_gt, t_steps_gt)
     model_gt, scene_gt = if geometry === :cylinder
         def_problem(Cylinder(r, h), ne_gt, _shared...; _mesh_path_kw(exp_params)...)
@@ -592,7 +592,7 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
     t_end = Dates.now()
     elapsed_time = t_end - t_start
     t_per_step = elapsed_time.value/length(gradList)
-    printstyled("Simulation completed in $(elapsed_time) with an average time per step of $(t_per_step)\n"; color=:green)
+    @info "Simulation completed in $(elapsed_time) with an average time per step of $(t_per_step)"
 
     mesh_h0 = hasproperty(model.mesh_u, :h)  ? model.mesh_u.h  : model.mesh_u.lz
     mesh_r0 = hasproperty(model.mesh_u, :r)  ? model.mesh_u.r  : model.mesh_u.lx
@@ -620,8 +620,6 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
 
     if _scene.viscosity_type == "bulk_viscosity" && ANIMATE
         time = collect(Float64, range(scene.t_steps, stop=scene.sim_time, step=scene.t_steps))
-        # println(size(model.η))
-        # println(size(time))
         plt = set_plot(22)
         Plots.plot!(plt, time, model.η, lw=3, label="Shear Viscosity", color=:red)
         Plots.xlabel!(plt, L"\mathrm{Time\;(s)}")
@@ -773,7 +771,6 @@ function plot_rad_norm_vel_vs_slip(file_path::String)
         mkdir(plot_path)
     end
 
-    # println("Slip parameters: ", β_list)
 
     plt_rad = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
     Plots.plot!(plt_rad, β_list, v_rad_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\beta\$ [kPa s mm\$^{-1}\$]"), ylabel="Mean Radial Velocity [mm/s]", xscale=:log10, yscale=:log10, legend=false)
@@ -848,7 +845,6 @@ function plot_rad_norm_vel_vs_visc(file_path::String)
         mkdir(plot_path)
     end
 
-    # println("Viscosity parameters: ", η_list)
 
     plt_rad = set_plot(10, sz=(400,360), bottom_margin=0.0mm)
     Plots.plot!(plt_rad, inv_eta_list, v_rad_slip_list, marker=:o, ms=2, xlabel=latexstring("\$\\eta\$ [kPa s]"), ylabel="Mean Radial Velocity [mm/s]", legend=false)

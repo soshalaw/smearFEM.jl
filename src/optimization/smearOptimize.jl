@@ -89,7 +89,7 @@ function _armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Cond
             # Compute full gradients/Hessians only for accepted step
             d_trial, ∂d, ∂2d, pairs = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
             @debug "      $("-"^73)"
-            printstyled("      [ACCEPT] Step accepted: α = $(round(α, sigdigits=5)), cost = $(round(cost_trial, sigdigits=4))\n", color=:green)
+            @debug "[ACCEPT] Step accepted: α = $(round(α, sigdigits=5)), cost = $(round(cost_trial, sigdigits=4))"
             return θ_trial, d_trial, ∂d, ∂2d, cost_trial, true, simBorderPts_accepted
         end
         
@@ -104,7 +104,7 @@ function _armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Cond
     simBorderPts_accepted = simBorderPts
     
     @debug "      $("-"^73)"
-    printstyled("      [WARNING] Max backtracks reached. Accepting last trial (α=$(round(α, sigdigits=5)), cost=$(round(cost_trial, sigdigits=4)))\n", color=:yellow)
+    @warn "Max backtracks reached. Accepting last trial (α=$(round(α, sigdigits=5)), cost=$(round(cost_trial, sigdigits=4)))"
     return θ_trial, d_trial, ∂d, ∂2d, cost_trial, false, simBorderPts_accepted
 end
 
@@ -163,7 +163,7 @@ function _backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::C
     if cost_trial < cost_prev
         # Compute full gradients/Hessians only for accepted step
         d_trial, ∂d, ∂2d, pairs = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
-        printstyled("        [ACCEPT] Cost decreased, accepting\n", color=:green)
+        @debug "[ACCEPT] Cost decreased, accepting"
         return θ_trial, d_trial, ∂d, ∂2d, cost_trial, true, simBorderPts
     end
     
@@ -185,10 +185,10 @@ function _backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::C
     d_trial, ∂d, ∂2d, pairs = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
     
     if cost_trial_half < cost_prev
-        printstyled("        [ACCEPT] Cost decreased, accepting\n", color=:green)
+        @debug "[ACCEPT] Cost decreased, accepting"
         return θ_trial, d_trial, ∂d, ∂2d, cost_trial_half, true, simBorderPts
     else
-        printstyled("        [WARNING] Neither step decreased cost. Accepting half step anyway.\n", color=:yellow)
+        @warn "Neither step decreased cost. Accepting half step anyway."
         return θ_trial, d_trial, ∂d, ∂2d, cost_trial_half, false, simBorderPts
     end
 end
@@ -234,7 +234,7 @@ function _warn_ill_conditioned(t∂2d::Matrix{Float64})
     H_β::Float64 = abs(t∂2d[2, 2])
     H_ratio::Float64 = H_η / (H_β + 1e-12)
     if condition_number > 1e2 || H_ratio > 1e2
-        printstyled("  [WARNING] Hessian: κ=$(round(condition_number, sigdigits=3)), H_β=$H_β, H_η=$H_η, ratio=$(round(H_ratio, sigdigits=3))\n", color=:yellow)
+        @warn "Hessian: κ=$(round(condition_number, sigdigits=3)), H_β=$H_β, H_η=$H_η, ratio=$(round(H_ratio, sigdigits=3))"
     end
     return condition_number, (condition_number > 1e2 || H_ratio > 1e2)
 end
@@ -256,12 +256,11 @@ not an implementation detail of either.
 """
 function _check_stop(iter::Int, c_grad::Float64, c_grad_rel::Float64, θ::Vector{Float64})
     if c_grad_rel < 1e-3 && c_grad < 1e-3
-        printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n 
-                    η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4))", color=:green)
+        @info "Converged: relative cost change = $(round(c_grad_rel, sigdigits=3)), η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4))"
         return true
     end
     if iter ≥ 100
-        printstyled("[WARNING] MAX ITERATIONS (100) REACHED\n", color=:yellow)
+        @warn "MAX ITERATIONS (100) REACHED"
         return true
     end
     return false
@@ -334,7 +333,7 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     # Opt-in: one full contour set per iteration is large (frames × 2 × border points).
     simBorderPtsList::Vector{Any} = Any[]
     
-    printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
+    @info "Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))"
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
 
     @debug begin
@@ -357,9 +356,9 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     len_d::Int = length(d)
     t∂2d::Matrix{Float64} = zeros(size(∂2d[1]))
     t∂d::Vector{Float64} = zeros(size(∂d[1]))
-    printstyled("Initial error = $totdinit\n", color=:yellow)
+    @info "Initial error = $totdinit"
     while true
-        printstyled("\n==================== Iteration $iter ===================\n", color=:blue)
+        @info "Iteration $iter"
 
         reset_model!(model)
         t∂2d .= 0.0
@@ -375,7 +374,7 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
             reg_param = 1e-6 * norm(t∂2d, 2)
             t∂2d_reg = t∂2d + reg_param * I
             p = t∂2d_reg \ t∂d
-            printstyled("  [DAMPED] Using regularized Hessian for step\n", color=:yellow)
+            @debug "[DAMPED] Using regularized Hessian for step"
         else
             p = t∂2d \ t∂d
         end
@@ -411,7 +410,7 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         _check_stop(iter, c_grad, c_grad_rel, θ) && break
     end
     
-    printstyled("\n========= Optimization Complete =========\n", color=:blue)
+    @info "Optimization Complete"
 
     stats = _fit_stats(θ, ηpList, βpList, cost_list, iterList, simBorderPtsList)
     return stats
@@ -502,7 +501,7 @@ function _fit_model_GN_tikhonov(model::Stokes, scene::SqueezeFlow, conditions::C
     # Opt-in: one full contour set per iteration is large (frames × 2 × border points).
     simBorderPtsList::Vector{Any} = Any[]
     
-    printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
+    @info "Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))"
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
 
     @debug begin
@@ -531,8 +530,8 @@ function _fit_model_GN_tikhonov(model::Stokes, scene::SqueezeFlow, conditions::C
     ∇R(v::Vector{Float64}) = ΓᵀΛΓ * (v - θ_p)
     ∇²R::Matrix{Float64}   = ΓᵀΛΓ
 
-    printstyled("Prior: θ_p = $(round.(θ_p, sigdigits=4)), λ = $(round.(λ, sigdigits=4)) " *
-                "(initial data misfit $(round(data_cost_init, sigdigits=4)))\n", color=:cyan)
+    @info "Prior: θ_p = $(round.(θ_p, sigdigits=4)), λ = $(round.(λ, sigdigits=4)) " *
+          "(initial data misfit $(round(data_cost_init, sigdigits=4)))"
 
     totdinit::Float64 = data_cost_init + R(θ)
 
@@ -548,9 +547,9 @@ function _fit_model_GN_tikhonov(model::Stokes, scene::SqueezeFlow, conditions::C
     t∂2d::Matrix{Float64} = zeros(size(∂2d[1]))
     t∂d::Vector{Float64} = zeros(size(∂d[1]))
     t∂2d_reg::Matrix{Float64} = zeros(size(∂2d[1]))
-    printstyled("Initial error = $totdinit\n", color=:yellow)
+    @info "Initial error = $totdinit"
     while true
-        printstyled("\n==================== Iteration $iter ===================\n", color=:blue)
+        @info "Iteration $iter"
 
         reset_model!(model)
         t∂2d .= 0.0
@@ -570,8 +569,8 @@ function _fit_model_GN_tikhonov(model::Stokes, scene::SqueezeFlow, conditions::C
             # which the cost-vs-penalty comparison alone does not reveal.
             prior_ratio = diag(∇²R) ./ max.(abs.(diag(t∂2d/len_d)), 1e-300)
             dom = maximum(prior_ratio) > 1 ? "  [prior dominates]" : ""
-            printstyled("  Prior/data precision: η = $(round(prior_ratio[1], sigdigits=3)), " *
-                        "β = $(round(prior_ratio[2], sigdigits=3))$dom\n", color=:cyan)
+            @debug "Prior/data precision: η = $(round(prior_ratio[1], sigdigits=3)), " *
+                   "β = $(round(prior_ratio[2], sigdigits=3))$dom"
         end
 
         p = t∂2d_reg \ t∂d_reg
@@ -610,7 +609,7 @@ function _fit_model_GN_tikhonov(model::Stokes, scene::SqueezeFlow, conditions::C
         _check_stop(iter, c_grad, c_grad_rel, θ) && break
     end
     
-    printstyled("\n========= Optimization Complete =========\n", color=:blue)
+    @info "Optimization Complete"
 
     stats = _fit_stats(θ, ηpList, βpList, cost_list, iterList, simBorderPtsList)
     # Tikhonov-only: the converged regularized Hessian and the frozen weight vector.
@@ -655,7 +654,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     cost_list::Vector{Float64} = Float64[]
     iterList::Vector{Float64} = Float64[]
     
-    printstyled("Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))\n", color=:cyan)
+    @info "Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))"
     μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
     d, ∂d, ∂2d, _ = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
     cost_prev::Float64 = sum(d)/length(d)
@@ -669,9 +668,9 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     iter::Int = 1
     t∂2d::Matrix{Float64} = zeros(size(∂2d[1]))
     t∂d::Vector{Float64} = zeros(size(∂d[1]))
-    printstyled("Initial error = $cost_prev\n", color=:yellow)
+    @info "Initial error = $cost_prev"
     while true
-        printstyled("\n==================== Iteration $iter ===================\n", color=:blue)
+        @info "Iteration $iter"
 
         reset_model!(model)
         @debug "Current parameters: η = $(round(θ[1], sigdigits=4)), β = $(round(θ[2], sigdigits=4)), cost = $(round(cost_prev, sigdigits=4))"
@@ -706,14 +705,14 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         if ρ > 0
             λ *= max(1 / 3, 1 - (2 * ρ - 1)^3)
             λ = max(λ, 1e-7)
-            printstyled("  [ACCEPT] ρ=$(round(ρ, sigdigits=3)), λ→$(round(λ, sigdigits=3))\n", color=:green)
+            @debug "[ACCEPT] ρ=$(round(ρ, sigdigits=3)), λ→$(round(λ, sigdigits=3))"
             cost_prev = totd
         else
             λ *= 2
             λ = min(λ, 1e7)
             θ = θ_prev
             totd = cost_prev
-            printstyled("  [REJECT] ρ=$(round(ρ, sigdigits=3)), λ→$(round(λ, sigdigits=3))\n", color=:yellow)
+            @debug "[REJECT] ρ=$(round(ρ, sigdigits=3)), λ→$(round(λ, sigdigits=3))"
         end
 
         Δη_rel::Float64 = abs(θ[1] - θ_prev[1]) / (abs(θ_prev[1]) + 1e-12)
@@ -729,11 +728,11 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
             @debug "Deltas: Δη/η = $(round(Δη_rel, sigdigits=3)), Δβ/β = $(round(Δβ_rel, sigdigits=3)), Δcost = $(round(c_grad, sigdigits=3)) (rel: $(round(c_grad_rel, sigdigits=3)))"
             
             if c_grad_rel < 1e-4
-                printstyled("[CONVERGED] Relative cost change = $(round(c_grad_rel, sigdigits=3))\n", color=:green)
+                @info "Converged: Relative cost change = $(round(c_grad_rel, sigdigits=3))"
                 break
             end
             if iter ≥ 100
-                printstyled("[WARNING] MAX ITERATIONS (100) REACHED\n", color=:yellow)
+                @warn "MAX ITERATIONS (100) REACHED"
                 break
             end
         else
@@ -742,7 +741,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         end
     end
     
-    printstyled("\n========= Optimization Complete =========\n", color=:blue)
+    @info "Optimization Complete"
 
     stats = Dict(
         "η" => θ[1],
@@ -758,7 +757,7 @@ end
 """
     fit_model(model::Stokes, scene::SqueezeFlow, conditions::Conditions,
               obsBorderPts::Vector{AbstractArray}, θ::Vector{Float64};
-              outliers::Vector{Int}=Int[], method::Symbol=:gn, line_search_method::String="armijo")
+              outliers::Vector{Int}=Int[], method::Symbol=:gn, kwargs...)
 
 Unified interface for parameter optimization with multiple algorithm selection.
 
@@ -846,17 +845,12 @@ Enforce physical bounds on optimization parameters to prevent unbounded growth.
 
 Clamps parameter values to physically reasonable ranges and corrects negative values.
 
-# Arguments:
-- `v::Vector{Float64}` : Parameter vector [η, β] where:
-  - η is viscosity (Pa·s): clamped to [1e-3, 1e5]
-  - β is slip penalty parameter (L/mm): clamped to [1e-3, 1e8]
+# Arguments
+- `v::Vector{Float64}`: Parameter vector `[η, β]`; mutated in place. Negative entries are
+  reflected to their absolute value, then both are clamped to `[1e-12, 1e12]`.
 
-# Returns:
-- `v::Vector{Float64}` : Bounded parameter vector
-
-# Bounds:
-- η (viscosity): typically 1e-3 to 1e5 Pa·s
-- β (penalty parameter): can be very large in no-slip cases (1e-3 to 1e8 L/mm)
+# Returns
+- `v::Vector{Float64}`: The bounded parameter vector.
 """
 function _val_check(v::Vector{Float64})::Vector{Float64}
     # Enforce physical bounds on parameters
@@ -868,24 +862,24 @@ function _val_check(v::Vector{Float64})::Vector{Float64}
         if i == 1  # η parameter
             if v[i] < 0
                 v[i] = abs(v[i])
-                printstyled("  [WARNING] η: Negative value, taking absolute\n", color=:yellow)
+                @warn "η: Negative value, taking absolute"
             elseif v[i] < η_min
                 v[i] = η_min
-                printstyled("  [WARNING] η: Below minimum ($η_min), clamped\n", color=:yellow)
+                @warn "η: Below minimum ($η_min), clamped"
             elseif v[i] > η_max
                 v[i] = η_max
-                printstyled("  [WARNING] η: Above maximum ($η_max), clamped\n", color=:yellow)
+                @warn "η: Above maximum ($η_max), clamped"
             end
         elseif i == 2  # β parameter (penalty for slip condition)
             if v[i] < 0
                 v[i] = abs(v[i])
-                printstyled("  [WARNING] β: Negative value, taking absolute\n", color=:yellow)
+                @warn "β: Negative value, taking absolute"
             elseif v[i] < β_min
                 v[i] = β_min
-                printstyled("  [WARNING] β: Below minimum ($β_min), clamped\n", color=:yellow)
+                @warn "β: Below minimum ($β_min), clamped"
             elseif v[i] > β_max
                 v[i] = β_max
-                printstyled("  [WARNING] β: Above maximum ($β_max, no-slip limit), clamped\n", color=:yellow)
+                @warn "β: Above maximum ($β_max, no-slip limit), clamped"
             end
         end
     end

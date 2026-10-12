@@ -404,10 +404,6 @@ function apply_boundary_conditions(mdl::Stokes, cache::BasisFunctionCache)::Spar
             end
         end
     end
-    # println("Maximum row :",maximum(E))
-    # println("Maximum column :",maximum(J))
-    # println("A_top = ", A_top)
-    # println("A_btm = ", A_btm)
     K = sparse(E,J,V,sz,sz)
     return  K
 end

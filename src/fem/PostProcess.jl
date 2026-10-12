@@ -454,7 +454,6 @@ function detect_outlier_observations(contour_list::AbstractArray;
             # xlims!(p, 0, 2048)
             # ylims!(p, 0, 1536)
             # yflip!(p, true)  # if needed to match image coords
-            # display(p)
             # sleep(0.5)  # Pause to ensure plot updates
         end
     end
@@ -862,7 +861,6 @@ function eval_on_cylinder(mdl::AbstractModel, nsub::Int64, sol_u)
                         Re_u, _ = basis_function(scaledPoint[1],scaledPoint[2],scaledPoint[3], element_shape_u_cached, basis_order_u_cached)
                         plot_u[:,(cnte-1)*size(IEN_x_cached,1)+j] = Re_u'*sol_u[:,IEN_u_cached[:,e]]'
                         
-                        # println(size(plot_u))
                     end
                 end
             end

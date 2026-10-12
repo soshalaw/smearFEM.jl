@@ -8,7 +8,7 @@ BLAS.set_num_threads(Threads.nthreads())
 """
     AbstractMeshgrid
 
-Supertype for all mesh containers. Every subtype carries `element_shape::Symbol` and
+Supertype for all mesh containers. Every subtype carries `volume_element_shape::Symbol` and
 `basis_order::Int` as two independent fields, never a combined "Q2"-style string.
 """
 abstract type AbstractMeshgrid end
