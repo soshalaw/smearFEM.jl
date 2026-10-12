@@ -32,17 +32,19 @@ Pkg.develop(path="/path/to/smearFEM.jl")
 Pkg.instantiate()
 ```
 
-**Requirements:** Julia 1.6.7 or later. All dependencies are listed in `Project.toml` and installed
+**Requirements:** Julia 1.11 or later. All dependencies are listed in `Project.toml` and installed
 automatically. Gmsh ships as an artifact via `Gmsh.jl` — no system install needed.
 
 ## Package layout
 
 | Path | Contents |
 |------|----------|
+| `src/smearFEM.jl` | Module entry: the single export list and include order |
+| `src/config.jl`, `src/utils.jl` | Data/scratch path resolution (`config.toml`), shared helpers (camera matrix, logging) |
 | `src/fem/` | Element basis functions and quadrature (`fem.jl`), mesh types and generators (`meshes/`), model and scenario structs, geometry wrapper types, camera projection / border extraction (`PostProcess.jl`) |
 | `src/solver/` | Stokes assembly, boundary conditions, time-stepping (`stokes_solver.jl`), problem construction (`stokes_setup.jl`), high-level drivers (`run_example.jl`) |
-| `src/optimization/` | Gauss–Newton and Levenberg–Marquardt parameter fitting with Armijo / backtracking line search |
-| `src/analysis/` | Point-cloud metrics (Hausdorff, Chamfer) and experiment-tree traversal |
+| `src/optimization/` | Gauss–Newton (optionally Tikhonov-regularized) and Levenberg–Marquardt fitting with Armijo / backtracking line search (`smearOptimize.jl`), residual-based contour costs (`cost_functions.jl`), moving-window estimation and prediction (`window_estimation.jl`) |
+| `src/analysis/` | Point-cloud metrics (Hausdorff, Chamfer), experiment-tree traversal, cross-replicate statistics (`statistical_analysis.jl`) |
 | `src/io/` | CSV / JSON / HDF5 / VTK readers and writers, plotting and animation helpers |
 | `experiments/` | Reproduction scripts — convergence studies, optimization batches, visualizations |
 | `mesh_files/` | Gmsh `.geo` templates plus the generated-mesh cache (see [`mesh_files/USAGE.md`](mesh_files/USAGE.md)) |
@@ -51,7 +53,8 @@ automatically. Gmsh ships as an artifact via `Gmsh.jl` — no system install nee
 ## Core concepts
 
 **Geometry** — the object being squeezed is described by a wrapper type, which selects the
-meshing and `def_problem` method by dispatch:
+meshing (`set_model`) by dispatch. The full squeeze-flow setup (`def_problem`) is implemented for
+the 3D geometries, `Cylinder` and `Cuboid`; the 2D and 1D types currently stop at `set_model`:
 
 ```julia
 Cylinder(r, h)                     # 3D
@@ -63,8 +66,9 @@ Segment(l)                         # 1D
 
 **Meshing** — every geometry can be meshed structurally (pure Julia) or unstructurally (Gmsh,
 `mesh_type=:unstructured`). Element shapes are `:Hex` / `:Tet` in 3D, `:Quad` / `:Tri` in 2D, and
-`:Line` in 1D, at `basis_order` 1 or 2. Meshes are cached on disk under
-`mesh_files/<geometry>/<Shape>/`; delete the cache after editing a `.geo` template.
+`:Line` in 1D, at `basis_order` 1 or 2. Gmsh meshes are cached in the repository under
+`mesh_files/<geometry>/<Shape>/` (not under the configured data directory); delete the cache after
+editing a `.geo` template.
 
 **Mixed formulation** — a `Stokes` model holds three meshes: `mesh_u` (velocity), `mesh_p`
 (pressure), and `mesh_x` (geometry / node tracking). The usual Taylor–Hood choice is quadratic
@@ -125,8 +129,9 @@ stats["cost_list"]            # cost per iteration
 ```
 
 `fit_model` returns a `Dict` with keys `"η"`, `"β"`, `"ηList"`, `"βList"`, `"cost_list"`, and
-`"iterList"`. Parameters are clamped to physical bounds each iteration — η to `[1e-3, 1e5]` Pa·s
-and β to `[1e-3, 1e8]` L/mm. Pass `outliers` to skip frame indices.
+`"iterList"`. Negative parameters are reflected to their absolute value and both are clamped to
+`[1e-12, 1e12]` each iteration. Pass `outliers` to skip frame indices. `method=:gn_tikhonov` adds a
+Tikhonov penalty toward a prior `θ_p`; see the `fit_model` docstring for its keywords.
 
 ## Configuration
 
@@ -144,6 +149,9 @@ smearFEM resolves data paths via a three-tier system (highest priority first):
    references are expanded from the environment. Set `SMEAR_CONFIG_FILE` to point elsewhere.
 3. **Defaults**: `~/SMEAR-Data` for data, `<data_dir>/meshes` for meshes, `/tmp/smear` for scratch
    (`~/SMEAR-Scratch` on Windows).
+
+`get_mesh_dir()` / `SMEAR_MESH_DIR` is resolved for external tools that share `config.toml`; the
+Gmsh mesh cache itself always lives in the repository's `mesh_files/`.
 
 A tier is skipped with a warning if the directory it names does not exist.
 
@@ -190,7 +198,6 @@ parameters (`β_gt`, `η_gt`, `control`, tolerances) are set at the top of the s
 julia -O3 --threads=auto --project experiments/stokes/write_gt_stokes.jl     # batch, parallel
 julia -O3 --threads=auto --project experiments/stokes/single_simulation.jl   # one forward solve
 julia -O3 --threads=auto --project experiments/visualizations/visualization_example.jl
-julia -O3 --threads=auto --project experiments/verify_meshes.jl              # mesh sanity checks
 ```
 
 `experiments/ParallelExecution.jl` is a shared, memory-aware work-stealing scheduler used by the
@@ -213,16 +220,21 @@ using Pkg
 Pkg.test("smearFEM")
 ```
 
-Or individual suites:
+The full suite is ~98 000 checks and takes about 20 minutes, ~8.5 of which is
+`verify_meshes_test.jl` (six squeeze-flow solves checking the Tet/Tri quadrature). Individual suites:
 
 ```bash
 julia --project -e 'include("test/stokes_test.jl")'
 julia --project -e 'include("test/fem_test.jl")'
 julia --project -e 'include("test/mesh_templates_test.jl")'
+julia --project -e 'include("test/cost_functions_test.jl")'
 julia --project -e 'include("test/stokes_optimization_test.jl")'
+julia --project -e 'include("test/tikhonov_test.jl")'
+julia --project -e 'include("test/verify_meshes_test.jl")'
 ```
 
-`test/qa.jl` runs [Aqua.jl](https://github.com/JuliaTesting/Aqua.jl) quality checks.
+`test/qa.jl` runs [Aqua.jl](https://github.com/JuliaTesting/Aqua.jl) quality checks; it needs the
+test environment, so run it through `Pkg.test()`.
 
 ## Documentation
 

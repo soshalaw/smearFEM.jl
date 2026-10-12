@@ -28,15 +28,21 @@ using Pkg
 Pkg.test("smearFEM")
 ```
 
-All pull requests must pass the full test suite (~90 000 checks) before merging.
+All pull requests must pass the full test suite (~98 000 checks, about 20 minutes) before
+merging. Individual files can be run with `julia --project -e 'include("test/<file>.jl")'`,
+except `test/qa.jl`, which needs the test environment.
 
 ## Code Style
 
 - Follow the [Julia Style Guide](https://docs.julialang.org/en/v1/manual/style-guide/)
 - 4-space indentation
 - Write docstrings for all exported functions using the standard Julia docstring format
-- Avoid debug `println`; use `@debug` (enabled via `ENV["JULIA_DEBUG"] = "smearFEM"`)
+- Log with `@debug` / `@info` / `@warn` / `@error`, never `println` or `printstyled` (`ENV["JULIA_DEBUG"] = "smearFEM"` enables debug output). Functions whose sole purpose is formatted console output (`show_config`, `print_replicate_table`) are the exception
 - No hardcoded absolute paths — use `resolve_data_path(...)`, `get_scratch_dir()`, or `@__DIR__`-relative paths
+- Comment the *why* only — never restate what the next line does
+- Never call `gmsh.*` outside `GMSH_LOCK`; the Gmsh C library is not thread-safe
+
+See [`docs/coding_guide.md`](docs/coding_guide.md) for naming, struct and assembly conventions.
 
 ## Docstring Format
 
