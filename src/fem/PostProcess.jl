@@ -43,9 +43,7 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
         surface_pts_2d = back_project(surface_nodes, camera_matrix, obj_pose, height, rot_angle)
     end
 
-    p = [surface_pts_2d[:,i] for i in axes(surface_pts_2d, 2)]
-
-    hull = ch.ConvexHull(p)
+    hull = ch.ConvexHull(eachcol(surface_pts_2d))
     hull_vertex_ids = ch.indices(hull)
 
     border_pt_ids = get_convex_hull_boundary_points(surface_pts_2d, hull_vertex_ids)
@@ -65,28 +63,29 @@ function extract_borders(NodeList::AbstractMatrix{Float64}, camera_matrix::Abstr
     end
 end
 
-function _get_2D_data(NodeList_cached::Matrix{Float64}, camera_matrix_cached::AbstractMatrix{Float64}, obj_pose_cached::AbstractArray{Float64}, h_cached::Float64; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), angles::Vector{Float64}=[0.0])
-    BorderPts2D   = Vector{Matrix{Float64}}()
-    SurfacePts2D  = Vector{Matrix{Float64}}()
-    dudθ       = Vector{Array{Float64,3}}()
-    ∇SurfacePts2D = Vector{Array{Float64,3}}()
-    obs_border_pts = Vector{Matrix{Float64}}()
+function _get_2D_data(NodeList_cached::Matrix{Float64}, camera_matrix_cached::AbstractMatrix{Float64}, obj_pose_cached::AbstractArray{Float64}, h_cached::Float64; BorderNodesList::Vector{Int64}=zeros(Int64,0), GRAD::Bool=false, dqdθ::AbstractArray{Float64}=zeros(2,2,2), angles::Vector{Float64}=[0.0], FIT::Bool=true)
+    nv = length(angles)
+    BorderPts2D   = Vector{Matrix{Float64}}(undef, nv)
+    SurfacePts2D  = Vector{Matrix{Float64}}(undef, nv)
+    dudθ          = Vector{Array{Float64,3}}(undef, GRAD ? nv : 0)
+    ∇SurfacePts2D = Vector{Array{Float64,3}}(undef, GRAD ? nv : 0)
+    obs_border_pts = Vector{Matrix{Float64}}(undef, nv)
 
-    for rot_angle in angles
-        if GRAD
-            BorderPts2D_θ, dudθ_θ, SurfacePts2D_θ, ∇SurfacePts2D_θ = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, rot_angle; BorderNodesList=BorderNodesList, GRAD=true, dqdθ=dqdθ)
-            pi_θ, qi_θ = fit_curve(border=BorderPts2D_θ)
-            push!(BorderPts2D,   BorderPts2D_θ)
-            push!(dudθ,          dudθ_θ)
-            push!(SurfacePts2D,  SurfacePts2D_θ)
-            push!(∇SurfacePts2D, ∇SurfacePts2D_θ)
-            push!(obs_border_pts, vcat(pi_θ', qi_θ'))
-        else
-            BorderPts2D_i, SurfacePts2D_i = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, rot_angle; BorderNodesList=BorderNodesList)
-            pi_i, qi_i = fit_curve(border=BorderPts2D_i)
-            push!(BorderPts2D,  BorderPts2D_i)
-            push!(SurfacePts2D, SurfacePts2D_i)
-            push!(obs_border_pts, vcat(pi_i', qi_i'))
+    # the views are independent
+    @sync for (v, rot_angle) in enumerate(angles)
+        Threads.@spawn begin
+            if GRAD
+                BorderPts2D[v], dudθ[v], SurfacePts2D[v], ∇SurfacePts2D[v] = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, rot_angle; BorderNodesList=BorderNodesList, GRAD=true, dqdθ=dqdθ)
+            else
+                BorderPts2D[v], SurfacePts2D[v] = extract_borders(NodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, rot_angle; BorderNodesList=BorderNodesList)
+            end
+            # resampled by a spline, as the observed contours are; `FIT=false` skips it
+            if FIT
+                pi_v, qi_v = fit_curve(border=BorderPts2D[v])
+                obs_border_pts[v] = vcat(pi_v', qi_v')
+            else
+                obs_border_pts[v] = zeros(2, 0)
+            end
         end
     end
 
@@ -114,51 +113,38 @@ points on straight hull edges (not just the vertex extremes).
 function get_convex_hull_boundary_points(surface_pts_2d::AbstractMatrix{Float64}, hull_vertex_ids::Vector{Int64}; tol::Float64=1.0)
     n_vertices = length(hull_vertex_ids)
     all_boundary_ids = Set(hull_vertex_ids)
-    
-    # Check each edge of the hull
+
+    # scalar 2D arithmetic: this runs per hull edge × per point, every time step and view
     for i in 1:n_vertices
         v1_id = hull_vertex_ids[i]
         v2_id = hull_vertex_ids[mod(i, n_vertices) + 1]
-        
-        v1 = surface_pts_2d[:, v1_id]
-        v2 = surface_pts_2d[:, v2_id]
-        
-        edge_vec = v2 - v1
-        edge_len = norm(edge_vec)
-        
+        v1x, v1y = surface_pts_2d[1, v1_id], surface_pts_2d[2, v1_id]
+
+        ex = surface_pts_2d[1, v2_id] - v1x
+        ey = surface_pts_2d[2, v2_id] - v1y
+        edge_len = sqrt(ex^2 + ey^2)
         if edge_len < tol
             continue
         end
-        
-        edge_dir = edge_vec / edge_len
-        
-        # Check all points to see if they lie on this edge
-        for j in 1:size(surface_pts_2d, 2)
+        dx, dy = ex / edge_len, ey / edge_len
+
+        for j in axes(surface_pts_2d, 2)
             if j == v1_id || j == v2_id
                 continue
             end
-            
-            pt = surface_pts_2d[:, j]
-            
-            # Vector from v1 to point
-            to_pt = pt - v1
-            
-            # Project onto edge
-            proj_len = dot(to_pt, edge_dir)
-            
-            # Check if projection is within edge bounds and point is on the line
+            px, py = surface_pts_2d[1, j], surface_pts_2d[2, j]
+
+            # projection onto the edge, then distance from the edge line
+            proj_len = (px - v1x) * dx + (py - v1y) * dy
             if proj_len >= -tol && proj_len <= edge_len + tol
-                # Point perpendicular distance to edge
-                proj_pt = v1 + proj_len * edge_dir
-                perp_dist = norm(pt - proj_pt)
-                
+                perp_dist = sqrt((px - (v1x + proj_len * dx))^2 + (py - (v1y + proj_len * dy))^2)
                 if perp_dist < tol
                     push!(all_boundary_ids, j)
                 end
             end
         end
     end
-    
+
     return sort(collect(all_boundary_ids))
 end
 
@@ -205,49 +191,34 @@ Project the 3D mesh to 2D image plane
 - `dπdx::Array{Float64, nNodes}`{nNodes×2×nParams}: ∇π(x)
 """
 function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractArray{Float64}, dxdθ::AbstractArray{Float64}, height::Float64, rot_angle::Float64=0.0)
-    
-    nx = size(x,2)
-    nθ = size(dxdθ,3)
-    xNorm = zeros(3,nx)
-    xProj = zeros(3,nx)
-    dudθ = zeros(3,nx,nθ)
-
-    x_rot = _rotate_round_z(x, rot_angle)  # Rotate the points around the z-axis by the object's yaw angle
-    obj_trans = _set_cam_frame(obj_pose, height)
-
-    # object-to-camera rotation; a view turns the object about z, so the parameter
-    # sensitivities of the nodes turn with their positions
-    R = obj_trans[1:3,1:3] * _rotate_round_z(Matrix{Float64}(I, 3, 3), rot_angle)
-
-    # transform point cloud wrt to camera frame 
-    pad = ones(1,size(x,2))
-    x_trans_padded = vcat(x_rot, pad)
-    x_trans_mat = obj_trans*x_trans_padded
-
-    x_trans = x_trans_mat[1:3,:]
-
-    iter = 1:nx
-    iterθ = 1:nθ
-    for j in iter
-        xNorm[1,j] = x_trans[1,j]/x_trans[3,j]
-        xNorm[2,j] = x_trans[2,j]/x_trans[3,j]
-        xNorm[3,j] = x_trans[3,j]/x_trans[3,j]
-
-        xProj[:,j] = camera_matrix*xNorm[:,j]
-
-        dπdx = ∇π(x_trans[:,j],camera_matrix)
-
-        # iterate over the model parameters
-        for i in iterθ
-            dxdθi = R*dxdθ[:,:,i]           # rigid transformation applied to the gradient
-            dudθ[:,j,i] = dπdx*dxdθi[:,j]
+    nx, nθ = size(x, 2), size(dxdθ, 3)
+    T = _set_cam_frame(obj_pose, height)
+    # A view turns the object about z, so the parameter sensitivities of the nodes turn with
+    # their positions before the object-to-camera rotation.
+    M = T[1:3, 1:3] * _rotation_z(rot_angle)
+    c, s = cos(rot_angle/180 * π), sin(rot_angle/180 * π)
+    C = camera_matrix
+    x2D = zeros(2, nx)
+    dudθ2D = zeros(2, nx, nθ)
+    # scalar 3×3 algebra: this runs per node, per view, every time step
+    @inbounds for j in 1:nx
+        X, Y, Z = _to_camera(T, c, s, x[1,j], x[2,j], x[3,j])
+        xn, yn = X/Z, Y/Z
+        x2D[1,j] = C[1,1]*xn + C[1,2]*yn + C[1,3]*(Z/Z)
+        x2D[2,j] = C[2,1]*xn + C[2,2]*yn + C[2,3]*(Z/Z)
+        # ∇π = C * [1/Z 0 -X/Z²; 0 1/Z -Y/Z²; 0 0 0], applied to each parameter's gradient
+        a, b = -X/Z^2, -Y/Z^2
+        for i in 1:nθ
+            d1, d2, d3 = dxdθ[1,j,i], dxdθ[2,j,i], dxdθ[3,j,i]
+            dx = M[1,1]*d1 + M[1,2]*d2 + M[1,3]*d3
+            dy = M[2,1]*d1 + M[2,2]*d2 + M[2,3]*d3
+            dz = M[3,1]*d1 + M[3,2]*d2 + M[3,3]*d3
+            gx = dx/Z + a*dz
+            gy = dy/Z + b*dz
+            dudθ2D[1,j,i] = C[1,1]*gx + C[1,2]*gy
+            dudθ2D[2,j,i] = C[2,1]*gx + C[2,2]*gy
         end
     end
-
-    # NOTE: Outout should be the 2D matrix removed for testing
-    x2D = xProj[1:2,:]            # extract x and y coordinates
-    dudθ2D = dudθ[1:2,:,:]
-
     return x2D, dudθ2D
 end 
 
@@ -265,19 +236,32 @@ Project 3D points into the 2D image plane without gradient computation.
 - `x2D::Matrix{Float64}`: 2×N matrix of pixel coordinates.
 """
 function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{Float64}, obj_pose::AbstractArray{Float64}, height::Float64, rot_angle::Float64=0.0)
-
-    x_rot = _rotate_round_z(x, rot_angle)
-    obj_trans = _set_cam_frame(obj_pose, height)
-
-    pad = ones(1,size(x,2))
-    x_trans_padded = vcat(x_rot, pad)
-    x_trans_mat = obj_trans*x_trans_padded
-    x_trans = x_trans_mat[1:3,:]
-
-    xProj = project_to(x_trans, camera_matrix)
-    x2D = xProj[1:2,:]
-
+    T = _set_cam_frame(obj_pose, height)
+    c, s = cos(rot_angle/180 * π), sin(rot_angle/180 * π)
+    C = camera_matrix
+    x2D = zeros(2, size(x, 2))
+    @inbounds for j in axes(x, 2)
+        X, Y, Z = _to_camera(T, c, s, x[1,j], x[2,j], x[3,j])
+        xn, yn = X/Z, Y/Z
+        x2D[1,j] = C[1,1]*xn + C[1,2]*yn + C[1,3]*(Z/Z)
+        x2D[2,j] = C[2,1]*xn + C[2,2]*yn + C[2,3]*(Z/Z)
+    end
     return x2D
+end
+
+# Rotation about z by `d_angle` degrees (a view of the object), as in `_rotate_round_z`.
+function _rotation_z(d_angle::Float64)
+    angle = d_angle/180 * π
+    return [cos(angle) -sin(angle) 0; sin(angle) cos(angle) 0; 0 0 1]
+end
+
+# A point in camera coordinates: turned about z by the view angle (c, s = its cosine and sine),
+# then moved by the 4×4 object-to-camera transform T.
+@inline function _to_camera(T::AbstractMatrix{Float64}, c::Float64, s::Float64, x::Float64, y::Float64, z::Float64)
+    xr, yr = c*x - s*y, s*x + c*y
+    return (T[1,1]*xr + T[1,2]*yr + T[1,3]*z + T[1,4],
+            T[2,1]*xr + T[2,2]*yr + T[2,3]*z + T[2,4],
+            T[3,1]*xr + T[3,2]*yr + T[3,3]*z + T[3,4])
 end
 
 """

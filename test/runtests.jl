@@ -14,6 +14,7 @@ const TEST_GROUP = get(ENV, "SMEAR_TEST_GROUP", "all")
         include("fem_test.jl")
         include("cost_functions_test.jl")
         include("stokes_optimization_test.jl")
+        include("squeeze_system_test.jl")
         include("tikhonov_test.jl")
         include("mesh_templates_test.jl")
     end

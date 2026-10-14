@@ -64,6 +64,8 @@ include("optimization/window_estimation.jl")
 
 include("fem/geometries.jl")
 include("solver/stokes_solver.jl")
+include("solver/sparse_lu.jl")
+include("solver/squeeze_system.jl")
 include("solver/stokes_setup.jl")
 include("solver/run_example.jl")
 

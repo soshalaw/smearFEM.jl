@@ -40,6 +40,8 @@ smearFEM.jl/
 │   │   └── scenarios.jl         # AbstractScenario, SqueezeFlow
 │   ├── solver/
 │   │   ├── stokes_solver.jl     # Assembly, boundary conditions, time stepping (simulate)
+│   │   ├── squeeze_system.jl    # Fixed-pattern saddle-point system and lagged solves behind simulate
+│   │   ├── sparse_lu.jl         # Sparse factorization: MKL Pardiso, UMFPACK fallback
 │   │   ├── stokes_setup.jl      # def_problem / set_model per geometry
 │   │   └── run_example.jl       # High-level drivers (write_sim_data, write_gt_data)
 │   ├── optimization/

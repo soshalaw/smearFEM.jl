@@ -636,7 +636,7 @@ function set_boundary_cond(mdl::Stokes; DENSE::Bool=false)
 end
 
 """
-    simulate(mdl, scene, conditions)
+    simulate(mdl, scene, conditions; sensitivities=true)
 
 Time-step a squeeze-flow simulation, returning the deformed state and the analytic parameter
 sensitivities at every step. The sensitivities `∂q/∂η` and `∂q/∂β` are carried through the solve
@@ -644,9 +644,13 @@ rather than finite-differenced afterwards, which is what lets `fit_model` run Ga
 directly on the forward solve.
 
 Two driving modes are selected by `scene.control`. Under `"force"` the prescribed force history
-`scene.cParam` is imposed and the top-plate velocity becomes an unknown, appended to the system
-as an extra row and column. Under `"velocity"` the plate velocity is prescribed directly. Any
-other value throws an `ArgumentError`.
+`scene.cParam` is imposed and the top-plate velocity is an unknown. Under `"velocity"`,
+`scene.cParam` is the plate velocity itself. Any other value throws an `ArgumentError`.
+
+Each step assembles the saddle-point system into a fixed sparsity pattern and solves it by
+iterative refinement against a factorization reused across steps (refactorized once it has gone
+stale), starting from an extrapolation of the previous steps. Results agree with a direct solve
+to a relative residual of 1e-9 (state) and 1e-8 (sensitivities).
 
 Output written to `conditions.filepath` is controlled by the flags on `conditions`: `WRITEVTK`
 for ParaView scenes, `WRITECONTOUR` for projected 2D contours, `ANIMATE` for GIFs.
@@ -657,13 +661,15 @@ for ParaView scenes, `WRITECONTOUR` for projected 2D contours, `ANIMATE` for GIF
   time grid.
 - `conditions::Conditions`: Camera model and output flags.
 - `μu_btm::Real`, `μu_side::Real`: prescribed velocity multipliers for the bottom plate and the
-  lateral surface. Both default to `0.0`, i.e. a stationary bottom plate and a free side — the
-  configuration every result to date was produced with. They are parameters rather than
-  constants so a driven plate or a driven wall can be simulated without editing the solver.
+  lateral surface. Only the default `0.0` — a stationary bottom plate and a free side, the
+  configuration every result to date was produced with — is supported; anything else throws
+  an `ArgumentError`.
+- `sensitivities::Bool`: Compute the parameter sensitivities. `false` skips their solve and
+  projection — for prediction only — and leaves `gradList` and `gradList_3d` holding only
+  their initial entry.
 
 # Returns
-- `output::Vector{Float64}`: Top-surface displacement increments, populated under `"force"`
-  control only; empty under `"velocity"`.
+- `output::Vector{Float64}`: Top-plate displacement per time step.
 - `gradList`: Contour sensitivities in 2D per time step, one entry per view.
 - `borderPts2DList`: Projected border points per time step, one entry per view.
 - `displacement`: Nodal displacements per time step.
@@ -675,45 +681,23 @@ for ParaView scenes, `WRITECONTOUR` for projected 2D contours, `ANIMATE` for GIF
 - `gradList_3d`: Nodal sensitivities in 3D per time step.
 """
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
-                  μu_btm::Real=0.0, μu_side::Real=0.0)
+                  μu_btm::Real=0.0, μu_side::Real=0.0, sensitivities::Bool=true)
 
     reset_model!(mdl)
     
-    @unpack volume_element_shape, basis_order, IEN, ID, NodeList = mdl.mesh_x
     h_cached::Float64 = hasproperty(mdl.mesh_x, :h) ? mdl.mesh_x.h : mdl.mesh_x.lz
-    element_shape_x_cached, basis_order_x_cached = volume_element_shape, basis_order
-    NodeList_x_cached::Matrix{Float64} = NodeList
-    IEN_x_cached::Matrix{Int} = IEN
-    ID_x_cached::Matrix{Int} = ID
 
-    @unpack IEN, ID, volume_element_shape, basis_order, top_nodes, bottom_nodes, side_nodes, nNodes = mdl.mesh_u
-    element_shape_u_cached, basis_order_u_cached = volume_element_shape, basis_order
-    IEN_u_cached::Matrix{Int} = IEN
-    ID_u_cached::Matrix{Int} = ID
-    nNodes_u_cached::Int = nNodes
-    NodeList_u_cached::Matrix{Float64} = NodeList
-    top_node_list_cached::Vector{Int} = top_nodes # top nodes
-    bottom_node_list_cached::Vector{Int} = bottom_nodes # bottom nodes
-    side_node_list_cached::Vector{Int} = side_nodes
+    IEN_u_cached::Matrix{Int} = mdl.mesh_u.IEN
+    side_node_list_cached::Vector{Int} = mdl.mesh_u.side_nodes
 
-    @unpack nNodes, NodeList = mdl.mesh_p
-    nNodes_p_cached::Int = nNodes
-    NodeList_p_cached::Matrix{Float64} = NodeList
+    NodeList_p_cached::Matrix{Float64} = mdl.mesh_p.NodeList
 
-    @unpack η, nDof_u, nDof_p, ndim = mdl
+    @unpack η = mdl
     η_cached::Any = η
-    nDof_u_cached::Int = nDof_u
-    nDof_p_cached::Int = nDof_p
-    ndim_cached::Int = ndim
 
-    @unpack β, viscosity_type, q_d, C_uc, t_steps, sim_time, control, cParam = scene
+    @unpack β, viscosity_type, t_steps, sim_time, control = scene
     β_cached::Any = β
     viscosity_type_cached::String = viscosity_type
-    q_d_cached::Dict{Symbol, Matrix{Float64}} = q_d
-    q_d_cached_top::SparseMatrixCSC{Bool, Int64} = q_d_cached[:top]
-    q_d_cached_btm::SparseMatrixCSC{Bool, Int64} = q_d_cached[:bottom]
-    q_d_cached_brdr::SparseMatrixCSC{Bool, Int64} = q_d_cached[:border]
-    C_uc_cached::SparseMatrixCSC{Bool, Int64} = C_uc
     t_steps_cached::Float64 = t_steps
     sim_time_cached::Float64 = sim_time
     control_cached::String = control
@@ -724,12 +708,9 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
     camera_matrix_cached::Matrix{Float64} = camera_matrix
     obj_pose_cached::AbstractArray{Float64} = obj_pose
     
-    nodeList_cached::Matrix{Float64} = NodeList_u_cached
-    ID_cached::Matrix{Int} = ID_u_cached
+    nodeList_cached::Matrix{Float64} = mdl.mesh_x.NodeList
     time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
     len_t = length(time)
-
-    C_Tu = transpose(C_uc_cached)
 
     if conditions.filepath != ""
         isnothing(conditions.filepath) && throw(AssertionError("Please provide a filepath to write the data"))
@@ -737,48 +718,19 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
     end
 
     
-    BorderPts2D, surface_pts_2d, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, angles=rot_angle_cached)
-    dqdη = zeros(Float64, size(q_d_cached_top))
-    dqdβ = zeros(Float64, size(q_d_cached_top))
+    BorderPts2D, surface_pts_2d, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, angles=rot_angle_cached, FIT=conditions.WRITECONTOUR)
 
     velocity = AbstractArray[zeros(Float64,size(nodeList_cached,1),size(nodeList_cached,2))]
     pressure = AbstractArray[zeros(Float64,size(nodeList_cached,1),1)]
     displacement = AbstractArray[zeros(Float64,size(nodeList_cached,1),size(nodeList_cached,2))]
-    surface_fields = AbstractArray[]
     surface_pts_3D = AbstractArray[nodeList_cached[:,side_node_list_cached]']
     gradList = AbstractArray[[zeros(Float64, 3, size(b,2), 2) for b in BorderPts2D]] # store the solution fields of the border nodes in 2D, one entry per view; the initial contour is θ-independent
     gradList_3d = AbstractArray[zeros(Float64, size(nodeList_cached,1),size(nodeList_cached,2),2)] # store the solution fields of the border nodes in 3D
     pos3D = AbstractArray[nodeList_cached]
-    pos3D_cp = AbstractArray[nodeList_cached]
     pos2D = AbstractArray[surface_pts_2d]
     borderPts2DList = AbstractArray[BorderPts2D] # store the border points in 2D for each angle at each time step
     output = Float64[]
     writeborderList = [obs_border_pts]
-
-    dac_list = Float64[]
-    bd_list = Float64[]
-    dad_list = Float64[]
-    A_list = Float64[]
-
-    _A_bar = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_u_cached*nNodes_u_cached)
-    B = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_p_cached*nNodes_p_cached)
-    b = SparseMatrixCSC{Float64,Int}(I, nDof_u_cached*nNodes_u_cached, nDof_u_cached*nNodes_u_cached)
-    q_d = spzeros(nDof_u_cached*nNodes_u_cached,1)                                                                       # initialize the vector of the Dirichlet boundary conditions (for ndof = 1) / Dirichlet boundary conditions upper surface (for ndof > 1)
-    A = similar(_A_bar)
-    A_bar = similar(_A_bar)
-
-    A_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(C_uc_cached,2))
-    B_free = SparseMatrixCSC{Float64, Int64}(I, size(C_Tu,1),size(B,2))
-
-    dA_freedη = similar(A_free)                         
-    dA_freedβ = similar(A_free)                         
-    dB_free = spzeros(size(B_free))         
-
-    dAdη = similar(_A_bar)
-    dAdβ = similar(_A_bar)
-    dB = spzeros(size(B))
-
-    q = similar(q_d)
 
     dNodeList_dη = zeros(Float64, size(nodeList_cached))
     dNodeList_dβ = zeros(Float64, size(nodeList_cached))
@@ -789,239 +741,104 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
     # Pre-compute basis functions before time loop and create cache
     cache = BasisFunctionCache(mdl)
 
-    if control_cached == "force"
+    control_cached in ("force", "velocity") || throw(ArgumentError("Control type is unknown"))
+    (μu_btm == 0 && μu_side == 0) ||
+        throw(ArgumentError("the solver assumes an undriven bottom plate and sides (μu_btm = μu_side = 0)"))
+    velocity_control = control_cached == "velocity"
 
-        M = spzeros((size(A_free,1)+size(B_free,2)+1),(size(A_free,2)+size(B_free,2)+1))
-        dMdη = spzeros(size(M))
-        dMdβ = spzeros(size(M))
-        
-        # Pre-allocate zero matrices for sensitivity RHS (Problem 5 optimization)
-        zero_matrix_p_q = zeros(Float64, size(B,2), size(q_d,2))
-        zero_matrix_np = spzeros(size(B_free,2), size(B_free,2))  # Pre-allocate zero pressure-pressure block
-        
-        # Pre-allocate RHS vectors
-        r = zeros(Float64, size(A_free,1) + size(B_free,2) + 1)
-        drdη = zeros(Float64, size(A_free,1) + size(B_free,2) + 1)
-        drdβ = zeros(Float64, size(A_free,1) + size(B_free,2) + 1)
+    sys = _cached_squeeze_system(mdl, scene)
+    nf, np = sys.nf, sys.np
+    n = size(sys.K, 1)
+    # Solve for the response to a unit plate force (or unit plate velocity) and scale by the
+    # control value: the unit response depends on the geometry alone, so it extrapolates well
+    # even when a measured control signal is noisy.
+    rhs_z = zeros(Float64, n)
+    rhs_z[end] = 1.0
+    z = zeros(Float64, n)
+    w = zeros(Float64, n)                       # ∂z/∂β
+    # M ∂z/∂β = -(∂M/∂β) z. Under velocity control the plate column of ∂M/∂β times z_μ = 1 is
+    # the right-hand side's own derivative, and the plate row stays fixed.
+    rhs_w!(r, z) = (mul!(r, sys.dKdβ, z, -1.0, 0.0); velocity_control && (r[end] = 0.0); r)
+    z_hist = [zeros(Float64, n) for _ in 1:4]
+    w_hist = [zeros(Float64, n) for _ in 1:4]
+    sol = zeros(Float64, n)
+    dsoldη = zeros(Float64, n)
+    dsoldβ = zeros(Float64, n)
+    dvdη = zeros(Float64, size(sys.node_dofs))
+    dvdβ = zeros(Float64, size(sys.node_dofs))
+    # z's velocity part scales as η^(a-1) and its pressure as η^a, w = ∂z/∂β one power of η
+    # lower. The history is kept at unit viscosity, where it varies only with the geometry and
+    # β/η — bulk viscosity changes η every step.
+    a = velocity_control ? 1 : 0
 
-        sol = zeros(Float64, size(r))
+    for t in time
+        η_t = viscosity_type_cached == "bulk_viscosity" ? η_cached[iter] : η_cached[1]
+        β_t = viscosity_type_cached == "bulk_viscosity" && length(β_cached) > 1 ? β_cached[iter] : β_cached[1]
+        _assemble_squeeze_system!(sys, mdl, cache, η_t, β_t)
+        velocity_control && _prescribe_plate_velocity!(sys, rhs_z)
+        # a factorization left over from an earlier call would make results depend on it
+        iter == 1 && _refactor!(sys)
 
-        for t in time
-            _A_bar .= assemble_system_A(mdl, cache)
-            B .= assemble_system_B(mdl, cache)
-            b .= apply_boundary_conditions(mdl, cache)
-            q_d .= (μu_btm*q_d_cached_btm + μu_side*q_d_cached_brdr)
-   
-            if viscosity_type_cached == "bulk_viscosity"
-                if length(β_cached) == 1
-                    A .= η_cached[iter]*_A_bar + β_cached[1]*b
-                else
-                    A .= η_cached[iter]*_A_bar + β_cached[iter]*b
-                end
+        n_hist = min(iter - 1, 4)
+        _scale_unknowns!(_extrapolate!(z, z_hist, n_hist), sys, η_t^(a - 1), η_t^a)
+        if sensitivities
+            _scale_unknowns!(_extrapolate!(w, w_hist, n_hist), sys, η_t^(a - 2), η_t^(a - 1))
+            _lagged_solve!(sys, z, rhs_z, w, rhs_w!)
+            _scale_unknowns!(_push_history!(w_hist, w)[1], sys, η_t^(2 - a), η_t^(1 - a))
+        else
+            _lagged_solve!(sys, z, rhs_z)
+        end
+        _scale_unknowns!(_push_history!(z_hist, z)[1], sys, η_t^(1 - a), η_t^(-a))
+
+        c_t = cParam_cached[iter]               # plate force, or plate velocity
+        @. sol = c_t * z
+        μ_tp = sol[end]
+        p = sol[(nf + 1):(nf + np)]'   # a copy: sol is reused next step
+        velocity_field = _nodal_velocity(sol, sys)
+        motion = velocity_field*t_steps_cached
+        nodeList_cached = nodeList_cached + motion
+
+        if sensitivities
+            @. dsoldβ = c_t * w
+            # M = ηĀ + βb + (θ-free divergence blocks), so scaling (η, β) by s scales the
+            # velocity by 1/s under force control and the pressure by s under velocity control:
+            # η ∂sol/∂η + β ∂sol/∂β = -[u; 0] or [0; p]. That gives ∂/∂η without a second solve.
+            if velocity_control
+                @. dsoldη = -β_t * dsoldβ / η_t
+                @views @. dsoldη[(nf + 1):(nf + np)] += sol[(nf + 1):(nf + np)] / η_t
             else
-                A .= η_cached[1]*_A_bar + β_cached[1]*b
+                @. dsoldη = -(sol + β_t * dsoldβ) / η_t
+                @views @. dsoldη[(nf + 1):(nf + np)] = -β_t * dsoldβ[(nf + 1):(nf + np)] / η_t
             end
 
-            dAdη .= _A_bar
-            dAdβ .= b
- 
-            A_free .= C_Tu*A*C_uc_cached
-            B_free .= C_Tu*B
-
-            dA_freedη .= C_Tu*dAdη*C_uc_cached
-            dA_freedβ .= C_Tu*dAdβ*C_uc_cached
-
-            M = [A_free B_free C_Tu*A*q_d_cached_top; 
-                B_free' zero_matrix_np B'*q_d_cached_top;
-                q_d_cached_top'*A*C_uc_cached q_d_cached_top'*B (q_d_cached_top'*A*q_d_cached_top)[end]]
-            
-            dMdη = [dA_freedη dB_free C_Tu*dAdη*q_d_cached_top; 
-                dB_free' zero_matrix_np dB'*q_d_cached_top;
-                q_d_cached_top'*dAdη*C_uc_cached q_d_cached_top'*dB (q_d_cached_top'*dAdη*q_d_cached_top)[end]]
-
-            dMdβ = [dA_freedβ dB_free C_Tu*dAdβ*q_d_cached_top; 
-                dB_free' zero_matrix_np dB'*q_d_cached_top;
-                q_d_cached_top'*dAdβ*C_uc_cached q_d_cached_top'*dB (q_d_cached_top'*dAdβ*q_d_cached_top)[end]]
-                
-            r .= [-C_Tu*A*q_d; -B'*q_d; cParam_cached[iter].-q_d_cached_top'*A*q_d]
-            drdη .= -[C_Tu*dAdη*q_d; zero_matrix_p_q; q_d_cached_top'*dAdη*q_d]
-            drdβ .= -[C_Tu*dAdβ*q_d; zero_matrix_p_q; q_d_cached_top'*dAdβ*q_d]
-            
-            @debug begin
-                "Time: $t, Iteration: $iter, η: $(η_cached[1]), β: $(β_cached[1])"
-                "Norm of _A_bar: $(maximum(_A_bar)), A: $(maximum(A)), b: $(maximum(b))"
-                "Norm of B: $(maximum(B)), M: $(maximum(M))"
-                push!(dac_list, norm(q_d_cached_top'*A*C_uc_cached))
-                push!(bd_list, norm(q_d_cached_top'*B))
-                push!(dad_list, norm((q_d_cached_top'*A*q_d_cached_top)[end]))
-                push!(A_list, norm(A))
-            end
-
-            sol, dsoldη, dsoldβ = lock(SPARSE_LU_LOCK) do
-                lum = lu(M)
-                sol = lum\r
-                dsoldη = lum\(drdη - dMdη*sol)
-                dsoldβ = lum\(drdβ - dMdβ*sol)
-                sol, dsoldη, dsoldβ
-            end
-
-            q_f = view(sol, 1:size(A_free, 1))
-            dqfdη = view(dsoldη, 1:size(A_free, 1))
-            dqfdβ = view(dsoldβ, 1:size(A_free, 1))
-
-            p_f = view(sol, (size(A_free, 1) + 1):(size(A_free, 1) + size(B_free, 2)))
-            dpfdη = view(dsoldη, (size(A_free, 1) + 1):(size(A_free, 1) + size(B_free, 2)))
-            dpfdβ = view(dsoldβ, (size(A_free, 1) + 1):(size(A_free, 1) + size(B_free, 2)))
-
-            μ_tp = sol[end]
-            dμdη = dsoldη[end]
-            dμdβ = dsoldβ[end]
-            
-            q .= q_d + C_uc_cached*q_f + μ_tp*q_d_cached_top;
-            dqdη = C_uc_cached*dqfdη + dμdη*q_d_cached_top;
-            dqdβ = C_uc_cached*dqfdβ + dμdβ*q_d_cached_top;
-
-            p = p_f'       # assemble the solution;
-            dpdη = dpfdη';
-            dpdβ = dpfdβ';
-
-            velocity_field = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'
-            dvdη = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'
-            dvdβ = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'
-            
+            _nodal_velocity!(dvdη, dsoldη, sys)
+            _nodal_velocity!(dvdβ, dsoldβ, sys)
             mat_nan_inf_check(dvdη)
             mat_nan_inf_check(dvdβ)
-            
-            motion = velocity_field*t_steps_cached
-            dmotiondη = dvdη*t_steps_cached
-            dmotiondβ = dvdβ*t_steps_cached
-
-            nodeList_cached = nodeList_cached + motion
-            mdl.mesh_x.NodeList = nodeList_cached
-            dNodeList_dη += dmotiondη
-            dNodeList_dβ += dmotiondβ
-            
-            
+            @. dNodeList_dη += dvdη * t_steps_cached
+            @. dNodeList_dβ += dvdβ * t_steps_cached
             dmdθ_out = @views cat(dNodeList_dη,dNodeList_dβ,dims=3)
 
-            BorderPts2D, dudθ, surface_pts_2d, _, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, angles=rot_angle_cached)
-            
-            push!(output, μ_tp*t_steps_cached)
-            push!(velocity, velocity_field)
-            push!(pressure, p)
-            push!(displacement, motion)
-            push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, nodeList_cached[:,side_node_list_cached]')
-            push!(gradList,dudθ)
+            BorderPts2D, dudθ, surface_pts_2d, _, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, angles=rot_angle_cached, FIT=conditions.WRITECONTOUR)
+            push!(gradList, dudθ)
             push!(gradList_3d, dmdθ_out)
-            push!(pos2D, surface_pts_2d)
-            push!(pos3D, nodeList_cached)
-            push!(pos3D_cp, nodeList_cached)
-            push!(borderPts2DList, BorderPts2D)
-            push!(writeborderList, obs_border_pts)
-
-            iter += 1
-            next!(pr, showvalues = [(:iterations,iter),(:time,string(t," seconds"))])
+        else
+            BorderPts2D, surface_pts_2d, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, angles=rot_angle_cached, FIT=conditions.WRITECONTOUR)
         end
-    elseif control_cached == "velocity"
-        for t in time
-            _A_bar .= assemble_system_A(mdl, cache)
-            B .= assemble_system_B(mdl, cache)
-            b = apply_boundary_conditions(mdl, cache)
-            q_d .= (μu_btm*q_d_cached_btm + cParam_cached[iter]*q_d_cached_top + μu_side*q_d_cached_brdr)
+        mdl.mesh_x.NodeList = nodeList_cached
 
-            if viscosity_type_cached == "bulk_viscosity"
-                if length(β_cached) == 1
-                    A .= η_cached[iter]*_A_bar + β_cached[1]*b
-                else
-                    A .= η_cached[iter]*_A_bar + β_cached[iter]*b
-                end
-            else
-                A .= η_cached[1]*_A_bar + β_cached[1]*b
-            end
+        push!(output, μ_tp*t_steps_cached)
+        push!(velocity, velocity_field)
+        push!(pressure, p)
+        push!(displacement, motion)
+        push!(surface_pts_3D, nodeList_cached[:,side_node_list_cached]')
+        push!(pos2D, surface_pts_2d)
+        push!(pos3D, nodeList_cached)
+        push!(borderPts2DList, BorderPts2D)
+        push!(writeborderList, obs_border_pts)
 
-            dAdη .= _A_bar
-            dAdβ .= b
-            dB .= zeros(Float64, size(B))
-
-            C_Tu = transpose(C_uc_cached)
-        
-            A_free .= C_Tu*A*C_uc_cached
-            B_free .= C_Tu*B
-
-            dA_freedη .= C_Tu*dAdη*C_uc_cached
-            dA_freedβ .= C_Tu*dAdβ*C_uc_cached
-            dB_free .= zeros(Float64, size(B_free))
-        
-            K_free = [A_free B_free; B_free' zeros(Float64, size(B_free,2),size(B_free,2))]
-            dKdη = [C_Tu*dAdη*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))]
-            dKdβ = [C_Tu*dAdβ*C_uc_cached dB_free; dB_free' zeros(Float64, size(B,2),size(B,2))]
-            
-            r = [C_Tu*A*q_d; B'*q_d]
-            drdη = [C_Tu*dAdη*q_d; zero_matrix_p_q]
-            drdβ = [C_Tu*dAdβ*q_d; zero_matrix_p_q]
-
-            sol, dsoldη, dsoldβ = lock(SPARSE_LU_LOCK) do
-                luk = lu(K_free)
-                sol = luk\-Matrix(r)
-                dsoldη = luk\-(drdη + dKdη*sol)
-                dsoldβ = luk\-(drdβ + dKdβ*sol)
-                sol, dsoldη, dsoldβ
-            end
-        
-            q_f = sol[1:size(A_free,1)]
-            dqfdη = dsoldη[1:size(A_free,1)]
-            dqfdβ = dsoldβ[1:size(A_free,1)]
-
-            p_f = sol[size(A_free,1)+1:end]
-            dpfdη = dsoldη[size(A_free,1)+1:end]
-            dpfdβ = dsoldβ[size(A_free,1)+1:end]
-        
-            q = q_d + C_uc_cached*q_f;
-            dqdη = C_uc_cached*dqfdη;
-            dqdβ = C_uc_cached*dqfdβ;
-
-            p = p_f';
-            dpdη = dpfdη';
-            dpdβ = dpfdβ';
-
-            velocity_field = @views hcat(q[ID_cached[1,:]], q[ID_cached[2,:]], q[ID_cached[3,:]])'
-            dmdη = @views hcat(dqdη[ID_cached[1,:]], dqdη[ID_cached[2,:]], dqdη[ID_cached[3,:]])'*t_steps_cached
-            dmdβ = @views hcat(dqdβ[ID_cached[1,:]], dqdβ[ID_cached[2,:]], dqdβ[ID_cached[3,:]])'*t_steps_cached
-            
-            motion_y = velocity_field*t_steps_cached
-            motion =  motion_y
-
-            nodeList_cached = nodeList_cached + motion
-            mdl.mesh_x.NodeList = nodeList_cached
-            dNodeList_dη += dmdη
-            dNodeList_dβ += dmdβ
-  
-            mat_nan_inf_check(dmdη)
-            mat_nan_inf_check(dmdβ)
-
-            dmdθ_out = @views cat(dNodeList_dη,dNodeList_dβ,dims=3)
-
-            BorderPts2D, dudθ, surface_pts_2d, _, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, angles=rot_angle_cached)
-
-            # push!(output, μ_tp*t_steps_cached)
-            push!(velocity, velocity_field)
-            push!(pressure, p)
-            push!(displacement, motion)
-            push!(surface_fields, motion[:,side_node_list_cached])
-            push!(surface_pts_3D, nodeList_cached[:,side_node_list_cached]')
-            push!(gradList,dudθ)
-            push!(pos2D, surface_pts_2d)
-            push!(pos3D, nodeList_cached)
-            push!(pos3D_cp, nodeList_cached)
-            push!(borderPts2DList, BorderPts2D)
-            push!(writeborderList, obs_border_pts)
-        
-            iter += 1
-            next!(pr, showvalues = [(:iterations,iter),(:time,string(t," seconds"))])
-        end
-    else
-            throw(ArgumentError("Control type is unknown"))
+        iter += 1
+        next!(pr, showvalues = [(:iterations,iter),(:time,string(t," seconds"))])
     end
 
     if conditions.WRITEVTK

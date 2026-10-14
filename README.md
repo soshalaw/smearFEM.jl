@@ -213,6 +213,15 @@ julia -O3 --threads=auto --project script.jl
 BLAS is set to `Threads.nthreads()` at module load, so `--threads=auto` benefits both the
 assembly loops and the dense linear algebra.
 
+`simulate` keeps one fixed-pattern system per model and reuses a sparse LU factorization across
+time steps (refactorizing it once the mesh has deformed enough), starting each step from an
+extrapolation of the previous ones. The factorization uses MKL Pardiso where MKL is available
+(x86-64 Linux and Windows) and UMFPACK elsewhere, macOS included. On the 6 mm cylinder mesh
+(5,653 unknowns), with Pardiso on an 8-core laptop, a 0.1 s step typically takes 9–12 ms and at
+most ~20 ms, sensitivities included; the first step of each call ~22 ms. With UMFPACK expect
+roughly twice that, and ~150 ms per refactorization. Pass `sensitivities=false` to `simulate`
+when only the prediction is needed.
+
 ## Testing
 
 ```julia
