@@ -215,7 +215,9 @@ function back_project(x::AbstractMatrix{Float64}, camera_matrix::AbstractMatrix{
     x_rot = _rotate_round_z(x, rot_angle)  # Rotate the points around the z-axis by the object's yaw angle
     obj_trans = _set_cam_frame(obj_pose, height)
 
-    R = obj_trans[1:3,1:3]    # rotation matrix from object frame to camera frame
+    # object-to-camera rotation; a view turns the object about z, so the parameter
+    # sensitivities of the nodes turn with their positions
+    R = obj_trans[1:3,1:3] * _rotate_round_z(Matrix{Float64}(I, 3, 3), rot_angle)
 
     # transform point cloud wrt to camera frame 
     pad = ones(1,size(x,2))
