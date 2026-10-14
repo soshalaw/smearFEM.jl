@@ -284,6 +284,9 @@ function _run_gmsh(geo_path::String, msh_path::String, mesh_order::Int=2; dim::I
     try
         lock(GMSH_LOCK) do
             _gmsh_initialize()
+            # options are global and survive gmsh.clear(): without this, one template's
+            # settings (e.g. Mesh.RecombineAll in the hex templates) leak into the next mesh
+            gmsh.option.restoreDefaults()
             gmsh.open(geo_path)
             gmsh.model.mesh.generate(dim)
             gmsh.model.mesh.setOrder(mesh_order)
