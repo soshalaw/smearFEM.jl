@@ -174,7 +174,8 @@ prediction left it.
 - `θ_prev`: the preceding window's converged `(η, β)` — a 2-tuple or a vector.
 
 # Returns
-- the full `simulate` tuple, so callers take only what they need.
+- the full `simulate` tuple, so callers take only what they need; `project_contours` turns it
+  into contours.
 """
 function predict_window(model::Stokes, scene::SqueezeFlow, conditions::Conditions,
                         θ_prev::Union{AbstractVector{<:Real},Tuple{Real,Real}})

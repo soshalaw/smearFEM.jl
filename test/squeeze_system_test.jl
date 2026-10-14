@@ -77,20 +77,20 @@ const SQ = smearFEM
         model_v, scene_v = problem(v, "velocity")
         out_v = simulate(model_v, scene_v, conditions)
         @test out_v[1] ≈ out_f[1] rtol=1e-12
-        for t in eachindex(out_f[7])
-            @test out_v[7][t] ≈ out_f[7][t] rtol=1e-8          # node positions
-            @test out_v[9][t] ≈ out_f[9][t] rtol=1e-6          # pressure
+        for t in eachindex(out_f[4])
+            @test out_v[4][t] ≈ out_f[4][t] rtol=1e-8          # node positions
+            @test out_v[6][t] ≈ out_f[6][t] rtol=1e-6          # pressure
         end
     end
 
     @testset "velocity-control sensitivities vs finite differences" begin
         v = -10.0 * ones(nsteps)
         model, scene = problem(v, "velocity")
-        _, _, _, _, _, _, pos3D, _, _, grad3D = simulate(model, scene, conditions)
+        _, _, _, pos3D, _, _, grad3D = simulate(model, scene, conditions)
         Δ = 1e-3
         fd(θset!) = begin
-            θset!(+Δ); p = simulate(model, scene, conditions)[7]
-            θset!(-Δ); m = simulate(model, scene, conditions)[7]
+            θset!(+Δ); p = simulate(model, scene, conditions)[4]
+            θset!(-Δ); m = simulate(model, scene, conditions)[4]
             θset!(0.0)
             [(p[t] - m[t]) / (2Δ) for t in eachindex(p)]
         end
@@ -106,14 +106,18 @@ const SQ = smearFEM
     @testset "contour sensitivities of a rotated view vs finite differences" begin
         # the views turn the object about z; its sensitivities must turn with it
         model, scene = problem(F, "force")
-        out = simulate(model, scene, conditions)
+        function contours()
+            out = simulate(model, scene, conditions)
+            return project_contours(model, out[4], conditions; grad3D=out[7])
+        end
+        borders, grads, _ = contours()
         Δ = 1e-3
-        model.η = [η + Δ]; out_p = simulate(model, scene, conditions)
-        model.η = [η - Δ]; out_m = simulate(model, scene, conditions)
+        model.η = [η + Δ]; borders_p, _, _ = contours()
+        model.η = [η - Δ]; borders_m, _, _ = contours()
         model.η = [η]
         for v in eachindex(conditions.viewing_angles)
-            fd = (out_p[3][2][v] - out_m[3][2][v]) / (2Δ)   # border points after one step (exact there)
-            @test out[2][2][v][1:2, :, 1] ≈ fd atol=1e-8
+            fd = (borders_p[2][v] - borders_m[2][v]) / (2Δ)   # border points after one step (exact there)
+            @test grads[2][v][1:2, :, 1] ≈ fd atol=1e-8
         end
     end
 
@@ -123,10 +127,23 @@ const SQ = smearFEM
         b = simulate(model, scene, conditions)
         @test all(a[k] == b[k] for k in eachindex(a))        # the cached system keeps no state between calls
         c = simulate(model, scene, conditions; sensitivities=false)
-        @test length(c[2]) == 1 && length(c[10]) == 1
-        for t in eachindex(a[7])
-            @test c[7][t] ≈ a[7][t] rtol=1e-8
+        @test length(c[7]) == 1
+        for t in eachindex(a[4])
+            @test c[4][t] ≈ a[4][t] rtol=1e-8
         end
+    end
+
+    @testset "contours projected after the solve" begin
+        model, scene = problem(F, "force")
+        _, _, _, pos3D, _, _, grad3D = simulate(model, scene, conditions)
+        borders, grads, pos2D = project_contours(model, pos3D, conditions; grad3D=grad3D)
+        @test length(borders) == length(grads) == length(pos2D) == length(pos3D)
+        @test all(length(b) == length(conditions.viewing_angles) for b in borders)
+        @test all(all(iszero, g) for g in grads[1])      # the initial contour is θ-independent
+        borders0, grads0, pos2D0 = project_contours(model, pos3D, conditions)
+        @test isempty(grads0) && borders0 == borders && pos2D0 == pos2D
+        c = simulate(model, scene, conditions; sensitivities=false)
+        @test_throws DimensionMismatch project_contours(model, c[4], conditions; grad3D=c[7])
     end
 
     @testset "UMFPACK backend" begin
@@ -137,9 +154,9 @@ const SQ = smearFEM
         sys.lu = SQ._Umfpack(nothing, nothing)
         b = simulate(model, scene, conditions)
         @test sys.lu isa SQ._Umfpack
-        for t in eachindex(a[7])
-            @test b[7][t] ≈ a[7][t] rtol=1e-8                       # node positions
-            @test b[10][t] ≈ a[10][t] rtol=1e-6 atol=1e-12          # their sensitivities
+        for t in eachindex(a[4])
+            @test b[4][t] ≈ a[4][t] rtol=1e-8                       # node positions
+            @test b[7][t] ≈ a[7][t] rtol=1e-6 atol=1e-12            # their sensitivities
         end
     end
 

@@ -652,40 +652,36 @@ iterative refinement against a factorization reused across steps (refactorized o
 stale), starting from an extrapolation of the previous steps. Results agree with a direct solve
 to a relative residual of 1e-9 (state) and 1e-8 (sensitivities).
 
+Everything is in 3D; `project_contours` turns the result into what a camera sees.
+
 Output written to `conditions.filepath` is controlled by the flags on `conditions`: `WRITEVTK`
-for ParaView scenes, `WRITECONTOUR` for projected 2D contours, `ANIMATE` for GIFs.
+for ParaView scenes, `ANIMATE` for GIFs of the deforming mesh.
 
 # Arguments
 - `mdl::Stokes`: Model holding the velocity, pressure and geometry meshes.
 - `scene::SqueezeFlow`: Scenario supplying `β`, the control history, the viscosity law and the
   time grid.
-- `conditions::Conditions`: Camera model and output flags.
+- `conditions::Conditions`: Output flags and directory.
 - `μu_btm::Real`, `μu_side::Real`: prescribed velocity multipliers for the bottom plate and the
   lateral surface. Only the default `0.0` — a stationary bottom plate and a free side, the
   configuration every result to date was produced with — is supported; anything else throws
   an `ArgumentError`.
-- `sensitivities::Bool`: Compute the parameter sensitivities. `false` skips their solve and
-  projection — for prediction only — and leaves `gradList` and `gradList_3d` holding only
-  their initial entry.
+- `sensitivities::Bool`: Compute the parameter sensitivities. `false` skips their solve — for
+  prediction only — and leaves `gradList_3d` holding only its initial entry.
 
 # Returns
 - `output::Vector{Float64}`: Top-plate displacement per time step.
-- `gradList`: Contour sensitivities in 2D per time step, one entry per view.
-- `borderPts2DList`: Projected border points per time step, one entry per view.
 - `displacement`: Nodal displacements per time step.
 - `surface_pts_3D`: Side-surface node positions per time step.
-- `pos2D`: Projected surface points per time step.
 - `pos3D`: Nodal positions per time step.
 - `velocity`: Nodal velocities per time step.
 - `pressure`: Nodal pressures per time step.
-- `gradList_3d`: Nodal sensitivities in 3D per time step.
+- `gradList_3d`: Nodal sensitivities `∂x/∂η`, `∂x/∂β` per time step.
 """
 function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
                   μu_btm::Real=0.0, μu_side::Real=0.0, sensitivities::Bool=true)
 
     reset_model!(mdl)
-    
-    h_cached::Float64 = hasproperty(mdl.mesh_x, :h) ? mdl.mesh_x.h : mdl.mesh_x.lz
 
     IEN_u_cached::Matrix{Int} = mdl.mesh_u.IEN
     side_node_list_cached::Vector{Int} = mdl.mesh_u.side_nodes
@@ -703,11 +699,6 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
     control_cached::String = control
     cParam_cached::Vector{Float64} = scene.cParam
 
-    @unpack camera_matrix, obj_pose, viewing_angles = conditions    
-    rot_angle_cached::Vector{Float64} = viewing_angles
-    camera_matrix_cached::Matrix{Float64} = camera_matrix
-    obj_pose_cached::AbstractArray{Float64} = obj_pose
-    
     nodeList_cached::Matrix{Float64} = mdl.mesh_x.NodeList
     time = collect(Float64, range(start=t_steps_cached, stop=sim_time_cached, step=t_steps_cached))
     len_t = length(time)
@@ -717,20 +708,13 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
         set_file(conditions.filepath)
     end
 
-    
-    BorderPts2D, surface_pts_2d, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, angles=rot_angle_cached, FIT=conditions.WRITECONTOUR)
-
     velocity = AbstractArray[zeros(Float64,size(nodeList_cached,1),size(nodeList_cached,2))]
     pressure = AbstractArray[zeros(Float64,size(nodeList_cached,1),1)]
     displacement = AbstractArray[zeros(Float64,size(nodeList_cached,1),size(nodeList_cached,2))]
     surface_pts_3D = AbstractArray[nodeList_cached[:,side_node_list_cached]']
-    gradList = AbstractArray[[zeros(Float64, 3, size(b,2), 2) for b in BorderPts2D]] # store the solution fields of the border nodes in 2D, one entry per view; the initial contour is θ-independent
-    gradList_3d = AbstractArray[zeros(Float64, size(nodeList_cached,1),size(nodeList_cached,2),2)] # store the solution fields of the border nodes in 3D
+    gradList_3d = AbstractArray[zeros(Float64, size(nodeList_cached,1),size(nodeList_cached,2),2)] # the initial state is θ-independent
     pos3D = AbstractArray[nodeList_cached]
-    pos2D = AbstractArray[surface_pts_2d]
-    borderPts2DList = AbstractArray[BorderPts2D] # store the border points in 2D for each angle at each time step
     output = Float64[]
-    writeborderList = [obs_border_pts]
 
     dNodeList_dη = zeros(Float64, size(nodeList_cached))
     dNodeList_dβ = zeros(Float64, size(nodeList_cached))
@@ -817,13 +801,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
             mat_nan_inf_check(dvdβ)
             @. dNodeList_dη += dvdη * t_steps_cached
             @. dNodeList_dβ += dvdβ * t_steps_cached
-            dmdθ_out = @views cat(dNodeList_dη,dNodeList_dβ,dims=3)
-
-            BorderPts2D, dudθ, surface_pts_2d, _, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, GRAD=true, dqdθ=dmdθ_out, angles=rot_angle_cached, FIT=conditions.WRITECONTOUR)
-            push!(gradList, dudθ)
-            push!(gradList_3d, dmdθ_out)
-        else
-            BorderPts2D, surface_pts_2d, obs_border_pts = _get_2D_data(nodeList_cached, camera_matrix_cached, obj_pose_cached, h_cached, BorderNodesList=side_node_list_cached, angles=rot_angle_cached, FIT=conditions.WRITECONTOUR)
+            push!(gradList_3d, cat(dNodeList_dη, dNodeList_dβ, dims=3))
         end
         mdl.mesh_x.NodeList = nodeList_cached
 
@@ -832,10 +810,7 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
         push!(pressure, p)
         push!(displacement, motion)
         push!(surface_pts_3D, nodeList_cached[:,side_node_list_cached]')
-        push!(pos2D, surface_pts_2d)
         push!(pos3D, nodeList_cached)
-        push!(borderPts2DList, BorderPts2D)
-        push!(writeborderList, obs_border_pts)
 
         iter += 1
         next!(pr, showvalues = [(:iterations,iter),(:time,string(t," seconds"))])
@@ -848,15 +823,64 @@ function simulate(mdl::Stokes, scene::SqueezeFlow, conditions::Conditions;
             element_shape_p=mdl.mesh_p.volume_element_shape, basis_order_p=mdl.mesh_p.basis_order)
     end
 
-    if conditions.WRITECONTOUR
-        write_2d_data(string(conditions.filepath,"/data/sim_data/contour_data"), writeborderList)
-    end
-    
-    # write the data to a file
     if conditions.ANIMATE
-        animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=IEN_u_cached, sim_border_nodes_2d=borderPts2DList, sim_pts_2d=pos2D)
+        animate_fields(filepath = string(conditions.filepath,"/Results/images/"), Nodes=pos3D , IEN=IEN_u_cached)
         animate_fields(filepath = string(conditions.filepath,"/Results/images/surface"), Nodes=surface_pts_3D)
     end
-    
-    return output, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, pos3D, velocity, pressure, gradList_3d
+
+    return output, displacement, surface_pts_3D, pos3D, velocity, pressure, gradList_3d
+end
+
+"""
+    project_contours(mdl, pos3D, conditions; grad3D=nothing)
+
+Project every state of a simulation into each camera view and extract the object's border
+contour: what `fit_model` compares with measured contours. With `grad3D`, the contours'
+parameter sensitivities are projected too.
+
+Output written to `conditions.filepath` is controlled by the flags on `conditions`:
+`WRITECONTOUR` for the spline-resampled 2D contours, `ANIMATE` for GIFs of the projections.
+
+# Arguments
+- `mdl::Stokes`: The simulated model (its side-surface nodes and initial height).
+- `pos3D`: Nodal positions per time step, as returned by `simulate`.
+- `conditions::Conditions`: Camera model, viewing angles and output flags.
+- `grad3D`: Nodal sensitivities per time step (`gradList_3d` from `simulate`), or `nothing` to
+  skip the contour sensitivities.
+
+# Returns
+- `borderPts2DList`: Border points per time step, one entry per view.
+- `gradList`: Their sensitivities per time step, one entry per view; empty without `grad3D`.
+- `pos2D`: Projected side-surface points per time step, one entry per view.
+"""
+function project_contours(mdl::Stokes, pos3D::AbstractVector, conditions::Conditions;
+                          grad3D::Union{Nothing,AbstractVector}=nothing)
+    GRAD = !isnothing(grad3D)
+    GRAD && length(grad3D) != length(pos3D) && throw(DimensionMismatch(
+        "grad3D has $(length(grad3D)) time steps, pos3D $(length(pos3D)): was simulate run with sensitivities=false?"))
+    h = hasproperty(mdl.mesh_x, :h) ? mdl.mesh_x.h : mdl.mesh_x.lz
+    side_nodes = mdl.mesh_u.side_nodes
+    @unpack camera_matrix, obj_pose, viewing_angles = conditions
+
+    n = length(pos3D)
+    borderPts2DList = Vector{AbstractArray}(undef, n)
+    gradList = Vector{AbstractArray}(undef, GRAD ? n : 0)
+    pos2D = Vector{AbstractArray}(undef, n)
+    obs_border_pts = Vector{Vector{Matrix{Float64}}}(undef, n)
+    # the time steps are independent
+    Threads.@threads for t in 1:n
+        if GRAD
+            borderPts2DList[t], gradList[t], pos2D[t], _, obs_border_pts[t] = _get_2D_data(pos3D[t], camera_matrix, obj_pose, h; BorderNodesList=side_nodes, GRAD=true, dqdθ=grad3D[t], angles=viewing_angles, FIT=conditions.WRITECONTOUR)
+        else
+            borderPts2DList[t], pos2D[t], obs_border_pts[t] = _get_2D_data(pos3D[t], camera_matrix, obj_pose, h; BorderNodesList=side_nodes, angles=viewing_angles, FIT=conditions.WRITECONTOUR)
+        end
+    end
+
+    if conditions.WRITECONTOUR
+        write_2d_data(string(conditions.filepath,"/data/sim_data/contour_data"), obs_border_pts)
+    end
+    if conditions.ANIMATE
+        animate_fields(filepath = string(conditions.filepath,"/Results/images/"), sim_border_nodes_2d=borderPts2DList, sim_pts_2d=pos2D)
+    end
+    return borderPts2DList, gradList, pos2D
 end

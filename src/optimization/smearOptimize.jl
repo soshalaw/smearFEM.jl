@@ -5,6 +5,13 @@ using ArgCheck
 # Contour cost functions (`match_points`, `contour_cost`, the `ContourCost` types and their
 # residuals) live in `optimization/cost_functions.jl`, included before this file.
 
+# Plate displacement, simulated contours and their sensitivities: what every fit compares.
+function _simulate_contours(model::Stokes, scene::SqueezeFlow, conditions::Conditions)
+    μ_list, _, _, pos3D, _, _, grad3D = simulate(model, scene, conditions)
+    simBorderPts, gradList, _ = project_contours(model, pos3D, conditions; grad3D=grad3D)
+    return μ_list, simBorderPts, gradList
+end
+
 """
     _armijo_line_search(model, scene, conditions, obsBorderPts, θ_prev, p_damped, ∂d_prev, cost_prev; c=1e-4, max_backtracks=10, outliers=Int[], penalty, ∇penalty)
 
@@ -68,7 +75,7 @@ function _armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Cond
         
         model.η = [θ_trial[1]]
         scene.β = [θ_trial[2]]
-        μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+        μ_list, simBorderPts, gradList = _simulate_contours(model, scene, conditions)
         
         # Use cost-only version during line search (fast)
         simBorderPts_accepted = simBorderPts
@@ -99,7 +106,7 @@ function _armijo_line_search(model::Stokes, scene::SqueezeFlow, conditions::Cond
     # Fallback: compute gradients/Hessians for final trial (even if rejected)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, simBorderPts, gradList = _simulate_contours(model, scene, conditions)
     d_trial, ∂d, ∂2d, pairs = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
     simBorderPts_accepted = simBorderPts
     
@@ -151,7 +158,7 @@ function _backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::C
     _val_check(θ_trial)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, simBorderPts, gradList = _simulate_contours(model, scene, conditions)
     
     # Use cost-only version first (fast)
     d_trial_costs, _ = contour_cost(simBorderPts, obsBorderPts, outliers=outliers, cost=cost)
@@ -173,7 +180,7 @@ function _backtrack_line_search(model::Stokes, scene::SqueezeFlow, conditions::C
     _val_check(θ_trial)
     model.η = [θ_trial[1]]
     scene.β = [θ_trial[2]]
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, simBorderPts, gradList = _simulate_contours(model, scene, conditions)
     
     # Use cost-only version first (fast)
     d_trial_costs, _ = contour_cost(simBorderPts, obsBorderPts, outliers=outliers, cost=cost)
@@ -334,7 +341,7 @@ function _fit_model_GN(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     simBorderPtsList::Vector{Any} = Any[]
     
     @info "Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))"
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, simBorderPts, gradList = _simulate_contours(model, scene, conditions)
 
     @debug begin
         path = joinpath(get_scratch_dir(), "optimization_animation")
@@ -502,7 +509,7 @@ function _fit_model_GN_tikhonov(model::Stokes, scene::SqueezeFlow, conditions::C
     simBorderPtsList::Vector{Any} = Any[]
     
     @info "Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))"
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, simBorderPts, gradList = _simulate_contours(model, scene, conditions)
 
     @debug begin
         path = joinpath(get_scratch_dir(), "optimization_animation")
@@ -655,7 +662,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
     iterList::Vector{Float64} = Float64[]
     
     @info "Initializing simulation with η: $(round(θ[1], sigdigits=4)), β: $(round(θ[2], sigdigits=4))"
-    μ_list, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+    μ_list, simBorderPts, gradList = _simulate_contours(model, scene, conditions)
     d, ∂d, ∂2d, _ = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
     cost_prev::Float64 = sum(d)/length(d)
 
@@ -692,7 +699,7 @@ function _fit_model_LM(model::Stokes, scene::SqueezeFlow, conditions::Conditions
         reset_model!(model)
         model.η = [θ[1]]
         scene.β = [θ[2]]
-        _, gradList, simBorderPts, _, _, _, _, _, _, _ = simulate(model, scene, conditions)
+        _, simBorderPts, gradList = _simulate_contours(model, scene, conditions)
         d, ∂d, ∂2d, _ = contour_cost(simBorderPts, obsBorderPts, gradList, outliers=outliers, cost=cost)
         totd::Float64 = sum(d) / len_d
         

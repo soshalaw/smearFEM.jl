@@ -105,9 +105,15 @@ model, scene = def_problem(
 conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose,
                         ANIMATE=true, WRITEVTK=true, filepath="/tmp/smear/demo")
 
-h, gradList, borderPts2D, displacement, surface_pts_3D,
-    pos2D, pos3D, velocity, pressure, _ = simulate(model, scene, conditions)
+# the squeeze flow in 3D, with the sensitivities of the node positions to (η, β)
+h, displacement, surface_pts_3D, pos3D, velocity, pressure, gradList_3d =
+    simulate(model, scene, conditions)
+
+# what the camera sees: border contours per time step and view, and their sensitivities
+borderPts2D, gradList, pos2D = project_contours(model, pos3D, conditions; grad3D=gradList_3d)
 ```
+
+`simulate` never needs the camera; skip `project_contours` when only the 3D state is wanted.
 
 To run the forward model and write the full result tree (fields, VTK, plots, `sim_params.json`) in
 one call, use `write_sim_data(model, scene, camera_matrix, obj_pose, z_angles, filepath)`, or drive

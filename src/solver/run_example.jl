@@ -588,10 +588,11 @@ function write_sim_data(_model::AbstractModel, _scene::AbstractScenario, camera_
         rm(string(filepath), recursive=true, force=true) # remove the previous results folder if it exists
     end
     t_start = Dates.now()
-    h_, gradList, borderPts2DList, displacement, surface_pts_3D, pos2D, pos3D, velocity, pressure, _ = simulate(model, scene, conditions) # run the simulation
+    h_, displacement, surface_pts_3D, pos3D, velocity, pressure, _ = simulate(model, scene, conditions)
+    borderPts2DList, _, pos2D = project_contours(model, pos3D, conditions)
     t_end = Dates.now()
     elapsed_time = t_end - t_start
-    t_per_step = elapsed_time.value/length(gradList)
+    t_per_step = elapsed_time.value/length(pos3D)
     @info "Simulation completed in $(elapsed_time) with an average time per step of $(t_per_step)"
 
     mesh_h0 = hasproperty(model.mesh_u, :h)  ? model.mesh_u.h  : model.mesh_u.lz

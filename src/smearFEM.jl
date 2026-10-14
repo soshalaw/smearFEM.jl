@@ -30,7 +30,7 @@ export ContourCost, ClosestPointCost, ChamferCost, SignedDistanceCost, contour_c
 export closest_point # deprecated alias for contour_cost
 export reset_model!, update_model! # models.jl
 
-export simulate, write_sim_data, read_data, initialize_mesh, write_gt_data, plot_rad_norm_vel_vs_slip, plot_rad_norm_vel_vs_visc
+export simulate, project_contours, write_sim_data, read_data, initialize_mesh, write_gt_data, plot_rad_norm_vel_vs_slip, plot_rad_norm_vel_vs_visc
 export simulate_single_tstep_stokes, stokes_single_step_force
 export assemble_system_A, assemble_system_B, def_problem, set_model
 

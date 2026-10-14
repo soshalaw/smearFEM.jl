@@ -179,19 +179,24 @@ using LinearAlgebra
     model, scene = def_problem(Cylinder(r, h), ne, η, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p, nDof_p, element_shape_x, basis_order_x, β, F, control, viscosity_type,
                             sim_time, t_steps, GMESH_MESH=false)
     ## testing Σ∇p(θ)
-    μ_list, gradList, simBorderPts, _, _, _, Δpos3D_, _, _, gradList_3d = simulate(model, scene, conditions)
+    μ_list, _, _, Δpos3D_, _, _, gradList_3d = simulate(model, scene, conditions)
+    _, gradList, _ = project_contours(model, Δpos3D_, conditions; grad3D=gradList_3d)
     reset_model!(model)
     model.η = [η+Δη]
-    μ_list, simBorderPts, ΔsimBorderPts_pL, _, _, _, Δpos3D_pL, _, _, _= simulate(model, scene, conditions)
+    μ_list, _, _, Δpos3D_pL, _, _, _ = simulate(model, scene, conditions)
+    ΔsimBorderPts_pL, _, _ = project_contours(model, Δpos3D_pL, conditions)
     reset_model!(model)
     model.η = [η-Δη]
-    μ_list, simBorderPts, ΔsimBorderPts_mL, _, _, _, Δpos3D_mL, _, _, _ = simulate(model, scene, conditions)
+    μ_list, _, _, Δpos3D_mL, _, _, _ = simulate(model, scene, conditions)
+    ΔsimBorderPts_mL, _, _ = project_contours(model, Δpos3D_mL, conditions)
     reset_model!(model)
     scene.β = [β+Δβ]
-    μ_list, simBorderPts, ΔsimBorderPts_pβ, _, _, _, Δpos3D_pβ, _, _, _ = simulate(model, scene, conditions)
+    μ_list, _, _, Δpos3D_pβ, _, _, _ = simulate(model, scene, conditions)
+    ΔsimBorderPts_pβ, _, _ = project_contours(model, Δpos3D_pβ, conditions)
     reset_model!(model)
     scene.β = [β-Δβ]
-    μ_list, simBorderPts, ΔsimBorderPts_mβ, _, _, _, Δpos3D_mβ, _, _, _ = simulate(model, scene, conditions)
+    μ_list, _, _, Δpos3D_mβ, _, _, _ = simulate(model, scene, conditions)
+    ΔsimBorderPts_mβ, _, _ = project_contours(model, Δpos3D_mβ, conditions)
                                                                                     
     titer = 1:length(Δpos3D_)
 
@@ -226,7 +231,7 @@ using LinearAlgebra
 
     for t in titer
         println("time: ", t)
-        # simulate returns per-view lists; this test uses a single view
+        # project_contours returns per-view lists; this test uses a single view
         grad = gradList[t][1]
 
         grad_approx_η = (ΔsimBorderPts_pL[t][1] - ΔsimBorderPts_mL[t][1])/(2*Δη)

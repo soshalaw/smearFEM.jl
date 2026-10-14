@@ -21,7 +21,8 @@ geom = Cylinder(r,h)
 
 println("### generating synthetic observations at θ_gt = $θ_gt")
 mdl, scn = def_problem(geom, ne, θ_gt[1], fem..., θ_gt[2], F, control, visc, sim_time, t_steps)
-_, _, obsPts, _, _, _, _, _, _, _ = simulate(mdl, scn, cond)
+pos3D = simulate(mdl, scn, cond)[4]
+obsPts, _, _ = project_contours(mdl, pos3D, cond)
 obs = Vector{AbstractArray}(obsPts)
 println("### got $(length(obs)) observation frames")
 
@@ -92,7 +93,7 @@ g, z = results["gn"], results["tikh_λ0"]
     # the last stored contour must be the one at the returned parameters
     st = results["gn_store"]
     m2, s2 = fresh(); m2.η = [st["η"]]; s2.β = [st["β"]]
-    _, _, chk, _, _, _, _, _, _, _ = simulate(m2, s2, cond)
+    chk, _, _ = project_contours(m2, simulate(m2, s2, cond)[4], cond)
     @test isapprox(vec(smearFEM._as_2xN(st["simBorderPtsList"][end][1])),
                    vec(smearFEM._as_2xN(chk[1])); rtol=1e-8)
 end

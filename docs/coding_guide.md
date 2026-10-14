@@ -39,7 +39,7 @@ smearFEM.jl/
 │   │   ├── types.jl             # EnvConditions, Conditions
 │   │   └── scenarios.jl         # AbstractScenario, SqueezeFlow
 │   ├── solver/
-│   │   ├── stokes_solver.jl     # Assembly, boundary conditions, time stepping (simulate)
+│   │   ├── stokes_solver.jl     # Assembly, boundary conditions, time stepping (simulate), contours (project_contours)
 │   │   ├── squeeze_system.jl    # Fixed-pattern saddle-point system and lagged solves behind simulate
 │   │   ├── sparse_lu.jl         # Sparse factorization: MKL Pardiso, UMFPACK fallback
 │   │   ├── stokes_setup.jl      # def_problem / set_model per geometry
@@ -295,14 +295,17 @@ model, scene = def_problem(geom, ne, η_0,
                            shape_p, order_p, nDof_p,
                            shape_x, order_x,
                            β, cParam, control, viscosity_type, sim_time, t_steps)
-output, gradList, borderPts2D, ... = simulate(model, scene, conditions)
+output, ..., pos3D, ..., gradList_3d = simulate(model, scene, conditions)
+borderPts2D, gradList, pos2D = project_contours(model, pos3D, conditions; grad3D=gradList_3d)
 stats = fit_model(model, scene, conditions, obsBorderPts, θ_init; method=:gn)
 ```
 
 - `def_problem` builds the meshes via `set_model`, the boundary operators, and the
   `SqueezeFlow` scenario.
-- `simulate` time-steps under `"force"` or `"velocity"` control and returns the state plus the
-  analytic sensitivities `∂q/∂η`, `∂q/∂β`.
+- `simulate` time-steps under `"force"` or `"velocity"` control and returns the 3D state plus
+  the analytic sensitivities `∂q/∂η`, `∂q/∂β`. It knows nothing of the camera.
+- `project_contours` projects that result into each camera view: the border contours and
+  their sensitivities, which `fit_model` compares with the observed contours.
 - `fit_model` dispatches on `method` (`:gn`, `:gn_tikhonov`, `:lm`) and returns a `Dict` with
   `"η"`, `"β"`, `"ηList"`, `"βList"`, `"cost_list"`, `"iterList"`.
 

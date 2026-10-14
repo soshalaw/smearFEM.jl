@@ -432,9 +432,10 @@ function run_window_predictions(model, scene, conditions, est_ηpList, est_βpLi
         if ti > 1
             @info "Predicting dynamics in time window $(ti) from window $(ti-1)'s estimate..."
             data_range_prev = data_ranges_[ti-1]
-            pred_μ_list, gradList, pred_simBorderPts, fields_pred, surface_pts_3D_pred, pos2D_pred, pos3D_pred, _, _, _ =
+            pred_μ_list, fields_pred, surface_pts_3D_pred, pos3D_pred, _, _, _ =
                 predict_window(model, scene, conditions,
                                (est_ηpList[data_range_prev][1], est_βpList[data_range_prev][1]))
+            pred_simBorderPts, _, pos2D_pred = project_contours(model, pos3D_pred, conditions)
             pred_h = get_height(pred_μ_list, _h)
 
             push!(h_pred_list, pred_h)
@@ -448,7 +449,8 @@ function run_window_predictions(model, scene, conditions, est_ηpList, est_βpLi
         reset_model!(model)
         model.η = [η]
         scene.β = [β]
-        est_μ_list, gradList, est_simBorderPts, fields_est, surface_pts_3D_est, pos2D_est, pos3D_est, _, _, _ = simulate(model, scene, conditions)
+        est_μ_list, fields_est, surface_pts_3D_est, pos3D_est, _, _, _ = simulate(model, scene, conditions)
+        est_simBorderPts, _, pos2D_est = project_contours(model, pos3D_est, conditions)
 
         h_est = get_height(est_μ_list, _h)
         if ti == 1
@@ -878,7 +880,8 @@ function optimize(exp_params::Dict)
                 est_scene.β = [β]
 
                 conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose, filepath=exp_path, ANIMATE=true, viewing_angles=[z_angle])
-                est_μ_list, gradList, borderPts2DList, fields, surface_pts_3D, pos2D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
+                est_μ_list, fields, surface_pts_3D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
+                borderPts2DList, _, pos2D = project_contours(est_model, pos3D, conditions)
                 est_h = get_height(est_μ_list, h)
 
                 write_csv(datapath(exp_path,"est_h"), est_h)
@@ -944,7 +947,8 @@ function optimize(exp_params::Dict)
                     est_model.η = [η]
                     est_scene.β = [β]
 
-                    est_μ_list, gradList, borderPts2DList, fields, surface_pts_3D, pos2D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
+                    est_μ_list, fields, surface_pts_3D, pos3D, _, _, _ = simulate(est_model, est_scene, conditions)
+                    borderPts2DList, _, pos2D = project_contours(est_model, pos3D, conditions)
 
                     est_h = get_height(est_μ_list, h)
 
@@ -1115,7 +1119,8 @@ function optimize(exp_params::Dict)
                     F[1:min(length(F), round(Int, obs_time / t_steps_exp))]
                 pred_model.η = [stats["η"]]
                 pred_scene.β = [stats["β"]]
-                pred_μ_list, _, pred_simBorderPts, fields_pred, surface_pts_3D_pred, pos2D_pred, pos3D_pred, _, _, _ = simulate(pred_model, pred_scene, conditions)
+                pred_μ_list, fields_pred, surface_pts_3D_pred, pos3D_pred, _, _, _ = simulate(pred_model, pred_scene, conditions)
+                pred_simBorderPts, _, pos2D_pred = project_contours(pred_model, pos3D_pred, conditions)
 
                 push!(h_pred_list, get_height(pred_μ_list, h))
                 push!(borderPts_pred_list, pred_simBorderPts)
@@ -1175,9 +1180,10 @@ function optimize(exp_params::Dict)
 
                     if ti > 1
                         @info "Predicting dynamics in time window $(ti) from window $(ti-1)'s estimate..."
-                        pred_μ_list, _, pred_simBorderPts, fields_pred, surface_pts_3D_pred, pos2D_pred, pos3D_pred, _, _, _ =
+                        pred_μ_list, fields_pred, surface_pts_3D_pred, pos3D_pred, _, _, _ =
                             predict_window(pred_model, pred_scene, conditions,
                                            (est_ηpList[data_range_prev][1], est_βpList[data_range_prev][1]))
+                        pred_simBorderPts, _, pos2D_pred = project_contours(pred_model, pos3D_pred, conditions)
                         pred_h = get_height(pred_μ_list, _h_pred)
 
                         push!(h_pred_list, pred_h)
@@ -1191,7 +1197,8 @@ function optimize(exp_params::Dict)
                     reset_model!(pred_model)
                     pred_model.η = [est_ηpList[data_range_][1]]
                     pred_scene.β = [est_βpList[data_range_][1]]
-                    pred_est_μ_list, _, pred_est_simBorderPts, fields_pred_est, surface_pts_3D_pred_est, pos2D_pred_est, pos3D_pred_est, _, _, _ = simulate(pred_model, pred_scene, conditions)
+                    pred_est_μ_list, fields_pred_est, surface_pts_3D_pred_est, pos3D_pred_est, _, _, _ = simulate(pred_model, pred_scene, conditions)
+                    pred_est_simBorderPts, _, pos2D_pred_est = project_contours(pred_model, pos3D_pred_est, conditions)
                     h_pred_est = get_height(pred_est_μ_list, _h_pred)
                     if ti == 1
                         push!(h_pred_list, h_pred_est)
@@ -1224,7 +1231,8 @@ function optimize(exp_params::Dict)
             write_csv(datapath(exp_path, "window_data","windows_sizes"), windows)
             write_csv(datapath(exp_path, "window_data","cost_windows"), cost_list)
 
-            est_μ_list, gradList, simBorderPts, fields_est, surface_pts_3D_est, pos2D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
+            est_μ_list, fields_est, surface_pts_3D_est, pos3D_est, _, _, _ = simulate(est_model, est_scene, conditions)
+            simBorderPts, _, pos2D_est = project_contours(est_model, pos3D_est, conditions)
             est_h_list = get_height(est_μ_list, h)
 
             write_window_predictions(datapath(exp_path),
@@ -1236,7 +1244,8 @@ function optimize(exp_params::Dict)
                 reduce(vcat, borderPts_pred_list))
 
             if data_type != "physical" && viscosity_model != "carreau"
-                gt_μ_list, gradList, borderPts2DList_gt, fields_gt, surface_pts_3D_gt, pos2D_gt, pos3D_gt, _, _, _ = simulate(model_gt, scene_exp, conditions)
+                gt_μ_list, fields_gt, surface_pts_3D_gt, pos3D_gt, _, _, _ = simulate(model_gt, scene_exp, conditions)
+                borderPts2DList_gt, _, pos2D_gt = project_contours(model_gt, pos3D_gt, conditions)
                 gt_h_list = get_height(gt_μ_list, h)
                 write_csv(datapath(exp_path, "η_gt"), model_gt.η)
                 write_csv(datapath(exp_path, "β_gt"), β_gt)
