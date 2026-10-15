@@ -1,7 +1,9 @@
+using NearestNeighbors
+using Statistics
+
 # Point-cloud distance metrics (Hausdorff, Chamfer, closest-point RMSE).
 # KDTree-based variants use NearestNeighbors; brute-force variants are kept for
-# reference/benchmarking. `mean` (Statistics) and `KDTree`/`nn` (NearestNeighbors)
-# are brought into the module scope by other included files.
+# reference/benchmarking.
 
 """
     _as_points_by_rows(pts) -> AbstractArray

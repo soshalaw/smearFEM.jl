@@ -288,54 +288,6 @@ function _animate_3d(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath
 end
 
 """
-    plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath="None")
-
-Animate the correspondence between simulated and observed border points, writing `matches.gif`
-into `filepath`. Axis limits are fixed to the 2048x1536 camera frame.
-
-# Arguments
-- `simborderfields`: Simulated border points per timestep, row 1 `x` and row 2 `y`.
-- `p`, `q`: Simulated contour coordinates per timestep.
-- `pObs`, `qObs`: Observed contour coordinates per timestep.
-- `pairsList`: Matched index pairs per timestep; must be the same length as `simborderfields`.
-- `filepath::String`: Output directory, created if needed.
-
-# Returns
-- `nothing`
-"""
-function plot_matches(simborderfields, p, q, pObs, qObs, pairsList, filepath::String="None")
-    set_file(filepath)
-    sz = length(simborderfields)
-    @argcheck length(simborderfields) == length(pairsList)
-    pr = Progress(sz; desc="Plotting matches ...",showspeed=true)
-    iter = 1:sz
-    animation = @animate for i in iter
-        borderp = simborderfields[i][1,:]
-        borderq = simborderfields[i][2,:]
-        plt = Plots.plot(1,xlims=(0,2048), ylims=(0,1536), xlabel="x",ylabel="y",title="Prospective Projection of the 3D Grid", label="", dpi=400)
-        Plots.plot!(p[i],q[i], legend=true, labels="Simulation",  dpi=:400, lw=2)
-        Plots.plot!(pObs[i],qObs[i], labels="Observation",  dpi=:400, lw=2)
-        pairs = pairsList[i]
-        pairtIter = 1:size(pairs,1)
-        for j in pairtIter
-            Plots.plot!([borderp[pairs[j,1]], pObs[i][pairs[j,2]]], [borderq[pairs[j,1]], qObs[i][pairs[j,2]]], marker=1.5, lw=0.5, label="", dpi=:400)
-        end
-        Plots.xlims!(0,2048)
-        Plots.ylims!(0,1536) 
-        Plots.xlabel!(L"x")
-        Plots.ylabel!(L"y")
-        Plots.title!("Point Correspondence")
-        next!(pr)
-        try
-            yield()
-        catch e
-            @debug "Animation yield interrupted (safe to continue): $(e.msg)"
-        end
-    end
-    gif(animation, string(filepath,"/matches.gif"), fps=10)
-end
-
-"""
     set_plot(fs; sz=(477,350), legend_column=1, right_margin=0pt, left_margin=0pt, top_margin=0pt, bottom_margin=-20mm, frame=false, legend=:outerbottom)
 
 Create an empty single-panel plot with the project's publication styling (Computer Modern, boxed
@@ -436,54 +388,6 @@ function set_subplot(fs::Int; sz::Tuple{Int,Int}=(1000,750), layout=(1,1), legen
                             
                             label=""; kw...)
     return plt
-end
-
-
-"""
-    plot_covariance!(plt, η_list, β_list; label="Covariance", legend_column=1, color_ellipse=nothing, color_scatter=nothing)
-
-Overlay the covariance ellipse of a set of fitted `(η, β)` pairs onto an existing plot.
-
-# Arguments
-- `plt::Plots.Plot`: Plot to draw into; modified in place.
-- `η_list::Vector{Float64}`: Fitted shear viscosities.
-- `β_list::Vector{Float64}`: Fitted slip parameters.
-- `label::String`: Legend entry for the ellipse.
-- `legend_column::Int`: Number of legend columns.
-- `color_ellipse`: Ellipse colour, or `nothing` for the series default.
-- `color_scatter`: Scatter colour, or `nothing` for the series default.
-
-# Returns
-- `nothing`: `plt` is modified in place.
-"""
-function plot_covariance!(plt::Plots.Plot, η_list::Vector{Float64}, β_list::Vector{Float64}; label::String="Covariance", legend_column::Int=1, color_ellipse=nothing, color_scatter=nothing)
-
-    mean_η = mean(η_list)
-    mean_β = mean(β_list)
-
-    cov_η = cov(η_list)
-    cov_β = cov(β_list)
-    cov_ηβ = cov(η_list, β_list)
-
-    cov_mat = [cov_η cov_ηβ; cov_ηβ cov_β]
-    mean_vec = [mean_η; mean_β]
-
-    # Build kwargs for covellipse
-    covellipse_kwargs = (label=label, alpha=0.5, legend_column=legend_column, bottom_margin=-30mm)
-    if !isnothing(color_ellipse)
-        covellipse_kwargs = (covellipse_kwargs..., color=color_ellipse, lw=1)
-    end
-
-    # Build kwargs for scatter
-    scatter_kwargs = (label="Data points", ms=:10, markerstrokewidth=0.1)
-    if !isnothing(color_scatter)
-        scatter_kwargs = (scatter_kwargs..., color=color_scatter)
-    end
-
-    # Plot the covariance matrix
-    StatsPlots.covellipse!(plt, mean_vec, cov_mat; covellipse_kwargs...)
-
-    # Plots.scatter!(plt, η_list, β_list; scatter_kwargs...)
 end
 
 """

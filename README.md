@@ -6,16 +6,22 @@
 [![Coverage](https://codecov.io/gh/soshalaw/smearFEM.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/soshalaw/smearFEM.jl)
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-A model parameter estimation framework developed for the SMEAR (Soft Matter Exploring Autonomous Robot) project.
+A real-time linear elasticity solver developed for the SMEAR (Soft Matter Exploring Autonomous
+Robot) project.
 
-smearFEM simulates the **squeeze flow** of a soft object compressed between two plates using a
-mixed finite-element Stokes solver, renders the deforming silhouette through a camera model, and
-then **inverts** that pipeline: given an observed border contour over time, it recovers the
-material parameters `θ = [η, β]` (shear viscosity and a boundary slip/friction penalty).
+This branch (`features/linear_elasticity`) holds the linear elastic model on its own, without the
+Stokes squeeze-flow model and the parameter-optimization code of the main line. It provides:
 
-The forward solve carries analytic sensitivities `∂q/∂η` and `∂q/∂β` alongside the solution, so
-the inverse problem is solved with true Gauss–Newton / Levenberg–Marquardt steps rather than
-finite differences.
+- **Squeeze** (`simulate`): an object compressed between two rigid plates, one small-strain load
+  increment per step on the current geometry (updated Lagrangian), under force or displacement
+  control, with Navier slip on the plates and optional sensitivities of the node positions to
+  `(λ, μ, β)`.
+- **Volume update** (`volume_update!`): the mesh moved so that chosen surface nodes reach
+  prescribed normal displacements, the interior following a compressible linear elastic solve —
+  the volume update of the paper-2 pipeline.
+
+Both keep one fixed-sparsity system per mesh and reuse its factorization, so a load step costs a
+few milliseconds (see [Performance](#performance)).
 
 ## Installation
 
@@ -41,103 +47,69 @@ automatically. Gmsh ships as an artifact via `Gmsh.jl` — no system install nee
 |------|----------|
 | `src/smearFEM.jl` | Module entry: the single export list and include order |
 | `src/config.jl`, `src/utils.jl` | Data/scratch path resolution (`config.toml`), shared helpers (camera matrix, logging) |
-| `src/fem/` | Element basis functions and quadrature (`fem.jl`), mesh types and generators (`meshes/`), model and scenario structs, geometry wrapper types, camera projection / border extraction (`PostProcess.jl`) |
-| `src/solver/` | Stokes assembly, boundary conditions, time-stepping (`stokes_solver.jl`), problem construction (`stokes_setup.jl`), high-level drivers (`run_example.jl`) |
-| `src/optimization/` | Gauss–Newton (optionally Tikhonov-regularized) and Levenberg–Marquardt fitting with Armijo / backtracking line search (`smearOptimize.jl`), residual-based contour costs (`cost_functions.jl`), moving-window estimation and prediction (`window_estimation.jl`) |
-| `src/analysis/` | Point-cloud metrics (Hausdorff, Chamfer), experiment-tree traversal, cross-replicate statistics (`statistical_analysis.jl`) |
+| `src/fem/` | Element basis functions and quadrature (`fem.jl`), mesh types and generators (`meshes/`), the `LinearElasticity` model, camera projection / border extraction (`PostProcess.jl`) |
+| `src/solver/` | Fixed-pattern stiffness assembly and refined solves (`elastic_system.jl`), the squeeze (`elastic_squeeze.jl`), the volume update (`volume_update.jl`), the sparse direct solver backend (`sparse_lu.jl`) |
+| `src/analysis/` | Point-cloud metrics (Hausdorff, Chamfer) |
 | `src/io/` | CSV / JSON / HDF5 / VTK readers and writers, plotting and animation helpers |
-| `experiments/` | Reproduction scripts — convergence studies, optimization batches, visualizations |
+| `experiments/` | Scripts — the solver benchmark (`elasticity/benchmark.jl`) |
 | `mesh_files/` | Gmsh `.geo` templates plus the generated-mesh cache (see [`mesh_files/USAGE.md`](mesh_files/USAGE.md)) |
 | `test/` | Unit and integration tests |
 
 ## Core concepts
 
-**Geometry** — the object being squeezed is described by a wrapper type, which selects the
-meshing (`set_model`) by dispatch. The full squeeze-flow setup (`def_problem`) is implemented for
-the 3D geometries, `Cylinder` and `Cuboid`; the 2D and 1D types currently stop at `set_model`:
+**Meshing** — a cylinder or box is meshed structurally (pure Julia, `:Hex`) or unstructurally
+(Gmsh, `mesh_type=:unstructured`, `:Hex` or `:Tet`), at `basis_order` 1 or 2. Gmsh meshes are
+cached in the repository under `mesh_files/<geometry>/<Shape>/` (not under the configured data
+directory); delete the cache after editing a `.geo` template.
 
-```julia
-Cylinder(r, h)                     # 3D
-Cuboid(lx, ly, lz, edge_radius)    # 3D; edge_radius=nothing gives sharp vertical edges
-Disk(r)                            # 2D
-Square(lx, ly)                     # 2D
-Segment(l)                         # 1D
-```
+**Model** — `LinearElasticity(mesh=..., λ=..., μ=...)` is an isotropic linear elastic material on
+one isoparametric 3D mesh. Lengths are in mm and forces in kg·mm/s² (1 N = 1e3), so stresses and
+the Lamé parameters are in kPa; `lame_parameters(E, ν)` converts from Young's modulus and
+Poisson's ratio. The mesh's `NodeList` is the current geometry: `simulate` starts from the
+initial state (`reset_model!`) and leaves the mesh at the final one; `volume_update!` moves it
+from wherever it is (`update_model!` makes the current geometry the new initial state).
 
-**Meshing** — every geometry can be meshed structurally (pure Julia) or unstructurally (Gmsh,
-`mesh_type=:unstructured`). Element shapes are `:Hex` / `:Tet` in 3D, `:Quad` / `:Tri` in 2D, and
-`:Line` in 1D, at `basis_order` 1 or 2. Gmsh meshes are cached in the repository under
-`mesh_files/<geometry>/<Shape>/` (not under the configured data directory); delete the cache after
-editing a `.geo` template.
+**Squeeze** — the bottom plate holds `u_z = 0`, the top plate moves all its nodes rigidly in z, and
+both plates carry Navier slip `β` on the tangential components. Each entry of `cParam` is one
+load increment: of the plate force (`control="force"`) or of the plate displacement
+(`control="displacement"`). `β = 0` leaves the horizontal rigid-body modes free; use a small
+positive value for frictionless plates.
 
-**Mixed formulation** — a `Stokes` model holds three meshes: `mesh_u` (velocity), `mesh_p`
-(pressure), and `mesh_x` (geometry / node tracking). The usual Taylor–Hood choice is quadratic
-velocity over linear pressure (`:Hex` order 2 for `u`, `:Hex` order 1 for `p`).
-
-**Scenario** — a `SqueezeFlow` bundles the model with the slip parameter `β`, Dirichlet boundary
-operators, and the control history. Control is either `"force"` (a prescribed load `cParam`, with
-top-plate displacement solved as an unknown) or `"velocity"` (a prescribed top-plate velocity).
-Viscosity is `"constant"` or `"bulk_viscosity"` (time-varying, optionally from the power-law model).
-
-**Conditions** — a `Conditions` struct carries the camera matrix, object pose, viewing angles,
-output path, and the animate / render / VTK / contour output flags.
+**Volume update** — `volume_update!(mdl, nodes, normals, d)` prescribes `u·n = d` at each listed
+node (tangential motion free), `u_z = 0` on the table (the bottom face) and leaves the rest of the
+surface traction-free. Observed and rigid-contact nodes take the same form, and a node may carry
+several constraints. With displacement constraints only, the result depends on Poisson's ratio
+alone. On an axisymmetric surface with radial normals nothing pins the rotation about z: pass a
+small `β_table` (table slip, `[not decided]`), or the factorization warns that the stiffness is
+singular and the result carries an arbitrary rotation.
 
 ## Quick start
 
 ```julia
 using smearFEM
 
-camera_matrix = get_camera_matrix()
-obj_pose      = [150.0, 0.0, 20.0]
+mesh = meshgrid_cylinder(25.0, 40.0; mesh_type=:unstructured, element_shape=:Hex, basis_order=2,
+                         elem_size=6.0, mesh_path=joinpath(pkgdir(smearFEM), "mesh_files"))
+λ, μ = lame_parameters(10.0, 0.35)                  # kPa
+mdl = LinearElasticity(mesh=mesh, λ=λ, μ=μ)
 
-sim_time, t_steps = 5.0, 2.5e-3
-F = -9518.61 * ones(round(Int, sim_time / t_steps))   # applied load per time step
+# squeeze: 100 increments of -0.05 mm, with ∂positions/∂(λ, μ, β) per step
+r = simulate(mdl, fill(-0.05, 100); control="displacement", β=1.0, sensitivities=true)
+r.plate          # plate force increment per step
+r.pos3D          # node positions, initial state first
+r.grad3D         # (3, nNodes, 3) sensitivities per state
 
-model, scene = def_problem(
-    Cylinder(25.0, 40.0),         # geometry (mm)
-    6, 100.0,                     # ne (target elements along the height), η
-    :Hex, 2, 3,                   # velocity: shape, order, dofs/node
-    :Hex, 1, 1,                   # pressure: shape, order, dofs/node
-    :Hex, 2,                      # geometry mesh: shape, order
-    100.0, F, "force", "constant",
-    sim_time, t_steps)
-
-conditions = Conditions(camera_matrix=camera_matrix, obj_pose=obj_pose,
-                        ANIMATE=true, WRITEVTK=true, filepath="/tmp/smear/demo")
-
-# the squeeze flow in 3D, with the sensitivities of the node positions to (η, β)
-h, displacement, surface_pts_3D, pos3D, velocity, pressure, gradList_3d =
-    simulate(model, scene, conditions)
-
-# what the camera sees: border contours per time step and view, and their sensitivities
-borderPts2D, gradList, pos2D = project_contours(model, pos3D, conditions; grad3D=gradList_3d)
+# volume update: push the lateral surface 0.5 mm outward
+reset_model!(mdl)
+X = mesh.NodeList
+side = mesh.side_nodes
+normals = vcat(X[1:2, side] ./ sqrt.(sum(abs2, X[1:2, side], dims=1)), zeros(1, length(side)))
+u = volume_update!(mdl, side, normals, fill(0.5, length(side)); β_table=1e-3)
 ```
 
-`simulate` never needs the camera; skip `project_contours` when only the 3D state is wanted.
-
-To run the forward model and write the full result tree (fields, VTK, plots, `sim_params.json`) in
-one call, use `write_sim_data(model, scene, camera_matrix, obj_pose, z_angles, filepath)`, or drive
-it from a parameter dictionary with `write_gt_data(exp_params)`.
-
-### Inverse problem
-
-Given observed 2D border points per frame, recover `[η, β]`:
-
-```julia
-θ_init = [50.0, 10.0]
-
-stats = fit_model(model, scene, conditions, obsBorderPts, θ_init;
-                  method=:gn,                    # :gn (Gauss–Newton) or :lm (Levenberg–Marquardt)
-                  line_search_method=:armijo)    # :armijo or :backtrack (:gn only)
-
-stats["η"], stats["β"]        # fitted parameters
-stats["cost_list"]            # cost per iteration
-```
-
-`fit_model` returns a `Dict` with keys `"η"`, `"β"`, `"ηList"`, `"βList"`, `"cost_list"`, and
-`"iterList"`. Negative parameters are reflected to their absolute value and both are clamped to
-`[1e-12, 1e12]` each iteration. Pass `outliers` to skip frame indices. `method=:gn_tikhonov` adds a
-Tikhonov penalty toward a prior `θ_p`; see the `fit_model` docstring for its keywords.
+Sensitivities beyond the first step hold the geometry fixed within each step: exact at the first
+step, and against finite differences of the full run about 0.5 % off after 0.6 % compression and
+3 % after 12.5 % (25 steps, test cylinder). Write VTK output with `write_scene` / `write_vtk`.
 
 ## Configuration
 
@@ -170,63 +142,36 @@ get_scratch_dir()                                # → scratch directory
 create_output_dir("my_experiment")               # → created directory under scratch
 ```
 
-## Reproducing experiments
-
-Scripts in `experiments/` are run directly; each has a `main()` that fires only when the file is
-executed as a script, so they can also be `include`d from the REPL. Some pull in packages beyond
-`Project.toml` (e.g. `CurveFit`, `Dierckx` for the convergence plots) — add those to your
-environment first.
-
-### Convergence analysis
+## Performance
 
 ```bash
-julia -O3 --threads=auto --project experiments/convergence_analysis/forward_convergence.jl
-julia -O3 --threads=auto --project experiments/convergence_analysis/inverse_convergence.jl
+julia -O3 --threads=auto --project experiments/elasticity/benchmark.jl [Hex|Tet] [order] [elem_size]
 ```
 
-**Output**: mesh- and time-convergence plots with fitted rates, under
-`<data_dir>/experiments/sim_data/convergence_analysis/`. **Duration**: 5–15 minutes for the
-forward study; `inverse_convergence.jl` only plots results already on disk.
+The sparsity pattern, the element-to-matrix gather lists and the factorization's symbolic
+analysis are built once per mesh (0.15–0.5 s, cached across calls; the first call of a session
+also compiles, ~1.5 s). A squeeze step then refills the stiffness at the current geometry in
+parallel (~2 ms) and solves by iterative refinement against a factorization reused across steps.
+The first step of every call factorizes afresh, so results never depend on earlier calls. The
+factorization uses MKL Pardiso where MKL is available (x86-64 Linux and Windows), refactorizing
+(~9 ms) once the mesh has deformed enough, typically every ~10 steps, and UMFPACK elsewhere —
+every Mac and ARM machine — where a factorization takes ~150 ms.
 
-### Parameter optimization
+Measured on an 8-thread laptop (other applications running), on the paper-1 cylinder (Gmsh,
+element size 6 mm), 100 displacement-controlled steps of 0.05 mm (12.5 % compression); force
+control (10.9 %) gives the same numbers within 0.5 ms. Medians and maxima are over steps 2–100:
 
-```bash
-julia -O3 --threads=auto --project experiments/paper_1/pipeline.jl
-```
+| Mesh, backend | Squeeze step, median (max) | With sensitivities, median (max) | First step | Volume update |
+|---------------|----------------------------|----------------------------------|------------|---------------|
+| Hex Q2, 1,885 nodes, Pardiso | 6.9 ms (17 ms) | 15.0 ms (28 ms) | 17–27 ms | 20 ms |
+| Tet P2, 2,555 nodes, Pardiso | 6.5 ms (17 ms) | 14.4 ms (27 ms) | 18–27 ms | 20 ms |
+| Hex Q2, UMFPACK | 7.7 ms (15 ms) | 22 ms (40 ms) | 130–160 ms | 130 ms |
+| Tet P2, UMFPACK | 7.8 ms (20 ms) | 24 ms (42 ms) | 155–175 ms | 160 ms |
 
-Runs the simulated, synthetic, and physical optimization batches, then plots results. Key
-parameters (`β_gt`, `η_gt`, `control`, tolerances) are set at the top of the script.
-**Duration**: 30 minutes to 2 hours.
-
-### Ground-truth generation and single runs
-
-```bash
-julia -O3 --threads=auto --project experiments/stokes/write_gt_stokes.jl     # batch, parallel
-julia -O3 --threads=auto --project experiments/stokes/single_simulation.jl   # one forward solve
-julia -O3 --threads=auto --project experiments/visualizations/visualization_example.jl
-```
-
-`experiments/ParallelExecution.jl` is a shared, memory-aware work-stealing scheduler used by the
-batch scripts; `run_parallel_tasks(param_list, task; max_workers=-1, memory_per_task_mb=512.0)`
-sizes the worker pool against available RAM.
-
-### Performance
-
-```bash
-julia -O3 --threads=auto --project script.jl
-```
-
-BLAS is set to `Threads.nthreads()` at module load, so `--threads=auto` benefits both the
-assembly loops and the dense linear algebra.
-
-`simulate` keeps one fixed-pattern system per model and reuses a sparse LU factorization across
-time steps (refactorizing it once the mesh has deformed enough), starting each step from an
-extrapolation of the previous ones. The factorization uses MKL Pardiso where MKL is available
-(x86-64 Linux and Windows) and UMFPACK elsewhere, macOS included. On the 6 mm cylinder mesh
-(5,653 unknowns), with Pardiso on an 8-core laptop, a 0.1 s step typically takes 9–12 ms and at
-most ~20 ms, sensitivities included; the first step of each call ~22 ms. With UMFPACK expect
-roughly twice that, and ~150 ms per refactorization. Pass `sensitivities=false` to `simulate`
-when only the prediction is needed.
+With Pardiso and without sensitivities every step after the first stays within 20 ms (≥ 50 Hz);
+with sensitivities ~7 % of steps exceed it (the steps that refactorize). With UMFPACK the steps
+are as fast, but sensitivities push about half of them over 20 ms, and the first step and the
+volume update each cost a full factorization.
 
 ## Testing
 
@@ -235,21 +180,20 @@ using Pkg
 Pkg.test("smearFEM")
 ```
 
-The full suite is ~98 000 checks and takes about 20 minutes, ~8.5 of which is
-`verify_meshes_test.jl` (six squeeze-flow solves checking the Tet/Tri quadrature). Individual suites:
+The suite takes about a minute. Individual files:
 
 ```bash
-julia --project -e 'include("test/stokes_test.jl")'
+julia --project -e 'include("test/linear_elasticity_test.jl")'
 julia --project -e 'include("test/fem_test.jl")'
 julia --project -e 'include("test/mesh_templates_test.jl")'
-julia --project -e 'include("test/cost_functions_test.jl")'
-julia --project -e 'include("test/stokes_optimization_test.jl")'
-julia --project -e 'include("test/tikhonov_test.jl")'
-julia --project -e 'include("test/verify_meshes_test.jl")'
 ```
 
-`test/qa.jl` runs [Aqua.jl](https://github.com/JuliaTesting/Aqua.jl) quality checks; it needs the
-test environment, so run it through `Pkg.test()`.
+`linear_elasticity_test.jl` checks the element matrices against `B C Bᵀ`, the squeeze against
+the analytic uniaxial solution on Q2 hex and P1/P2 tet meshes (the force-controlled case also
+guards the simplex quadrature weights), the sensitivities against finite differences, the
+volume update against an exact linear field, and that a singular stiffness is reported. `test/qa.jl` runs
+[Aqua.jl](https://github.com/JuliaTesting/Aqua.jl) quality checks; it needs the test environment,
+so run it through `Pkg.test()`.
 
 ## Documentation
 

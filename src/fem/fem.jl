@@ -3,39 +3,27 @@ using SparseArrays
 using Parameters
 
 """
-    BasisFunctionCache
+    BasisFunctionCache(mesh::AbstractMeshgrid)
 
-Structure to store pre-computed basis functions for volume and surface integration.
+Basis-function values and derivatives at every Gauss point of a mesh's volume and surface master
+elements, with the quadrature weights. Build it once per simulation, never inside a loop.
 
-# Fields:
-- `bf_volume`  : `(N_u_gp, ΔN_u_gp, N_p_gp, ΔN_p_gp, N_x_gp, ΔN_x_gp, wpoints)` — volume
-- `bf_surface` : `(N_u_surf_gp, ΔN_u_surf_gp, N_p_surf_gp, ΔN_p_surf_gp, N_x_surf_gp, ΔN_x_surf_gp, wpoints)` — surface
+# Fields
+- `N`, `ΔN`, `w`: Volume Gauss points: values (one vector each), derivatives (nodes × ndim
+  each), weights.
+- `N_s`, `ΔN_s`, `w_s`: The same on the surface element; empty for a mesh without one.
 """
 struct BasisFunctionCache
-    bf_volume::NTuple{7, Any}
-    bf_surface::NTuple{7, Any}
-
-    function BasisFunctionCache(bf_vol::NTuple{7, Any}, bf_surf::NTuple{7, Any})
-        new(bf_vol, bf_surf)
-    end
+    N::Vector{Vector{Float64}}
+    ΔN::Vector{Matrix{Float64}}
+    w::Vector{Float64}
+    N_s::Vector{Vector{Float64}}
+    ΔN_s::Vector{Matrix{Float64}}
+    w_s::Vector{Float64}
 end
 
-"""
-    BasisFunctionCache(mdl::Stokes)
-
-Construct a BasisFunctionCache by pre-computing basis functions for the given Stokes model.
-
-# Arguments:
-- `mdl::Stokes` : Material model
-
-# Returns:
-- `BasisFunctionCache` : Cache containing pre-computed basis functions
-"""
-function BasisFunctionCache(mdl::Stokes)
-    bf_volume = get_volume_basis_functions(mdl)
-    bf_surface = get_surface_basis_functions(mdl)
-    return BasisFunctionCache(bf_volume, bf_surface)
-end
+BasisFunctionCache(mesh::AbstractMeshgrid) =
+    BasisFunctionCache(get_volume_basis_functions(mesh)..., get_surface_basis_functions(mesh)...)
 
 # Node index pairs for tensor-product basis functions
 const _Q1_2D_NODE_PAIRS = ((1, 1), (2, 1), (2, 2), (1, 2))
@@ -494,102 +482,55 @@ function basis_function(ξ::Float64, η::Float64, ζ::Float64, θ::Float64, elem
 end
 
 """
-    get_volume_basis_functions(mdl::Stokes)
+    get_volume_basis_functions(mesh::AbstractMeshgrid)
 
-Pre-compute basis functions at all Gauss points in volume elements for assembly.
+Basis functions of the mesh's volume element at every Gauss point.
 
-# Arguments:
-- `mdl::Stokes` : Material model
+# Arguments
+- `mesh::AbstractMeshgrid`: Mesh supplying `volume_element_shape` and `basis_order`.
 
-# Returns:
-- `N_u_gp` : Velocity basis function values at each volume GP
-- `ΔN_u_gp` : Velocity basis function derivatives at each volume GP
-- `N_p_gp` : Pressure basis function values at each volume GP
-- `ΔN_p_gp` : Pressure basis function derivatives at each volume GP
-- `N_x_gp` : Geometry basis function values at each volume GP
-- `ΔN_x_gp` : Geometry basis function derivatives at each volume GP
-- `wpoints` : Quadrature weights for volume integration
+# Returns
+- `N_gp::Vector{Vector{Float64}}`: Basis-function values at each Gauss point.
+- `ΔN_gp::Vector{Matrix{Float64}}`: Their derivatives on the master element.
+- `wpoints::Vector{Float64}`: Quadrature weights.
 """
-function get_volume_basis_functions(mdl::Stokes)
-
-    @unpack ne = mdl
-    element_shape_u = mdl.mesh_u.volume_element_shape
-    basis_order_u   = mdl.mesh_u.basis_order
-    element_shape_p = mdl.mesh_p.volume_element_shape
-    basis_order_p   = mdl.mesh_p.basis_order
-    element_shape_x = mdl.mesh_x.volume_element_shape
-    basis_order_x   = mdl.mesh_x.basis_order
-
-    element_shape_u_cached = element_shape_u
-    element_shape_p_cached = element_shape_p
-    element_shape_x_cached = element_shape_x
-
-    # Quadrature: driven by u mesh topology; p and x must share the same family
-    n_gp = element_shape_u_cached == :Tet ? 4 : 3
-    points, wpoints = get_quadrature(element_shape_u_cached, n_gp)
-
-    N_u_gp  = Vector{Vector{Float64}}(undef, length(wpoints))
-    ΔN_u_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
-    N_p_gp  = Vector{Vector{Float64}}(undef, length(wpoints))
-    ΔN_p_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
-    N_x_gp  = Vector{Vector{Float64}}(undef, length(wpoints))
-    ΔN_x_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
-
-    for gp::Int in eachindex(wpoints)
-        pt = points[gp]
-        N_u_gp[gp],  ΔN_u_gp[gp]  = basis_function(pt..., element_shape_u_cached, basis_order_u)
-        N_p_gp[gp],  ΔN_p_gp[gp]  = basis_function(pt..., element_shape_p_cached, basis_order_p)
-        N_x_gp[gp],  ΔN_x_gp[gp]  = basis_function(pt..., element_shape_x_cached, basis_order_x)
+function get_volume_basis_functions(mesh::AbstractMeshgrid)
+    shape, order = mesh.volume_element_shape, mesh.basis_order
+    points, wpoints = get_quadrature(shape, shape == :Tet ? 4 : 3)
+    N_gp = Vector{Vector{Float64}}(undef, length(wpoints))
+    ΔN_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
+    for gp in eachindex(wpoints)
+        N_gp[gp], ΔN_gp[gp] = basis_function(points[gp]..., shape, order)
     end
-
-    return N_u_gp, ΔN_u_gp, N_p_gp, ΔN_p_gp, N_x_gp, ΔN_x_gp, wpoints
+    return N_gp, ΔN_gp, wpoints
 end
 
 """
-    get_surface_basis_functions(mdl::Stokes)
+    get_surface_basis_functions(mesh::AbstractMeshgrid)
 
-Pre-compute basis functions at all Gauss points on surfaces for boundary condition assembly.
-For 2D problems: computes 1D basis functions for edge integration.
-For 3D problems: computes 2D basis functions for surface integration.
+Basis functions of the mesh's surface element at every Gauss point, for boundary integrals:
+1D edge functions on a 2D mesh, 2D face functions on a 3D mesh.
 
-# Arguments:
-- `mdl::Stokes` : Material model
+# Arguments
+- `mesh::AbstractMeshgrid`: Mesh supplying `surface_element_shape` and `basis_order`; a mesh
+  without a surface element (`MeshgridLine`) gives empty vectors.
 
-# Returns:
-- `N_u_surf_gp` : Velocity basis function values at each surface GP
-- `ΔN_u_surf_gp` : Velocity basis function derivatives at each surface GP
-- `wpoints` : Quadrature weights for surface integration
+# Returns
+- `N_gp::Vector{Vector{Float64}}`: Basis-function values at each Gauss point.
+- `ΔN_gp::Vector{Matrix{Float64}}`: Their derivatives on the master element.
+- `wpoints::Vector{Float64}`: Quadrature weights.
 """
-function get_surface_basis_functions(mdl::Stokes)
-
-    surf_shape_u = mdl.mesh_u.surface_element_shape
-    basis_order_u = mdl.mesh_u.basis_order
-    surf_shape_p = mdl.mesh_p.surface_element_shape
-    basis_order_p = mdl.mesh_p.basis_order
-    surf_shape_x = mdl.mesh_x.surface_element_shape
-    basis_order_x = mdl.mesh_x.basis_order
-
-    n_gp = surf_shape_u == :Tri ? 3 : 2
-    points, wpoints = get_quadrature(surf_shape_u, n_gp)
-
-    N_u_surf_gp  = Vector{Vector{Float64}}(undef, length(wpoints))
-    ΔN_u_surf_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
-    N_p_surf_gp  = Vector{Vector{Float64}}(undef, length(wpoints))
-    ΔN_p_surf_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
-    N_x_surf_gp  = Vector{Vector{Float64}}(undef, length(wpoints))
-    ΔN_x_surf_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
-
+function get_surface_basis_functions(mesh::AbstractMeshgrid)
+    hasproperty(mesh, :surface_element_shape) || return Vector{Float64}[], Matrix{Float64}[], Float64[]
+    shape, order = mesh.surface_element_shape, mesh.basis_order
+    points, wpoints = get_quadrature(shape, shape == :Tri ? 3 : 2)
+    N_gp = Vector{Vector{Float64}}(undef, length(wpoints))
+    ΔN_gp = Vector{Matrix{Float64}}(undef, length(wpoints))
     for gp in eachindex(wpoints)
+        # every basis_function method takes three coordinate arguments
         pt = points[gp]
-        # Pad to (ξ, η_or_nothing, ζ_or_nothing) so every basis_function call
-        # gets exactly 3 coordinate args regardless of surface dimensionality.
-        coords = length(pt) == 1 ? (pt[1], nothing, nothing) :
-                 length(pt) == 2 ? (pt[1], pt[2], nothing) :
-                                   (pt[1], pt[2], pt[3])
-        N_u_surf_gp[gp],  ΔN_u_surf_gp[gp]  = basis_function(coords..., surf_shape_u, basis_order_u)
-        N_p_surf_gp[gp],  ΔN_p_surf_gp[gp]  = basis_function(coords..., surf_shape_p, basis_order_p)
-        N_x_surf_gp[gp],  ΔN_x_surf_gp[gp]  = basis_function(coords..., surf_shape_x, basis_order_x)
+        coords = length(pt) == 1 ? (pt[1], nothing, nothing) : (pt[1], pt[2], length(pt) == 2 ? nothing : pt[3])
+        N_gp[gp], ΔN_gp[gp] = basis_function(coords..., shape, order)
     end
-
-    return N_u_surf_gp, ΔN_u_surf_gp, N_p_surf_gp, ΔN_p_surf_gp, N_x_surf_gp, ΔN_x_surf_gp, wpoints
+    return N_gp, ΔN_gp, wpoints
 end

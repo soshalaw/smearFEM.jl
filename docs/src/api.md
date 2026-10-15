@@ -6,6 +6,12 @@ Modules = [smearFEM]
 Pages = ["fem.jl","models.jl"]
 ```
 
+## Solvers
+```@autodocs
+Modules = [smearFEM]
+Pages = ["elastic_squeeze.jl", "volume_update.jl"]
+```
+
 ## Meshes
 ```@autodocs
 Modules = [smearFEM]

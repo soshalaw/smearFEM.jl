@@ -2,16 +2,18 @@ using LinearAlgebra
 using SparseArrays
 using Pardiso
 
-# The sparse direct solver behind `_lagged_solve!`, for the symmetric saddle-point matrix of a
-# `SqueezeSystem`. MKL Pardiso where MKL is available (x86-64): on the benchmark system
-# (n = 5653) it factorizes in ~9 ms on 8 threads and solves in ~1.3 ms, where UMFPACK — the
-# fallback everywhere else — takes ~150 ms and ~3.6 ms. Both reach relative residuals ~1e-14.
+# The sparse direct solver behind `_refined_solve!`, for the symmetric matrix of an
+# `ElasticSystem`. MKL Pardiso where MKL is available (x86-64); UMFPACK everywhere else. On the
+# Stokes benchmark of the same mesh size (n = 5653) Pardiso factorized in ~9 ms on 8 threads and
+# solved in ~1.3 ms, UMFPACK in ~150 ms and ~3.6 ms. Both reach relative residuals ~1e-14.
+
+# UMFPACK's factorization and solves are not thread-safe
+const SPARSE_LU_LOCK = ReentrantLock()
 
 const _UmfpackLU = SparseArrays.UMFPACK.UmfpackLU{Float64,Int}
 
 mutable struct _Umfpack
     F::Union{Nothing,_UmfpackLU}
-    F2::Union{Nothing,_UmfpackLU}       # copy(F): own workspace, so two solves can run at once
 end
 
 mutable struct _Pardiso
@@ -25,7 +27,7 @@ mutable struct _Pardiso
     b::Vector{Float64}                  # results depend on the alignment of its arguments
 end
 
-_sparse_lu(K::SparseMatrixCSC{Float64,Int}) = Pardiso.mkl_is_available() ? _Pardiso(K) : _Umfpack(nothing, nothing)
+_sparse_lu(K::SparseMatrixCSC{Float64,Int}) = Pardiso.mkl_is_available() ? _Pardiso(K) : _Umfpack(nothing)
 
 function _Pardiso(K::SparseMatrixCSC{Float64,Int})
     n = size(K, 1)
@@ -42,8 +44,8 @@ function _Pardiso(K::SparseMatrixCSC{Float64,Int})
     pardisoinit(ps)
     fix_iparm!(ps, :N)
     set_iparm!(ps, 2, 2)      # METIS ordering
-    set_iparm!(ps, 8, 0)      # no refinement inside Pardiso: `_lagged_solve!` refines
-    set_iparm!(ps, 11, 1)     # scaling and weighted matching, recommended for saddle points
+    set_iparm!(ps, 8, 0)      # no refinement inside Pardiso: `_refined_solve!` refines
+    set_iparm!(ps, 11, 1)     # scaling and weighted matching
     set_iparm!(ps, 13, 1)
     set_iparm!(ps, 34, Pardiso.get_nprocs_mkl())   # fixed thread count: bit-identical repeats
     f = _Pardiso(ps, SparseMatrixCSC(n, n, colptr, rowval, zeros(length(rowval))), from, false, zeros(n), zeros(n))
@@ -76,7 +78,6 @@ function _factorize!(f::_Umfpack, K::SparseMatrixCSC{Float64,Int})
     lock(SPARSE_LU_LOCK) do
         f.F === nothing ? (f.F = lu(K)) : lu!(f.F, K)
     end
-    f.F2 = copy(f.F)         # lu! gives F a new numeric factorization; a copy keeps the old one
     return f
 end
 
@@ -90,26 +91,17 @@ end
 _solve!(x::AbstractVector{Float64}, f::_Umfpack, b::AbstractVector{Float64}) =
     lock(() -> ldiv!(x, f.F, b), SPARSE_LU_LOCK)
 
-# x = F \ b and y = F \ c. UMFPACK runs the two at once, each on its own workspace (1.7× the
-# throughput of one after the other); Pardiso already spreads one solve over every core.
-function _solve_pair!(x, y, f::_Pardiso, b, c)
-    _solve!(x, f, b)
-    _solve!(y, f, c)
-    return nothing
-end
-
-function _solve_pair!(x, y, f::_Umfpack, b, c)
-    lock(SPARSE_LU_LOCK) do
-        t = Threads.@spawn ldiv!(y, f.F2, c)
-        ldiv!(x, f.F, b)
-        wait(t)
-    end
-    return nothing
-end
+# Whether the last factorization found K singular, e.g. a rigid-body mode no boundary condition
+# removes. Neither solver refuses: Pardiso perturbs the zero pivots, UMFPACK keeps its rounding-level
+# ones, and a solve then returns some solution with an arbitrary amount of that mode. Pardiso
+# counts the perturbed pivots; for UMFPACK, min|diag U| / max|diag U| sits at rounding level
+# (~1e-15) when a mode is free, against ~1e-9 even for a deliberately tiny slip (β = 1e-9 kPa/mm).
+_singular(f::_Pardiso) = get_iparm(f.ps, 14) > 0
+_singular(f::_Umfpack) = f.F.info[SparseArrays.LibSuiteSparse.UMFPACK_RCOND + 1] < 1e-12
 
 # Pardiso refactorizes in about three refinement rounds' time, so once a round shows the
 # factorization has gone stale — contracting the residual by less than 20×, which takes ~25 steps
-# of mesh deformation on the benchmark — it is replaced at the start of the next step, before any
+# of mesh deformation on the Stokes benchmark — it is replaced at the start of the next step, before any
 # round is spent on it. UMFPACK takes ~40 rounds' worth, so it never does that; only a solve that
 # needs more than five rounds refactorizes, there and then (Pardiso: if refining stops working).
 _stale(::_Pardiso, ρ::Float64) = ρ > 0.05
