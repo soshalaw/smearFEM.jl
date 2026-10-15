@@ -75,8 +75,8 @@ function const_vel(lx::Float64, ly::Float64, lz::Float64,
 
     control::String = "force"
     viscosity_type::String = "bulk_viscosity"
-    sim_time::Float64 = 5.0
-    t_steps::Float64 = 1.0
+    sim_time::Float64 = 10.0
+    t_steps::Float64 = 100.0
     β_gt = 100.0
     η_gt = 100.0
     F_ext = 9518.61
@@ -107,7 +107,7 @@ function main()
     basis_order_p::Int = 1
     nDof_p::Int = 1
     nDof_u::Int = 3
-    ne::Int = 16
+    ne::Int = 6
 
     r::Float64 = 25.0  # radius of the cylinder in mm
     h::Float64 = 40.0  # height of the cylinder in mm
@@ -121,12 +121,12 @@ function main()
     lz::Float64 = 40.0
     edge_radius::Float64 = 3.0
 
-    const_vel(lx, ly, lz, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p,
-              nDof_p, element_shape_x, basis_order_x, ne, camera_matrix, obj_pose, z_angle_list;
-              edge_radius=edge_radius)
+    # const_vel(lx, ly, lz, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p,
+    #           nDof_p, element_shape_x, basis_order_x, ne, camera_matrix, obj_pose, z_angle_list;
+    #           edge_radius=edge_radius)
 
-    # const_vel(r, h, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p,
-    #           nDof_p, element_shape_x, basis_order_x, ne, camera_matrix, obj_pose, z_angle_list)
+    const_vel(r, h, element_shape_u, basis_order_u, nDof_u, element_shape_p, basis_order_p,
+              nDof_p, element_shape_x, basis_order_x, ne, camera_matrix, obj_pose, z_angle_list)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

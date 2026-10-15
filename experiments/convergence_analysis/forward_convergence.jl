@@ -203,7 +203,7 @@ the finest-mesh reference, writing the series to CSV for `plot_convergence_mesh`
 """
 function mesh_convergence_analysis(;radius::Float64=25.0, height::Float64=40.0, elem_sizes::Vector=[10, 8, 6, 4], 
                                   template_mesh_geo_path::String=joinpath(@__DIR__, "mesh.geo"),
-                                  nz_list::Vector=Union{Int,Float64}[2, 4, 6, 8, 10, 12, 14, 16],
+                                  nz_list::Vector=Union{Int,Float64}[2, 4, 6, 8],
                                   force::Bool=false)
 
     height_list = AbstractArray[]
