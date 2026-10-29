@@ -28,6 +28,7 @@ export simulate # solver/elastic_squeeze.jl
 export volume_update! # solver/volume_update.jl
 
 export read_csv, sorted_csv_files, write_vtk, write_scene, write_csv, write_json, write_data, write_2d_data, read_h5, read_json, read_perception_data, get_time_windows, set_file # io.jl
+export PerceptionGrid, PerceptionStep, PerceptionLink, read_perception_steps, open_perception_link, next_step!, close_link, sample_field # io/perception_link.jl
 export plot_mesh, animate_fields, set_plot, set_subplot, set_plot_from_config # plotting.jl
 
 export mat_nan_inf_check, write_time_log, dataframe_2_vec, get_c_mat, get_camera_matrix # utils.jl
@@ -45,6 +46,7 @@ include("fem/types.jl")
 include("io/plotting.jl")
 include("io/io.jl")
 include("io/gmsh_utils.jl")
+include("io/perception_link.jl")
 
 include("solver/sparse_lu.jl")
 include("solver/elastic_system.jl")
