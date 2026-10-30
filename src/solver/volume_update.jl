@@ -117,7 +117,7 @@ are cached per mesh, so a call costs one assembly, one numeric factorization and
 
 # Arguments
 - `mdl::LinearElasticity`: Model; its mesh is moved (`NodeList` replaced) and needs
-  `IEN_bottom` (cylinder or cuboid).
+  `IEN_bottom` (cylinder, cuboid or observed).
 - `nodes::Vector{Int}`: Constrained nodes.
 - `normals::Matrix{Float64}`: (3, length(nodes)) normal of each constraint; normalized here.
 - `d::Vector{Float64}`: Displacement of each node along its unit normal, in mm.

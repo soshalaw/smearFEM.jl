@@ -7,6 +7,53 @@ using MarchingCubes: MC, march
 # other unobserved patch is an error, not a guess.
 
 """
+    mesh_from_field(phi, grid; table_z=0.0, elem_size, basis_order=2, out_dir=mktempdir()) -> MeshgridObserved
+    mesh_from_field(step::PerceptionStep, grid; kwargs...) -> MeshgridObserved
+
+Paper-2 initial mesh: tet mesh of the specimen perception observed, from its fused field φ_s. The
+zero surface of φ_s is closed at the bottom by the table plane z = `table_z`; voxels no camera saw are
+inside where the observed surface encloses them, else outside. Pieces of material apart from the
+specimen are dropped with a warning. The cap is about one voxel smaller in radius than the true
+base: marching cubes bevels the bottom edge, and the bevel belongs to the free surface.
+
+# Arguments
+- `phi::AbstractArray{<:Real,3}`: φ_s (nx, ny, nz) [mm], NaN where unobserved, e.g. `step.phi`.
+- `grid::PerceptionGrid`: Its grid.
+- `table_z::Real`: Height of the table top [mm]: 0 on the rig, the plate top in synthetic bags.
+- `elem_size::Real`: Target element size [mm].
+- `basis_order::Int`: 1 or 2 (quadratic tets keep straight edges).
+- `out_dir::String`: Folder for `surface.msh` (the closed surface, to inspect), `observed.geo` and
+  `observed.msh`.
+
+# Returns
+- `MeshgridObserved`: Boundary groups `IEN_bottom` (on the table) and `IEN_free`.
+
+Throws an `ArgumentError` for `table_z` outside the grid, no material, or material that does not
+reach the table, and an error when the observed surface is not closed (an unobserved patch).
+"""
+function mesh_from_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid; table_z::Real=0.0,
+                         elem_size::Real, basis_order::Int=2, out_dir::String=mktempdir())
+    elem_size > 0 || throw(ArgumentError("elem_size must be positive, got $elem_size"))
+    basis_order in (1, 2) || throw(ArgumentError("basis_order must be 1 or 2, got $basis_order"))
+    field, coords = _close_field(phi, grid, table_z)
+    V, T, on_cap = _field_surface(field, coords, table_z, grid.delta)
+    mkpath(out_dir)
+    _write_surface_msh(joinpath(out_dir, "surface.msh"), V, T, on_cap)
+    mesh_path = joinpath(out_dir, "observed.msh")
+    rm(mesh_path; force=true)   # _get_mesh_data meshes only when the file is missing
+    template = joinpath(dirname(dirname(dirname(@__DIR__))), "mesh_files", "templates", "observed_tet.geo")
+    NodeList, IEN, face_IENs, nNodes, node_sets, ne = _get_mesh_data(mesh_path;
+        params=Dict{String,Any}("elem_size" => Float64(elem_size)), template_path=template,
+        mesh_order=basis_order, mesh_dim=3, body_group="Volume", body_dim=3,
+        face_groups=["Bottom", "Free"], node_set_groups=["Bottom", "Free"])
+    return MeshgridObserved(NodeList=NodeList, IEN=IEN, IEN_bottom=face_IENs[1], IEN_free=face_IENs[2],
+        ID=reshape(collect(1:3nNodes), 3, nNodes), basis_order=basis_order, nNodes=nNodes, ne=ne,
+        bottom_nodes=node_sets[1], free_nodes=node_sets[2], effect_elem_sze=Float64(elem_size))
+end
+
+mesh_from_field(step::PerceptionStep, grid::PerceptionGrid; kwargs...) = mesh_from_field(step.phi, grid; kwargs...)
+
+"""
     _close_field(phi, grid, table_z) -> (field, coords)
 
 φ_s made meshable: padded by one voxel on every side, the table plane as the bottom, every NaN voxel
@@ -80,9 +127,28 @@ function _field_surface(field::Array{Float64,3}, coords::NTuple{3,Vector{Float64
     V = stack(mc.vertices)
     T = stack(mc.triangles)
     on_table = abs.(V[3, :] .- table_z) .< 1e-3 * delta
+    # exactly on the plane: Float32 rounding of φ_s and the nudged zeros leave the cap up to ~1e-6·Δ off
+    V[3, on_table] .= table_z
     on_cap = vec(all(on_table[T], dims=1))
     any(on_cap) || throw(ArgumentError("the material does not reach the table at z = $table_z mm; check table_z"))
     return V, T, on_cap
+end
+
+# The closed surface for Gmsh as MSH 2.2 with shared nodes, so the cap (entity 1) and the free
+# surface (entity 2) meet along one curve; STL repeats the vertices of every triangle.
+function _write_surface_msh(path::String, V::Matrix{Float64}, T::Matrix{Int}, on_cap::BitVector)
+    open(path, "w") do io
+        println(io, "\$MeshFormat\n2.2 0 8\n\$EndMeshFormat\n\$Nodes\n", size(V, 2))
+        for a in axes(V, 2)
+            println(io, a, " ", V[1, a], " ", V[2, a], " ", V[3, a])
+        end
+        println(io, "\$EndNodes\n\$Elements\n", size(T, 2))
+        for t in axes(T, 2)
+            entity = on_cap[t] ? 1 : 2
+            println(io, t, " 2 2 ", entity, " ", entity, " ", T[1, t], " ", T[2, t], " ", T[3, t])
+        end
+        println(io, "\$EndElements")
+    end
 end
 
 # Labels (other than 0) of the components touching the array's border.

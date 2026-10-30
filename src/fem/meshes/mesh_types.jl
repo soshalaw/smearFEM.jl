@@ -307,3 +307,56 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
             ID, volume_element_shape, surface_element_shape, basis_order, nNodes, ne, top_nodes, bottom_nodes, side_nodes, copy(NodeList), effect_elem_sze)
     end
 end
+
+"""
+    MeshgridObserved(; NodeList, IEN, IEN_bottom, IEN_free, ID, volume_element_shape=:Tet, surface_element_shape, basis_order=2, nNodes=0, ne=0, bottom_nodes, free_nodes, effect_elem_sze=nothing)
+
+3D tet mesh of a specimen as perception observed it (`mesh_from_field`): the paper-2 initial mesh.
+The boundary is split into the bottom, on the table, and the free surface (the observed side and top).
+
+# Arguments
+- `IEN_bottom`, `IEN_free::Matrix{Int}`: Connectivity of each boundary group.
+- `bottom_nodes`, `free_nodes::Vector{Int}`: Nodes in each boundary group (the rim is in both).
+- `surface_element_shape::Symbol`: Derived from `volume_element_shape` by default.
+
+Fields shared by every `AbstractMeshgrid`: `NodeList` (current node coordinates),
+`IEN` (element connectivity), `ID` (DOF numbering), `volume_element_shape` and `basis_order`
+(kept as two independent fields, never a combined "Q2"-style string), `nNodes`, `ne`,
+`initial_state` (a copy of `NodeList` at construction, used to reset the mesh), and
+`effect_elem_sze` (the realised element size, `nothing` for structured meshes).
+"""
+mutable struct MeshgridObserved <: AbstractMeshgrid
+    NodeList::Matrix{Float64}
+    IEN::Matrix{Int}
+    IEN_bottom::Matrix{Int}
+    IEN_free::Matrix{Int}
+    ID::Matrix{Int}
+    volume_element_shape::Symbol
+    surface_element_shape::Symbol
+    basis_order::Int
+    nNodes::Int
+    ne::Int
+    bottom_nodes::Vector{Int}
+    free_nodes::Vector{Int}
+    initial_state::Matrix{Float64}
+    effect_elem_sze::Union{Float64,Nothing}
+
+    function MeshgridObserved(;
+        NodeList::Matrix{Float64}=Matrix{Float64}(undef, 3, 1),
+        IEN::Matrix{Int}=Matrix{Int}(undef, 10, 1),
+        IEN_bottom::Matrix{Int}=Matrix{Int}(undef, 6, 1),
+        IEN_free::Matrix{Int}=Matrix{Int}(undef, 6, 1),
+        ID::Matrix{Int}=Matrix{Int}(undef, 3, 1),
+        volume_element_shape::Symbol=:Tet,
+        surface_element_shape::Symbol=_surface_element_shape(volume_element_shape),
+        basis_order::Int=2,
+        nNodes::Int=0,
+        ne::Int=0,
+        bottom_nodes::Vector{Int}=Vector{Int}(),
+        free_nodes::Vector{Int}=Vector{Int}(),
+        effect_elem_sze::Union{Float64,Nothing}=nothing
+    )
+        new(NodeList, IEN, IEN_bottom, IEN_free, ID, volume_element_shape, surface_element_shape,
+            basis_order, nNodes, ne, bottom_nodes, free_nodes, copy(NodeList), effect_elem_sze)
+    end
+end

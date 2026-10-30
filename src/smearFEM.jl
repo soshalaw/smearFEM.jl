@@ -14,7 +14,7 @@ Supertype for all mesh containers. Every subtype carries `volume_element_shape::
 abstract type AbstractMeshgrid end
 
 # abstract type model end
-export AbstractMeshgrid, MeshgridLine, MeshgridDisk, MeshgridSquare, MeshgridCuboid, MeshgridCylinder # Meshes.jl
+export AbstractMeshgrid, MeshgridLine, MeshgridDisk, MeshgridSquare, MeshgridCuboid, MeshgridCylinder, MeshgridObserved # Meshes.jl
 export Model, LinearElasticity, lame_parameters # models.jl
 export EnvConditions, Conditions # types.jl
 
@@ -29,6 +29,7 @@ export volume_update! # solver/volume_update.jl
 
 export read_csv, sorted_csv_files, write_vtk, write_scene, write_csv, write_json, write_data, write_2d_data, read_h5, read_json, read_perception_data, get_time_windows, set_file # io.jl
 export PerceptionGrid, PerceptionStep, PerceptionLink, read_perception_steps, open_perception_link, next_step!, close_link, sample_field # io/perception_link.jl
+export mesh_from_field # fem/meshes/mesh_observed.jl
 export plot_mesh, animate_fields, set_plot, set_subplot, set_plot_from_config # plotting.jl
 
 export mat_nan_inf_check, write_time_log, dataframe_2_vec, get_c_mat, get_camera_matrix # utils.jl
