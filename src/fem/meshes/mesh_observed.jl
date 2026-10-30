@@ -1,5 +1,6 @@
 using LinearAlgebra: norm
 using ImageMorphology: label_components, component_lengths
+using MarchingCubes: MC, march
 
 # Paper-2 initial mesh: the FE mesh at t = 0, built from perception's fused field φ_s (a truncated
 # signed distance, NaN where no camera saw the voxel). The table closes the unobserved bottom; any
@@ -64,6 +65,24 @@ function _close_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid, table_
     F[F .== 0] .= 1e-6 * Δ
     @info "closed φ_s: $n_inside unobserved voxels filled as inside, $(count(unobserved) - n_inside) as outside"
     return F, (px, py, pz)
+end
+
+"""
+    _field_surface(field, coords, table_z, delta) -> (V, T, on_cap)
+
+Zero surface of a closed field (`_close_field`) by marching cubes: vertices `V` (3, nv) [mm],
+triangles `T` (3, nt) as vertex indices, and `on_cap` (nt), the triangles on the table that close
+the bottom.
+"""
+function _field_surface(field::Array{Float64,3}, coords::NTuple{3,Vector{Float64}}, table_z::Real, delta::Real)
+    mc = MC(field, Int; x=coords[1], y=coords[2], z=coords[3])
+    march(mc, 0.0)
+    V = stack(mc.vertices)
+    T = stack(mc.triangles)
+    on_table = abs.(V[3, :] .- table_z) .< 1e-3 * delta
+    on_cap = vec(all(on_table[T], dims=1))
+    any(on_cap) || throw(ArgumentError("the material does not reach the table at z = $table_z mm; check table_z"))
+    return V, T, on_cap
 end
 
 # Labels (other than 0) of the components touching the array's border.

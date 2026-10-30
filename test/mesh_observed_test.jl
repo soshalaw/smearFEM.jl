@@ -1,6 +1,6 @@
 using Test, LinearAlgebra
 using smearFEM
-using smearFEM: _close_field, _grid_centres
+using smearFEM: _close_field, _grid_centres, _field_surface
 
 cylinder_sd(x, y, z; r=30.0, h=40.0, tz=4.685) =
     let d = (hypot(x, y) - r, max(tz - z, z - (tz + h)))
@@ -69,5 +69,26 @@ nearest(c, v) = argmin(abs.(c .- v))
         phi, grid = tsdf_cylinder()
         @test_throws ArgumentError _close_field(phi, grid, -5.0)
         @test_throws ArgumentError _close_field(fill(NaN32, size(phi)), grid, 4.685)
+    end
+
+    @testset "surface of the closed field" begin
+        V, T, cap = _field_surface(_close_field(tsdf_cylinder()..., 4.685)..., 4.685, 1.0)
+        edges = Dict{Tuple{Int,Int},Int}()
+        for t in axes(T, 2), (a, b) in ((1, 2), (2, 3), (3, 1))
+            e = minmax(T[a, t], T[b, t])
+            edges[e] = get(edges, e, 0) + 1
+        end
+        @test all(==(2), values(edges))
+        @test abs(sum(det(V[:, T[:, t]]) for t in axes(T, 2))) / 6 ≈ π * 30^2 * 40 rtol=0.005
+        @test count(cap) > 0
+        @test all(abs.(V[3, unique(vec(T[:, cap]))] .- 4.685) .< 1e-3)
+        @test all(norm(cross(V[:, T[2, t]] - V[:, T[1, t]], V[:, T[3, t]] - V[:, T[1, t]])) > 0 for t in axes(T, 2))
+    end
+
+    @testset "floating material" begin
+        _, grid = tsdf_cylinder()
+        xs, ys, zs = _grid_centres(grid)
+        sphere = Float32[norm((x, y, z - 26)) - 10 for x in xs, y in ys, z in zs]
+        @test_throws ArgumentError _field_surface(_close_field(sphere, grid, 4.685)..., 4.685, 1.0)
     end
 end
