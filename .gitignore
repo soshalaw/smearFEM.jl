@@ -7,7 +7,8 @@ vtkFiles
 images
 PUBLICATION_READINESS.md
 docs/paper_1.tex
-CLAUDE.md
+# CLAUDE.md and claud_docs/ are tracked on purpose (owner, 2026-10-30): notes shared between PCs
+#CLAUDE.md
 #claud_docs/
 .claude/settings.local.json
 
