@@ -1916,3 +1916,14 @@ reader still loads a whole file).
 - README line 12 still says "This branch (`features/linear_elasticity`)" on `paper_2` as well.
 - Other PCs: `git fetch`, then `git switch paper_2` for the link; pulling `features/linear_elasticity` deletes
   the link files from that checkout.
+
+## 2026-10-30 (later) — perception link tested across two processes
+
+- This branch's reader (`open_perception_link`, `next_step!`) against smearPerception's Python publisher,
+  two processes on the default socket, Julia 1.13.3: 10 scenarios passed (details in smearPerception's
+  claud_docs/memory.md, 2026-10-30). Socket steps equal `read_perception_steps` of the same run, bit for
+  bit. Full-size steps (571 k voxels, 2.9 MB) at 30 Hz: `next_step!` 1.8 ms each once data is waiting, about
+  1.5 kB allocated per step after warm-up, 0 ms in GC. Perception killed at a step boundary or mid-step:
+  `EOFError` after exactly the complete steps.
+- The first `next_step!` compiles (about 0.45 s, 52 MB): read a step before timing matters, or add a
+  precompile workload if that ever hurts.
