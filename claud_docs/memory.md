@@ -1927,3 +1927,11 @@ reader still loads a whole file).
   `EOFError` after exactly the complete steps.
 - The first `next_step!` compiles (about 0.45 s, 52 MB): read a step before timing matters, or add a
   precompile workload if that ever hurts.
+
+## 2026-10-30 (later) — cross-process link test kept in smearPerception
+
+- The check of the previous entry is now smearPerception's `tests/test_fe_link_julia.py` (8 tests; 7dd9386
+  there). It runs this branch's reader as `julia --project=<this repo>`, found at `SMEAR_FEM_DIR`, else
+  `../smearFEM.jl` next to smearPerception. It is skipped without `julia` or without
+  `src/io/perception_link.jl`. Rerun it after changing `perception_link.jl`; the header of that file now
+  says so.

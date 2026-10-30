@@ -6,7 +6,8 @@ using Interpolations: BSpline, Linear, extrapolate, interpolate!, scale   # expl
 # Link to the perception process (smearPerception, Python): perception listens on a Unix-domain
 # socket and sends one message per FE step; this side connects and reads. The messages are
 # documented in smearPerception's `src/smear_perception/fe_link.py`; keep the two in step. The
-# offline form is the HDF5 file of its `scripts/reconstruct_bag.py --save-field`.
+# offline form is the HDF5 file of its `scripts/reconstruct_bag.py --save-field`. Both ends together,
+# as two processes, are tested by smearPerception's `tests/test_fe_link_julia.py`.
 #
 # Perception works in SI units with C-order arrays. This side converts once, on read, to the FE's
 # units (mm; forces in kg·mm/s²). The fields are permuted back to perception's axis order, so
