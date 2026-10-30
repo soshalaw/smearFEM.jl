@@ -1935,3 +1935,20 @@ reader still loads a whole file).
   `../smearFEM.jl` next to smearPerception. It is skipped without `julia` or without
   `src/io/perception_link.jl`. Rerun it after changing `perception_link.jl`; the header of that file now
   says so.
+
+## 2026-10-30 (later) — attribution lines removed, `paper_2` renamed `features/volume_update`, CLAUDE.md tracked (owner)
+
+- Owner's global rule: no attribution lines (`Co-Authored-By: Claude ...`, `Claude-Session: ...`) in commit
+  messages. Claude's commits here had them (all but 362f74b, rewritten because its parent changed). Rewritten
+  without them and force-pushed, trees, authors and dates unchanged: 9886408 → 9cba822, 144f6ac → b9f828b
+  (`features/linear_elasticity`); bead842 → db03437, 1a1c7ee → 5dcb215, 362f74b → 617fe99 (`paper_2`). Older
+  entries above still name the old hashes.
+- `paper_2` renamed `features/volume_update` (owner): the perception link and the volume-update work go there.
+- Another clone: `git fetch --prune origin`; with a local `paper_2`, `git branch -m paper_2 features/volume_update
+  && git branch -u origin/features/volume_update`; then `git reset --hard origin/<branch>` on each of the two
+  branches, after saving local work.
+- `claud_docs/` is tracked on purpose here, as in smearPerception (owner, 2026-10-30): the notes are shared between
+  PCs through the repo; commit and push them after every update, even without a code change. `.gitignore` no
+  longer ignores `CLAUDE.md`. The project instructions (`claud_docs/CLAUDE.md` and the root stub
+  `@claud_docs/CLAUDE.md`) exist only on the lab PC, so they are committed from there, with this exception
+  written into them. One committed from elsewhere would have overwritten the ignored copy on the next pull.
