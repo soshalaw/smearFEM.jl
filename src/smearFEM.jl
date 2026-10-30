@@ -47,6 +47,7 @@ include("io/plotting.jl")
 include("io/io.jl")
 include("io/gmsh_utils.jl")
 include("io/perception_link.jl")
+include("fem/meshes/mesh_observed.jl")   # after io/perception_link.jl: uses PerceptionGrid
 
 include("solver/sparse_lu.jl")
 include("solver/elastic_system.jl")

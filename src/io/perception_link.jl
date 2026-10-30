@@ -252,8 +252,11 @@ Interpolations.jl; the same rule as smearPerception's `voxels.sample_field` (Sci
   corner makes the result NaN).
 """
 function sample_field(phi::Array{<:Real,3}, grid::PerceptionGrid, points::AbstractMatrix{<:Real})
-    centres = [grid.x0[a] .+ grid.delta .* ((0:grid.shape[a]-1) .- grid.offset[a]) for a in 1:3]
     # interpolate! because linear B-splines need no prefiltering: no copy of the field per step.
-    itp = extrapolate(scale(interpolate!(phi, BSpline(Linear())), centres...), NaN)
+    itp = extrapolate(scale(interpolate!(phi, BSpline(Linear())), _grid_centres(grid)...), NaN)
     return [Float64(itp(points[1, p], points[2, p], points[3, p])) for p in axes(points, 2)]
 end
+
+# Voxel centres along each axis of the grid [mm], as ranges.
+_grid_centres(grid::PerceptionGrid) =
+    ntuple(a -> grid.x0[a] .+ grid.delta .* ((0:grid.shape[a]-1) .- grid.offset[a]), 3)

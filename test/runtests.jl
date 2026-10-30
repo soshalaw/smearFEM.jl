@@ -9,4 +9,5 @@ using Aqua
     # also the guard against the simplex quadrature weights drifting out of step with the
     # master element `_basis_tet`/`_basis_tri` assume, which silently stiffens every Tet solve
     include("linear_elasticity_test.jl")
+    include("mesh_observed_test.jl")
 end
