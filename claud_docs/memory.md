@@ -1897,3 +1897,22 @@ reader still loads a whole file).
   "defined points > 100" lowered to > 50 (now 97/123/151 of 302 by design).
 - Run (sandbox, scratch depot stacked over ~/.julia): 45/46; the socket testset errors only
   because /tmp is read-only in the sandbox. Full `Pkg.test()` not run.
+
+## 2026-10-30 — perception link moved to a new `paper_2` branch (owner)
+
+- Owner: the link to smearPerception is paper-2 work and does not belong on `features/linear_elasticity`;
+  make a `paper_2` branch here too (smearPerception's paper-2 branch has the same name).
+- `features/linear_elasticity`: 9886408 removes what e9aa169 added for the link: `src/io/perception_link.jl`,
+  its export and include lines in `src/smearFEM.jl`, Interpolations and Sockets in Project.toml ([deps] and
+  [compat]), `test/perception_link_test.jl`, `test/data/perception_link/`. Those files are back to cc86cbf;
+  the rest of e9aa169 (claud_docs tracked, .gitignore) stays.
+- `paper_2` (new): this note, then a commit that adds the link back (a revert of 9886408), so its tree is
+  e9aa169's plus this note. Branched after the removal on purpose: from e9aa169, a later merge of
+  `features/linear_elasticity` into `paper_2` would delete the link; this way it keeps it. Link changes go on
+  `paper_2`; merging `paper_2` into `features/linear_elasticity` would bring the link back.
+- Tests, cloud session (Julia 1.13.3 installed for it; fresh resolve, the Manifest is not tracked;
+  Interpolations 0.16.3): `features/linear_elasticity` `Pkg.test()` 225/225; `paper_2` 225/225 and
+  `test/perception_link_test.jl` 50/50, socket testset included.
+- README line 12 still says "This branch (`features/linear_elasticity`)" on `paper_2` as well.
+- Other PCs: `git fetch`, then `git switch paper_2` for the link; pulling `features/linear_elasticity` deletes
+  the link files from that checkout.
