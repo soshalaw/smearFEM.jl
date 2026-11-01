@@ -99,6 +99,45 @@ index n (not the paper's within-window j; windows, fixed or sliding, are maps fr
   5×7×9 so an axis swap fails; wrench/pose values make a missing conversion or transpose fail).
   Socket testset Unix only. `Pkg.test()` 275/275.
 
+## Initial mesh from φ_s (2026-10-31) — `src/fem/meshes/mesh_observed.jl`
+
+Paper-2 FE mesh at t = 0 from perception's fused field (owner-approved spec:
+`claud_docs/specs/2026-10-30-mesh-from-field-design.md`; plan `claud_docs/plans/2026-10-31-mesh-from-field.md`).
+`mesh_from_field(phi, grid; table_z=0.0, elem_size, basis_order=2, out_dir=mktempdir())` (or
+`(step::PerceptionStep, grid; ...)`) → `MeshgridObserved` (Tet, P1/P2; `IEN_bottom` = faces on the table,
+`IEN_free`, `bottom_nodes`, `free_nodes`), usable by `volume_update!`. `table_z` is 0 on the rig; synthetic
+bags put the specimen on the plate top (Carreau/5: 4.685 mm, perception's `table_z` attribute).
+- Pipeline: `_close_field` pads φ_s with NaN, seals z ≤ table_z with the plane distance, labels the unobserved
+  regions (ImageMorphology): touching the border = outside (+Δ), enclosed = inside (deeper than perception's
+  distance cap); `max` with the plane puts the cap exactly on the table; keeps the largest piece of material
+  (warns "spurious"); errors "not closed" when a horizontal slice has an enclosed hole (an unobserved patch of
+  the surface); warns at the grid boundary; keeps |φ| ≥ 1e-3·Δ. `_field_surface`: marching cubes
+  (MarchingCubes.jl), vertices within 1e-2·Δ of the table snapped onto it, cap = triangles with all three
+  vertices on it. `_write_surface_msh`: MSH 2.2 with shared nodes (entity 1 cap, 2 free). Gmsh
+  (`mesh_files/templates/observed_tet.geo`): `CreateTopology`/`CreateGeometry`, one volume, physical groups
+  Bottom/Free/Volume, `Mesh.SecondOrderLinear = 1`.
+- Prototype findings, each built in: NaN padding until after labelling (Δ padding made everything inside);
+  Gmsh's `ClassifySurfaces` merges the cap into the side, so the cap is classified here; two STL solids break
+  the topology, hence MSH with shared nodes; curved P2 mid-nodes on the reparametrized surface fold tets, hence
+  straight edges; the API's `removeEntities` crashed Gmsh (avoided).
+- **Gmsh ran out of memory on degenerate triangles (2026-11-01):** values of φ within float noise of 0 (1e-14 mm
+  in a synthetic reconstruction; only exact zeros were nudged then) gave marching-cubes needles of quality
+  6e-15; Gmsh's parametrization went NaN and allocated ~38 GB until the OOM killer, which took VS Code down
+  twice. Hence |φ| ≥ 1e-3·Δ (worst quality now ~2e-3; Gmsh may still warn "Poor input mesh quality" at ~4e-4,
+  harmless). Since then `_run_gmsh` runs the CLI under `prlimit --as=<half the RAM>` on Linux and does not
+  retry a CLI killed by a signal through the in-process API (that retry is uncapped). The API path (no CLI on
+  PATH) has no cap. Run meshing experiments under a capped scope:
+  `systemd-run --user --scope -q -p MemoryMax=8G -p MemorySwapMax=0 julia ...`.
+- Accuracy (analytic TSDF cylinder, Δ 1 mm, elem 3 mm, Tet2, against an Open3D r 25 GT): boundary nodes
+  within 0.32 mm of the GT; GT within 0.48 mm of the mesh except at the two sharp rims (up to 1.24 mm:
+  marching cubes bevels edges, the cap is ~1 voxel smaller in radius); volume −0.51 %. 26 k nodes, 23 s.
+- GT comparison: `experiments/mesh_init/gt_comparison.jl <recon.h5> <out_dir> [elem_size]` writes the
+  boundary OBJ; smearPerception's `tools/analysis/compare_mesh_gt.py <obj> <sim dir> --step N` scores it.
+  Carreau/5 itself not run yet: needs `reconstruct_bag.py <bag> out.h5 --gt <sim dir> --save-field
+  --free-space-veto --steps 0 1` first (bag not on the laptop, 2026-11-01).
+- Tests: `test/mesh_observed_test.jl` (38) + the Gmsh-cap testset in `test/mesh_templates_test.jl`;
+  `Pkg.test()` 267/267 (2026-11-01).
+
 ## Commands
 
 ```bash

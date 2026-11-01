@@ -51,9 +51,13 @@ link's FE units). `elem_size` is required: no default fits every specimen.
    become outside, with a warning.
 5. **Checks** (see Errors): leak, material at the grid boundary.
 6. **Nudge exact zeros** to +1e-6·Δ: a voxel centre exactly on the surface makes marching cubes emit
-   zero-area triangles, which open holes in the surface Gmsh receives.
+   zero-area triangles, which open holes in the surface Gmsh receives. *Amended 2026-11-01 (owner
+   approved the fix):* every |φ| < 1e-3·Δ goes to ±1e-3·Δ, keeping its sign. Values within float noise of
+   0 (1e-14 mm in a synthetic reconstruction) gave needle triangles (quality 6e-15) on which Gmsh's
+   parametrization ran out of memory.
 7. **Surface.** MarchingCubes.jl on the padded field at iso 0, with the voxel centres as coordinates
-   (world mm). The cap = triangles with all three vertices within 1e-3·Δ of table_z; the rest is the free
+   (world mm). The cap = triangles with all three vertices within 1e-3·Δ of table_z (1e-2·Δ since
+   2026-11-01, to cover a cap on a voxel plane lifted by step 6; those vertices are snapped onto table_z); the rest is the free
    surface. Written as `out_dir/surface.msh` (Gmsh MSH 2.2, shared nodes; elementary entity 1 = cap,
    2 = free).
 8. **Volume.** Template `mesh_files/templates/observed_tet.geo`: `Merge "surface.msh"` (resolved next to

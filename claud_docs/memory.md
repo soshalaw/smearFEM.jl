@@ -1952,3 +1952,43 @@ reader still loads a whole file).
   longer ignores `CLAUDE.md`. The project instructions (`claud_docs/CLAUDE.md` and the root stub
   `@claud_docs/CLAUDE.md`) exist only on the lab PC, so they are committed from there, with this exception
   written into them. One committed from elsewhere would have overwritten the ignored copy on the next pull.
+
+## 2026-10-31 — 2026-11-01 — initial FE mesh from φ_s (`mesh_from_field`), local commits, not pushed
+
+Owner's request (2026-10-30): build the paper-2 initial mesh at t = 0 from φ_s on the FE side; table at
+z = 0 on the rig; test against the Carreau/5 GT mesh. Spec and plan in `claud_docs/specs/` and
+`claud_docs/plans/` (9010bf3, pushed). Implemented inline by Claude (superpowers executing-plans) while
+the owner was away; commits f7641a5, fe6cd2e, 20f766d, d603939, 72b3964 on `features/volume_update` and
+f1c8cd9 in smearPerception, all local until the owner reviews.
+
+- No Poisson reconstruction (owner asked why it was needed; it is not): φ_s is already a signed distance;
+  the table closes the unobserved bottom, and any other unobserved patch of the surface is an error.
+- New dependencies (added by the owner): MarchingCubes.jl, ImageMorphology.jl (`label_components`,
+  `component_lengths`, which returns an OffsetVector with index 0 = background).
+- Rulings made during execution (ledger in `.superpowers/sdd/2026-10-31-mesh-from-field/progress.md`,
+  git-ignored): marching-cubes vertices near the table snapped exactly onto it (Float32 φ_s moved the cap
+  by 1.6e-9 mm); `gt_comparison.jl` takes the table height from the reconstruction's `table_z` attribute
+  instead of a fixed 4.685 (a fixed value would cut 4.7 mm off a rig specimen silently).
+- **Gmsh out of memory, twice (2026-10-31 00:52 and 2026-11-01 10:44, kernel log):** the first end-to-end
+  run (synthetic reconstruction written by perception's own `ReconstructionWriter`: r 25 h 40 cylinder at
+  Carreau/5's cyl_T) gave φ = 1e-14 mm where the surface passes through voxel centres (coordinates through
+  metres and Float32). Only exact zeros were nudged, so marching cubes made needles of quality 6e-15;
+  Gmsh warned "Poor input mesh quality (min gamma = 6.2e-15)", its iterative solver returned NaN, and it
+  allocated 13 GB RAM + 25 GB swap until the OOM killer. It ran in VS Code's cgroup scope, and VS Code
+  crashed. Reproduced safely from the saved `surface.msh` under `prlimit --as=2G` in a 6 GB
+  `systemd-run --scope`: `std::bad_alloc` after 15 s, SIGABRT. Fix (owner approved): |φ| ≥ 1e-3·Δ with
+  its sign (worst quality 2.4e-12 → 2e-3 in the test with ±1e-12 values), snap tolerance 1e-2·Δ, Gmsh CLI
+  under `prlimit --as=<half the RAM>` on Linux, no in-process retry after a CLI killed by a signal.
+  `Sys.total_memory()` reports a cgroup's limit, so inside a capped scope the cap is half of that.
+- Measurements (analytic TSDF cylinder r 25, Δ 1 mm, elem 3 mm, Tet2; scored by smearPerception's
+  `compare_mesh_gt.py` against an Open3D r 25 cylinder, resolution 512): 26 046 nodes, 17 108 tets,
+  23 s, 1.2 GB peak; observed → GT median −0.002 mm, p95 0.007, max 0.317; GT → observed median +0.024,
+  p95 0.570, max 1.237 (every GT vertex beyond 0.3 mm is on or next to the two sharp rims; 0.48 mm
+  elsewhere); volume −0.51 %. Unit-test cylinder (r 30, elem 6): volume within 2 %, cap between π29² and
+  π30², the cap 95–96 % of πr² from marching cubes alone.
+- Open3D's OBJ writer keeps 6 significant digits and its reader parses float32, so comparisons through OBJ
+  files resolve ~1e-3 mm at best (Python test tolerances set accordingly).
+- Not done: the Carreau/5 comparison itself. The synthetic bag is not on the laptop; with it, run
+  `reconstruct_bag.py <bag> out.h5 --gt <sim dir> --save-field --free-space-veto --steps 0 1`, then
+  `experiments/mesh_init/gt_comparison.jl`, then `compare_mesh_gt.py`.
+- `Pkg.test()` 267/267 on 2026-11-01 (225 elasticity/mesh/qa + 38 observed mesh + Gmsh cap 4).
