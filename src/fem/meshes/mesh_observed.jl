@@ -57,7 +57,7 @@ mesh_from_field(step::PerceptionStep, grid::PerceptionGrid; kwargs...) = mesh_fr
     _close_field(phi, grid, table_z) -> (field, coords)
 
 φ_s made meshable: padded by one voxel on every side, the table plane as the bottom, every NaN voxel
-decided inside or outside, one piece of material, no exact zeros. `field` is negative inside [mm];
+decided inside or outside, one piece of material, |value| ≥ 1e-3·Δ. `field` is negative inside [mm];
 `coords` are the padded grid's voxel centres along each axis [mm].
 """
 function _close_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid, table_z::Real)
@@ -108,8 +108,10 @@ function _close_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid, table_
     any(any(<(0), layer) for layer in outer_layers) &&
         @warn "the material reaches the grid boundary: the mesh is cut flat there"
 
-    # a voxel centre exactly on the surface makes marching cubes emit zero-area triangles
-    F[F .== 0] .= 1e-6 * Δ
+    # a voxel centre on the surface, or within float noise of it, makes marching cubes emit needles
+    # too thin for Gmsh's parametrization (quality 6e-15 ran Gmsh out of memory)
+    ε = 1e-3 * Δ
+    F .= ifelse.(abs.(F) .< ε, copysign.(ε, F), F)
     @info "closed φ_s: $n_inside unobserved voxels filled as inside, $(count(unobserved) - n_inside) as outside"
     return F, (px, py, pz)
 end
@@ -126,8 +128,9 @@ function _field_surface(field::Array{Float64,3}, coords::NTuple{3,Vector{Float64
     march(mc, 0.0)
     V = stack(mc.vertices)
     T = stack(mc.triangles)
-    on_table = abs.(V[3, :] .- table_z) .< 1e-3 * delta
-    # exactly on the plane: Float32 rounding of φ_s and the nudged zeros leave the cap up to ~1e-6·Δ off
+    # exactly on the plane: Float32 rounding of φ_s moves the cap, and `_close_field`'s |φ| ≥ 1e-3·Δ
+    # lifts a cap on a voxel plane by up to 1e-3·Δ
+    on_table = abs.(V[3, :] .- table_z) .< 1e-2 * delta
     V[3, on_table] .= table_z
     on_cap = vec(all(on_table[T], dims=1))
     any(on_cap) || throw(ArgumentError("the material does not reach the table at z = $table_z mm; check table_z"))

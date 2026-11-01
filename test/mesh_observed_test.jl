@@ -85,6 +85,16 @@ nearest(c, v) = argmin(abs.(c .- v))
         @test all(norm(cross(V[:, T[2, t]] - V[:, T[1, t]], V[:, T[3, t]] - V[:, T[1, t]])) > 0 for t in axes(T, 2))
     end
 
+    @testset "near-zero values make no degenerate triangles" begin
+        # perception's float arithmetic leaves ±1e-12 where the surface passes through a voxel
+        # centre; marching cubes then makes needles too thin for Gmsh's parametrization
+        tiny(x, y, z) = abs(cylinder_sd(x, y, z)) < 1e-9 ? (isodd(round(Int, x + y + z)) ? 1e-12 : -1e-12) : nothing
+        V, T, _ = _field_surface(_close_field(tsdf_cylinder(extra=tiny)..., 4.685)..., 4.685, 1.0)
+        # 1 for an equilateral triangle, 0 for a degenerate one
+        quality(a, b, c) = 2√3 * norm(cross(b - a, c - a)) / (sum(abs2, b - a) + sum(abs2, c - b) + sum(abs2, a - c))
+        @test minimum(quality(V[:, T[1, t]], V[:, T[2, t]], V[:, T[3, t]]) for t in axes(T, 2)) > 1e-5
+    end
+
     @testset "floating material" begin
         _, grid = tsdf_cylinder()
         xs, ys, zs = _grid_centres(grid)

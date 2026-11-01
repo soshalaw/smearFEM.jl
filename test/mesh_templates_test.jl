@@ -218,4 +218,22 @@ end
         check_mesh_basics(m, :Line, 2)
     end
 
+    # a fake `gmsh` first on PATH; line.geo is valid, so the in-process fallback would succeed
+    Sys.islinux() && @testset "gmsh CLI: memory cap, no in-process retry after a crash" begin
+        dir = mktempdir()
+        geo = joinpath(dir, "line.geo")
+        write(geo, "Point(1) = {0, 0, 0, 1};\nPoint(2) = {1, 0, 0, 1};\nLine(1) = {1, 2};\n")
+        fake_gmsh(body) = (write(joinpath(dir, "gmsh"), "#!/bin/sh\n$body\n"); chmod(joinpath(dir, "gmsh"), 0o755))
+        path = dir * ":" * ENV["PATH"]
+
+        fake_gmsh("ulimit -v > '$dir/limit'")
+        @test withenv(() -> smearFEM._run_gmsh(geo, joinpath(dir, "a.msh"), 1; dim=1), "PATH" => path)
+        @test strip(read(joinpath(dir, "limit"), String)) == string(Sys.total_memory() ÷ 2 ÷ 1024)
+
+        fake_gmsh("kill -ABRT \$\$")
+        crashed = @test_logs (:error, r"crashed") match_mode=:any withenv(
+            () -> smearFEM._run_gmsh(geo, joinpath(dir, "b.msh"), 1; dim=1), "PATH" => path)
+        @test !crashed
+    end
+
 end

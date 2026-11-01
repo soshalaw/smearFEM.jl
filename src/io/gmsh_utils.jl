@@ -262,22 +262,26 @@ end
 """
     _run_gmsh(geo_path, msh_path, mesh_order=2; dim=3) -> Bool
 
-Invoke the `gmsh` CLI to mesh `geo_path` and write output to `msh_path`.
+Mesh `geo_path` with the `gmsh` CLI and write output to `msh_path`; Gmsh's Julia API when the CLI
+is not on PATH or exits with an error. On Linux the CLI's memory is capped (`_memory_capped`).
 `dim` controls the meshing dimension (1, 2, or 3).
-Returns `false` if gmsh is not on PATH or if the command fails.
+Returns `false` if neither generates the mesh; a crashed CLI is not retried in-process.
 """
 function _run_gmsh(geo_path::String, msh_path::String, mesh_order::Int=2; dim::Int=3)
     gmsh_path = Sys.which("gmsh")
     if gmsh_path !== nothing
-        cmd = `$gmsh_path $geo_path -$dim -format msh -order $mesh_order -o $msh_path`
+        cmd = _memory_capped(`$gmsh_path $geo_path -$dim -format msh -order $mesh_order -o $msh_path`)
         @info "Running gmsh CLI: $cmd"
-        try
-            run(cmd)
+        p = run(ignorestatus(cmd))
+        if success(p)
             @info "Mesh generated: $msh_path"
             return true
-        catch e
-            @warn "gmsh CLI failed: $e. Falling back to Julia API."
+        elseif p.termsignal != 0
+            # e.g. out of memory under the cap: in-process the same failure would take Julia down
+            @error "gmsh CLI crashed (signal $(p.termsignal)) on $geo_path"
+            return false
         end
+        @warn "gmsh CLI failed (exit code $(p.exitcode)). Falling back to Julia API."
     else
         @info "gmsh CLI not found in PATH; using Julia API for mesh generation."
     end
@@ -299,4 +303,12 @@ function _run_gmsh(geo_path::String, msh_path::String, mesh_order::Int=2; dim::I
         @error "Failed to generate mesh via Julia API: $e"
         return false
     end
+end
+
+# A failing surface parametrization (degenerate input triangles) makes Gmsh allocate until the
+# machine runs out of memory: cap its address space at half the RAM (Linux, util-linux's prlimit).
+function _memory_capped(cmd::Cmd)
+    prlimit = Sys.which("prlimit")
+    (Sys.islinux() && prlimit !== nothing) || return cmd
+    return `$prlimit --as=$(Sys.total_memory() ÷ 2) $cmd`
 end
