@@ -5,12 +5,14 @@ Paper-2 initial mesh against the ground truth of a synthetic run: the FE mesh `m
 builds from φ_s of one step of a reconstruction, its boundary written as an OBJ for smearPerception's
 `tools/analysis/compare_mesh_gt.py`, which scores it against the run's GT mesh.
 
-    julia --project experiments/mesh_init/gt_comparison.jl <recon.h5> <out_dir> [elem_size]
+    systemd-run --user --scope -q -p MemoryMax=8G -p MemorySwapMax=0 \
+        julia --project experiments/mesh_init/gt_comparison.jl <recon.h5> <out_dir> [elem_size] [table_z]
 
+(the scope caps the memory: Gmsh has run away on bad input and taken the machine down.)
 `recon.h5` comes from smearPerception's `reconstruct_bag.py <bag> <recon.h5> --gt <sim dir>
 --save-field`. The table is where perception put it (the file's `table_z`: the bottom plate's top on
-synthetic runs, 0 on the rig). Writes `surface.msh`, `observed.msh` and `observed_<step>.obj` to
-`out_dir`.
+synthetic runs, 0 on the rig), unless `table_z` [mm] is given; files written before perception recorded
+it need it. Writes `surface.msh`, `observed.msh` and `observed_<step>.obj` to `out_dir`.
 """
 
 using smearFEM
@@ -43,7 +45,13 @@ function main(h5::AbstractString, out_dir::AbstractString; step::Int=0, table_z=
     data = read_perception_steps(h5)
     k = findfirst(s -> s.n == step, data.steps)
     isnothing(k) && error("$h5 has no step $step")
-    table_z = something(table_z, 1e3 * h5open(f -> read(attributes(f)["table_z"]), h5))   # m → mm
+    if isnothing(table_z)
+        table_z = h5open(h5) do f
+            haskey(attributes(f), "table_z") ||
+                error("$h5 has no table_z attribute (written before perception recorded it): pass table_z [mm]")
+            1e3 * read(attributes(f)["table_z"])   # m → mm
+        end
+    end
     mesh = mesh_from_field(data.steps[k], data.grid; table_z, elem_size, basis_order, out_dir)
     X = mesh.NodeList
     volume = sum(det(X[:, e[2:4]] .- X[:, e[1]]) for e in eachcol(mesh.IEN)) / 6
@@ -56,5 +64,6 @@ function main(h5::AbstractString, out_dir::AbstractString; step::Int=0, table_z=
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    main(ARGS[1], ARGS[2]; elem_size=parse(Float64, get(ARGS, 3, "3.0")))
+    main(ARGS[1], ARGS[2]; elem_size=parse(Float64, get(ARGS, 3, "3.0")),
+         table_z=length(ARGS) >= 4 ? parse(Float64, ARGS[4]) : nothing)
 end
