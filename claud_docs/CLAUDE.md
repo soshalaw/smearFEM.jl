@@ -97,7 +97,8 @@ index n (not the paper's within-window j; windows, fixed or sliding, are maps fr
 - Test: `test/perception_link_test.jl` on a fixture written by perception's own writer, publisher and
   sampler (`test/data/perception_link/make_fixture.py` → steps.h5, stream.bin, expected.h5; grid
   5×7×9 so an axis swap fails; wrench/pose values make a missing conversion or transpose fail).
-  Socket testset Unix only. `Pkg.test()` 275/275.
+  Socket testset Unix only. `test/perception_link_test.jl` is NOT in `runtests.jl` (never was, on any
+  branch; reviewer, 2026-11-01): `Pkg.test()` does not run it, run it directly (50 checks).
 
 ## Initial mesh from φ_s (2026-10-31) — `src/fem/meshes/mesh_observed.jl`
 
@@ -110,8 +111,11 @@ bags put the specimen on the plate top (Carreau/5: 4.685 mm, perception's `table
 - Pipeline: `_close_field` pads φ_s with NaN, seals z ≤ table_z with the plane distance, labels the unobserved
   regions (ImageMorphology): touching the border = outside (+Δ), enclosed = inside (deeper than perception's
   distance cap); `max` with the plane puts the cap exactly on the table; keeps the largest piece of material
-  (warns "spurious"); errors "not closed" when a horizontal slice has an enclosed hole (an unobserved patch of
-  the surface); warns at the grid boundary; keeps |φ| ≥ 1e-3·Δ. `_field_surface`: marching cubes
+  (warns "spurious"); fills outside pockets enclosed by material in 3D as inside (noise; warns); errors
+  "not closed" when a horizontal slice has a ring around unobserved voxels filled as outside (a leaked
+  interior: an unobserved patch of the surface, or a specimen taller than the grid); rings of observed voxels
+  are noise dimples and pass (2026-11-01, review: the spec's plain ring rule refused fields with σ = 0.1Δ
+  noise); warns at the grid boundary; keeps |φ| ≥ 1e-3·Δ (−0.0 → +, as in the labelling). `_field_surface`: marching cubes
   (MarchingCubes.jl), vertices within 1e-2·Δ of the table snapped onto it, cap = triangles with all three
   vertices on it. `_write_surface_msh`: MSH 2.2 with shared nodes (entity 1 cap, 2 free). Gmsh
   (`mesh_files/templates/observed_tet.geo`): `CreateTopology`/`CreateGeometry`, one volume, physical groups
@@ -124,9 +128,10 @@ bags put the specimen on the plate top (Carreau/5: 4.685 mm, perception's `table
   in a synthetic reconstruction; only exact zeros were nudged then) gave marching-cubes needles of quality
   6e-15; Gmsh's parametrization went NaN and allocated ~38 GB until the OOM killer, which took VS Code down
   twice. Hence |φ| ≥ 1e-3·Δ (worst quality now ~2e-3; Gmsh may still warn "Poor input mesh quality" at ~4e-4,
-  harmless). Since then `_run_gmsh` runs the CLI under `prlimit --as=<half the RAM>` on Linux and does not
-  retry a CLI killed by a signal through the in-process API (that retry is uncapped). The API path (no CLI on
-  PATH) has no cap. Run meshing experiments under a capped scope:
+  harmless; noisy fields reach ~2e-5 and mesh fine). Since then `_run_gmsh` runs the CLI under
+  `prlimit --as=<half the RAM>` on Linux, and a failed CLI run is an error: no in-process retry (it was
+  uncapped, and a 2-surface input that the CLI rejects reached it). The API runs only when no CLI is on PATH,
+  and has no cap. Run meshing experiments under a capped scope:
   `systemd-run --user --scope -q -p MemoryMax=8G -p MemorySwapMax=0 julia ...`.
 - Accuracy (analytic TSDF cylinder, Δ 1 mm, elem 3 mm, Tet2, against an Open3D r 25 GT): boundary nodes
   within 0.32 mm of the GT; GT within 0.48 mm of the mesh except at the two sharp rims (up to 1.24 mm:
@@ -135,8 +140,14 @@ bags put the specimen on the plate top (Carreau/5: 4.685 mm, perception's `table
   boundary OBJ; smearPerception's `tools/analysis/compare_mesh_gt.py <obj> <sim dir> --step N` scores it.
   Carreau/5 itself not run yet: needs `reconstruct_bag.py <bag> out.h5 --gt <sim dir> --save-field
   --free-space-veto --steps 0 1` first (bag not on the laptop, 2026-11-01).
-- Tests: `test/mesh_observed_test.jl` (38) + the Gmsh-cap testset in `test/mesh_templates_test.jl`;
-  `Pkg.test()` 267/267 (2026-11-01).
+- Tests: `test/mesh_observed_test.jl` (43, incl. noisy fields) + the Gmsh-cap testset in
+  `test/mesh_templates_test.jl`; `Pkg.test()` 274/274 (2026-11-01). Not yet run on CI (branch not pushed);
+  there every observed-mesh test goes through gmsh_jll 4.15 in-process: `gh workflow run CI.yml --ref
+  features/volume_update` after the push.
+- Known, deferred (final review 2026-11-01): a specimen wider than the grid by more than the depth cap meshes
+  hollow with only the "cut flat" warning; a too-short grid errors "not closed" before the boundary warning;
+  `table_z` within ~0.005Δ below a voxel plane lets the snap mark upward rim triangles as cap; the rim's Gmsh
+  point node is in neither `bottom_nodes` nor `free_nodes`; the cap at half the RAM may still swap a busy desktop.
 
 ## Commands
 
@@ -363,7 +374,8 @@ plain `@threads`/`pmap`.
 
 - **Two mesh generators, chosen by the machine.** `_run_gmsh` (`src/io/gmsh_utils.jl`) uses the
   `gmsh` CLI when it is on PATH — the user's machine has `/usr/bin/gmsh` 4.12.1 — and otherwise
-  the Julia API (gmsh_jll, 4.15.x on CI) in ONE persistent session. `gmsh.clear()` keeps global
+  the Julia API (gmsh_jll, 4.15.x on CI) in ONE persistent session. Since 2026-11-01 a failed CLI run is
+  an error, not retried through the API, and the CLI is memory-capped on Linux (see "Initial mesh from φ_s"). `gmsh.clear()` keeps global
   options, so until `7c93012` (2026-10-14) `Mesh.RecombineAll` from the hex templates leaked
   into later tet/tri/line meshes: 13 mesh tests errored on every CI OS (likely why CI was red
   since May); locally invisible because the CLI path starts a fresh process per mesh. Test the

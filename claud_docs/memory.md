@@ -1992,3 +1992,34 @@ f1c8cd9 in smearPerception, all local until the owner reviews.
   `reconstruct_bag.py <bag> out.h5 --gt <sim dir> --save-field --free-space-veto --steps 0 1`, then
   `experiments/mesh_init/gt_comparison.jl`, then `compare_mesh_gt.py`.
 - `Pkg.test()` 267/267 on 2026-11-01 (225 elasticity/mesh/qa + 38 observed mesh + Gmsh cap 4).
+
+### 2026-11-01 (later) — final review of the branch: two fresh reviewers, one fix pass
+
+Owner allowed helper agents for the review. Reviewer A (library) and B (GT-comparison path across both
+repos, docs), both Opus, read-only, Gmsh only under a memory cap. Both: "with fixes", nothing critical.
+- Fixed, each test-first (RED → GREEN), `Pkg.test()` 274/274, smearPerception 39/39:
+  - **Leak check vs noise (A, confirmed):** the spec's "no ring in any horizontal slice" refused healthy noisy
+    fields: a noise dimple in the voxel layer just under a flat top is a ring in its slice, so a specimen
+    meshed or not depending on its top's height modulo Δ (σ = 0.1Δ was enough at 0.3Δ above a plane). Now a
+    ring counts only if it encloses unobserved voxels filled as outside (a leak always does), and outside
+    pockets enclosed by material in 3D (noise) are filled as inside with a warning; without that, σ = 0.3Δ
+    left 5–7 bubbles = extra closed surfaces, which the Gmsh CLI rejects ("Invalid exterior boundary mesh
+    for parametrization"). Spec amended. Still refused: the side-wall hole, a specimen taller than the grid.
+  - **No in-process retry after any CLI failure (A, confirmed reachable):** the retry has no memory cap.
+    The API now runs only when no CLI is on PATH. The fallback had no recorded reason (c9fd532).
+  - **−0.0 (A):** the floor sent −0.0 to −ε (inside) while the labelling counts it outside; a lone −0.0
+    voxel became a second closed surface. Floor uses `F < 0` now.
+  - **gt_comparison.jl `table_z` (B, confirmed):** `something(table_z, <read attribute>)` evaluates the read
+    first, so an explicit `table_z` did not help a file without the attribute. Fixed; clear error; CLI arg.
+  - **Python tests (B, mutation run):** 5 of 7 injected bugs (swapped directions, flipped signs, metres left
+    unconverted, volume_obs = volume_gt, area for volume) passed; now 7/7 caught. Missing mesh file: Open3D
+    returns an empty mesh and segfaults on it; now FileNotFoundError.
+- **Real Carreau/5 GT (B, by running code):** all 536 GT OBJs are watertight and orientable after duplicate
+  removal, bottoms at z = 0. The analytic observed mesh scored against the real step-0 GT: observed → GT
+  median +0.000, p95 0.017, max 0.317 mm; GT → observed median +0.018, p95 0.521, max 1.199 mm; volume
+  −0.43 %. Frames, units and step indexing hold on the real files. The GT volume itself falls 0.7 % over the run.
+- Deferred minors (listed in CLAUDE.md "Initial mesh from φ_s"), plus: statistics are per vertex, so
+  percentiles depend on each mesh's tessellation (fake vs real GT p95 not comparable).
+- Correction to the entry above: the OBJ precision limit (5e-4 mm) applies to OBJs written by Open3D at
+  |x| ≥ 100 mm (6 significant digits); the Julia-written observed OBJ and the VTK-written GT resolve ~4e-6 mm
+  (Open3D reads float32).

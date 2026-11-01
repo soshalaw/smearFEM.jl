@@ -104,6 +104,13 @@ field, like the other mesh types in `src/fem/meshes/mesh_types.jl`.
   too low. Assumes the specimen's horizontal cross-sections have no holes (true for a lump of material
   at t = 0; a ring shape is refused). A lip ring detached from the wall is a separate piece of
   material, so step 4 drops it with a warning before this check.
+  *Amended 2026-11-01 after the final review (confirmed by running code):* on noisy fields this check
+  refused healthy specimens (a noise dimple in the voxel layer under a flat top is a ring in its slice,
+  so meshing depended on the top's height modulo Δ; σ = 0.1Δ was enough at 0.3Δ above a voxel plane).
+  Now a ring counts only when it encloses unobserved voxels filled as outside, which a leak always does
+  and a dimple never does; and, after step 4, outside pockets enclosed by material in 3D (noise in the
+  observed band) are filled as inside with a warning, since Gmsh refuses the extra closed surfaces they
+  make. A dent in the top is no longer refused.
 - `table_z` outside the grid's z range; no material (no φ < 0) above the table; no cap (the material
   does not reach the table): `ArgumentError`.
 - Material in the outermost voxel layer of the sides or top: warning, the mesh is cut flat there.
@@ -131,6 +138,8 @@ below the table.
   --save-field --free-space-veto --steps 0 1` (no saved reconstruction exists on disk now; run it first).
 - `experiments/mesh_init/gt_comparison.jl`: `read_perception_steps` → `mesh_from_field(step,
   grid; table_z=4.685)` → writes the mesh's boundary (corner nodes of Bottom + Free faces) as OBJ.
+  *Amended 2026-11-01:* `table_z` defaults to the reconstruction's own `table_z` attribute (perception's
+  table; 4.685 mm on Carreau/5, 0 on the rig), and can be given for files written before it existed.
 - `smearPerception/tools/analysis/compare_mesh_gt.py`: GT `Blender_obj/play_dough_000.obj` (mm, mesh
   frame) shifted by `cyl_T` (mm), scored with `sdf.load_mesh`/`signed_distance` (Open3D
   `RaycastingScene`) as `--gt` scoring does, both ways: observed boundary vertices → GT signed distance;
