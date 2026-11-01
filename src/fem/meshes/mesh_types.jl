@@ -316,7 +316,8 @@ The boundary is split into the bottom, on the table, and the free surface (the o
 
 # Arguments
 - `IEN_bottom`, `IEN_free::Matrix{Int}`: Connectivity of each boundary group.
-- `bottom_nodes`, `free_nodes::Vector{Int}`: Nodes in each boundary group (the rim is in both).
+- `bottom_nodes`, `free_nodes::Vector{Int}`: Nodes in each boundary group (the rim is in both, except
+  the rim curve's Gmsh point node, which is in neither; `unique(vec(IEN_bottom))` has every node).
 - `surface_element_shape::Symbol`: Derived from `volume_element_shape` by default.
 
 Fields shared by every `AbstractMeshgrid`: `NodeList` (current node coordinates),

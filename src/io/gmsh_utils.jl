@@ -262,10 +262,10 @@ end
 """
     _run_gmsh(geo_path, msh_path, mesh_order=2; dim=3) -> Bool
 
-Mesh `geo_path` with the `gmsh` CLI and write output to `msh_path`; Gmsh's Julia API when the CLI
-is not on PATH or exits with an error. On Linux the CLI's memory is capped (`_memory_capped`).
+Mesh `geo_path` with the `gmsh` CLI and write output to `msh_path`, or with Gmsh's Julia API when
+the CLI is not on PATH. On Linux the CLI's memory is capped (`_memory_capped`).
 `dim` controls the meshing dimension (1, 2, or 3).
-Returns `false` if neither generates the mesh; a crashed CLI is not retried in-process.
+Returns `false` if the mesh is not generated; a failed CLI run is not retried in-process.
 """
 function _run_gmsh(geo_path::String, msh_path::String, mesh_order::Int=2; dim::Int=3)
     gmsh_path = Sys.which("gmsh")
@@ -276,15 +276,12 @@ function _run_gmsh(geo_path::String, msh_path::String, mesh_order::Int=2; dim::I
         if success(p)
             @info "Mesh generated: $msh_path"
             return true
-        elseif p.termsignal != 0
-            # e.g. out of memory under the cap: in-process the same failure would take Julia down
-            @error "gmsh CLI crashed (signal $(p.termsignal)) on $geo_path"
-            return false
         end
-        @warn "gmsh CLI failed (exit code $(p.exitcode)). Falling back to Julia API."
-    else
-        @info "gmsh CLI not found in PATH; using Julia API for mesh generation."
+        # no in-process retry: it has no memory cap, and the input has just failed (e.g. out of memory)
+        @error "gmsh CLI failed (exit code $(p.exitcode), signal $(p.termsignal)) on $geo_path"
+        return false
     end
+    @info "gmsh CLI not found in PATH; using Julia API for mesh generation."
     try
         lock(GMSH_LOCK) do
             _gmsh_initialize()

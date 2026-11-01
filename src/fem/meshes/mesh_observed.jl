@@ -13,7 +13,7 @@ using MarchingCubes: MC, march
 Paper-2 initial mesh: tet mesh of the specimen perception observed, from its fused field φ_s. The
 zero surface of φ_s is closed at the bottom by the table plane z = `table_z`; voxels no camera saw are
 inside where the observed surface encloses them, else outside. Pieces of material apart from the
-specimen are dropped with a warning. The cap is about one voxel smaller in radius than the true
+specimen are dropped, and pockets of outside enclosed by material (noise) filled, with a warning. The cap is about one voxel smaller in radius than the true
 base: marching cubes bevels the bottom edge, and the bevel belongs to the free surface.
 
 # Arguments
@@ -57,7 +57,8 @@ mesh_from_field(step::PerceptionStep, grid::PerceptionGrid; kwargs...) = mesh_fr
     _close_field(phi, grid, table_z) -> (field, coords)
 
 φ_s made meshable: padded by one voxel on every side, the table plane as the bottom, every NaN voxel
-decided inside or outside, one piece of material, |value| ≥ 1e-3·Δ. `field` is negative inside [mm];
+decided inside or outside, one piece of material without enclosed pockets of outside, |value| ≥ 1e-3·Δ.
+`field` is negative inside [mm];
 `coords` are the padded grid's voxel centres along each axis [mm].
 """
 function _close_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid, table_z::Real)
@@ -82,7 +83,8 @@ function _close_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid, table_
     enclosed = unobserved .& .!in.(labels, Ref(outside_labels))
     n_inside = count(enclosed)
     F[enclosed] .= -Δ * norm(size(F))           # below every distance inside the grid
-    F[unobserved .& .!enclosed] .= Δ
+    filled_outside = unobserved .& .!enclosed
+    F[filled_outside] .= Δ
     F .= max.(F, plane)                         # the cap lies exactly on the table
 
     pieces = label_components(F .< 0)
@@ -96,7 +98,15 @@ function _close_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid, table_
         F[(pieces .> 0) .& (pieces .!= keep)] .= Δ
     end
 
-    ringed = _ringed_slices(F, pz, table_z)
+    # outside voxels the material encloses have no way out to the air: noise in an observed surface
+    pockets = label_components(F .>= 0)
+    inner = setdiff(unique(pockets), 0, _border_labels(pockets))
+    if !isempty(inner)
+        @warn "filled $(length(inner)) pocket(s) of outside enclosed by material as inside (noise)"
+        F[in.(pockets, Ref(inner))] .= -Δ
+    end
+
+    ringed = _ringed_slices(F, filled_outside, pz, table_z)
     isempty(ringed) || error("observed surface is not closed: the material's interior is open to the " *
         "outside (ring-shaped cross-sections at z = $(round(first(ringed), digits=1)) … " *
         "$(round(last(ringed), digits=1)) mm); an unobserved patch of the surface, or table_z too low")
@@ -111,7 +121,7 @@ function _close_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid, table_
     # a voxel centre on the surface, or within float noise of it, makes marching cubes emit needles
     # too thin for Gmsh's parametrization (quality 6e-15 ran Gmsh out of memory)
     ε = 1e-3 * Δ
-    F .= ifelse.(abs.(F) .< ε, copysign.(ε, F), F)
+    F .= ifelse.(abs.(F) .< ε, ifelse.(F .< 0, -ε, ε), F)   # -0.0 is outside, as in the labelling above
     @info "closed φ_s: $n_inside unobserved voxels filled as inside, $(count(unobserved) - n_inside) as outside"
     return F, (px, py, pz)
 end
@@ -160,14 +170,15 @@ function _border_labels(labels::AbstractArray{<:Integer})
     return setdiff(union((unique(f) for f in faces)...), 0)
 end
 
-# z of each slice above the table where the material encloses outside voxels: a ring around a
-# leaked interior, since horizontal cross-sections of a lump of material have no holes.
-function _ringed_slices(F::Array{Float64,3}, pz::Vector{Float64}, table_z::Real)
+# z of each slice above the table where the material encloses unobserved voxels filled as outside: a
+# ring around a leaked interior. Rings of observed voxels are dimples of noise under a flat top.
+function _ringed_slices(F::Array{Float64,3}, filled_outside::BitArray{3}, pz::Vector{Float64}, table_z::Real)
     ringed = Float64[]
     for k in axes(F, 3)
         pz[k] > table_z || continue
         labels = label_components(view(F, :, :, k) .>= 0)
-        isempty(setdiff(unique(labels), 0, _border_labels(labels))) || push!(ringed, pz[k])
+        inner = setdiff(unique(labels), 0, _border_labels(labels))
+        any(in(inner), labels[view(filled_outside, :, :, k)]) && push!(ringed, pz[k])
     end
     return ringed
 end

@@ -1,4 +1,4 @@
-using Test, LinearAlgebra
+using Test, LinearAlgebra, Random
 using smearFEM
 using smearFEM: _close_field, _grid_centres, _field_surface
 
@@ -25,6 +25,19 @@ function tsdf_cylinder(; r=30.0, h=40.0, tz=4.685, Δ=1.0, μ=3.0, depth=7.0, nz
 end
 
 nearest(c, v) = argmin(abs.(c .- v))
+
+# As perception sees the cylinder (r 30): the side and the top, not the bottom, with noise σ [voxels]
+function noisy_cylinder(σ; top=44.3, seed=1)
+    phi, grid = tsdf_cylinder()
+    xs, ys, zs = _grid_centres(grid)
+    rng = MersenneTwister(seed)
+    for (i, x) in enumerate(xs), (j, y) in enumerate(ys), (k, z) in enumerate(zs)
+        d = (hypot(x, y) - 30.0, z - top)
+        sd = norm(max.(d, 0)) + min(max(d...), 0)
+        phi[i, j, k] = (z < 4.685 || sd > 3.0 || sd < -7.0) ? NaN : sd + σ * randn(rng)
+    end
+    return phi, grid
+end
 
 @testset "observed mesh" begin
 
@@ -85,6 +98,12 @@ nearest(c, v) = argmin(abs.(c .- v))
         @test all(norm(cross(V[:, T[2, t]] - V[:, T[1, t]], V[:, T[3, t]] - V[:, T[1, t]])) > 0 for t in axes(T, 2))
     end
 
+    @testset "a -0.0 voxel outside the material stays outside" begin
+        negzero(x, y, z) = (x, y, z) == (32.0, 0.0, 25.0) ? -0.0 : nothing
+        F, (px, py, pz) = _close_field(tsdf_cylinder(extra=negzero)..., 4.685)
+        @test F[nearest(px, 32.0), nearest(py, 0.0), nearest(pz, 25.0)] > 0
+    end
+
     @testset "near-zero values make no degenerate triangles" begin
         # perception's float arithmetic leaves ±1e-12 where the surface passes through a voxel
         # centre; marching cubes then makes needles too thin for Gmsh's parametrization
@@ -114,6 +133,16 @@ nearest(c, v) = argmin(abs.(c .- v))
         @test all(abs(cylinder_sd(X[:, a]...)) < 1.0 for a in unique(vec(m.IEN_free[1:3, :])))
         cap = sum(norm(cross(X[:, f[2]] - X[:, f[1]], X[:, f[3]] - X[:, f[1]])) / 2 for f in eachcol(m.IEN_bottom))
         @test π * 29^2 < cap < π * 30^2
+    end
+
+    # noise dimples just under the flat top looked like leaks to a slice-by-slice check (0.3 voxel
+    # above a voxel plane), and noise bubbles inside the material gave Gmsh extra closed surfaces
+    @testset "noisy field: σ = $σ voxel, top at z = $top" for (σ, top) in ((0.1, 44.3), (0.3, 44.685))
+        m = mesh_from_field(noisy_cylinder(σ; top)...; table_z=4.685, elem_size=6.0, basis_order=1)
+        X = m.NodeList
+        vols = [det([X[:, e[2]] - X[:, e[1]] X[:, e[3]] - X[:, e[1]] X[:, e[4]] - X[:, e[1]]]) / 6 for e in eachcol(m.IEN)]
+        @test all(>(0), vols)
+        @test sum(vols) ≈ π * 30^2 * (top - 4.685) rtol=0.03
     end
 
     @testset "table on a voxel plane" begin
