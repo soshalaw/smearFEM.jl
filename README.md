@@ -47,7 +47,7 @@ automatically. Gmsh ships as an artifact via `Gmsh.jl` — no system install nee
 |------|----------|
 | `src/smearFEM.jl` | Module entry: the single export list and include order |
 | `src/config.jl`, `src/utils.jl` | Data/scratch path resolution (`config.toml`), shared helpers (camera matrix, logging) |
-| `src/fem/` | Element basis functions and quadrature (`fem.jl`), mesh types and generators (`meshes/`), the `LinearElasticity` model, camera projection / border extraction (`PostProcess.jl`) |
+| `src/fem/` | Element basis functions and quadrature (`fem.jl`), mesh types and generators (`meshes/`), the `LinearElasticity` model |
 | `src/solver/` | Fixed-pattern stiffness assembly and refined solves (`elastic_system.jl`), the squeeze (`elastic_squeeze.jl`), the volume update (`volume_update.jl`), the sparse direct solver backend (`sparse_lu.jl`) |
 | `src/analysis/` | Point-cloud metrics (Hausdorff, Chamfer) |
 | `src/io/` | CSV / JSON / HDF5 / VTK readers and writers, plotting and animation helpers |

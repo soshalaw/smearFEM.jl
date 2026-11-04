@@ -27,7 +27,7 @@ smearFEM.jl/
 │   ├── config.jl                # Path resolution (data, mesh, scratch dirs)
 │   ├── utils.jl                 # Shared helpers (camera matrix, logging, time log)
 │   ├── fem/
-│   │   ├── models.jl            # AbstractModel, Model, LinearElasticity, Stokes
+│   │   ├── models.jl            # AbstractModel, LinearElasticity, Stokes
 │   │   ├── fem.jl               # Basis functions, quadrature, BasisFunctionCache
 │   │   ├── geometries.jl        # Cylinder, Cuboid, Disk, Square, Segment
 │   │   ├── meshes/
@@ -35,8 +35,6 @@ smearFEM.jl/
 │   │   │   ├── mesh_types.jl    # Meshgrid* structs
 │   │   │   ├── mesh_structured.jl  # Pure-Julia structured generators (_meshgrid_*)
 │   │   │   └── mesh_gmsh.jl     # Gmsh-backed generators (_get_gmsh_*)
-│   │   ├── PostProcess.jl       # Camera projection, border extraction, curve fitting
-│   │   ├── types.jl             # EnvConditions, Conditions
 │   │   └── scenarios.jl         # AbstractScenario, SqueezeFlow
 │   ├── solver/
 │   │   ├── stokes_solver.jl     # Assembly, boundary conditions, time stepping (simulate), contours (project_contours)
@@ -123,9 +121,6 @@ AbstractModel
 
 AbstractScenario
 └── SqueezeFlow         # β, Dirichlet operators, control history, viscosity type
-
-EnvConditions
-└── Conditions          # Camera, object pose, viewing angles, output flags
 ```
 
 `Stokes` holds three meshes for a mixed discretization, all built from the same geometry:
@@ -362,13 +357,13 @@ Structs that hold model or run state are `mutable` with keyword-only inner const
 defaults for every field, so callers can build partial objects and fill fields later:
 
 ```julia
-mutable struct Conditions <: EnvConditions
-    ANIMATE::Bool
-    filepath::String
-    ...
-    function Conditions(; ANIMATE::Bool=false, filepath::String="", ...)
-        return new(ANIMATE, filepath, ...)
-    end
+mutable struct LinearElasticity <: AbstractModel
+    mesh::AbstractMeshgrid
+    λ::Float64
+    μ::Float64
+
+    LinearElasticity(; mesh::AbstractMeshgrid=MeshgridCylinder(), λ::Real=0.0, μ::Real=0.0) =
+        new(mesh, Float64(λ), Float64(μ))
 end
 ```
 
@@ -493,7 +488,6 @@ All runtime dependencies are listed in `Project.toml`. The ones that shape the c
 | `ArgCheck` | Argument validation in constructors |
 | `Gmsh` | Unstructured meshing via the Gmsh API |
 | `NearestNeighbors` | KD-trees for contour matching and point-cloud metrics |
-| `ConvexHulls2d`, `DataInterpolations` | Border extraction and contour resampling |
 | `WriteVTK`, `HDF5`, `JLD2`, `CSV`, `DataFrames`, `JSON`, `TOML` | I/O and configuration |
 | `Plots`, `StatsPlots`, `LaTeXStrings`, `Measures`, `Colors` | Plotting |
 | `Distributions`, `Statistics` | Noise models and replicate statistics |

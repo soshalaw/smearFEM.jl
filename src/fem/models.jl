@@ -2,19 +2,6 @@
 abstract type AbstractModel end
 
 """
-    Model{T}
-
-Mutable box holding one `AbstractModel`, so a model can be swapped in place without rebuilding
-the structures that reference it.
-
-# Arguments
-- `mdl::T`: The wrapped model.
-"""
-mutable struct Model{T<:AbstractModel}
-    mdl::T
-end
-
-"""
     LinearElasticity(; mesh=MeshgridCylinder(), λ=0.0, μ=0.0)
 
 Isotropic linear elastic material on one isoparametric 3D mesh: small-strain increments

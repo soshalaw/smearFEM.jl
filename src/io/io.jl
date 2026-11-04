@@ -10,6 +10,60 @@ using JLD2
 using FileIO
 
 """
+    rearrange(ndim, IEN)
+
+Rearrange the connectivity vector to be visualised in paraview when lagrangian basis functions are used.
+
+# Arguments:
+- `ndim::Integer`: number of dimensions
+- `IEN::Matrix{Float64}{nElem, nNodes}`: Connectivity matrix
+
+# Returns:
+- `IEN_new::Matrix{Int64}`: rearranged connectivity matrix
+"""
+function rearrange(ndim, IEN)
+    if size(IEN, 1) != 27
+        return copy(IEN)
+    end
+    IEN_new = zeros(Int64,size(IEN))
+    if ndim == 2
+        error("rearrange: 2D case is not yet implemented (only 3D is supported)")
+    elseif ndim == 3
+        iter = 1:size(IEN,2)
+        for n in iter
+            IEN_new[1,n] = IEN[1,n]
+            IEN_new[2,n] = IEN[2,n]
+            IEN_new[3,n] = IEN[3,n]
+            IEN_new[4,n] = IEN[4,n]
+            IEN_new[5,n] = IEN[5,n]
+            IEN_new[6,n] = IEN[6,n]
+            IEN_new[7,n] = IEN[7,n]
+            IEN_new[8,n] = IEN[8,n]
+            IEN_new[9,n] = IEN[9,n]
+            IEN_new[10,n] = IEN[10,n]
+            IEN_new[11,n] = IEN[11,n]
+            IEN_new[12,n] = IEN[12,n]
+            IEN_new[13,n] = IEN[13,n]
+            IEN_new[14,n] = IEN[14,n]
+            IEN_new[15,n] = IEN[15,n]
+            IEN_new[16,n] = IEN[16,n]
+            IEN_new[17,n] = IEN[17,n]
+            IEN_new[18,n] = IEN[18,n]
+            IEN_new[19,n] = IEN[20,n]
+            IEN_new[20,n] = IEN[19,n]
+            IEN_new[21,n] = IEN[24,n]
+            IEN_new[22,n] = IEN[22,n]
+            IEN_new[23,n] = IEN[21,n]
+            IEN_new[24,n] = IEN[23,n]
+            IEN_new[25,n] = IEN[25,n]
+            IEN_new[26,n] = IEN[26,n]
+            IEN_new[27,n] = IEN[27,n]
+        end
+    end
+    return IEN_new
+end
+
+"""
     write_vtk(filepath, fieldName, NodeList, IEN, ne, ndim, q)
 
 Function to write the solution to a VTK file

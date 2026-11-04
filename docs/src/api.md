@@ -18,12 +18,6 @@ Modules = [smearFEM]
 Pages = ["Meshes.jl"]
 ```
 
-## Post processing functions
-```@autodocs
-Modules = [smearFEM]
-Pages = ["PostProcess.jl"]
-```
-
 ## Visualizations
 ```@autodocs
 Modules = [smearFEM]

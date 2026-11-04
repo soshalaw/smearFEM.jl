@@ -287,6 +287,20 @@ function _animate_3d(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath
     gif(animation, string(filepath,"3D_grid.gif"), fps=10)
 end
 
+# Object-to-camera transform of a camera at `cam_pose` whose optical axis points at (0, 0, height/2).
+function _set_cam_frame(cam_pose::AbstractVector, height)
+
+    cam_pose_ = cam_pose - [0.0, 0.0, height/2]  # translate to camera frame
+    z = [0.0, 0.0, 1.0]
+    z_ = -cam_pose_ / norm(cam_pose_)
+    x_ = -cross(z, z_) / norm(cross(z, z_))
+    y_ = cross(z_, x_) / norm(cross(z_, x_))
+
+    T_o_c = [x_' -dot(x_, cam_pose); y_' -dot(y_, cam_pose); z_' -dot(z_, cam_pose); 0 0 0 1]
+
+    return T_o_c
+end
+
 """
     set_plot(fs; sz=(477,350), legend_column=1, right_margin=0pt, left_margin=0pt, top_margin=0pt, bottom_margin=-20mm, frame=false, legend=:outerbottom)
 

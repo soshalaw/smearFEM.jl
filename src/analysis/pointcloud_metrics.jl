@@ -1,9 +1,7 @@
 using NearestNeighbors
 using Statistics
 
-# Point-cloud distance metrics (Hausdorff, Chamfer, closest-point RMSE).
-# KDTree-based variants use NearestNeighbors; brute-force variants are kept for
-# reference/benchmarking.
+# Point-cloud distance metrics (Hausdorff, Chamfer, closest-point RMSE), by KDTree nearest neighbours.
 
 """
     _as_points_by_rows(pts) -> AbstractArray
@@ -146,47 +144,6 @@ unlike the symmetric `chamfer_distance_kdtree`/`hausdorff_distance_kdtree`).
 function closest_point_distance_kdtree(pred_pts::AbstractArray, gt_pts::AbstractArray)
     d_pred_to_gt = _nn_min_dists(pred_pts, gt_pts)
     return sqrt(mean(d_pred_to_gt.^2))
-end
-
-"""
-    hausdorff_distance(pred_pts, gt_pts) -> Float64
-
-Brute-force (O(N·M)) Hausdorff distance between two point clouds: the largest
-of the two directional sup-min distances between `pred_pts` and `gt_pts`.
-Superseded by `hausdorff_distance_kdtree`; kept for reference/benchmarking.
-
-# Arguments
-- `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
-
-# Returns
-- `hausdorff_dist::Float64`: the Hausdorff distance between the two point clouds.
-"""
-function hausdorff_distance(pred_pts::AbstractArray, gt_pts::AbstractArray)
-    sup_pred = maximum([minimum(sqrt.(sum((gt_pts .- permutedims(pred_pt)).^2, dims=2))) for pred_pt in eachrow(pred_pts)])
-    sup_gt = maximum([minimum(sqrt.(sum((pred_pts .- permutedims(gt_pt)).^2, dims=2))) for gt_pt in eachrow(gt_pts)])
-    hausdorff_dist = max(sup_pred, sup_gt)
-    return hausdorff_dist
-end
-
-"""
-    chamfer_distance(pred_pts, gt_pts) -> Float64
-
-Brute-force (O(N·M)) Chamfer distance between two point clouds: the mean of
-the two directional mean-min distances between `pred_pts` and `gt_pts`.
-Superseded by `chamfer_distance_kdtree`; kept for reference/benchmarking, and
-must stay numerically identical to it.
-
-# Arguments
-- `pred_pts::AbstractArray`, `gt_pts::AbstractArray`: point clouds, one row per point.
-
-# Returns
-- `chamfer_dist::Float64`: the Chamfer distance between the two point clouds.
-"""
-function chamfer_distance(pred_pts::AbstractArray, gt_pts::AbstractArray)
-    mean_pred = mean([minimum(sqrt.(sum((gt_pts .- permutedims(pred_pt)).^2, dims=2))) for pred_pt in eachrow(pred_pts)])
-    mean_gt = mean([minimum(sqrt.(sum((pred_pts .- permutedims(gt_pt)).^2, dims=2))) for gt_pt in eachrow(gt_pts)])
-    chamfer_dist = 0.5 * (mean_pred + mean_gt)
-    return chamfer_dist
 end
 
 """
