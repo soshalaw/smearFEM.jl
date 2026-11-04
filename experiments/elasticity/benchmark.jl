@@ -6,8 +6,9 @@ Time the linear elastic squeeze (`simulate`, per load step) and the volume updat
 
     julia -O3 --threads=auto --project experiments/elasticity/benchmark.jl [shape] [order] [elem_size]
 
-Defaults: `Hex 2 6.0`, the paper-1 cylinder mesh (r = 25 mm, h = 40 mm). Run it on a quiet
-machine: other load moves the numbers by tens of percent.
+Defaults: `Hex 2 6.0`, the paper-1 cylinder mesh (r = 25 mm, h = 40 mm). For a Gmsh cylinder
+`elem_size` is the number of elements along the height (6 → about 6.7 mm elements). Run it on a
+quiet machine: other load moves the numbers by tens of percent.
 """
 
 using smearFEM
@@ -18,7 +19,9 @@ function main(shape::Symbol=:Hex, order::Int=2, elem_size::Float64=6.0; nsteps::
                              elem_size=elem_size, mesh_path=joinpath(pkgdir(smearFEM), "mesh_files"))
     λ, μ = lame_parameters(10.0, 0.35)          # kPa
     mdl = LinearElasticity(mesh=mesh, λ=λ, μ=μ)
-    @info "$shape$order, element size $elem_size mm: $(mesh.nNodes) nodes, $(size(mesh.IEN, 2)) elements, $(Threads.nthreads()) threads"
+    nz = round(Int, elem_size)
+    @info "$shape$order, $nz elements along the height (~$(round(40 / nz, digits=1)) mm): " *
+          "$(mesh.nNodes) nodes, $(size(mesh.IEN, 2)) elements, $(Threads.nthreads()) threads"
 
     # 0.05 mm per step compresses the 40 mm cylinder by 12.5 % over 100 steps
     for (control, c) in (("displacement", -0.05), ("force", -25.0)), sensitivities in (false, true)

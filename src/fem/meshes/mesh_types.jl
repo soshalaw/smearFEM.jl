@@ -23,7 +23,9 @@ Fields shared by every `AbstractMeshgrid`: `NodeList` (current node coordinates)
 `IEN` (element connectivity), `ID` (DOF numbering), `volume_element_shape` and `basis_order`
 (kept as two independent fields, never a combined "Q2"-style string), `nNodes`, `ne`,
 `initial_state` (a copy of `NodeList` at construction, used to reset the mesh), and
-`effect_elem_sze` (the realised element size, `nothing` for structured meshes).
+`effect_elem_sze` (the mesh's `elem_size`: for Gmsh cylinders and boxes the number of elements
+along the height, for other Gmsh meshes the target element size in mm; for structured meshes
+(volume)^(1/ndim) / ne).
 """
 mutable struct MeshgridLine <: AbstractMeshgrid
     lx::Number
@@ -71,7 +73,9 @@ Fields shared by every `AbstractMeshgrid`: `NodeList` (current node coordinates)
 `IEN` (element connectivity), `ID` (DOF numbering), `volume_element_shape` and `basis_order`
 (kept as two independent fields, never a combined "Q2"-style string), `nNodes`, `ne`,
 `initial_state` (a copy of `NodeList` at construction, used to reset the mesh), and
-`effect_elem_sze` (the realised element size, `nothing` for structured meshes).
+`effect_elem_sze` (the mesh's `elem_size`: for Gmsh cylinders and boxes the number of elements
+along the height, for other Gmsh meshes the target element size in mm; for structured meshes
+(volume)^(1/ndim) / ne).
 """
 mutable struct MeshgridDisk <: AbstractMeshgrid
     r::Number
@@ -123,7 +127,9 @@ Fields shared by every `AbstractMeshgrid`: `NodeList` (current node coordinates)
 `IEN` (element connectivity), `ID` (DOF numbering), `volume_element_shape` and `basis_order`
 (kept as two independent fields, never a combined "Q2"-style string), `nNodes`, `ne`,
 `initial_state` (a copy of `NodeList` at construction, used to reset the mesh), and
-`effect_elem_sze` (the realised element size, `nothing` for structured meshes).
+`effect_elem_sze` (the mesh's `elem_size`: for Gmsh cylinders and boxes the number of elements
+along the height, for other Gmsh meshes the target element size in mm; for structured meshes
+(volume)^(1/ndim) / ne).
 """
 mutable struct MeshgridSquare <: AbstractMeshgrid
     lx::Number
@@ -188,7 +194,9 @@ Fields shared by every `AbstractMeshgrid`: `NodeList` (current node coordinates)
 `IEN` (element connectivity), `ID` (DOF numbering), `volume_element_shape` and `basis_order`
 (kept as two independent fields, never a combined "Q2"-style string), `nNodes`, `ne`,
 `initial_state` (a copy of `NodeList` at construction, used to reset the mesh), and
-`effect_elem_sze` (the realised element size, `nothing` for structured meshes).
+`effect_elem_sze` (the mesh's `elem_size`: for Gmsh cylinders and boxes the number of elements
+along the height, for other Gmsh meshes the target element size in mm; for structured meshes
+(volume)^(1/ndim) / ne).
 """
 mutable struct MeshgridCuboid <: AbstractMeshgrid
     lx::Number
@@ -262,7 +270,9 @@ Fields shared by every `AbstractMeshgrid`: `NodeList` (current node coordinates)
 `IEN` (element connectivity), `ID` (DOF numbering), `volume_element_shape` and `basis_order`
 (kept as two independent fields, never a combined "Q2"-style string), `nNodes`, `ne`,
 `initial_state` (a copy of `NodeList` at construction, used to reset the mesh), and
-`effect_elem_sze` (the realised element size, `nothing` for structured meshes).
+`effect_elem_sze` (the mesh's `elem_size`: for Gmsh cylinders and boxes the number of elements
+along the height, for other Gmsh meshes the target element size in mm; for structured meshes
+(volume)^(1/ndim) / ne).
 """
 mutable struct MeshgridCylinder <: AbstractMeshgrid
     r::Number
@@ -324,7 +334,9 @@ Fields shared by every `AbstractMeshgrid`: `NodeList` (current node coordinates)
 `IEN` (element connectivity), `ID` (DOF numbering), `volume_element_shape` and `basis_order`
 (kept as two independent fields, never a combined "Q2"-style string), `nNodes`, `ne`,
 `initial_state` (a copy of `NodeList` at construction, used to reset the mesh), and
-`effect_elem_sze` (the realised element size, `nothing` for structured meshes).
+`effect_elem_sze` (the mesh's `elem_size`: for Gmsh cylinders and boxes the number of elements
+along the height, for other Gmsh meshes the target element size in mm; for structured meshes
+(volume)^(1/ndim) / ne).
 """
 mutable struct MeshgridObserved <: AbstractMeshgrid
     NodeList::Matrix{Float64}

@@ -9,7 +9,11 @@ using Statistics
 Normalize a point cloud to a `(n_points, n_dims)` layout. Upstream writers are
 inconsistent about whether points are stored by row or by column (e.g.
 `surface_nodes` vs `3D_points_*`), so orient defensively: the coordinate axis
-(2 or 3) is always the smaller of the two dimensions for a real point cloud.
+(2 or 3) is taken to be the smaller of the two dimensions.
+
+The shape alone cannot tell the layout of a cloud with no more points than coordinates: one
+with fewer (e.g. 2 points in 3D) is always read with its axes swapped, and a square one
+(3 points in 3D) as one point per row. Pass clouds with more points than dimensions.
 
 # Arguments
 - `pts::AbstractArray`: point cloud, stored as either `(n_points, n_dims)` or

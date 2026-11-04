@@ -618,7 +618,7 @@ function _meshgrid_cylinder(r::T, h::U, ne::Int64; element_shape::Symbol=:Hex, b
 
     mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID,
         volume_element_shape=element_shape, basis_order=basis_order,
-        nNodes=nNodes^3, ne=ne^3, side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2])
+        nNodes=size(NodeList, 2), ne=ne^3, side_nodes=BorderNodes[1], top_nodes=BorderNodes[3], bottom_nodes=BorderNodes[2])
     return mesh
 end
 

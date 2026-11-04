@@ -10,6 +10,7 @@ function _get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, element_sh
         template_path = joinpath(mesh_dir, "templates", templates[element_shape])
     end
 
+    # `elem_size` is the number of elements along the height here, not a length
     mesh_params = isnothing(elem_size) ? nothing :
         Dict{String,Any}("radius" => Float64(r), "height" => Float64(h), "nz" => round(Int, elem_size))
 
@@ -70,6 +71,7 @@ function _get_gmsh_box(file_path::String, ndof::Int, lx::T, ly::U, lz::V,
         end
     end
 
+    # `elem_size` is the number of elements along the height here, not a length
     mesh_params = isnothing(elem_size) ? nothing :
         Dict{String,Any}("lx" => Float64(lx), "ly" => Float64(ly), "lz" => Float64(lz),
                          "nz" => round(Int, elem_size), "r" => Float64(effective_r))

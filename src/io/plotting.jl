@@ -199,7 +199,7 @@ function _animate_3d(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath
     if cam_pose !== nothing
         # Adjust limits to include camera position
         cam_x, cam_y, cam_z = cam_pose
-        xmax = max(xmax, cam_x*1.1) # extend limits by 50% to ensure camera is visible
+        xmax = max(xmax, cam_x*1.1) # 10 % past the camera, so it stays in view
         xmin = min(xmin, cam_x*1.1)
         ymax = max(ymax, cam_y*1.1)
         ymin = min(ymin, cam_y*1.1)

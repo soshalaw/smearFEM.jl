@@ -104,7 +104,8 @@ Every mesh carries:
 - `basis_order::Int` — 1 or 2
 - `nNodes::Int` (total node count), `ne::Int`
 - `initial_state::Matrix{Float64}` — copy of `NodeList` used by `reset_mesh!`
-- `effect_elem_sze` — realised element size
+- `effect_elem_sze` — the `elem_size` the mesh was made with: elements along the height for Gmsh
+  cylinders and boxes, a target element size (mm) for other Gmsh meshes
 
 2D and 3D meshes also carry `surface_element_shape`, face connectivities (`IEN_top`,
 `IEN_bottom`, `IEN_sides`) and node sets (`top_nodes`, `bottom_nodes`, `side_nodes`).

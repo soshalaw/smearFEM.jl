@@ -156,16 +156,14 @@ function dataframe_2_vec(df::DataFrame)
 end
 
 """
-    get_c_mat(type; λ=nothing, μ=nothing, Young=nothing, ν=nothing)
+    get_c_mat(c1, c2; type="lame")
 
-Returns the constitutive matrix for a given material type.
+Returns the 6×6 isotropic constitutive matrix (Voigt notation).
 
 # Arguments
-- `type::String`: Type of constitutive matrix ("lame" or "standard").
-- `λ::Float64`: Lame's first parameter.
-- `μ::Float64`: Shear modulus.
-- `Young::Float64`: Young's modulus.
-- `ν::Float64`: Poisson's ratio.
+- `c1::Float64`, `c2::Float64`: The two material parameters: Lamé's first parameter λ and the
+  shear modulus μ for `type="lame"`, Young's modulus and Poisson's ratio for `type="standard"`.
+- `type::String`: How to read `c1` and `c2` (`"lame"` or `"standard"`).
 
 # Returns
 - `cMat::Matrix{Float64}`: Constitutive matrix.

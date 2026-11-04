@@ -203,7 +203,7 @@ Resolve a data path relative to the data directory.
 
 # Example
 ```julia
-gt_path = resolve_data_path("ground_truth/sim_data/Stokes/force/constant/Q2_16")
+gt_path = resolve_data_path("ground_truth/sim_data")
 ```
 """
 function resolve_data_path(relative_path::String)::String
@@ -244,7 +244,7 @@ Create and return a unique output directory for an experiment.
 
 # Example
 ```julia
-out_dir = create_output_dir("stokes_convergence_2026-05-01")
+out_dir = create_output_dir("volume_update_2026-11-04")
 ```
 """
 function create_output_dir(experiment_name::String; ensure_dir::Bool=true)::String

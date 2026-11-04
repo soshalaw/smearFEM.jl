@@ -84,8 +84,7 @@ reused from earlier steps (refactorized when it stops converging fast).
   rigid-body modes free, so the stiffness is singular; use a small positive value for
   frictionless plates.
 - `sensitivities::Bool`: Also return the nodal sensitivities to (λ, μ, β), accumulated over the
-  steps with the geometry held fixed within each step (the approximation the Stokes solver
-  uses too). Exact at the first step; against finite differences of the full run, about 0.5 %
+  steps with the geometry held fixed within each step. Exact at the first step; against finite differences of the full run, about 0.5 %
   off after 0.6 % compression and 3 % after 12.5 % (25 steps, test cylinder).
 
 # Returns

@@ -3,9 +3,10 @@ using SparseArrays
 using Pardiso
 
 # The sparse direct solver behind `_refined_solve!`, for the symmetric matrix of an
-# `ElasticSystem`. MKL Pardiso where MKL is available (x86-64); UMFPACK everywhere else. On the
-# Stokes benchmark of the same mesh size (n = 5653) Pardiso factorized in ~9 ms on 8 threads and
-# solved in ~1.3 ms, UMFPACK in ~150 ms and ~3.6 ms. Both reach relative residuals ~1e-14.
+# `ElasticSystem`. MKL Pardiso where MKL is available (x86-64); UMFPACK everywhere else. On a
+# system of n = 5653 (the former Stokes squeeze, measured before this branch) Pardiso factorized
+# in ~9 ms on 8 threads and solved in ~1.3 ms, UMFPACK in ~150 ms and ~3.6 ms. Both reach
+# relative residuals ~1e-14.
 
 # UMFPACK's factorization and solves are not thread-safe
 const SPARSE_LU_LOCK = ReentrantLock()
@@ -100,8 +101,8 @@ _singular(f::_Pardiso) = get_iparm(f.ps, 14) > 0
 _singular(f::_Umfpack) = f.F.info[SparseArrays.LibSuiteSparse.UMFPACK_RCOND + 1] < 1e-12
 
 # Pardiso refactorizes in about three refinement rounds' time, so once a round shows the
-# factorization has gone stale — contracting the residual by less than 20×, which takes ~25 steps
-# of mesh deformation on the Stokes benchmark — it is replaced at the start of the next step, before any
+# factorization has gone stale — contracting the residual by less than 20×, which took ~25 steps
+# of mesh deformation on the former Stokes squeeze — it is replaced at the start of the next step, before any
 # round is spent on it. UMFPACK takes ~40 rounds' worth, so it never does that; only a solve that
 # needs more than five rounds refactorizes, there and then (Pardiso: if refining stops working).
 _stale(::_Pardiso, ρ::Float64) = ρ > 0.05

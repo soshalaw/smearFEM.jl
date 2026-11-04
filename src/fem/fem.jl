@@ -40,7 +40,7 @@ const _Q2_3D_NODE_TRIPLES = ((1, 1, 1), (2, 1, 1), (2, 2, 1), (1, 2, 1), (1, 1, 
 """ 
     smearFEM.gaussian_quadrature(a,b,n_gauss_pts)
 
-Compute the nodes and weights for the Gaussian quadrature of order 2
+Compute the nodes and weights of the 2- or 3-point Gauss-Legendre rule on `[a, b]`.
     
 # Arguments:    
 - `a,b::Integer` : the limits of the integration interval

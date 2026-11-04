@@ -16,7 +16,8 @@ Set up a cylinder mesh, dispatching to structured (Julia) or unstructured (Gmsh)
 - `basis_order::Int` : polynomial order (1 or 2)
 - `ne::Int` : elements per direction (`:structured` only)
 - `ndof::Int` : degrees of freedom per node
-- `elem_size::Float64` : target element size (`:unstructured` only)
+- `elem_size::Float64` : number of elements along the height, rounded to an integer
+  (`:unstructured` only; the templates' `nz`, so the element size is about `h / elem_size`)
 - `mesh_path::String` : base mesh directory (`:unstructured` only)
 - `template_path::String` : override `.geo` template path
 
@@ -71,7 +72,8 @@ Note: `IEN_front/back/left/right` are not populated for structured meshes.
 - `basis_order::Int` : polynomial order (1 or 2)
 - `ne::Int` : elements per direction (`:structured` only)
 - `ndof::Int` : degrees of freedom per node
-- `elem_size::Float64` : target element size (`:unstructured` only)
+- `elem_size::Float64` : number of elements along the height (z), rounded to an integer
+  (`:unstructured` only; the templates' `nz`, so the element size is about `lz / elem_size`)
 - `mesh_path::String` : base mesh directory (`:unstructured` only)
 - `template_path::String` : override `.geo` template path
 - `edge_radius::Float64` : fillet radius for the 4 vertical edges (`:unstructured` only; must satisfy `0 < edge_radius < min(lx,ly)/2`)
