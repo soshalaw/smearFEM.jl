@@ -16,7 +16,8 @@ function _surface_element_shape(vol_shape::Symbol)
 end
 
 """
-    MeshgridLine(; lx=0.0, NodeList, IEN, ID, volume_element_shape=:Line, basis_order=1, nNodes=0, ne=0, boundary_nodes, effect_elem_sze=nothing)
+    MeshgridLine(; lx=0.0, NodeList, IEN, ID, volume_element_shape=:Line, basis_order=1, nNodes=0, ne=0,
+                   boundary_nodes, effect_elem_sze=nothing)
 
 1D mesh of a segment of length `lx`. Being 1D it has no surface elements, so it carries
 `boundary_nodes` instead of the per-face `IEN_*` arrays the higher-dimensional meshes have.
@@ -58,12 +59,15 @@ mutable struct MeshgridLine <: AbstractMeshgrid
         boundary_nodes::Vector{Int}=Vector{Int}(),
         effect_elem_sze::Union{Float64,Nothing}=nothing
     )
-        new(lx, NodeList, IEN, ID, volume_element_shape, basis_order, nNodes, ne, boundary_nodes, copy(NodeList), effect_elem_sze)
+        new(lx, NodeList, IEN, ID, volume_element_shape, basis_order, nNodes, ne, boundary_nodes,
+            copy(NodeList), effect_elem_sze)
     end
 end
 
 """
-    MeshgridDisk(; r=0.0, NodeList, IEN, IEN_boundary, ID, volume_element_shape=:Quad, surface_element_shape, basis_order=1, nNodes=0, ne=0, boundary_nodes, effect_elem_sze=nothing)
+    MeshgridDisk(; r=0.0, NodeList, IEN, IEN_boundary, ID, volume_element_shape=:Quad,
+                   surface_element_shape, basis_order=1, nNodes=0, ne=0, boundary_nodes,
+                   effect_elem_sze=nothing)
 
 2D mesh of a disk of radius `r`, the axisymmetric cross-section used in place of a full cylinder.
 Its single boundary is the circumference, so it has one `IEN_boundary` rather than separate top,
@@ -118,7 +122,9 @@ mutable struct MeshgridDisk <: AbstractMeshgrid
 end
 
 """
-    MeshgridSquare(; lx=0.0, ly=0.0, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides, ID, volume_element_shape=:Quad, surface_element_shape, basis_order=1, nNodes=0, ne=0, top_nodes, bottom_nodes, side_nodes, effect_elem_sze=nothing)
+    MeshgridSquare(; lx=0.0, ly=0.0, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides, ID,
+                     volume_element_shape=:Quad, surface_element_shape, basis_order=1, nNodes=0, ne=0,
+                     top_nodes, bottom_nodes, side_nodes, effect_elem_sze=nothing)
 
 2D mesh of a rectangle, the plane-strain cross-section of a squeezed block. Boundaries are split
 into top, bottom and sides so the two plates can be driven independently of the free surface.
@@ -183,7 +189,10 @@ mutable struct MeshgridSquare <: AbstractMeshgrid
 end
 
 """
-    MeshgridCuboid(; lx=0.0, ly=0.0, lz=0.0, NodeList, IEN, IEN_top, IEN_bottom, IEN_front, IEN_back, IEN_left, IEN_right, ID, volume_element_shape=:Hex, surface_element_shape, basis_order=1, nNodes=0, ne=0, top_nodes, bottom_nodes, side_nodes, edge_radius=nothing, effect_elem_sze=nothing)
+    MeshgridCuboid(; lx=0.0, ly=0.0, lz=0.0, NodeList, IEN, IEN_top, IEN_bottom, IEN_front, IEN_back,
+                     IEN_left, IEN_right, ID, volume_element_shape=:Hex, surface_element_shape,
+                     basis_order=1, nNodes=0, ne=0, top_nodes, bottom_nodes, side_nodes,
+                     edge_radius=nothing, effect_elem_sze=nothing)
 
 3D mesh of a box. All six faces get their own `IEN_*` array, but the four vertical faces share a
 single `side_nodes` list, since they are driven as one free surface.
@@ -254,12 +263,15 @@ mutable struct MeshgridCuboid <: AbstractMeshgrid
         effect_elem_sze::Union{Float64,Nothing}=nothing
     )
         new(lx, ly, lz, NodeList, IEN, IEN_top, IEN_bottom, IEN_front, IEN_back, IEN_left, IEN_right,
-            ID, volume_element_shape, surface_element_shape, basis_order, nNodes, ne, top_nodes, bottom_nodes, side_nodes, copy(NodeList), edge_radius, effect_elem_sze)
+            ID, volume_element_shape, surface_element_shape, basis_order, nNodes, ne, top_nodes,
+            bottom_nodes, side_nodes, copy(NodeList), edge_radius, effect_elem_sze)
     end
 end
 
 """
-    MeshgridCylinder(; r=0.0, h=0.0, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides, ID, volume_element_shape=:Hex, surface_element_shape, basis_order=1, nNodes=0, ne=0, top_nodes, bottom_nodes, side_nodes, effect_elem_sze=nothing)
+    MeshgridCylinder(; r=0.0, h=0.0, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides, ID,
+                       volume_element_shape=:Hex, surface_element_shape, basis_order=1, nNodes=0, ne=0,
+                       top_nodes, bottom_nodes, side_nodes, effect_elem_sze=nothing)
 
 3D mesh of a cylinder of radius `r` and height `h` — the default geometry for squeeze flow.
 Boundaries are split into top, bottom and curved side so the two plates can be driven
@@ -320,12 +332,15 @@ mutable struct MeshgridCylinder <: AbstractMeshgrid
         effect_elem_sze::Union{Float64,Nothing}=nothing
     )
         new(r, h, NodeList, IEN, IEN_top, IEN_bottom, IEN_sides,
-            ID, volume_element_shape, surface_element_shape, basis_order, nNodes, ne, top_nodes, bottom_nodes, side_nodes, copy(NodeList), effect_elem_sze)
+            ID, volume_element_shape, surface_element_shape, basis_order, nNodes, ne, top_nodes,
+            bottom_nodes, side_nodes, copy(NodeList), effect_elem_sze)
     end
 end
 
 """
-    MeshgridObserved(; NodeList, IEN, IEN_bottom, IEN_free, ID, volume_element_shape=:Tet, surface_element_shape, basis_order=2, nNodes=0, ne=0, bottom_nodes, free_nodes, effect_elem_sze=nothing)
+    MeshgridObserved(; NodeList, IEN, IEN_bottom, IEN_free, ID, volume_element_shape=:Tet,
+                       surface_element_shape, basis_order=2, nNodes=0, ne=0, bottom_nodes, free_nodes,
+                       effect_elem_sze=nothing)
 
 3D tet mesh of a specimen as perception observed it (`mesh_from_field`): the paper-2 initial mesh.
 The boundary is split into the bottom, on the table, and the free surface (the observed side and top).

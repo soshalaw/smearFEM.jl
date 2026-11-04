@@ -43,7 +43,8 @@ function meshgrid_cylinder(r::T, h::U;
     elseif mesh_type == :unstructured
         isnothing(mesh_path) && throw(ArgumentError("`mesh_path` is required for mesh_type=:unstructured"))
         isnothing(elem_size) && throw(ArgumentError("`elem_size` is required for mesh_type=:unstructured"))
-        return _get_gmsh_cylinder(mesh_path, ndof, r, h, element_shape, basis_order, Float64(elem_size); template_path=template_path)
+        return _get_gmsh_cylinder(mesh_path, ndof, r, h, element_shape, basis_order, Float64(elem_size);
+                                  template_path=template_path)
     else
         throw(ArgumentError("Unknown mesh_type `$mesh_type`; use :structured or :unstructured"))
     end
@@ -70,7 +71,8 @@ Note: `IEN_front/back/left/right` are not populated for structured meshes.
   (`:unstructured` only; the templates' `nz`, so the element size is about `lz / elem_size`)
 - `mesh_path::String` : base mesh directory (`:unstructured` only)
 - `template_path::String` : override `.geo` template path
-- `edge_radius::Float64` : fillet radius for the 4 vertical edges (`:unstructured` only; must satisfy `0 < edge_radius < min(lx,ly)/2`)
+- `edge_radius::Float64` : fillet radius for the 4 vertical edges (`:unstructured` only; must satisfy
+  `0 < edge_radius < min(lx,ly)/2`)
 
 # Returns:
 - `MeshgridCuboid` : box mesh
@@ -87,9 +89,11 @@ function meshgrid_cuboid(lx::T, ly::U, lz::V;
     edge_radius::Union{Float64,Nothing}=nothing
 ) where {T<:Number, U<:Number, V<:Number}
     if mesh_type == :structured
-        !isnothing(edge_radius) && throw(ArgumentError("`edge_radius` is only supported for mesh_type=:unstructured"))
+        !isnothing(edge_radius) &&
+            throw(ArgumentError("`edge_radius` is only supported for mesh_type=:unstructured"))
         isnothing(ne) && throw(ArgumentError("`ne` is required for mesh_type=:structured"))
-        NodeList, IEN, _, IEN_top, IEN_bottom, _, _, BorderNodes = _meshgrid_cuboid(lx, ly, lz, ne; element_shape=element_shape, basis_order=basis_order)
+        NodeList, IEN, _, IEN_top, IEN_bottom, _, _, BorderNodes =
+            _meshgrid_cuboid(lx, ly, lz, ne; element_shape=element_shape, basis_order=basis_order)
         total_nodes = size(NodeList, 2)
         ID = _dof_ids(ndof, total_nodes)
         empty_mat = Matrix{Int}(undef, 0, 0)
@@ -160,7 +164,8 @@ function meshgrid_square(lx::X, ly::Y;
     elseif mesh_type == :unstructured
         isnothing(mesh_path) && throw(ArgumentError("`mesh_path` is required for mesh_type=:unstructured"))
         isnothing(elem_size) && throw(ArgumentError("`elem_size` is required for mesh_type=:unstructured"))
-        return _get_gmsh_square(mesh_path, ndof, lx, ly, element_shape, basis_order, Float64(elem_size); template_path=template_path)
+        return _get_gmsh_square(mesh_path, ndof, lx, ly, element_shape, basis_order, Float64(elem_size);
+                                template_path=template_path)
     else
         throw(ArgumentError("Unknown mesh_type `$mesh_type`; use :structured or :unstructured"))
     end
@@ -194,7 +199,8 @@ function meshgrid_disk(r::T;
 ) where {T<:Number}
     isnothing(mesh_path) && throw(ArgumentError("`mesh_path` is required for disk mesh"))
     isnothing(elem_size) && throw(ArgumentError("`elem_size` is required for disk mesh"))
-    return _get_gmsh_disk(mesh_path, ndof, r, element_shape, basis_order, Float64(elem_size); template_path=template_path)
+    return _get_gmsh_disk(mesh_path, ndof, r, element_shape, basis_order, Float64(elem_size);
+                          template_path=template_path)
 end
 
 """
@@ -230,7 +236,8 @@ function meshgrid_line(l::T;
 ) where {T<:Number}
     if mesh_type == :structured
         isnothing(ne) && throw(ArgumentError("`ne` is required for mesh_type=:structured"))
-        NodeList, IEN, boundary_nodes = _meshgrid_line(l, ne; element_shape=element_shape, basis_order=basis_order)
+        NodeList, IEN, boundary_nodes =
+            _meshgrid_line(l, ne; element_shape=element_shape, basis_order=basis_order)
         total_nodes = size(NodeList, 2)
         ID = _dof_ids(ndof, total_nodes)
         return MeshgridLine(lx=l, NodeList=NodeList, IEN=IEN, ID=ID,
@@ -240,7 +247,8 @@ function meshgrid_line(l::T;
     elseif mesh_type == :unstructured
         isnothing(mesh_path) && throw(ArgumentError("`mesh_path` is required for mesh_type=:unstructured"))
         isnothing(elem_size) && throw(ArgumentError("`elem_size` is required for mesh_type=:unstructured"))
-        return _get_gmsh_line(mesh_path, ndof, l, element_shape, basis_order, Float64(elem_size); template_path=template_path)
+        return _get_gmsh_line(mesh_path, ndof, l, element_shape, basis_order, Float64(elem_size);
+                              template_path=template_path)
     else
         throw(ArgumentError("Unknown mesh_type `$mesh_type`; use :structured or :unstructured"))
     end

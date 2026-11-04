@@ -151,7 +151,8 @@ function closest_point_distance_kdtree(pred_pts::AbstractArray, gt_pts::Abstract
 end
 
 """
-    compare_pt_clouds(pred_pts, gt_pts; squared_chamfer=true) -> (hausdorff_distances, chamfer_distances, closest_pt_distances, directed_hausdorff_distances)
+    compare_pt_clouds(pred_pts, gt_pts; squared_chamfer=true)
+        -> (hausdorff_distances, chamfer_distances, closest_pt_distances, directed_hausdorff_distances)
 
 Compute, frame by frame, the KD-tree-based Hausdorff, Chamfer, (one-directional)
 closest-point RMSE and directed (`pred → gt`) Hausdorff distances between matching pairs of

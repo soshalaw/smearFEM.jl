@@ -49,7 +49,8 @@ function _Pardiso(K::SparseMatrixCSC{Float64,Int})
     set_iparm!(ps, 11, 1)     # scaling and weighted matching
     set_iparm!(ps, 13, 1)
     set_iparm!(ps, 34, Pardiso.get_nprocs_mkl())   # fixed thread count: bit-identical repeats
-    f = _Pardiso(ps, SparseMatrixCSC(n, n, colptr, rowval, zeros(length(rowval))), from, false, zeros(n), zeros(n))
+    L = SparseMatrixCSC(n, n, colptr, rowval, zeros(length(rowval)))
+    f = _Pardiso(ps, L, from, false, zeros(n), zeros(n))
     # Pardiso's memory lives outside Julia's heap
     finalizer(f) do f
         f.analysed || return

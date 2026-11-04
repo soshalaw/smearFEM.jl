@@ -63,7 +63,10 @@ function next!(p::NonTtyProgress, n::Integer=1; kwargs...)
     # report if enough time passed or on completion
     if (now_ns - p.last_report_ns) >= p.interval_ns || p.count >= p.total
         try
-            @info "\e[32m$(isempty(p.desc) ? "Progress" : p.desc) | progress: $(round(p.count/p.total*100, digits=1))% of $(p.total) steps| time/iter: $(time_per_iter_ms)s/iter\e[39m"
+            desc = isempty(p.desc) ? "Progress" : p.desc
+            percent = round(p.count/p.total*100, digits=1)
+            @info "\e[32m$desc | progress: $percent% of $(p.total) steps| " *
+                  "time/iter: $(time_per_iter_ms)s/iter\e[39m"
         catch e
             @debug "Progress logging failed: $e"
         end
@@ -74,7 +77,8 @@ end
 
 function finish!(p::NonTtyProgress; kwargs...)
     try
-        @info "\e[32m$(isempty(p.desc) ? "Progress completed" : string(p.desc, " completed")) | progress: $(round(p.count/p.total*100, digits=1))%\e[39m"
+        desc = isempty(p.desc) ? "Progress completed" : string(p.desc, " completed")
+        @info "\e[32m$desc | progress: $(round(p.count/p.total*100, digits=1))%\e[39m"
     catch e
         @debug "Failed to log progress completion: $(e.msg)"
     end

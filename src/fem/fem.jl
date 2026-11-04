@@ -29,8 +29,10 @@ BasisFunctionCache(mesh::AbstractMeshgrid) =
 const _Q1_2D_NODE_PAIRS = ((1, 1), (2, 1), (2, 2), (1, 2))
 const _Q2_2D_NODE_PAIRS = ((1, 1), (2, 1), (2, 2), (1, 2), (3, 1), (2, 3), (3, 2), (1, 3), (3, 3))
 
-const _Q1_3D_NODE_TRIPLES = ((1, 1, 1), (2, 1, 1), (2, 2, 1), (1, 2, 1), (1, 1, 2), (2, 1, 2), (2, 2, 2), (1, 2, 2))
-const _Q2_3D_NODE_TRIPLES = ((1, 1, 1), (2, 1, 1), (2, 2, 1), (1, 2, 1), (1, 1, 2), (2, 1, 2), (2, 2, 2), (1, 2, 2),
+const _Q1_3D_NODE_TRIPLES = ((1, 1, 1), (2, 1, 1), (2, 2, 1), (1, 2, 1),
+    (1, 1, 2), (2, 1, 2), (2, 2, 2), (1, 2, 2))
+const _Q2_3D_NODE_TRIPLES = ((1, 1, 1), (2, 1, 1), (2, 2, 1), (1, 2, 1),
+    (1, 1, 2), (2, 1, 2), (2, 2, 2), (1, 2, 2),
     (3, 1, 1), (2, 3, 1), (3, 2, 1), (1, 3, 1),
     (3, 1, 2), (2, 3, 2), (3, 2, 2), (1, 3, 2),
     (1, 1, 3), (2, 1, 3), (2, 2, 3), (1, 2, 3),
@@ -409,7 +411,8 @@ Second-derivative ordering:
 - 2D: `[∂²/∂ξ², ∂²/(∂ξ∂η), ∂²/∂η²]`
 - 3D: `[∂²/∂ξ², ∂²/(∂ξ∂η), ∂²/(∂ξ∂ζ), ∂²/∂η², ∂²/(∂η∂ζ), ∂²/∂ζ²]`
 """
-function basis_function(ξ::Float64, η=nothing, ζ=nothing, element_shape::Symbol=:Line, basis_order::Int=1; second_derivatives::Bool=false)
+function basis_function(ξ::Float64, η=nothing, ζ=nothing, element_shape::Symbol=:Line, basis_order::Int=1;
+                        second_derivatives::Bool=false)
     N, ΔN, Δ2N = _basis_1d_components(ξ, basis_order)
     ΔN_out, Δ2N_out = _format_1d_derivatives(basis_order, ΔN, Δ2N)
 
@@ -420,9 +423,11 @@ function basis_function(ξ::Float64, η=nothing, ζ=nothing, element_shape::Symb
     return N, ΔN_out
 end
 
-function basis_function(ξ::Float64, η::Float64, ζ=nothing, element_shape::Symbol=:Quad, basis_order::Int=1; second_derivatives::Bool=false)
+function basis_function(ξ::Float64, η::Float64, ζ=nothing, element_shape::Symbol=:Quad, basis_order::Int=1;
+                        second_derivatives::Bool=false)
 
-    element_shape == :Tri && error(":Tri requires all 3 barycentric coords — use the 3-argument overload: basis_function(λ1, λ2, λ3, :Tri, order)")
+    element_shape == :Tri && error(":Tri requires all 3 barycentric coords — use the 3-argument overload: " *
+                                   "basis_function(λ1, λ2, λ3, :Tri, order)")
 
     Nξ, ΔNξ, Δ2Nξ = _basis_1d_components(ξ, basis_order)
     Nη, ΔNη, Δ2Nη = _basis_1d_components(η, basis_order)
@@ -441,7 +446,8 @@ function basis_function(ξ::Float64, η::Float64, ζ=nothing, element_shape::Sym
     return N, ΔN
 end
 
-function basis_function(ξ::Float64, η::Float64, ζ::Float64, element_shape::Symbol=:Hex, basis_order::Int=1; second_derivatives::Bool=false)
+function basis_function(ξ::Float64, η::Float64, ζ::Float64, element_shape::Symbol=:Hex, basis_order::Int=1;
+                        second_derivatives::Bool=false)
     if element_shape == :Tri
         N, ΔN, Δ2N = _basis_tri(ξ, η, ζ, basis_order)
     elseif element_shape == :Hex
@@ -466,7 +472,8 @@ function basis_function(ξ::Float64, η::Float64, ζ::Float64, element_shape::Sy
     return N, ΔN
 end
 
-function basis_function(ξ::Float64, η::Float64, ζ::Float64, θ::Float64, element_shape::Symbol=:Tet, basis_order::Int=1; second_derivatives::Bool=false)
+function basis_function(ξ::Float64, η::Float64, ζ::Float64, θ::Float64, element_shape::Symbol=:Tet,
+                        basis_order::Int=1; second_derivatives::Bool=false)
 
     if element_shape == :Tet
         N, ΔN, Δ2N = _basis_tet(ξ, η, ζ, θ, basis_order)
@@ -529,7 +536,8 @@ function get_surface_basis_functions(mesh::AbstractMeshgrid)
     for gp in eachindex(wpoints)
         # every basis_function method takes three coordinate arguments
         pt = points[gp]
-        coords = length(pt) == 1 ? (pt[1], nothing, nothing) : (pt[1], pt[2], length(pt) == 2 ? nothing : pt[3])
+        coords = length(pt) == 1 ? (pt[1], nothing, nothing) :
+                 (pt[1], pt[2], length(pt) == 2 ? nothing : pt[3])
         N_gp[gp], ΔN_gp[gp] = basis_function(coords..., shape, order)
     end
     return N_gp, ΔN_gp, wpoints

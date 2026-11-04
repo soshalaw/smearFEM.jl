@@ -45,7 +45,10 @@ function plot_mesh(NodeList, IEN)
 end
 
 """
-    animate_fields(;filepath=nothing, fields=nothing , IEN=nothing, border_nodes_2d=nothing, sim_pts_2d=nothing, p=nothing, q=nothing)
+    animate_fields(; filepath="None", Nodes=nothing, SurfaceNodes3D=nothing, IEN=nothing,
+                   sim_border_nodes_2d=nothing, obs_border_nodes_2d=nothing, sim_pts_2d=nothing,
+                   p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing,
+                   cam_pose=nothing, h=nothing)
 
 Function to animate the fields as a gif
 
@@ -57,12 +60,18 @@ Function to animate the fields as a gif
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3D = nothing, IEN=nothing, sim_border_nodes_2d=nothing, obs_border_nodes_2d=nothing,sim_pts_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, cam_pose::Union{Nothing,Vector{Float64}}=nothing, h::Union{Nothing,Float64}=nothing)
+function animate_fields(; filepath::String="None", Nodes=nothing, SurfaceNodes3D=nothing, IEN=nothing,
+                        sim_border_nodes_2d=nothing, obs_border_nodes_2d=nothing, sim_pts_2d=nothing,
+                        p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing,
+                        cam_pose::Union{Nothing,Vector{Float64}}=nothing, h::Union{Nothing,Float64}=nothing)
     set_file(filepath)
-    if isnothing(Nodes) && isnothing(sim_pts_2d) && isnothing(sim_border_nodes_2d) && isnothing(IEN) && isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
+    if isnothing(Nodes) && isnothing(sim_pts_2d) && isnothing(sim_border_nodes_2d) && isnothing(IEN) &&
+       isnothing(p) && isnothing(q) && isnothing(pObs) && isnothing(qObs)
         throw(AssertionError("No fields provided"))
     elseif isnothing(Nodes) && isnothing(SurfaceNodes3D)
-        _animate_2d(border_nodes_2d=sim_border_nodes_2d, sim_pts_2d=sim_pts_2d, obs_border_nodes_2d=obs_border_nodes_2d, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
+        _animate_2d(border_nodes_2d=sim_border_nodes_2d, sim_pts_2d=sim_pts_2d,
+                    obs_border_nodes_2d=obs_border_nodes_2d,
+                    p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
         return
     elseif isnothing(sim_pts_2d) && isnothing(sim_border_nodes_2d) && isnothing(p) && isnothing(q)
         _animate_3d(fields=Nodes, IEN=IEN, filepath=filepath, cam_pose=cam_pose, height=h)
@@ -73,7 +82,9 @@ function animate_fields(; filepath::String="None", Nodes=nothing , SurfaceNodes3
         else
             _animate_3d(fields=Nodes, IEN=IEN, filepath=filepath, cam_pose=cam_pose, height=h)
         end
-        _animate_2d(border_nodes_2d=sim_border_nodes_2d, sim_pts_2d=sim_pts_2d, obs_border_nodes_2d=obs_border_nodes_2d, p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
+        _animate_2d(border_nodes_2d=sim_border_nodes_2d, sim_pts_2d=sim_pts_2d,
+                    obs_border_nodes_2d=obs_border_nodes_2d,
+                    p=p, q=q, pObs=pObs, qObs=qObs, pgt=pgt, qgt=qgt, filepath=filepath)
     end
 end 
 
@@ -88,7 +99,9 @@ Function to animate the 2D fields as a gif
 - `p::Vector{Float64}`: x coordinates of the extracted convex hull
 - `q::Vector{Float64}`: y coordinates of the extracted convex hull
 """
-function _animate_2d(;border_nodes_2d=nothing, sim_pts_2d=nothing, obs_border_nodes_2d=nothing, p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing, filepath="images/2D_grid.gif")
+function _animate_2d(; border_nodes_2d=nothing, sim_pts_2d=nothing, obs_border_nodes_2d=nothing,
+                     p=nothing, q=nothing, pObs=nothing, qObs=nothing, pgt=nothing, qgt=nothing,
+                     filepath="images/2D_grid.gif")
 
     if isnothing(border_nodes_2d) && isnothing(sim_pts_2d) && isnothing(p) && isnothing(pObs)
         throw(AssertionError("No fields provided"))
@@ -129,24 +142,35 @@ function _animate_2d(;border_nodes_2d=nothing, sim_pts_2d=nothing, obs_border_no
             animation = @animate for i in 1:sz
                 plt = set_plot(12, frame=true, bottom_margin=0mm)
                 if !isnothing(pObs) && !isnothing(p) && !isnothing(pgt)
-                    Plots.plot!(plt, p[i],q[i], labels=L"\mathrm{Lagrange basis}", aspect_ratio=:equal, dpi=:400, lw=2, color=:darkorange)
-                    Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathrm{NURBS basis}", aspect_ratio=:equal, dpi=:400, lw=2, color=:cyan4)
-                    Plots.plot!(plt, pgt[i],qgt[i], labels=L"\mathrm{Observation}", aspect_ratio=:equal, dpi=:400, lw=2, color=:green4)
+                    Plots.plot!(plt, p[i],q[i], labels=L"\mathrm{Lagrange basis}",
+                                aspect_ratio=:equal, dpi=:400, lw=2, color=:darkorange)
+                    Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathrm{NURBS basis}",
+                                aspect_ratio=:equal, dpi=:400, lw=2, color=:cyan4)
+                    Plots.plot!(plt, pgt[i],qgt[i], labels=L"\mathrm{Observation}",
+                                aspect_ratio=:equal, dpi=:400, lw=2, color=:green4)
                 else
                     if !isnothing(p)
-                        Plots.plot!(plt, p[i],q[i], legend=true, labels=L"\mathrm{Simulation}", aspect_ratio=:equal, dpi=:400, lw=1, color=:darkorange)
+                        Plots.plot!(plt, p[i],q[i], legend=true, labels=L"\mathrm{Simulation}",
+                                    aspect_ratio=:equal, dpi=:400, lw=1, color=:darkorange)
                     end
                     if !isnothing(pObs)
-                        Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathcal{B}_{k,j}", aspect_ratio=:equal, dpi=:400, lw=2, color=:cyan4)
+                        Plots.plot!(plt, pObs[i],qObs[i], labels=L"\mathcal{B}_{k,j}",
+                                    aspect_ratio=:equal, dpi=:400, lw=2, color=:cyan4)
                     end
                     if !isnothing(sim_pts_2d_a)
-                        Plots.scatter!(plt, sim_pts_2d_a[i][1,:], sim_pts_2d_a[i][2,:], ms=:2, mc=:royalblue, ma=:0.7, legend=true, labels=L"\mathcal{U}_{k,j}", aspect_ratio=:equal, dpi=:400)
+                        Plots.scatter!(plt, sim_pts_2d_a[i][1,:], sim_pts_2d_a[i][2,:],
+                                       ms=:2, mc=:royalblue, ma=:0.7, legend=true,
+                                       labels=L"\mathcal{U}_{k,j}", aspect_ratio=:equal, dpi=:400)
                     end
                     if !isnothing(borders_a)
-                        Plots.scatter!(plt, borders_a[i][1,:], borders_a[i][2,:], ms=:3, mc=:indianred2, legend=true, labels=L"\widehat{\mathcal{B}}_{k,j}", aspect_ratio=:equal, dpi=:400)
+                        Plots.scatter!(plt, borders_a[i][1,:], borders_a[i][2,:], ms=:3, mc=:indianred2,
+                                       legend=true, labels=L"\widehat{\mathcal{B}}_{k,j}",
+                                       aspect_ratio=:equal, dpi=:400)
                     end
                     if !isnothing(obs_borders_a)
-                        Plots.scatter!(plt, obs_borders_a[i][1,:], obs_borders_a[i][2,:], ms=:3, mc=:green4, legend=true, labels=L"\mathrm{Observation}", aspect_ratio=:equal, dpi=:400)
+                        Plots.scatter!(plt, obs_borders_a[i][1,:], obs_borders_a[i][2,:], ms=:3, mc=:green4,
+                                       legend=true, labels=L"\mathrm{Observation}",
+                                       aspect_ratio=:equal, dpi=:400)
                     end
                 end
 
@@ -176,7 +200,8 @@ Function to animate the 3D fields as a gif
 # Arguments:
 - `fields::Vector{Vector{Float64}}`: solution vector
 """
-function _animate_3d(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath="images/3D_grid.gif", cam_pose::Union{Nothing,Vector{Float64}}=nothing, height::Union{Nothing,Float64}=nothing)
+function _animate_3d(; fields=nothing, surface_pts=nothing, IEN=nothing, filepath="images/3D_grid.gif",
+                     cam_pose::Union{Nothing,Vector{Float64}}=nothing, height::Union{Nothing,Float64}=nothing)
     
     if !isnothing(fields)
         sz = length(fields)
@@ -238,10 +263,12 @@ function _animate_3d(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath
                             label="")
         if !isnothing(fields)
             if isnothing(IEN)
-                Plots.scatter3d!(plt,fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:indianred2, markersize=3, label=:"", dpi=:400)
+                Plots.scatter3d!(plt,fields[i][1,:], fields[i][2,:], fields[i][3,:],
+                                 mc=:indianred2, markersize=3, label=:"", dpi=:400)
             else
                 ien_iter = 1:size(IEN,2)
-                Plots.scatter3d!(plt,fields[i][1,:], fields[i][2,:], fields[i][3,:], mc=:royalblue, markersize=3, label=:"", dpi=:400)
+                Plots.scatter3d!(plt,fields[i][1,:], fields[i][2,:], fields[i][3,:],
+                                 mc=:royalblue, markersize=3, label=:"", dpi=:400)
                 seq = []
                 if size(IEN,1) == 27
                     seq = [1,9,2,10,3,11,4,12,1,17,5,13,6,14,7,15,8,16,5,13,6,18,2,10,3,19,7,15,8,20,4]
@@ -267,14 +294,16 @@ function _animate_3d(;fields=nothing, surface_pts=nothing, IEN=nothing, filepath
 
             cam_x, cam_y, cam_z = cam_pose
             len = 1.0 # length of the camera frame axes
-            Plots.plot!(plt, [cam_pose[1], frame_x[1]*len], [cam_pose[2], frame_x[2]*len], [cam_pose[3], frame_x[3]*len], color=:red, label="", lw=2)
-            Plots.plot!(plt, [cam_pose[1], frame_y[1]*len], [cam_pose[2], frame_y[2]*len], [cam_pose[3], frame_y[3]*len], color=:green, label="", lw=2)
-            Plots.plot!(plt, [cam_pose[1], frame_z[1]*len], [cam_pose[2], frame_z[2]*len], [cam_pose[3], frame_z[3]*len], color=:blue, label="", lw=2)
+            for (frame_axis, colour) in ((frame_x, :red), (frame_y, :green), (frame_z, :blue))
+                Plots.plot!(plt, [cam_pose[1], frame_axis[1]*len], [cam_pose[2], frame_axis[2]*len],
+                            [cam_pose[3], frame_axis[3]*len], color=colour, label="", lw=2)
+            end
 
         end
         
         if !isnothing(surface_pts)
-            Plots.scatter3d!(plt, surface_pts[i][1,:], surface_pts[i][2,:], surface_pts[i][3,:], mc=:indianred2, markersize=3, label=:"", dpi=:400)
+            Plots.scatter3d!(plt, surface_pts[i][1,:], surface_pts[i][2,:], surface_pts[i][3,:],
+                             mc=:indianred2, markersize=3, label=:"", dpi=:400)
         end
         next!(pr)
         try
@@ -302,7 +331,8 @@ function _set_cam_frame(cam_pose::AbstractVector, height)
 end
 
 """
-    set_plot(fs; sz=(477,350), legend_column=1, right_margin=0pt, left_margin=0pt, top_margin=0pt, bottom_margin=-20mm, frame=false, legend=:outerbottom)
+    set_plot(fs; sz=(477,350), legend_column=1, right_margin=0pt, left_margin=0pt, top_margin=0pt,
+             bottom_margin=-20mm, frame=false, legend=:outerbottom)
 
 Create an empty single-panel plot with the project's publication styling (Computer Modern, boxed
 frame, font sizes scaled from `fs`).
@@ -319,7 +349,9 @@ frame, font sizes scaled from `fs`).
 # Returns
 - `plt::Plots.Plot`: Styled empty plot to draw into.
 """
-function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1, right_margin=0pt, left_margin=0pt, top_margin=0pt, bottom_margin=-20mm, frame=false, legend=:outerbottom)
+function set_plot(fs::Int; sz::Tuple{Int,Int}=(477,350), legend_column::Int=1,
+                  right_margin=0pt, left_margin=0pt, top_margin=0pt, bottom_margin=-20mm,
+                  frame=false, legend=:outerbottom)
 
     frame_brdr = nothing
     if frame
@@ -370,7 +402,8 @@ otherwise.
 # Returns
 - `plt::Plots.Plot`: Styled empty plot to draw into.
 """
-function set_subplot(fs::Int; sz::Tuple{Int,Int}=(1000,750), layout=(1,1), legend=nothing, legend_column=nothing, bottom_margin=nothing)
+function set_subplot(fs::Int; sz::Tuple{Int,Int}=(1000,750), layout=(1,1), legend=nothing,
+                     legend_column=nothing, bottom_margin=nothing)
 
     # Build optional kwargs for legend placement if provided
     kw = ()

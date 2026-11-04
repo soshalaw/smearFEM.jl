@@ -13,8 +13,9 @@ using MarchingCubes: MC, march
 Paper-2 initial mesh: tet mesh of the specimen perception observed, from its fused field φ_s. The
 zero surface of φ_s is closed at the bottom by the table plane z = `table_z`; voxels no camera saw are
 inside where the observed surface encloses them, else outside. Pieces of material apart from the
-specimen are dropped, and pockets of outside enclosed by material (noise) filled, with a warning. The cap is about one voxel smaller in radius than the true
-base: marching cubes bevels the bottom edge, and the bevel belongs to the free surface.
+specimen are dropped, and pockets of outside enclosed by material (noise) filled, with a warning.
+The cap is about one voxel smaller in radius than the true base: marching cubes bevels the bottom
+edge, and the bevel belongs to the free surface.
 
 # Arguments
 - `phi::AbstractArray{<:Real,3}`: φ_s (nx, ny, nz) [mm], NaN where unobserved, e.g. `step.phi`.
@@ -51,7 +52,8 @@ function mesh_from_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid; tab
         bottom_nodes=node_sets[1], free_nodes=node_sets[2], effect_elem_sze=Float64(elem_size))
 end
 
-mesh_from_field(step::PerceptionStep, grid::PerceptionGrid; kwargs...) = mesh_from_field(step.phi, grid; kwargs...)
+mesh_from_field(step::PerceptionStep, grid::PerceptionGrid; kwargs...) =
+    mesh_from_field(step.phi, grid; kwargs...)
 
 """
     _close_field(phi, grid, table_z) -> (field, coords)
@@ -122,7 +124,8 @@ function _close_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid, table_
     # too thin for Gmsh's parametrization (quality 6e-15 ran Gmsh out of memory)
     ε = 1e-3 * Δ
     F .= ifelse.(abs.(F) .< ε, ifelse.(F .< 0, -ε, ε), F)   # -0.0 is outside, as in the labelling above
-    @info "closed φ_s: $n_inside unobserved voxels filled as inside, $(count(unobserved) - n_inside) as outside"
+    @info "closed φ_s: $n_inside unobserved voxels filled as inside, " *
+          "$(count(unobserved) - n_inside) as outside"
     return F, (px, py, pz)
 end
 
@@ -133,7 +136,8 @@ Zero surface of a closed field (`_close_field`) by marching cubes: vertices `V` 
 triangles `T` (3, nt) as vertex indices, and `on_cap` (nt), the triangles on the table that close
 the bottom.
 """
-function _field_surface(field::Array{Float64,3}, coords::NTuple{3,Vector{Float64}}, table_z::Real, delta::Real)
+function _field_surface(field::Array{Float64,3}, coords::NTuple{3,Vector{Float64}}, table_z::Real,
+                        delta::Real)
     mc = MC(field, Int; x=coords[1], y=coords[2], z=coords[3])
     march(mc, 0.0)
     V = stack(mc.vertices)
@@ -143,7 +147,8 @@ function _field_surface(field::Array{Float64,3}, coords::NTuple{3,Vector{Float64
     on_table = abs.(V[3, :] .- table_z) .< 1e-2 * delta
     V[3, on_table] .= table_z
     on_cap = vec(all(on_table[T], dims=1))
-    any(on_cap) || throw(ArgumentError("the material does not reach the table at z = $table_z mm; check table_z"))
+    any(on_cap) ||
+        throw(ArgumentError("the material does not reach the table at z = $table_z mm; check table_z"))
     return V, T, on_cap
 end
 

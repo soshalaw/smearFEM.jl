@@ -73,7 +73,8 @@ Build the sparsity pattern and element-to-nzval maps of the stiffness on the unk
 with Navier slip on the tangential (x, y) components of every face group in `slip_faces`.
 Values are filled by `_assemble!`.
 """
-function _elastic_system(mesh::AbstractMeshgrid, dof::Matrix{Int}; slip_faces::Vector{Matrix{Int}}=Matrix{Int}[])
+function _elastic_system(mesh::AbstractMeshgrid, dof::Matrix{Int};
+                         slip_faces::Vector{Matrix{Int}}=Matrix{Int}[])
     IEN::Matrix{Int} = mesh.IEN
     nN, ne = size(IEN)
     nUd = 3nN
@@ -297,7 +298,8 @@ function _refactor!(sys::ElasticSystem)
     sys.lu === nothing && (sys.lu = _sparse_lu(sys.K))
     t = @elapsed _factorize!(sys.lu, sys.K)
     @debug "factorization: $(round(1e3 * t, digits=1)) ms"
-    _singular(sys.lu) && @warn "the stiffness is singular: a rigid-body mode is not removed by the boundary conditions, so the solution carries an arbitrary amount of it"
+    _singular(sys.lu) && @warn "the stiffness is singular: a rigid-body mode is not removed by the " *
+                               "boundary conditions, so the solution carries an arbitrary amount of it"
     sys.stale = false
     return sys
 end

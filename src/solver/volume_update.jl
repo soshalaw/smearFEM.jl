@@ -132,8 +132,10 @@ are cached per mesh, so a call costs one assembly, one numeric factorization and
 """
 function volume_update!(mdl::LinearElasticity, nodes::Vector{Int}, normals::Matrix{Float64},
                         d::Vector{Float64}; β_table::Real=0.0)
-    size(normals) == (3, length(nodes)) || throw(DimensionMismatch("normals must be 3 × $(length(nodes)), got $(size(normals))"))
-    length(d) == length(nodes) || throw(DimensionMismatch("d has $(length(d)) entries for $(length(nodes)) nodes"))
+    size(normals) == (3, length(nodes)) ||
+        throw(DimensionMismatch("normals must be 3 × $(length(nodes)), got $(size(normals))"))
+    length(d) == length(nodes) ||
+        throw(DimensionMismatch("d has $(length(d)) entries for $(length(nodes)) nodes"))
     mesh = mdl.mesh
     nN::Int = mesh.nNodes          # mesh is abstractly typed: keep the loops below concrete
     X::Matrix{Float64} = mesh.NodeList

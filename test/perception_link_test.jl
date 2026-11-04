@@ -15,7 +15,8 @@ fixture_pose(s) = [cosd(30) -sind(30) 0 10; sind(30) cosd(30) 0 20; 0 0 1 30 + (
 @testset "perception link" begin
     run = read_perception_steps(joinpath(LINK_FIXTURE, "steps.h5"))
     grid, steps = run.grid, run.steps
-    points, samples = h5open(f -> (read(f["points"]), read(f["samples"])), joinpath(LINK_FIXTURE, "expected.h5"))
+    points, samples = h5open(f -> (read(f["points"]), read(f["samples"])),
+                             joinpath(LINK_FIXTURE, "expected.h5"))
 
     @testset "offline file and sampling" begin
         @test grid.shape == [5, 7, 9]

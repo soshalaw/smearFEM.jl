@@ -77,7 +77,8 @@ Function to write the solution to a VTK file
 - `ndim::Integer`: Number of dimensions.
 - `q::Vector{Float64}`: Solution field.
 """
-function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64, ndim::Int64, q; ID=nothing, element_shape::Symbol=:Hex, basis_order::Int=1)
+function write_vtk(filePath::String, fieldName::String, NodeList, IEN, ne::Int64, ndim::Int64, q;
+                   ID=nothing, element_shape::Symbol=:Hex, basis_order::Int=1)
 
     set_file(string(filePath,"/vtkFiles"))
     if element_shape == :Tet
@@ -126,7 +127,8 @@ Function to write the solution to a VTK file
 - `ndim::Integer`: Number of dimensions
 - `fields::Vector{Vector{Float64}}`: Solution fields.
 """
-function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields; element_shape::Symbol=:Hex, basis_order::Int=1)
+function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields;
+                     element_shape::Symbol=:Hex, basis_order::Int=1)
 
     set_file(string(filepath,"/vtkFiles"))
     if element_shape == :Tet
@@ -172,7 +174,7 @@ function write_scene(filepath::String, node_list_list, IEN, ndim::Int64, fields;
     fieldIter = 1:length(fields)
     paraview_collection(string(filepath,"/vtkFiles/displacement")) do pvd # create a paraview collection
         @showprogress "Writing out to VTK..." for i in fieldIter
-            vtk_grid(string(filepath,"/vtkFiles/timestep_$i"), node_list_list[i], cells) do vtk # write out the fields to VTK
+            vtk_grid(string(filepath,"/vtkFiles/timestep_$i"), node_list_list[i], cells) do vtk
                 vtk["p"] = fields[i]
                 time = (i - 1)
                 pvd[time] = vtk
@@ -236,7 +238,7 @@ function read_csv(filepath::String)
             continue
         end
         obsData = readdlm(file, ',', Float64, '\n', header=false)  # read the observation data
-        push!(ObsDataList, obsData') # store the transpose of the observation data to fit the comparison function
+        push!(ObsDataList, obsData') # transposed to fit the comparison function
         push!(splinex, obsData[:,1])
         push!(spliney, obsData[:,2])
     end
@@ -324,7 +326,7 @@ function set_file(filepath::String)
     end
 end
 
-"""                                                                                                                                                                    
+"""
     write_json(filepath, data)
 
 Function to write data to a JLD2 file (preserves all Julia types and structures)
@@ -416,7 +418,8 @@ end
     
     # Arguments:
     - `filename::String`:Path to the the .h5 file.
-    - `mode::String`:Simulation (sim) or test (test) mode. With the test modes the volume of the mesh is returned
+    - `mode::String`:Simulation (sim) or test (test) mode. With the test modes the volume of the mesh
+      is returned
     
     # Returns:
     -`CPointList::Vector{Float64}`:Control point list.
@@ -459,7 +462,8 @@ function read_h5(filename::String, mode::String="sim")
         # Close the HDF5 file after reading
         close(h5file)   
         
-        return CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new, vol_BSpline, vol_NURBS, area_BSpline, area_NURBS
+        return CPointList, W, C_new, IEN, IEN_top, C_top_new, IEN_btm, C_btm_new,
+               vol_BSpline, vol_NURBS, area_BSpline, area_NURBS
     end
     
     # Close the HDF5 file after reading

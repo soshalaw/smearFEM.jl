@@ -223,7 +223,8 @@ end
         dir = mktempdir()
         geo = joinpath(dir, "line.geo")
         write(geo, "Point(1) = {0, 0, 0, 1};\nPoint(2) = {1, 0, 0, 1};\nLine(1) = {1, 2};\n")
-        fake_gmsh(body) = (write(joinpath(dir, "gmsh"), "#!/bin/sh\n$body\n"); chmod(joinpath(dir, "gmsh"), 0o755))
+        fake_gmsh(body) = (write(joinpath(dir, "gmsh"), "#!/bin/sh\n$body\n");
+                           chmod(joinpath(dir, "gmsh"), 0o755))
         path = dir * ":" * ENV["PATH"]
 
         fake_gmsh("ulimit -v > '$dir/limit'")

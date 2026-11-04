@@ -84,8 +84,9 @@ reused from earlier steps (refactorized when it stops converging fast).
   rigid-body modes free, so the stiffness is singular; use a small positive value for
   frictionless plates.
 - `sensitivities::Bool`: Also return the nodal sensitivities to (λ, μ, β), accumulated over the
-  steps with the geometry held fixed within each step. Exact at the first step; against finite differences of the full run, about 0.5 %
-  off after 0.6 % compression and 3 % after 12.5 % (25 steps, test cylinder).
+  steps with the geometry held fixed within each step. Exact at the first step; against finite
+  differences of the full run, about 0.5 % off after 0.6 % compression and 3 % after 12.5 %
+  (25 steps, test cylinder).
 
 # Returns
 A named tuple:
@@ -98,7 +99,8 @@ A named tuple:
 """
 function simulate(mdl::LinearElasticity, cParam::Vector{Float64}; control::String="force",
                   β::Real=0.0, sensitivities::Bool=false)
-    control in ("force", "displacement") || throw(ArgumentError("control must be \"force\" or \"displacement\", got \"$control\""))
+    control in ("force", "displacement") ||
+        throw(ArgumentError("control must be \"force\" or \"displacement\", got \"$control\""))
     reset_model!(mdl)
     mesh = mdl.mesh
     λ, μ = mdl.λ, mdl.μ
@@ -160,7 +162,8 @@ function simulate(mdl::LinearElasticity, cParam::Vector{Float64}; control::Strin
 
         _nodal!(u, z, sys.dof)
         u .*= c
-        push!(plate, displacement_control ? c * dot(col, view(z, view(sys.K.rowval, sq.plate_col))) : c * z[n])
+        reaction = displacement_control ? dot(col, view(z, view(sys.K.rowval, sq.plate_col))) : z[n]
+        push!(plate, c * reaction)
         push!(displacement, copy(u))
         X = X + u                 # a new array: pos3D keeps every state
         push!(pos3D, X)

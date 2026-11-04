@@ -1,5 +1,7 @@
-function _get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, element_shape::Symbol=:Hex, basis_order::Int=1, elem_size::Union{Float64,Nothing}=nothing;
-                           template_path::Union{String,Nothing}=nothing) where {T<:Number,U<:Number}
+function _get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U,
+                            element_shape::Symbol=:Hex, basis_order::Int=1,
+                            elem_size::Union{Float64,Nothing}=nothing;
+                            template_path::Union{String,Nothing}=nothing) where {T<:Number,U<:Number}
     @debug "Reading cylinder mesh from $file_path"
     if isnothing(template_path)
         templates = Dict(:Tet => "cylinder_tet.geo", :Hex => "cylinder_hex.geo")
@@ -13,7 +15,8 @@ function _get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, element_sh
     mesh_params = isnothing(elem_size) ? nothing :
         Dict{String,Any}("radius" => Float64(r), "height" => Float64(h), "nz" => round(Int, elem_size))
 
-    mesh_path = joinpath(file_path, "cylinder", "$(element_shape)", "$(r)x$(h)_$(elem_size)_$(basis_order).msh")
+    mesh_name = "$(r)x$(h)_$(elem_size)_$(basis_order).msh"
+    mesh_path = joinpath(file_path, "cylinder", "$(element_shape)", mesh_name)
     NodeList, IEN, face_IENs, nNodes, node_sets, ne = _get_mesh_data(mesh_path;
         params=mesh_params, template_path=template_path, mesh_order=basis_order, mesh_dim=3,
         body_group="Volume", body_dim=3,
@@ -28,8 +31,8 @@ function _get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, element_sh
 
     ID = _dof_ids(ndof, nNodes)
 
-    mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID,
-            volume_element_shape=element_shape, basis_order=basis_order,
+    mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom,
+            ID=ID, volume_element_shape=element_shape, basis_order=basis_order,
             nNodes=nNodes, ne=ne, side_nodes=nodes_lateral, top_nodes=nodes_top, bottom_nodes=nodes_bottom,
             effect_elem_sze=elem_size)
     return mesh
@@ -62,7 +65,8 @@ function _get_gmsh_box(file_path::String, ndof::Int, lx::T, ly::U, lz::V,
         Dict{String,Any}("lx" => Float64(lx), "ly" => Float64(ly), "lz" => Float64(lz),
                          "nz" => round(Int, elem_size), "r" => Float64(effective_r))
 
-    mesh_path = joinpath(file_path, "box", "$(element_shape)", "$(lx)x$(ly)x$(lz)_$(elem_size)_$(basis_order)_r$(effective_r).msh")
+    mesh_name = "$(lx)x$(ly)x$(lz)_$(elem_size)_$(basis_order)_r$(effective_r).msh"
+    mesh_path = joinpath(file_path, "box", "$(element_shape)", mesh_name)
     NodeList, IEN, face_IENs, nNodes, node_sets, ne = _get_mesh_data(mesh_path;
         params=mesh_params, template_path=template_path, mesh_order=basis_order, mesh_dim=3,
         body_group="Box", body_dim=3,

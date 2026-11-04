@@ -25,9 +25,11 @@ function main(shape::Symbol=:Hex, order::Int=2, elem_size::Float64=6.0; nsteps::
 
     # 0.05 mm per step compresses the 40 mm cylinder by 12.5 % over 100 steps
     for (control, c) in (("displacement", -0.05), ("force", -25.0)), sensitivities in (false, true)
-        simulate(mdl, fill(c, 3); control=control, β=1.0, sensitivities=sensitivities)   # compile, build the pattern
-        t = minimum(@elapsed(simulate(mdl, fill(c, nsteps); control=control, β=1.0, sensitivities=sensitivities)) for _ in 1:3)
-        @info "simulate, $control control, sensitivities=$sensitivities: $(round(1e3t / nsteps, digits=2)) ms/step"
+        squeeze(n) = simulate(mdl, fill(c, n); control=control, β=1.0, sensitivities=sensitivities)
+        squeeze(3)                                  # compile, build the pattern
+        t = minimum(@elapsed(squeeze(nsteps)) for _ in 1:3)
+        @info "simulate, $control control, sensitivities=$sensitivities: " *
+              "$(round(1e3t / nsteps, digits=2)) ms/step"
     end
 
     # observed lateral surface pushed 0.5 mm outward; slip on the table pins the rotation about z
@@ -38,7 +40,8 @@ function main(shape::Symbol=:Hex, order::Int=2, elem_size::Float64=6.0; nsteps::
     d = fill(0.5, length(side))
     volume_update!(mdl, side, normals, d; β_table=1e-3)
     t = [(reset_model!(mdl); @elapsed volume_update!(mdl, side, normals, d; β_table=1e-3)) for _ in 1:10]
-    @info "volume_update!, $(length(side)) constrained nodes: $(round(1e3median(t), digits=2)) ms (median of 10)"
+    @info "volume_update!, $(length(side)) constrained nodes: " *
+          "$(round(1e3median(t), digits=2)) ms (median of 10)"
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

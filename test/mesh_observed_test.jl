@@ -62,14 +62,16 @@ end
     @testset "a detached lip ring is dropped" begin
         lip(x, y, z) = (32 ≤ hypot(x, y) ≤ 33 && 41 ≤ z ≤ 43) ? -0.5 :
                        (30 < hypot(x, y) < 32 && 41 ≤ z ≤ 43) ? 0.5 : nothing
-        F, (px, py, pz) = @test_logs (:warn, r"spurious") match_mode=:any _close_field(tsdf_cylinder(extra=lip)..., 4.685)
+        F, (px, py, pz) = @test_logs (:warn, r"spurious") match_mode=:any _close_field(
+            tsdf_cylinder(extra=lip)..., 4.685)
         @test F[nearest(px, 32.5), nearest(py, 0.0), nearest(pz, 42.0)] > 0
         @test F[nearest(px, 0.0), nearest(py, 0.0), nearest(pz, 24.0)] < 0
     end
 
     @testset "a spurious blob is dropped" begin
         blob(x, y, z) = norm((x, y, z - 49)) ≤ 1.5 ? -0.5 : nothing
-        F, (px, py, pz) = @test_logs (:warn, r"spurious") match_mode=:any _close_field(tsdf_cylinder(extra=blob)..., 4.685)
+        F, (px, py, pz) = @test_logs (:warn, r"spurious") match_mode=:any _close_field(
+            tsdf_cylinder(extra=blob)..., 4.685)
         @test F[nearest(px, 0.0), nearest(py, 0.0), nearest(pz, 49.0)] > 0
         @test F[nearest(px, 0.0), nearest(py, 0.0), nearest(pz, 24.0)] < 0
     end
@@ -95,7 +97,8 @@ end
         @test abs(sum(det(V[:, T[:, t]]) for t in axes(T, 2))) / 6 ≈ π * 30^2 * 40 rtol=0.005
         @test count(cap) > 0
         @test all(abs.(V[3, unique(vec(T[:, cap]))] .- 4.685) .< 1e-3)
-        @test all(norm(cross(V[:, T[2, t]] - V[:, T[1, t]], V[:, T[3, t]] - V[:, T[1, t]])) > 0 for t in axes(T, 2))
+        @test all(norm(cross(V[:, T[2, t]] - V[:, T[1, t]], V[:, T[3, t]] - V[:, T[1, t]])) > 0
+                  for t in axes(T, 2))
     end
 
     @testset "a -0.0 voxel outside the material stays outside" begin
@@ -107,10 +110,12 @@ end
     @testset "near-zero values make no degenerate triangles" begin
         # perception's float arithmetic leaves ±1e-12 where the surface passes through a voxel
         # centre; marching cubes then makes needles too thin for Gmsh's parametrization
-        tiny(x, y, z) = abs(cylinder_sd(x, y, z)) < 1e-9 ? (isodd(round(Int, x + y + z)) ? 1e-12 : -1e-12) : nothing
+        tiny(x, y, z) = abs(cylinder_sd(x, y, z)) < 1e-9 ?
+            (isodd(round(Int, x + y + z)) ? 1e-12 : -1e-12) : nothing
         V, T, _ = _field_surface(_close_field(tsdf_cylinder(extra=tiny)..., 4.685)..., 4.685, 1.0)
         # 1 for an equilateral triangle, 0 for a degenerate one
-        quality(a, b, c) = 2√3 * norm(cross(b - a, c - a)) / (sum(abs2, b - a) + sum(abs2, c - b) + sum(abs2, a - c))
+        quality(a, b, c) = 2√3 * norm(cross(b - a, c - a)) /
+            (sum(abs2, b - a) + sum(abs2, c - b) + sum(abs2, a - c))
         @test minimum(quality(V[:, T[1, t]], V[:, T[2, t]], V[:, T[3, t]]) for t in axes(T, 2)) > 1e-5
     end
 
@@ -123,15 +128,18 @@ end
 
     observed = Dict{Int,MeshgridObserved}()
     @testset "observed mesh of a cylinder (Tet$order)" for order in (1, 2)
-        m = observed[order] = mesh_from_field(tsdf_cylinder()...; table_z=4.685, elem_size=6.0, basis_order=order)
+        m = observed[order] = mesh_from_field(tsdf_cylinder()...; table_z=4.685, elem_size=6.0,
+                                              basis_order=order)
         X = m.NodeList
         @test m isa MeshgridObserved && m.volume_element_shape == :Tet && size(m.IEN, 1) == (4, 10)[order]
-        vols = [det([X[:, e[2]] - X[:, e[1]] X[:, e[3]] - X[:, e[1]] X[:, e[4]] - X[:, e[1]]]) / 6 for e in eachcol(m.IEN)]
+        vols = [det([X[:, e[2]] - X[:, e[1]] X[:, e[3]] - X[:, e[1]] X[:, e[4]] - X[:, e[1]]]) / 6
+                for e in eachcol(m.IEN)]
         @test all(>(0), vols)
         @test sum(vols) ≈ π * 30^2 * 40 rtol=0.02
         @test all(abs.(X[3, m.bottom_nodes] .- 4.685) .< 1e-9)
         @test all(abs(cylinder_sd(X[:, a]...)) < 1.0 for a in unique(vec(m.IEN_free[1:3, :])))
-        cap = sum(norm(cross(X[:, f[2]] - X[:, f[1]], X[:, f[3]] - X[:, f[1]])) / 2 for f in eachcol(m.IEN_bottom))
+        cap = sum(norm(cross(X[:, f[2]] - X[:, f[1]], X[:, f[3]] - X[:, f[1]])) / 2
+                  for f in eachcol(m.IEN_bottom))
         @test π * 29^2 < cap < π * 30^2
     end
 
@@ -140,7 +148,8 @@ end
     @testset "noisy field: σ = $σ voxel, top at z = $top" for (σ, top) in ((0.1, 44.3), (0.3, 44.685))
         m = mesh_from_field(noisy_cylinder(σ; top)...; table_z=4.685, elem_size=6.0, basis_order=1)
         X = m.NodeList
-        vols = [det([X[:, e[2]] - X[:, e[1]] X[:, e[3]] - X[:, e[1]] X[:, e[4]] - X[:, e[1]]]) / 6 for e in eachcol(m.IEN)]
+        vols = [det([X[:, e[2]] - X[:, e[1]] X[:, e[3]] - X[:, e[1]] X[:, e[4]] - X[:, e[1]]]) / 6
+                for e in eachcol(m.IEN)]
         @test all(>(0), vols)
         @test sum(vols) ≈ π * 30^2 * (top - 4.685) rtol=0.03
     end

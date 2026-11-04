@@ -14,7 +14,8 @@ end
 
 # Uniaxial compression between frictionless plates: u_z = ε z, u_r = -ν ε r, F = E A ε.
 function uniaxial(X::Matrix{Float64}, ε::Float64, ν::Float64)
-    c = [(minimum(X[1, :]) + maximum(X[1, :])) / 2, (minimum(X[2, :]) + maximum(X[2, :])) / 2, minimum(X[3, :])]
+    c = [(minimum(X[1, :]) + maximum(X[1, :])) / 2, (minimum(X[2, :]) + maximum(X[2, :])) / 2,
+         minimum(X[3, :])]
     return [-ν * ε, -ν * ε, ε] .* (X .- c)
 end
 
@@ -34,8 +35,8 @@ end
         nN, ngp = size(mesh.IEN, 1), length(cache.w)
         λ, μ = 2.0, 0.7
         KK, KL = zeros((3nN)^2), zeros((3nN)^2)
-        smearFEM._element_matrices!(KK, KL, zeros(3, nN), zeros(ngp, 3, nN), zeros(ngp, 3, nN), 1, X, mesh.IEN,
-                                    cache.ΔN, cache.w, λ, μ)
+        smearFEM._element_matrices!(KK, KL, zeros(3, nN), zeros(ngp, 3, nN), zeros(ngp, 3, nN), 1, X,
+                                    mesh.IEN, cache.ΔN, cache.w, λ, μ)
         C = get_c_mat(λ, μ; type="lame")
         Kref = zeros(3nN, 3nN)
         for gp in 1:ngp
@@ -83,12 +84,14 @@ end
         @test mdl.mesh.initial_state == X            # the solve never wrote into the initial state
     end
 
-    @testset "sensitivities match finite differences ($control)" for (control, c) in (("force", -2.0), ("displacement", -0.2))
+    @testset "sensitivities match finite differences ($control)" for (control, c) in
+            (("force", -2.0), ("displacement", -0.2))
         mesh = meshgrid_cylinder(25.0, 40.0; element_shape=:Hex, basis_order=2, ne=3)
         λ, μ = lame_parameters(10.0, 0.35)
         β = 0.5
         θ = [λ, μ, β]
-        squeeze(p; sens=false) = simulate(LinearElasticity(mesh=mesh, λ=p[1], μ=p[2]), [c]; control=control, β=p[3], sensitivities=sens)
+        squeeze(p; sens=false) = simulate(LinearElasticity(mesh=mesh, λ=p[1], μ=p[2]), [c];
+                                          control=control, β=p[3], sensitivities=sens)
         g = squeeze(θ; sens=true).grad3D[end]
         for j in 1:3
             h = 1e-6 * θ[j]
@@ -117,7 +120,8 @@ end
     # Normal strains plus a rigid rotation about z: zero shear stress on every axis-aligned face,
     # so normal displacements on the top and sides (traction-free tangentially) and the table
     # reproduce the field exactly on any mesh.
-    @testset "volume update reproduces a linear field ($shape$order)" for (shape, order) in ((:Hex, 2), (:Tet, 1), (:Tet, 2))
+    @testset "volume update reproduces a linear field ($shape$order)" for (shape, order) in
+            ((:Hex, 2), (:Tet, 1), (:Tet, 2))
         mesh = test_box(shape, order)
         X = mesh.NodeList
         G = [0.01 -0.004 0.0; 0.004 -0.006 0.0; 0.0 0.0 -0.02]

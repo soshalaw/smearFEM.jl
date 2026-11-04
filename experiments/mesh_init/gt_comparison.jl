@@ -48,7 +48,8 @@ function main(h5::AbstractString, out_dir::AbstractString; step::Int=0, table_z=
     if isnothing(table_z)
         table_z = h5open(h5) do f
             haskey(attributes(f), "table_z") ||
-                error("$h5 has no table_z attribute (written before perception recorded it): pass table_z [mm]")
+                error("$h5 has no table_z attribute (written before perception recorded it): " *
+                      "pass table_z [mm]")
             1e3 * read(attributes(f)["table_z"])   # m → mm
         end
     end
@@ -56,7 +57,8 @@ function main(h5::AbstractString, out_dir::AbstractString; step::Int=0, table_z=
     X = mesh.NodeList
     volume = sum(det(X[:, e[2:4]] .- X[:, e[1]]) for e in eachcol(mesh.IEN)) / 6
     obj = export_boundary_obj(mesh, joinpath(out_dir, "observed_$(lpad(step, 3, '0')).obj"))
-    @info "step $step, table at z = $(round(table_z, digits=3)) mm: Tet$basis_order mesh, $(mesh.nNodes) nodes, " *
+    @info "step $step, table at z = $(round(table_z, digits=3)) mm: " *
+          "Tet$basis_order mesh, $(mesh.nNodes) nodes, " *
           "$(mesh.ne) tets, volume $(round(volume, digits=1)) mm³"
     @info "boundary: $obj; compare it with the GT in smearPerception (env smear_ros):\n" *
           "  python tools/analysis/compare_mesh_gt.py $obj <sim data dir> --step $step"

@@ -20,7 +20,8 @@ function _gmsh_initialize()
 end
 
 """
-    _get_elements_for_physical(name::String, dim::Int, tag_to_index::Dict{UInt64,Int}) -> Matrix{Int} or nothing
+    _get_elements_for_physical(name::String, dim::Int, tag_to_index::Dict{UInt64,Int})
+        -> Matrix{Int} or nothing
 
 Return the element connectivity for the named physical group as a matrix of remapped
 node indices, or `nothing` if the group is not found.
@@ -101,7 +102,8 @@ function _get_nodes_from_physical(name, dim, tag_to_index::Dict{UInt64,Int})
 end
 
 """
-    _get_nodes_from_physical_with_boundary(name::String, dim::Int, tag_to_index::Dict{UInt64,Int}) -> Vector{Int} or nothing
+    _get_nodes_from_physical_with_boundary(name::String, dim::Int, tag_to_index::Dict{UInt64,Int})
+        -> Vector{Int} or nothing
 
 Like `_get_nodes_from_physical` but also includes nodes on the lower-dimensional
 boundary entities of the group, ensuring no boundary nodes are omitted.
@@ -150,14 +152,16 @@ are supplied.
 **Thread-safety**: all Gmsh API calls are serialized via `GMSH_LOCK`.
 
 # Keyword Arguments
-- `params::Union{Dict{String,<:Any},Nothing}=nothing`: substitution dict for `_generate_mesh_geo` (required for auto-generation).
+- `params::Union{Dict{String,<:Any},Nothing}=nothing`: substitution dict for `_generate_mesh_geo`
+  (required for auto-generation).
 - `template_path::Union{String,Nothing}=nothing`: path to the `.geo` template (required for auto-generation).
 - `mesh_order::Int=2`: element order passed to gmsh.
 - `mesh_dim::Int=3`: meshing dimension passed to gmsh CLI (1, 2, or 3).
 - `body_group::String="Volume"`: name of the body physical group.
 - `body_dim::Int=3`: spatial dimension of the body group (3=volume, 2=surface, 1=curve).
 - `face_groups::Vector{String}=["Top","Bottom","Lateral"]`: face physical group names (at `body_dim-1`).
-- `node_set_groups::Vector{String}=["Top","Bottom","Lateral"]`: physical group names to extract node index sets from.
+- `node_set_groups::Vector{String}=["Top","Bottom","Lateral"]`: physical group names to extract node
+  index sets from.
 
 # Returns
 - `NodeList::Matrix{Float64}`: 3×nNodes coordinate matrix.
@@ -180,7 +184,8 @@ function _get_mesh_data(filePath::String;
         lock(GMSH_GENERATE_LOCK) do
             if !isfile(filePath)
                 if isnothing(params) || isnothing(template_path)
-                    error("Mesh '$filePath' not found. Provide `params` and `template_path` for auto-generation.")
+                    error("Mesh '$filePath' not found. " *
+                          "Provide `params` and `template_path` for auto-generation.")
                 end
                 geo_path = splitext(filePath)[1] * ".geo"
                 @debug "Generated mesh file path: $geo_path"
@@ -218,7 +223,8 @@ function _get_mesh_data(filePath::String;
         # Remap body IEN node ordering to smearFEM convention
         npe = size(IEN_body, 2)
         body_map = if npe == 27        # Q2 hex
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 14, 10, 17, 19, 20, 18, 11, 13, 15, 16, 22, 24, 25, 23, 21, 26, 27]
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 14, 10, 17, 19, 20, 18,
+             11, 13, 15, 16, 22, 24, 25, 23, 21, 26, 27]
         elseif npe == 10               # T2 tet
             [1, 2, 3, 4, 5, 6, 7, 8, 10, 9]
         else                           # identity (Q1 hex, T1 tet, quads, tris, lines)
