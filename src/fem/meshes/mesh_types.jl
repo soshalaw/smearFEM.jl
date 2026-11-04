@@ -1,6 +1,12 @@
 # abstract type Mesh end
 using ArgCheck
 
+# DOF numbering of a mesh: DOF l of node m is ndof*(m-1) + l.
+_dof_ids(ndof::Int, nNodes::Int) = reshape(collect(1:ndof*nNodes), ndof, nNodes)
+
+# A `.geo` template shipped in the repository's `mesh_files/templates/`.
+_template_path(name::String) = joinpath(dirname(dirname(dirname(@__DIR__))), "mesh_files", "templates", name)
+
 function _surface_element_shape(vol_shape::Symbol)
     vol_shape == :Hex  && return :Quad
     vol_shape == :Tet  && return :Tri

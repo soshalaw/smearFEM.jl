@@ -191,6 +191,6 @@ function volume_update!(mdl::LinearElasticity, nodes::Vector{Int}, normals::Matr
     for a in 1:nN
         rotated[a] && (u[:, a] = view(Q, :, :, a) * u[:, a])
     end
-    mesh.NodeList = X + u           # a new array: the mesh's initial state may alias NodeList
+    mesh.NodeList = X + u           # a new array: callers may hold the old one (e.g. simulate's pos3D)
     return u
 end

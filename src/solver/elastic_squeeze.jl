@@ -162,7 +162,7 @@ function simulate(mdl::LinearElasticity, cParam::Vector{Float64}; control::Strin
         u .*= c
         push!(plate, displacement_control ? c * dot(col, view(z, view(sys.K.rowval, sq.plate_col))) : c * z[n])
         push!(displacement, copy(u))
-        X = X + u                 # a new array: the mesh's initial state may alias NodeList
+        X = X + u                 # a new array: pos3D keeps every state
         push!(pos3D, X)
 
         if sensitivities

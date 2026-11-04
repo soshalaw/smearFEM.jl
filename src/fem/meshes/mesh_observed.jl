@@ -41,13 +41,13 @@ function mesh_from_field(phi::AbstractArray{<:Real,3}, grid::PerceptionGrid; tab
     _write_surface_msh(joinpath(out_dir, "surface.msh"), V, T, on_cap)
     mesh_path = joinpath(out_dir, "observed.msh")
     rm(mesh_path; force=true)   # _get_mesh_data meshes only when the file is missing
-    template = joinpath(dirname(dirname(dirname(@__DIR__))), "mesh_files", "templates", "observed_tet.geo")
+    template = _template_path("observed_tet.geo")
     NodeList, IEN, face_IENs, nNodes, node_sets, ne = _get_mesh_data(mesh_path;
         params=Dict{String,Any}("elem_size" => Float64(elem_size)), template_path=template,
         mesh_order=basis_order, mesh_dim=3, body_group="Volume", body_dim=3,
         face_groups=["Bottom", "Free"], node_set_groups=["Bottom", "Free"])
     return MeshgridObserved(NodeList=NodeList, IEN=IEN, IEN_bottom=face_IENs[1], IEN_free=face_IENs[2],
-        ID=reshape(collect(1:3nNodes), 3, nNodes), basis_order=basis_order, nNodes=nNodes, ne=ne,
+        ID=_dof_ids(3, nNodes), basis_order=basis_order, nNodes=nNodes, ne=ne,
         bottom_nodes=node_sets[1], free_nodes=node_sets[2], effect_elem_sze=Float64(elem_size))
 end
 

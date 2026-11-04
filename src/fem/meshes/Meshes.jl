@@ -38,13 +38,7 @@ function meshgrid_cylinder(r::T, h::U;
         isnothing(ne) && throw(ArgumentError("`ne` is required for mesh_type=:structured"))
         mesh = _meshgrid_cylinder(r, h, ne; element_shape=element_shape, basis_order=basis_order)
         mesh.effect_elem_sze = (Float64(r)^2 * Float64(h) * π)^(1/3) / ne
-        if ndof != 3
-            new_ID = zeros(Int64, ndof, mesh.nNodes)
-            for m in 1:mesh.nNodes, l in 1:ndof
-                new_ID[l, m] = ndof*(m-1) + l
-            end
-            mesh.ID = new_ID
-        end
+        mesh.ID = _dof_ids(ndof, mesh.nNodes)
         return mesh
     elseif mesh_type == :unstructured
         isnothing(mesh_path) && throw(ArgumentError("`mesh_path` is required for mesh_type=:unstructured"))
@@ -97,10 +91,7 @@ function meshgrid_cuboid(lx::T, ly::U, lz::V;
         isnothing(ne) && throw(ArgumentError("`ne` is required for mesh_type=:structured"))
         NodeList, IEN, _, IEN_top, IEN_bottom, _, _, BorderNodes = _meshgrid_cuboid(lx, ly, lz, ne; element_shape=element_shape, basis_order=basis_order)
         total_nodes = size(NodeList, 2)
-        ID = zeros(Int64, ndof, total_nodes)
-        for m in 1:total_nodes, l in 1:ndof
-            ID[l, m] = ndof*(m-1) + l
-        end
+        ID = _dof_ids(ndof, total_nodes)
         empty_mat = Matrix{Int}(undef, 0, 0)
         return MeshgridCuboid(lx=lx, ly=ly, lz=lz, NodeList=NodeList, IEN=IEN,
             IEN_top=IEN_top, IEN_bottom=IEN_bottom,
@@ -157,10 +148,7 @@ function meshgrid_square(lx::X, ly::Y;
         NodeList, IEN, _, IEN_top, IEN_bottom, BorderNodes =
             _meshgrid_square(lx, ly, ne; element_shape=element_shape, basis_order=basis_order)
         total_nodes = size(NodeList, 2)
-        ID = zeros(Int64, ndof, total_nodes)
-        for m in 1:total_nodes, l in 1:ndof
-            ID[l, m] = ndof*(m-1) + l
-        end
+        ID = _dof_ids(ndof, total_nodes)
         empty_mat = Matrix{Int}(undef, 0, 0)
         return MeshgridSquare(lx=lx, ly=ly, NodeList=NodeList, IEN=IEN,
             IEN_top=IEN_top, IEN_bottom=IEN_bottom,
@@ -244,10 +232,7 @@ function meshgrid_line(l::T;
         isnothing(ne) && throw(ArgumentError("`ne` is required for mesh_type=:structured"))
         NodeList, IEN, boundary_nodes = _meshgrid_line(l, ne; element_shape=element_shape, basis_order=basis_order)
         total_nodes = size(NodeList, 2)
-        ID = zeros(Int64, ndof, total_nodes)
-        for m in 1:total_nodes, dof in 1:ndof
-            ID[dof, m] = ndof*(m-1) + dof
-        end
+        ID = _dof_ids(ndof, total_nodes)
         return MeshgridLine(lx=l, NodeList=NodeList, IEN=IEN, ID=ID,
             volume_element_shape=element_shape, basis_order=basis_order,
             nNodes=total_nodes, ne=ne, boundary_nodes=boundary_nodes,
@@ -264,13 +249,14 @@ end
 """
     reset_mesh!(mesh::AbstractMeshgrid)
 
-Reset the mesh to its initial state by updating the `NodeList` to the initial state of the mesh.
+Reset the mesh to its initial state: `NodeList` becomes a copy of `initial_state`, so changing it
+in place leaves the initial state intact.
 
 # Arguments:
 - `mesh::AbstractMeshgrid`: The mesh object to be reset.
 """
 function reset_mesh!(mesh::T) where {T<:AbstractMeshgrid}
-    mesh.NodeList = mesh.initial_state
+    mesh.NodeList = copy(mesh.initial_state)
 end
 
 """

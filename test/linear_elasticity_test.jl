@@ -136,6 +136,10 @@ end
         @test maximum(abs.(u - ua)) < 1e-12
         @test mdl.mesh.NodeList ≈ X + u
         @test mdl.mesh.initial_state == X
+        # the reset geometry is a copy: changing it in place keeps the initial state
+        reset_model!(mdl)
+        mdl.mesh.NodeList .+= 1.0
+        @test mdl.mesh.initial_state == X
         # only Poisson's ratio matters
         reset_model!(mdl)
         mdl.λ, mdl.μ = lame_parameters(1e3, 0.3)

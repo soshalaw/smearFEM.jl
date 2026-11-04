@@ -1,13 +1,12 @@
 function _get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, element_shape::Symbol=:Hex, basis_order::Int=1, elem_size::Union{Float64,Nothing}=nothing;
                            template_path::Union{String,Nothing}=nothing) where {T<:Number,U<:Number}
     @debug "Reading cylinder mesh from $file_path"
-    mesh_dir = joinpath(dirname(dirname(dirname(@__DIR__))), "mesh_files")
     if isnothing(template_path)
         templates = Dict(:Tet => "cylinder_tet.geo", :Hex => "cylinder_hex.geo")
         haskey(templates, element_shape) ||
             throw(ArgumentError("Unknown element shape $element_shape for cylinder mesh. " *
                                 "Supported: $(join(keys(templates), ", "))"))
-        template_path = joinpath(mesh_dir, "templates", templates[element_shape])
+        template_path = _template_path(templates[element_shape])
     end
 
     # `elem_size` is the number of elements along the height here, not a length
@@ -27,12 +26,7 @@ function _get_gmsh_cylinder(file_path::String, ndof::Int, r::T, h::U, element_sh
     nodes_bottom  = something(node_sets[2], Int[])
     nodes_top     = something(node_sets[3], Int[])
 
-    ID = zeros(Int64, ndof, nNodes)
-    for m in 1:nNodes
-        for l in 1:ndof
-            ID[l,m] = ndof*(m-1) + l
-        end
-    end
+    ID = _dof_ids(ndof, nNodes)
 
     mesh = MeshgridCylinder(r=r, h=h, NodeList=NodeList, IEN=IEN, IEN_top=IEN_top, IEN_bottom=IEN_bottom, ID=ID,
             volume_element_shape=element_shape, basis_order=basis_order,
@@ -58,17 +52,9 @@ function _get_gmsh_box(file_path::String, ndof::Int, lx::T, ly::U, lz::V,
 
     @info "Reading box mesh from $file_path"
     effective_r = something(edge_radius, 0.0)
-    mesh_dir = joinpath(dirname(dirname(dirname(@__DIR__))), "mesh_files")
     if isnothing(template_path)
-        if element_shape == :Tet
-            template_path = effective_r == 0.0 ?
-                joinpath(mesh_dir, "templates", "box_tet_sharp.geo") :
-                joinpath(mesh_dir, "templates", "box_tet.geo")
-        else
-            template_path = effective_r == 0.0 ?
-                joinpath(mesh_dir, "templates", "box_hex_sharp.geo") :
-                joinpath(mesh_dir, "templates", "box_hex.geo")
-        end
+        shape = element_shape == :Tet ? "tet" : "hex"
+        template_path = _template_path(effective_r == 0.0 ? "box_$(shape)_sharp.geo" : "box_$(shape).geo")
     end
 
     # `elem_size` is the number of elements along the height here, not a length
@@ -95,10 +81,7 @@ function _get_gmsh_box(file_path::String, ndof::Int, lx::T, ly::U, lz::V,
     nodes_bottom  = something(node_sets[5], Int[])
     nodes_top     = something(node_sets[6], Int[])
 
-    ID = zeros(Int64, ndof, nNodes)
-    for m in 1:nNodes, l in 1:ndof
-        ID[l,m] = ndof*(m-1) + l
-    end
+    ID = _dof_ids(ndof, nNodes)
 
     empty_mat = Matrix{Int}(undef,0,0)
     return MeshgridCuboid(lx=lx, ly=ly, lz=lz, NodeList=NodeList, IEN=IEN,
@@ -125,11 +108,8 @@ function _get_gmsh_square(file_path::String, ndof::Int, lx::T, ly::U,
                          elem_size::Union{Float64,Nothing}=nothing;
                          template_path::Union{String,Nothing}=nothing) where {T<:Number,U<:Number}
     @info "Reading square mesh from $file_path"
-    mesh_dir = joinpath(dirname(dirname(dirname(@__DIR__))), "mesh_files")
     if isnothing(template_path)
-        template_path = element_shape == :Tri ?
-            joinpath(mesh_dir, "templates", "square_tri.geo") :
-            joinpath(mesh_dir, "templates", "square_quad.geo")
+        template_path = _template_path(element_shape == :Tri ? "square_tri.geo" : "square_quad.geo")
     end
 
     mesh_params = isnothing(elem_size) ? nothing :
@@ -153,10 +133,7 @@ function _get_gmsh_square(file_path::String, ndof::Int, lx::T, ly::U,
     nodes_bottom  = something(node_sets[2], Int[])
     nodes_top     = something(node_sets[3], Int[])
 
-    ID = zeros(Int64, ndof, nNodes)
-    for m in 1:nNodes, l in 1:ndof
-        ID[l,m] = ndof*(m-1) + l
-    end
+    ID = _dof_ids(ndof, nNodes)
 
     return MeshgridSquare(lx=lx, ly=ly, NodeList=NodeList, IEN=IEN,
         IEN_top=something(IEN_top, Matrix{Int}(undef,0,0)),
@@ -179,11 +156,8 @@ function _get_gmsh_disk(file_path::String, ndof::Int, r::T,
                        elem_size::Union{Float64,Nothing}=nothing;
                        template_path::Union{String,Nothing}=nothing) where {T<:Number}
     @info "Reading disk mesh from $file_path"
-    mesh_dir = joinpath(dirname(dirname(dirname(@__DIR__))), "mesh_files")
     if isnothing(template_path)
-        template_path = element_shape == :Quad ?
-            joinpath(mesh_dir, "templates", "disk_quad.geo") :
-            joinpath(mesh_dir, "templates", "disk_tri.geo")
+        template_path = _template_path(element_shape == :Quad ? "disk_quad.geo" : "disk_tri.geo")
     end
 
     mesh_params = isnothing(elem_size) ? nothing :
@@ -199,10 +173,7 @@ function _get_gmsh_disk(file_path::String, ndof::Int, r::T,
     IEN_boundary   = something(face_IENs[1], Matrix{Int}(undef,0,0))
     boundary_nodes = something(node_sets[1], Int[])
 
-    ID = zeros(Int64, ndof, nNodes)
-    for m in 1:nNodes, l in 1:ndof
-        ID[l,m] = ndof*(m-1) + l
-    end
+    ID = _dof_ids(ndof, nNodes)
 
     return MeshgridDisk(r=r, NodeList=NodeList, IEN=IEN,
         IEN_boundary=IEN_boundary, ID=ID,
@@ -222,8 +193,7 @@ function _get_gmsh_line(file_path::String, ndof::Int, len::T,
                        elem_size::Union{Float64,Nothing}=nothing;
                        template_path::Union{String,Nothing}=nothing) where {T<:Number}
     @info "Reading line mesh from $file_path"
-    mesh_dir = joinpath(dirname(dirname(dirname(@__DIR__))), "mesh_files")
-    isnothing(template_path) && (template_path = joinpath(mesh_dir, "templates", "line.geo"))
+    isnothing(template_path) && (template_path = _template_path("line.geo"))
 
     mesh_params = isnothing(elem_size) ? nothing :
         Dict{String,Any}("length" => Float64(len), "elem_size" => Float64(elem_size))
@@ -237,10 +207,7 @@ function _get_gmsh_line(file_path::String, ndof::Int, len::T,
 
     boundary_nodes = sort(vcat(something(node_sets[1], Int[]), something(node_sets[2], Int[])))
 
-    ID = zeros(Int64, ndof, nNodes)
-    for m in 1:nNodes, l in 1:ndof
-        ID[l,m] = ndof*(m-1) + l
-    end
+    ID = _dof_ids(ndof, nNodes)
 
     return MeshgridLine(lx=len, NodeList=NodeList, IEN=IEN, ID=ID,
         volume_element_shape=element_shape, basis_order=basis_order,
