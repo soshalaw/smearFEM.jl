@@ -39,7 +39,8 @@ This `claud_docs/` is untracked and shared by every branch in the working copy. 
 decision): no `Stokes`, `SqueezeFlow`, `def_problem`, `fit_model`, cost functions, replicate
 statistics, geometry wrapper types, or their tests/experiments. Most sections below describe the
 Stokes line (`main`/`features/realtime_solver`) and do NOT apply there. What does:
-meshes, `fem.jl`, PostProcess, io, config, `sparse_lu.jl`, the Gmsh gotchas, units, simplex weights.
+meshes, `fem.jl`, io, config, `sparse_lu.jl`, the Gmsh gotchas, units, simplex weights. (PostProcess.jl
+is gone from `features/volume_update` since 2026-11-04; see the cleanup section below.)
 
 On that branch: `LinearElasticity(; mesh, λ, μ)` (kPa), `lame_parameters(E, ν)`;
 `simulate(mdl, cParam; control="force"|"displacement", β, sensitivities=false)` (squeeze between
@@ -148,6 +149,35 @@ bags put the specimen on the plate top (Carreau/5: 4.685 mm, perception's `table
   hollow with only the "cut flat" warning; a too-short grid errors "not closed" before the boundary warning;
   `table_z` within ~0.005Δ below a voxel plane lets the snap mark upward rim triangles as cap; the rim's Gmsh
   point node is in neither `bottom_nodes` nor `free_nodes`; the cap at half the RAM may still swap a busy desktop.
+
+## Cleanup of `features/volume_update` (2026-11-04) — what moved
+
+Owner-approved pass (archive dead code, fix stale docs, remove duplication, readability). Details and
+findings: `memory.md`, 2026-11-04. Results bit-identical before/after (meshes of every generator, simulate,
+volume_update!).
+- **Archived** on the local branch `archive/dead_code` (= e01e4c0, plus `ARCHIVE.md` listing what went, not
+  pushed): `src/fem/PostProcess.jl`, `src/fem/types.jl` (`Conditions`, `EnvConditions`), `Model{T}`,
+  brute-force `hausdorff_distance`/`chamfer_distance`, the `_set_cam_frame` matrix method, and the deps
+  ConvexHulls2d, DataInterpolations, ElasticArrays (Aqua's stale-deps check fails on an unloaded dep).
+  `git checkout archive/dead_code -- <path>` restores a file.
+- **Moved:** `rearrange` → `src/io/io.jl` (still exported); `_set_cam_frame` (vector method) →
+  `src/io/plotting.jl`. docs/src/api.md has no PostProcess section any more.
+- **New helpers** (`src/fem/meshes/mesh_types.jl`): `_dof_ids(ndof, nNodes)` (the ID matrix, DOF l of node m
+  = ndof(m−1)+l) and `_template_path(name)` (`mesh_files/templates/<name>`). Use them; don't recopy the loop.
+- **`_meshgrid_cuboid`** (`mesh_structured.jl`) = `_cuboid_nodes` + `_cuboid_connectivity` +
+  `_cuboid_faces` over `_HEX_LOCAL_NODES` / `_HEX_BOTTOM_FACE` / `_HEX_TOP_FACE` (order 1–3). Hex only:
+  `element_shape` is ignored, so a structured `:Tet` request returns hexes labelled `:Tet`.
+- **`elem_size` of Gmsh cylinders and boxes is a COUNT** (the templates' `nz`, elements along the height),
+  not a length: 6.0 → ~6.7 mm on h = 40. Squares, disks, lines and `mesh_from_field` take a length.
+  `effect_elem_sze` stores whatever was passed. The keyword keeps its name (public API).
+- **`reset_mesh!` copies `initial_state`** (it used to alias it). The solver still builds a new array for
+  each geometry on purpose: `simulate`'s `pos3D` and callers hold the old ones.
+- Lines ≤ 110 characters in the branch's files, except `src/io/perception_link.jl` (a change there needs
+  smearPerception's `tests/test_fe_link_julia.py`).
+- Running the tests inside Claude Code's sandbox: `~/.julia` is read-only, so stack a scratch depot,
+  `JULIA_DEPOT_PATH="$TMPDIR/depot:$HOME/.julia:" julia --project -e 'using Pkg; Pkg.test()'` (277/277,
+  ~1.5 min). `test/perception_link_test.jl` gives 45/46 there: its socket testset uses `/tmp`, read-only in
+  the sandbox (EROFS); it passes outside.
 
 ## Commands
 
@@ -599,7 +629,7 @@ deleted, see the item), #11
 2. **`q_d` round-trips through dense.** Declared `Dict{Symbol, Matrix{Float64}}`, so the
    constructor densifies each `SparseMatrixCSC`; the solver then re-annotates them as
    `SparseMatrixCSC{Bool,Int64}` (`stokes_solver.jl:712-714`). Two pointless conversions per solve.
-3. `get_c_mat`'s docstring signature is stale — shows `(type; λ, μ, Young, ν)`, actual is
+3. FIXED on `features/volume_update` 2026-11-04. `get_c_mat`'s docstring signature is stale — shows `(type; λ, μ, Young, ν)`, actual is
    `(c1, c2; type="lame")`.
 4. `smearFEM.jl`'s export comment places `plot_covariance!` in `analysis_plots.jl`; it is in
    `plotting.jl`.

@@ -2023,3 +2023,59 @@ repos, docs), both Opus, read-only, Gmsh only under a memory cap. Both: "with fi
 - Correction to the entry above: the OBJ precision limit (5e-4 mm) applies to OBJs written by Open3D at
   |x| ≥ 100 mm (6 significant digits); the Julia-written observed OBJ and the VTK-written GT resolve ~4e-6 mm
   (Open3D reads float32).
+
+## 2026-11-04 — cleanup of `features/volume_update`: dead code archived, stale docs, duplication, readability
+
+Owner approved: (a) dead code to an archive branch, (b) stale docs and small bugs, (c) duplication,
+(d) readability; the solver/volume-update method is the owner's, refactored only where the result stays
+identical. Commits on `features/volume_update` (not pushed): 4d711a8 [REMOVE], 5b2c289 [FIX], a59d480 [CHANGE]
+helpers, 5bd2b33 [CHANGE] readability. Archive: local branch `archive/dead_code` = e01e4c0 + 6a7e31d
+(`ARCHIVE.md`), not pushed.
+
+- **Verification.** `Pkg.test()` 274/274 before, 277/277 after (3 new: `reset_mesh!` copy, in a testset that
+  runs for three meshes). `test/perception_link_test.jl` 45/46 before and after; the error is the socket testset,
+  `/tmp` read-only in Claude Code's sandbox (EROFS); not bypassed. A throwaway snapshot script
+  ($TMPDIR, not in the repo) serialized 89 results (`_meshgrid_cuboid` for order 1–3 × ne 1–3 incl. the
+  order-4 error; structured cylinder/box/square/line for orders 1–2, ne 1–3, two ndof; Gmsh cylinder/box/square/
+  disk/line meshes generated afresh; an observed mesh; `rearrange`; `simulate` both controls ± sensitivities,
+  two `volume_update!`, `update_model!` on a Gmsh Hex2 cylinder, a structured box and the observed mesh) and
+  compared with `isequal` + type: identical after every batch. Two baseline runs agreed except
+  `MeshgridCylinder.IEN_sides`, which no generator fills: `Matrix{Int}(undef, 4, 1)`, uninitialised memory.
+- **Archived (no callers on this branch, grep over src/test/experiments/docs/README):** `src/fem/PostProcess.jl`
+  (Stokes camera/contour pipeline; its users were deleted with the Stokes model), `src/fem/types.jl`
+  (`Conditions`, `EnvConditions`), `Model{T}`, the brute-force `hausdorff_distance`/`chamfer_distance` (no
+  caller or test at all; the KDTree versions have no test either). The brief said nothing calls PostProcess.jl:
+  wrong for `_set_cam_frame`, which `_animate_3d` (plotting.jl) uses; its vector method moved there, the
+  4×4-matrix method went (unreachable: `cam_pose` is typed `Vector{Float64}`). `rearrange` moved to io.jl.
+  ConvexHulls2d, DataInterpolations, ElasticArrays left Project.toml ([deps], [compat]): only PostProcess
+  loaded them and Aqua's stale-deps test would fail. The local Manifest (untracked) was not touched; Pkg.test
+  ran with it unchanged.
+- **Docs fixed:** `elem_size` of Gmsh cylinders/boxes is `nz`, elements along the height (templates), so
+  `effect_elem_sze` is a count there and the benchmark's "element size 6.0 mm" was ~6.7 mm; documented in
+  the mesh docstrings, mesh_types, coding_guide, benchmark (log now "6 elements along the height (~6.7 mm)").
+  Keyword not renamed (public, tests/README/examples use it). Stokes leftovers in comments (elastic_squeeze,
+  sparse_lu: the timings are labelled as measured on the former Stokes system; config examples), plotting's
+  "50 %" (code is 10 %), `get_c_mat` signature (deferred #3), `gaussian_quadrature` ("order 2"),
+  `_meshgrid_cylinder`'s `nNodes^3` → `size(NodeList, 2)` (same value). coding_guide.md/README/api.md no longer
+  list the removed files; coding_guide.md is otherwise still Stokes-era (geometries.jl, stokes_solver.jl, ...).
+- **`_as_points_by_rows` not changed:** every caller passes a user array, so no layout is known; documented
+  that a cloud with no more points than coordinates is misread (2 points in 3D always, 3 points in 3D as rows).
+- **Duplication:** `_template_path(name)` (6 copies), `_dof_ids(ndof, nNodes)` (8 loops + mesh_observed's
+  reshape; same values and `Matrix{Int64}`). `reset_mesh!` copies `initial_state`. The alias "workarounds"
+  stay as code: `X = X + u` in `simulate` is needed because `pos3D` keeps every state, and `volume_update!`'s
+  `mesh.NodeList = X + u` because callers hold the old NodeList (the test checks `NodeList === pos3D[end]`);
+  only their comments changed.
+- **Skipped: sharing `_prescribe_plate!` with `volume_update!`'s three loops.** Different data (one unit unknown
+  with precomputed `plate_col`/`plate_row` vs many with `mirror`/`diag`), different order (all right-hand sides
+  first, then zeroing, vs per unknown), and a shared per-unknown helper can flip the sign of zero entries
+  (0.0 − 0.0 vs −x), so bit-identity is not guaranteed; a helper would also change `SqueezePlates`. Small gain.
+- **`_meshgrid_cuboid` split** into `_cuboid_nodes`, `_cuboid_connectivity`, `_cuboid_faces` and per-order
+  tables derived from the old code (Q1/Q2 equal fem.jl's node triples). Two quirks kept, owner to decide:
+  Q3 `IEN_bottom`/`IEN_top` use local nodes 33:36/37:40, which lie inside the element (the face's inner nodes
+  are 49:52/53:56); with ne = 1 `IEN_top` stays all zeros (`if k == 1 … elseif k == ne`). Also: `element_shape`
+  is ignored there, so `meshgrid_cuboid`/`meshgrid_cylinder(...; element_shape=:Tet)` structured returns hexes
+  labelled `:Tet`.
+- **Lines > 110 wrapped** in every .jl file changed vs main except `src/io/perception_link.jl` (rerunning
+  smearPerception's `tests/test_fe_link_julia.py` is required after a change there and needs the other repo).
+- Sandbox: `~/.julia` is read-only; `JULIA_DEPOT_PATH="$TMPDIR/depot:$HOME/.julia:"` works (first run
+  precompiles into the scratch depot). The registry update is refused by the proxy (harmless).
