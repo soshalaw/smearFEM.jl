@@ -139,8 +139,10 @@ bags put the specimen on the plate top (Carreau/5: 4.685 mm, perception's `table
   marching cubes bevels edges, the cap is ~1 voxel smaller in radius); volume −0.51 %. 26 k nodes, 23 s.
 - GT comparison: `experiments/mesh_init/gt_comparison.jl <recon.h5> <out_dir> [elem_size]` writes the
   boundary OBJ; smearPerception's `tools/analysis/compare_mesh_gt.py <obj> <sim dir> --step N` scores it.
-  Carreau/5 itself not run yet: needs `reconstruct_bag.py <bag> out.h5 --gt <sim dir> --save-field
-  --free-space-veto --steps 0 1` first (bag not on the laptop, 2026-11-01).
+  Carreau/5 step 0 first run 2026-11-05 (lab PC; memory.md): fails "not closed" with perception's
+  `--table-cut 2` (the wall's lowest 2 mm unobserved, the interior leaks out); without the cut 29 k nodes,
+  19 k Tet2, boundary->GT p95 0.06 mm, volume −0.33 %, ~5 s warm (Gmsh ~4.5 s). ParaView export:
+  smearPerception `output/mesh_init/mesh_to_vtu.jl` (smearFEM's Tet2 node order = VTK Lagrange tet).
 - Tests: `test/mesh_observed_test.jl` (43, incl. noisy fields) + the Gmsh-cap testset in
   `test/mesh_templates_test.jl`; `Pkg.test()` 274/274 (2026-11-01). Not yet run on CI (branch not pushed);
   there every observed-mesh test goes through gmsh_jll 4.15 in-process: `gh workflow run CI.yml --ref

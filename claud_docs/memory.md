@@ -2079,3 +2079,21 @@ helpers, 5bd2b33 [CHANGE] readability. Archive: local branch `archive/dead_code`
   smearPerception's `tests/test_fe_link_julia.py` is required after a change there and needs the other repo).
 - Sandbox: `~/.julia` is read-only; `JULIA_DEPOT_PATH="$TMPDIR/depot:$HOME/.julia:"` works (first run
   precompiles into the scratch depot). The registry update is refused by the proxy (harmless).
+
+## 2026-11-05 — first `mesh_from_field` on Carreau/5 (step 0), table-cut gap, timings
+
+- Owner: the FE mesh is needed only at step 0. Input: smearPerception `output/mesh_init/carreau5_*.h5`
+  (`reconstruct_bag.py --save-field`, steps 0–1, p2p, mu 3.137, cap 7, veto, drop-off).
+- With perception's `--table-cut 2`, `_close_field` errors "not closed" (ring slices z 7–43 mm): depth points
+  below table + 2 mm are dropped, so the wall's lowest 2 mm (z layers 5, 6 mm; table 4.685) are unobserved and
+  the interior connects to the outside under the wall. The code predates the table cut. Owner: drop the cut for
+  now. Proposed fix, not done: extrude the lowest observed wall down to the table in `_close_field`.
+- Without the cut: 29 385 nodes, 19 328 Tet2, volume 78 220 vs GT 78 477 mm³ (−0.33 %); compare_mesh_gt:
+  observed->GT p95 0.059 / max 0.284 mm, GT->observed p95 0.536 / max 1.129 (rims). Quality 6√2V/l_rms³ min
+  0.24, median 0.77. Warm timing: close 0.03 s, marching cubes 0.4 s, Gmsh ≈ 4.5 s; first call +9 s compile.
+- Owner asked whether Gmsh is the most efficient route: faster ones exist (TetGen on the MC surface,
+  isosurface stuffing — Labelle & Shewchuk 2007, CGAL Mesh_3), but a one-off ~5 s at t = 0 is not on the
+  critical path; recommended keeping Gmsh unless remeshing during a run is needed.
+- `systemd-run --user --scope` fails inside Claude Code's sandbox ("Failed to connect to bus"): run outside.
+- Tet2 node order: smearFEM's (Gmsh's with 9↔10 swapped) equals VTK Lagrange tet order (edges 12, 23, 13, 14,
+  24, 34), checked by mid-node positions in smearPerception's `output/mesh_init/mesh_to_vtu.jl`.
