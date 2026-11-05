@@ -2097,3 +2097,34 @@ helpers, 5bd2b33 [CHANGE] readability. Archive: local branch `archive/dead_code`
 - `systemd-run --user --scope` fails inside Claude Code's sandbox ("Failed to connect to bus"): run outside.
 - Tet2 node order: smearFEM's (Gmsh's with 9↔10 swapped) equals VTK Lagrange tet order (edges 12, 23, 13, 14,
   24, 34), checked by mid-node positions in smearPerception's `output/mesh_init/mesh_to_vtu.jl`.
+
+## 2026-11-05 (later) — forward Stokes on the observed step-0 mesh: branch `features/observed_forward`
+
+Owner: before the volume update, run the forward simulation on the mesh from the initial observation
+(Carreau/5) and compare h as in the convergence analysis. Owner's choices: new branch off
+`features/realtime_solver` (Stokes lives there only); top-plate nodes marked at initialization as the FE
+code does (set_boundary_cond: z == max z plate, z == 0 table); runs at 6.7 mm (≈ nz 6) and 3 mm.
+- Worktree `../smearFEM.jl-observed`, branch `features/observed_forward` from d19ff68, NOT committed yet.
+  Brought from volume_update: mesh_observed.jl, perception_link.jl, gmsh_utils.jl (memory cap),
+  observed_tet.geo, MeshgridObserved + `_dof_ids`/`_template_path`; deps MarchingCubes, ImageMorphology,
+  Interpolations, Sockets (Pkg.add preserve=all, compat as volume_update).
+- New [not decided]: `observed_cylinder_meshes(phi, grid; table_z, elem_size, out_dir)` → (mesh_u Tet2 3 DOF,
+  mesh_p Tet1 = the corners of the same tets, mesh_x Tet2): plate height = median over grid columns of the
+  highest upward zero crossing (44.6852 on Carreau/5 = GT 40 mm above the table; the max-z vertex is the rim
+  lip, 0.2–0.45 mm higher); field cut at the plate like at the table (max with the plane); Top as its own Gmsh
+  surface (template `observed_cylinder_tet.geo`, groups Top/Bottom/Lateral as the cylinder templates, so Gmsh
+  keeps the top rim edge); z shifted to table = 0, table/plate nodes snapped exactly (the rim curves' Gmsh
+  point nodes added to the node lists). Geometry `ObservedCylinder(phi, grid, table_z, out_dir)` +
+  `set_model` (no def_problem: it derives η from the power law). Experiment
+  `experiments/mesh_init/forward_observed.jl <sim dir> <out> hex6 tet6 <h5>:<elem> ...`.
+- Run (sim_params η(t), β 10, cParam −1e4, 53.5 s, sensitivities off; out smearPerception
+  `output/mesh_init/forward_carreau5/`, plot `h_vs_t.png`), h vs Carreau h.csv, end RAE / rRMSE / ms per step:
+  hex6 1885 n: +2.05 % / 1.0 % / 23; tet6 2555 n: +2.45 % / 1.2 % / 14;
+  obs d1 e6.67 4194 n: −0.25 % / 0.53 % / 32; obs d0.5 e6.67 4128 n: +0.80 % / 0.29 % / 28;
+  obs d1 e3 32.6 k n: −1.37 % / 0.90 % / 904; obs d0.5 e3 33.5 k n: +0.43 % / 0.15 % / 835.
+- Reading (inferred): the templates' +2 % is this FE/model's own error vs the external Carreau code at nz 6
+  (the GT meshes match h.csv exactly, so they were not made by this replay). Every observed mesh squeezes
+  faster than the template at its size; suspected cause: the bevelled rims shrink the plate/table contact
+  radius by about a voxel (d1 below d0.5 at both sizes). d1 e6.67's −0.25 % is cancellation (coarse
+  stiffness + vs faster squeeze −). Next to separate them: a Tet2 template at 3 mm (nz ≈ 13), contact radii.
+- Gotcha: `@elapsed (x = f())` keeps x local; use time() differences (twice today).
