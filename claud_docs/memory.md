@@ -2104,7 +2104,11 @@ Owner: before the volume update, run the forward simulation on the mesh from the
 (Carreau/5) and compare h as in the convergence analysis. Owner's choices: new branch off
 `features/realtime_solver` (Stokes lives there only); top-plate nodes marked at initialization as the FE
 code does (set_boundary_cond: z == max z plate, z == 0 table); runs at 6.7 mm (≈ nz 6) and 3 mm.
-- Worktree `../smearFEM.jl-observed`, branch `features/observed_forward` from d19ff68, NOT committed yet.
+- Worktree `../smearFEM.jl-observed`, branch `features/observed_forward` from d19ff68. Committed locally
+  for the owner's review (not pushed): 065a494 copied unchanged from volume_update (test file without the
+  volume-update testset), cade90a the new `observed_cylinder_meshes`/`ObservedCylinder`/`set_model` with a
+  plate testset on the analytic TSDF cylinder, e957614 `experiments/mesh_init/forward_observed.jl`.
+  `test/mesh_observed_test.jl`: 55/55 pass (27 s, warm). `p2` closure renamed `tet2_mesh`.
   Brought from volume_update: mesh_observed.jl, perception_link.jl, gmsh_utils.jl (memory cap),
   observed_tet.geo, MeshgridObserved + `_dof_ids`/`_template_path`; deps MarchingCubes, ImageMorphology,
   Interpolations, Sockets (Pkg.add preserve=all, compat as volume_update).
